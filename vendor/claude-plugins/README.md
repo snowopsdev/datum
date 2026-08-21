@@ -12,6 +12,7 @@ Local modifications from upstream:
 
 - The `.cursor-plugin/plugin.json` manifest is converted to Claude Code's `.claude-plugin/plugin.json` format (same fields, different directory).
 - `skills/poteto-mode/SKILL.md`: frontmatter `name` normalized from `Poteto Mode` to `poteto-mode` to satisfy Claude Code's skill-name constraints (lowercase-hyphen, matching the directory).
+- `agents/comment-sicko.md`: frontmatter `name` normalized from `Comment Sicko` to `comment-sicko` (same lowercase-hyphen constraint for custom agents), and the `subagent_type` reference in `skills/no-comments/SKILL.md` updated to match.
 
 Known limitations in Claude Code (the plugin was written for Cursor):
 
