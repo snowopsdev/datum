@@ -40,6 +40,12 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Reports' },
         },
+        templateConfig: {
+          Component: '/components/ops/TemplateConfigView#TemplateConfigView',
+          path: '/ops/templates',
+          exact: true,
+          meta: { title: 'Templates' },
+        },
       },
     },
   },

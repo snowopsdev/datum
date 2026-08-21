@@ -1,14 +1,27 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import React from 'react'
 
 import type { BoardArticle } from './articleStatus'
 import { STATUS_COLUMNS } from './articleStatus'
 import './ops.css'
 
+export type SpendRow = { label: string; usd: number }
+
+export type CostReport = {
+  period: 'week' | 'month' | 'all'
+  periodStart: string | null
+  rowCount: number
+  totalUsd: number
+  byStage: SpendRow[]
+  byModel: SpendRow[]
+}
+
 type Props = {
   articles: BoardArticle[]
+  costs: CostReport
 }
 
 function failureDetails(a: BoardArticle): { fails: string[]; details: string[] } {
@@ -38,7 +51,28 @@ function failureDetails(a: BoardArticle): { fails: string[]; details: string[] }
   return { fails, details }
 }
 
-export function ReportsPanel({ articles }: Props) {
+function BarList({ rows }: { rows: SpendRow[] }) {
+  const max = Math.max(...rows.map((r) => r.usd), 0.01)
+  if (rows.length === 0) {
+    return <p className="datum-ops__sub" style={{ margin: 0 }}>(none in period)</p>
+  }
+  return (
+    <div>
+      {rows.map((r) => (
+        <div className="datum-ops__bar-row" key={r.label}>
+          <span>{r.label}</span>
+          <div className="datum-ops__bar-track">
+            <div className="datum-ops__bar-fill" style={{ width: `${(r.usd / max) * 100}%` }} />
+          </div>
+          <span className="datum-ops__bar-amt">${r.usd.toFixed(4)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function ReportsPanel({ articles, costs }: Props) {
+  const router = useRouter()
   const byStatus = Object.fromEntries(STATUS_COLUMNS.map((c) => [c.id, 0])) as Record<
     string,
     number
@@ -63,6 +97,10 @@ export function ReportsPanel({ articles }: Props) {
   const allSpend = articles.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
   const waste = Math.max(0, allSpend - publishedSpend)
 
+  const setPeriod = (period: CostReport['period']) => {
+    router.push(`/admin/ops/reports?period=${period}`)
+  }
+
   return (
     <div className="datum-ops">
       <div className="datum-ops__header">
@@ -72,15 +110,44 @@ export function ReportsPanel({ articles }: Props) {
         </Link>
       </div>
       <p className="datum-ops__lede">
-        Ops loop first — failure digest jumps into review. Spend figures use article{' '}
-        <code>totalCostUsd</code> (pipeline report remains the CLI source of truth for stage/model
-        breakdown).
+        Ops loop first — failure digest jumps into review. Spend panels read <code>cost-log</code>{' '}
+        (same source as <code>pipeline:report</code>).
       </p>
+
+      <div className="datum-ops__period">
+        <span className="datum-ops__sub" style={{ margin: 0 }}>
+          Cost period
+        </span>
+        <div className="datum-ops__switcher">
+          {(['week', 'month', 'all'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={costs.period === p ? 'is-active' : undefined}
+              onClick={() => setPeriod(p)}
+            >
+              {p === 'all' ? 'All time' : p[0].toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+        {costs.periodStart ? (
+          <span className="datum-ops__sub" style={{ margin: 0 }}>
+            since {costs.periodStart}
+          </span>
+        ) : null}
+      </div>
 
       <div className="datum-ops__metrics">
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Articles</div>
           <div className="datum-ops__metric-value">{articles.length}</div>
+        </div>
+        <div className="datum-ops__metric">
+          <div className="datum-ops__metric-label">Period spend</div>
+          <div className="datum-ops__metric-value">${costs.totalUsd.toFixed(2)}</div>
+          <div className="datum-ops__sub" style={{ margin: 0 }}>
+            {costs.rowCount} cost-log rows
+          </div>
         </div>
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Needs revision</div>
@@ -140,11 +207,7 @@ export function ReportsPanel({ articles }: Props) {
                     >
                       Open review
                     </Link>
-                    <Link
-                      className="datum-ops__btn"
-                      href="/admin/ops/articles"
-                      prefetch={false}
-                    >
+                    <Link className="datum-ops__btn" href="/admin/ops/articles" prefetch={false}>
                       Show on board
                     </Link>
                   </div>
@@ -152,6 +215,20 @@ export function ReportsPanel({ articles }: Props) {
               )
             })
           )}
+        </div>
+      </div>
+
+      <div className="datum-ops__panel">
+        <h2>Spend by stage</h2>
+        <div className="datum-ops__panel-body">
+          <BarList rows={costs.byStage} />
+        </div>
+      </div>
+
+      <div className="datum-ops__panel">
+        <h2>Spend by model</h2>
+        <div className="datum-ops__panel-body">
+          <BarList rows={costs.byModel} />
         </div>
       </div>
 

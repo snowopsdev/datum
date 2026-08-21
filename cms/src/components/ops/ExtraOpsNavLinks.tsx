@@ -15,6 +15,9 @@ export function ExtraOpsNavLinks() {
       <Link className="datum-ops-nav__link" href="/admin/ops/reports" prefetch={false}>
         Reports
       </Link>
+      <Link className="datum-ops-nav__link" href="/admin/ops/templates" prefetch={false}>
+        Templates
+      </Link>
     </div>
   )
 }

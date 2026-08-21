@@ -502,3 +502,179 @@
   color: var(--ops-ink-secondary);
   font-size: 14px;
 }
+
+.datum-ops__ok {
+  color: var(--ops-green);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.datum-ops__period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.datum-ops__switcher {
+  display: inline-flex;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-full);
+  overflow: hidden;
+  background: var(--ops-canvas-soft);
+}
+
+.datum-ops__switcher button {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ops-ink-muted);
+  cursor: pointer;
+}
+
+.datum-ops__switcher button + button {
+  border-left: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__switcher button.is-active {
+  background: var(--ops-primary);
+  color: #fff;
+}
+
+.datum-ops__bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 72px;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.datum-ops__bar-track {
+  height: 8px;
+  background: var(--ops-canvas-soft);
+  border-radius: var(--ops-radius-full);
+  overflow: hidden;
+}
+
+.datum-ops__bar-fill {
+  height: 100%;
+  background: var(--ops-primary);
+  border-radius: var(--ops-radius-full);
+}
+
+.datum-ops__bar-amt {
+  font-size: 13px;
+  text-align: right;
+  color: var(--ops-ink-muted);
+  font-weight: 500;
+}
+
+.datum-ops__tpl {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 480px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  overflow: hidden;
+  background: var(--ops-canvas);
+}
+
+@media (max-width: 800px) {
+  .datum-ops__tpl {
+    grid-template-columns: 1fr;
+  }
+}
+
+.datum-ops__tpl-list {
+  border-right: 1px solid var(--ops-hairline);
+  background: var(--ops-canvas);
+}
+
+.datum-ops__tpl-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--ops-hairline);
+  background: transparent;
+  padding: 14px 16px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.datum-ops__tpl-list button span {
+  display: block;
+  font-size: 12px;
+  color: var(--ops-ink-faint);
+  margin-top: 2px;
+}
+
+.datum-ops__tpl-list button.is-active {
+  background: rgba(0, 117, 222, 0.08);
+  box-shadow: inset 3px 0 0 var(--ops-primary);
+}
+
+.datum-ops__tpl-editor {
+  display: flex;
+  flex-direction: column;
+  background: var(--ops-canvas-soft);
+  min-height: 0;
+}
+
+.datum-ops__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--ops-hairline);
+  background: var(--ops-canvas);
+  padding: 0 12px;
+}
+
+.datum-ops__tabs button {
+  border: 0;
+  background: transparent;
+  padding: 14px;
+  color: var(--ops-ink-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-weight: 500;
+  cursor: pointer;
+  font: inherit;
+}
+
+.datum-ops__tabs button.is-active {
+  color: var(--ops-primary);
+  border-bottom-color: var(--ops-primary);
+  font-weight: 600;
+}
+
+.datum-ops__tab-panel {
+  padding: 24px 28px 40px;
+  overflow-y: auto;
+  flex: 1;
+  max-width: 720px;
+}
+
+.datum-ops__tab-panel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.datum-ops__field input[type='number'],
+.datum-ops__field input[type='text'] {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: var(--ops-radius-xs);
+  padding: 6px 8px;
+  background: var(--ops-canvas);
+  font: inherit;
+}
+
+.datum-ops__field input[type='checkbox'] {
+  margin-right: 6px;
+}

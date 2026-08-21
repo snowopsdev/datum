@@ -59,9 +59,9 @@ export default async function PublishedArticlePage({ params }: Props) {
   return (
     <div className="datum-public">
       <header className="datum-public__top">
-        <a className="datum-public__logo" href="/">
+        <Link className="datum-public__logo" href="/">
           Datum
-        </a>
+        </Link>
       </header>
       <article className="datum-public__article">
         <h1>{article.title || article.keyword}</h1>
