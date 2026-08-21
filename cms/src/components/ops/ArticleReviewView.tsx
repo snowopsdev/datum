@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
 import type { Article, Template } from '../../payload-types'
+import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { ArticleReview } from './ArticleReview'
 import { toBoardArticle } from './articleStatus'
 
@@ -68,6 +69,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
           article={toBoardArticle(article)}
           templates={templates}
           editHref={`/admin/collections/articles/${article.id}`}
+          bodyHtml={lexicalBodyToHtml(article.body)}
         />
       </Gutter>
     </DefaultTemplate>

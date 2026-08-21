@@ -335,6 +335,37 @@
   line-height: 1.5;
 }
 
+.datum-ops__body {
+  color: var(--ops-ink-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.datum-ops__body h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 20px 0 8px;
+  color: var(--ops-ink);
+}
+
+.datum-ops__body h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 16px 0 6px;
+  color: var(--ops-ink);
+}
+
+.datum-ops__body p {
+  margin: 0 0 10px;
+}
+
+.datum-ops__body ul,
+.datum-ops__body ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
 .datum-ops__block {
   border: 1px solid var(--ops-hairline);
   border-radius: var(--ops-radius-lg);

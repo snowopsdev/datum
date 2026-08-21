@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import React from 'react'
 
-import type { Article } from '@/payload-types'
+import { findPublishedArticle } from '@/lib/findPublishedArticle'
 import { lexicalBodyToHtml } from '@/lib/lexicalHtml'
 import '../styles.css'
 import './article.css'
@@ -16,16 +16,7 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const payload = await getPayload({ config })
-  const { docs } = await payload.find({
-    collection: 'articles',
-    where: {
-      and: [{ slug: { equals: slug } }, { status: { equals: 'published' } }],
-    },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const article = docs[0] as Article | undefined
+  const article = await findPublishedArticle(payload, slug)
   if (!article) return { title: 'Not found' }
   return {
     title: article.titleTag || article.title || article.keyword,
@@ -41,16 +32,7 @@ export async function generateMetadata({ params }: Props) {
 export default async function PublishedArticlePage({ params }: Props) {
   const { slug } = await params
   const payload = await getPayload({ config })
-  const { docs } = await payload.find({
-    collection: 'articles',
-    where: {
-      and: [{ slug: { equals: slug } }, { status: { equals: 'published' } }],
-    },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const article = docs[0] as Article | undefined
+  const article = await findPublishedArticle(payload, slug)
   if (!article) notFound()
 
   const html = lexicalBodyToHtml(article.body)

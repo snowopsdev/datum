@@ -18,6 +18,7 @@ type Props = {
   article: BoardArticle
   templates: TemplateOption[]
   editHref: string
+  bodyHtml: string
 }
 
 function CheckRow({ label, passed }: { label: string; passed: boolean | null | undefined }) {
@@ -58,7 +59,7 @@ function violationLines(article: BoardArticle): string[] {
   return lines
 }
 
-export function ArticleReview({ article, templates, editHref }: Props) {
+export function ArticleReview({ article, templates, editHref, bodyHtml }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -103,13 +104,29 @@ export function ArticleReview({ article, templates, editHref }: Props) {
             {article.totalCostUsd != null ? ` · $${article.totalCostUsd.toFixed(2)}` : ''}
           </p>
           <div className="datum-ops__prose">
-            <h3>Preview</h3>
-            <p>
-              {article.metaDescription ||
-                article.researchHint ||
-                'No body preview yet — assign a template and run the pipeline.'}
-            </p>
+            <h3>Article body</h3>
+            {bodyHtml ? (
+              <div
+                className="datum-ops__body"
+                dangerouslySetInnerHTML={{ __html: bodyHtml }}
+              />
+            ) : (
+              <p>
+                {article.metaDescription ||
+                  article.researchHint ||
+                  'No body yet — assign a template and run the pipeline.'}
+              </p>
+            )}
           </div>
+          {(article.metaDescription || article.researchHint) && bodyHtml ? (
+            <div className="datum-ops__prose" style={{ marginTop: 12 }}>
+              <h3>SEO / research</h3>
+              {article.metaDescription ? <p>{article.metaDescription}</p> : null}
+              {article.researchHint && article.researchHint !== article.metaDescription ? (
+                <p>{article.researchHint}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <aside className="datum-ops__review-aside">
@@ -244,6 +261,9 @@ export function ArticleReview({ article, templates, editHref }: Props) {
                 >
                   Send back
                 </button>
+                <a className="datum-ops__btn" href={editHref}>
+                  Open in admin
+                </a>
               </div>
             </div>
           ) : null}
@@ -260,6 +280,9 @@ export function ArticleReview({ article, templates, editHref }: Props) {
                 >
                   Publish
                 </button>
+                <a className="datum-ops__btn" href={editHref}>
+                  Open in admin
+                </a>
               </div>
             </div>
           ) : null}

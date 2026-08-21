@@ -47,6 +47,8 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
   const [pending, startTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [outlineDirty, setOutlineDirty] = useState(false)
+  const [exampleDirty, setExampleDirty] = useState(false)
 
   const loadTemplate = (t: TemplateConfigDTO) => {
     setSelectedId(t.id)
@@ -56,6 +58,8 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
     setDonts(t.donts.join('\n'))
     setRequiredSections(t.requiredSections.join('\n'))
     setSeo(t.seoSpec)
+    setOutlineDirty(false)
+    setExampleDirty(false)
     setMessage(null)
     setError(null)
     router.replace(`/admin/ops/templates?id=${t.id}`)
@@ -68,13 +72,15 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
     startTransition(async () => {
       try {
         await saveTemplateConfigAction(selected.id, {
-          outline,
-          example,
+          ...(outlineDirty ? { outline } : {}),
+          ...(exampleDirty ? { example } : {}),
           dos: dos.split('\n'),
           donts: donts.split('\n'),
           requiredSections: requiredSections.split('\n'),
           seoSpec: seo,
         })
+        setOutlineDirty(false)
+        setExampleDirty(false)
         setMessage(`Saved ${selected.name}`)
         router.refresh()
       } catch (e) {
@@ -160,7 +166,10 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                   <textarea
                     id="outline"
                     value={outline}
-                    onChange={(e) => setOutline(e.target.value)}
+                    onChange={(e) => {
+                      setOutline(e.target.value)
+                      setOutlineDirty(true)
+                    }}
                     disabled={pending}
                     style={{ minHeight: 200 }}
                   />
@@ -311,7 +320,10 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                   <textarea
                     id="example"
                     value={example}
-                    onChange={(e) => setExample(e.target.value)}
+                    onChange={(e) => {
+                      setExample(e.target.value)
+                      setExampleDirty(true)
+                    }}
                     disabled={pending}
                     style={{ minHeight: 180 }}
                   />
