@@ -308,6 +308,83 @@
     .inbox-note {
       padding: 40px 24px; color: var(--muted); max-width: 520px;
     }
+
+    /* Templates config */
+    .tpl-layout {
+      display: grid; grid-template-columns: 200px 1fr; min-height: 0; flex: 1; overflow: hidden;
+    }
+    .tpl-list {
+      border-right: 1px solid var(--line); background: var(--surface); overflow-y: auto;
+    }
+    .tpl-list button {
+      width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line);
+      background: transparent; padding: 12px 14px;
+    }
+    .tpl-list button:hover { background: var(--soft); }
+    .tpl-list button.active { background: var(--ink); color: #fff; }
+    .tpl-list .meta { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+    .tpl-list button.active .meta { color: rgba(255,255,255,.65); }
+    .tpl-editor { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--bg); }
+    .tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 12px;
+    }
+    .tabs button {
+      border: 0; background: transparent; padding: 12px 14px; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tabs button.active { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+    .tab-panel { padding: 20px 24px 40px; overflow-y: auto; flex: 1; max-width: 720px; }
+    .config-banner {
+      font-size: 12px; color: var(--muted); padding: 8px 14px; background: var(--soft);
+      border-bottom: 1px solid var(--line); font-family: var(--mono);
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+    .chip {
+      font-size: 12px; border: 1px solid var(--line); padding: 4px 8px; border-radius: 2px; background: #fff;
+    }
+    .list-edit { margin: 0; padding: 0; list-style: none; }
+    .list-edit li {
+      display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line);
+    }
+    .list-edit input {
+      flex: 1; border: 1px solid var(--line); padding: 6px 8px; border-radius: 2px;
+    }
+
+    /* Public reader */
+    .app.reader-mode .side-nav { display: none !important; }
+    .app.reader-mode.embed-extra { grid-template-columns: 1fr; }
+    .app.reader-mode.embed-extra .main-stage { grid-column: 1; }
+    .app.reader-mode .nav { display: none; }
+    .reader-shell { flex: 1; overflow: auto; background: #fafafa; }
+    .reader-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fff;
+    }
+    .reader-logo { font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; }
+    .reader-article { max-width: 680px; margin: 0 auto; padding: 32px 20px 80px; }
+    .reader-article.with-toc { max-width: 960px; display: grid; grid-template-columns: 180px 1fr; gap: 32px; align-items: start; }
+    .reader-toc {
+      position: sticky; top: 16px; font-size: 13px;
+      border-left: 1px solid var(--line); padding-left: 12px;
+    }
+    .reader-toc a {
+      display: block; color: var(--muted); text-decoration: none; padding: 4px 0;
+    }
+    .reader-toc a:hover, .reader-toc a.active { color: var(--ink); }
+    .reader-body h1 { font-size: 28px; line-height: 1.2; margin: 0 0 12px; }
+    .reader-body .dek { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+    .reader-body h2 { font-size: 18px; margin: 28px 0 10px; scroll-margin-top: 16px; }
+    .reader-body p { margin: 0 0 12px; font-size: 15px; line-height: 1.55; color: #222; }
+    .faq-item { border-top: 1px solid var(--line); padding: 12px 0; }
+    .faq-item strong { display: block; margin-bottom: 4px; }
+
+    .fail-card {
+      border: 1px solid var(--line); border-radius: 2px; padding: 12px; margin-bottom: 10px; background: #fff;
+    }
+    .fail-card h3 { margin: 0 0 6px; font-size: 14px; }
+    .fail-card .fails { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+    .fail-card ul { margin: 0 0 10px; padding-left: 18px; font-size: 13px; }
+    .fail-card .actions { margin-top: 0; }
   </style>
 </head>
 <body>
@@ -320,7 +397,7 @@
         <button type="button" data-nav="templates">Templates</button>
         <button type="button" data-nav="public">Public site</button>
       </nav>
-      <div class="top-meta">throwaway · monochrome · Phase 1</div>
+      <div class="top-meta">throwaway · monochrome · Phases 1–4</div>
     </header>
 
     <div class="decision-bar" id="decision-bar">
@@ -391,19 +468,32 @@
         <div class="page" id="reports-page"></div>
       </section>
 
-      <!-- TEMPLATES / PUBLIC stubs -->
-      <section id="view-templates">
-        <div class="page">
+      <!-- TEMPLATES -->
+      <section id="view-templates" aria-label="Template config">
+        <div class="toolbar">
           <h1>Templates</h1>
-          <p class="lede">Phase 3 — editorial authoring for outline, dos/don’ts, required H2s, SEO spec.</p>
-          <div class="panel"><h2>Seeded</h2><div class="body">Listicle · How-To · Comparison</div></div>
+          <span class="pill">config</span>
+          <div class="spacer"></div>
+          <span class="hint">Rarer config work · tabbed editor</span>
+        </div>
+        <div class="config-banner">Changes affect generate prompts + structural QA. Edit carefully.</div>
+        <div class="tpl-layout">
+          <div class="tpl-list" id="tpl-list"></div>
+          <div class="tpl-editor">
+            <div class="tabs" id="tpl-tabs">
+              <button type="button" data-tab="outline" class="active">Outline</button>
+              <button type="button" data-tab="rules">Rules</button>
+              <button type="button" data-tab="seo">SEO</button>
+              <button type="button" data-tab="examples">Examples</button>
+            </div>
+            <div class="tab-panel" id="tpl-panel"></div>
+          </div>
         </div>
       </section>
-      <section id="view-public">
-        <div class="page">
-          <h1>Public site</h1>
-          <p class="lede">Phase 4 — reader pages for <code>published</code> articles (Lexical body, FAQ, SEO/OG).</p>
-        </div>
+
+      <!-- PUBLIC -->
+      <section id="view-public" aria-label="Public reader">
+        <div class="reader-shell" id="public-shell"></div>
       </section>
 
       <!-- Inbox archive -->
@@ -420,6 +510,49 @@
 
   <script>
     const TEMPLATES = ["Listicle", "How-To", "Comparison"];
+    const TEMPLATE_DOCS = {
+      Listicle: {
+        outline: "H1 title (page title field)\nIntro (why this list matters)\nNumbered items as H2s\nWhen to skip an option\nFAQ",
+        dos: ["Lead with concrete criteria", "Name tools; avoid vague 'top apps'", "Include one 'skip if' note per item"],
+        donts: ["Round-number padding (exactly 10 for no reason)", "Affiliate-first framing"],
+        requiredSections: ["When to skip an option", "FAQ"],
+        seo: { titleMax: 60, metaMax: 160, faq: true, faqMin: 3, faqMax: 6, headingRules: "Exactly one H1 via title; no skipped levels; required H2s present." },
+        example: "12 Notion Templates for Content Calendars — short intro, twelve H2 items, skip guidance, FAQ.",
+      },
+      "How-To": {
+        outline: "H1 title\nWho this is for\nPrerequisites\nSteps as H2s\nCommon mistakes\nFAQ",
+        dos: ["Number steps in order", "State inputs/outputs per step", "Call out failure modes"],
+        donts: ["Motivational filler", "Skipping prerequisites"],
+        requiredSections: ["Prerequisites", "Common mistakes", "FAQ"],
+        seo: { titleMax: 60, metaMax: 160, faq: true, faqMin: 3, faqMax: 5, headingRules: "Steps are H2; no H3 before an H2." },
+        example: "How to Price Client Retainers Without Guesswork — prerequisites, five steps, mistakes, FAQ.",
+      },
+      Comparison: {
+        outline: "H1 title\nWho should care\nCriteria table (prose OK)\nOption A / B deep dives\nPricing\nVerdict\nFAQ",
+        dos: ["Share the same criteria across options", "Include pricing H2", "End with a clear pick-by-situation"],
+        donts: ["Feature laundry lists without judgment", "Hidden affiliate-only verdicts"],
+        requiredSections: ["Pricing", "Verdict", "FAQ"],
+        seo: { titleMax: 60, metaMax: 160, faq: true, faqMin: 4, faqMax: 7, headingRules: "Option sections as H2; Pricing required." },
+        example: "Asana vs Monday.com for Agencies — criteria, both options, pricing, verdict, FAQ.",
+      },
+    };
+
+    const PUBLISHED_DEMO = {
+      title: "Invoice Templates Freelancers Actually Use",
+      dek: "A practical shortlist of invoice layouts that survive client scrutiny — not just pretty PDFs.",
+      sections: [
+        { id: "intro", heading: null, body: "Most invoice templates look fine until a client asks for tax lines, late fees, or multi-currency. This list sticks to formats freelancers actually send." },
+        { id: "simple", heading: "1. Simple single-page", body: "One page, line items, due date, payment links. Best when scope is fixed and you invoice weekly." },
+        { id: "milestone", heading: "2. Milestone schedule", body: "Deposit + progress + final. Use when projects slip and you need partial payment without rewriting the SOW." },
+        { id: "retainer", heading: "3. Retainer rolling", body: "Recurring line with unused-hours note. Pair with a short usage appendix." },
+        { id: "skip", heading: "When to skip an option", body: "Skip ornate brand templates if accounting still re-keys everything into their ERP." },
+        { id: "faq", heading: "FAQ", body: null, faq: [
+          { q: "Do I need a PDF and a share link?", a: "Send both. Finance teams archive PDFs; clients pay from links." },
+          { q: "What about late fees?", a: "State them in the contract and repeat one line on the invoice. Don’t invent them after net-30." },
+          { q: "Can I invoice in a client’s currency?", a: "Yes — lock the rate on the invoice date and note it." },
+        ]},
+      ],
+    };
     const COLUMNS = [
       { id: "topic_selected", label: "Topic selected", actionable: true, blurb: "Assign a template" },
       { id: "researched", label: "Researched", actionable: false, blurb: "Pipeline" },
@@ -452,13 +585,17 @@
     ];
 
     let embed = "extra"; // replace | extra — locked default: extra
-    let nav = "articles";
     let screen = "board"; // board | review | reports | templates | public | inbox
     let focusId = articles[0]?.id ?? null;
     let reviewId = null;
+    let tplName = "Listicle";
+    let tplTab = "outline";
+    let publicLayout = "scroll"; // scroll | toc — Phase 4 fork
 
     const app = document.getElementById("app");
     const toastEl = document.getElementById("toast");
+    const decisionBar = document.getElementById("decision-bar");
+    const decisionBarDefault = decisionBar.innerHTML;
 
     function toast(msg) {
       toastEl.textContent = msg;
@@ -475,18 +612,81 @@
       embed = mode;
       app.classList.toggle("embed-extra", mode === "extra");
       app.classList.toggle("embed-replace", mode === "replace");
-      document.getElementById("embed-replace").classList.toggle("active", mode === "replace");
-      document.getElementById("embed-extra").classList.toggle("active", mode === "extra");
-      document.getElementById("embed-hint").textContent =
-        mode === "replace"
-          ? "Articles → board (table replaced)"
-          : "Articles = table · sidebar “Article board” = this view";
+      document.getElementById("embed-replace")?.classList.toggle("active", mode === "replace");
+      document.getElementById("embed-extra")?.classList.toggle("active", mode === "extra");
+      const hint = document.getElementById("embed-hint");
+      if (hint) {
+        hint.textContent =
+          mode === "replace"
+            ? "Articles → board (table replaced)"
+            : "Articles = table · sidebar “Article board” = this view";
+      }
       document.getElementById("brand-mode").textContent =
         mode === "replace" ? "· admin" : "· admin + ops";
-      document.getElementById("board-title").textContent =
-        mode === "replace" ? "Articles" : "Article board";
-      // In extra mode, Articles nav goes to board route conceptually
+      const title = document.getElementById("board-title");
+      if (title) title.textContent = mode === "replace" ? "Articles" : "Article board";
       render();
+    }
+
+    function wireDecisionBarDefaults() {
+      document.getElementById("embed-replace")?.addEventListener("click", () => setEmbed("replace"));
+      document.getElementById("embed-extra")?.addEventListener("click", () => setEmbed("extra"));
+      document.getElementById("meta-board")?.addEventListener("click", () => {
+        document.getElementById("meta-board").classList.add("active");
+        document.getElementById("meta-inbox")?.classList.remove("active");
+        setScreen("board");
+        render();
+      });
+      document.getElementById("meta-inbox")?.addEventListener("click", () => {
+        document.getElementById("meta-inbox").classList.add("active");
+        document.getElementById("meta-board")?.classList.remove("active");
+        setScreen("inbox");
+      });
+    }
+
+    function showDecisionFor(screenName) {
+      app.classList.toggle("reader-mode", screenName === "public");
+      if (screenName === "board" || screenName === "inbox") {
+        decisionBar.style.display = "flex";
+        decisionBar.innerHTML = decisionBarDefault;
+        wireDecisionBarDefaults();
+        setEmbed(embed);
+        return;
+      }
+      if (screenName === "public") {
+        decisionBar.style.display = "flex";
+        decisionBar.innerHTML = `
+          <strong>Public layout</strong>
+          <p>Minimal chrome (logo + article). Pick reader structure — <kbd>1</kbd>/<kbd>2</kbd>.</p>
+          <div class="switcher" aria-label="Public layout">
+            <button type="button" id="pub-scroll" class="${publicLayout === "scroll" ? "active" : ""}">A · Long scroll</button>
+            <button type="button" id="pub-toc" class="${publicLayout === "toc" ? "active" : ""}">B · Sticky TOC</button>
+          </div>
+          <div class="hint">${publicLayout === "scroll" ? "A: single column · title → body → FAQ" : "B: sticky section nav · same content"}</div>
+        `;
+        document.getElementById("pub-scroll").addEventListener("click", () => { publicLayout = "scroll"; renderPublic(); showDecisionFor("public"); });
+        document.getElementById("pub-toc").addEventListener("click", () => { publicLayout = "toc"; renderPublic(); showDecisionFor("public"); });
+        return;
+      }
+      if (screenName === "templates") {
+        decisionBar.style.display = "flex";
+        decisionBar.innerHTML = `
+          <strong>Templates · config</strong>
+          <p>Tabbed editor locked (Outline · Rules · SEO · Examples). Rarer config work, not daily ops.</p>
+          <div class="hint">Enforced bits: required H2s + seoSpec → structural QA</div>
+        `;
+        return;
+      }
+      if (screenName === "reports") {
+        decisionBar.style.display = "flex";
+        decisionBar.innerHTML = `
+          <strong>Reports · ops loop</strong>
+          <p>Failure digest is primary — open review or jump to the board column.</p>
+          <div class="hint">Spend panels stay secondary</div>
+        `;
+        return;
+      }
+      decisionBar.style.display = "none";
     }
 
     function setScreen(name) {
@@ -513,8 +713,7 @@
         b.classList.toggle("active", active);
       });
 
-      document.getElementById("decision-bar").style.display =
-        screen === "board" || screen === "inbox" ? "flex" : "none";
+      showDecisionFor(screen);
     }
 
     function countsHtml() {
@@ -669,7 +868,7 @@
         actions = `
           <div class="block">
             <h3>Status</h3>
-            <p style="margin:0;color:var(--muted);font-size:13px">No operator action required. Drag on the board to move, or wait for pipeline.</p>
+            <p style="margin:0;color:var(--muted);font-size:13px">No operator action required. Wait for pipeline or open in admin.</p>
           </div>`;
       }
 
@@ -777,6 +976,37 @@
         </div>
 
         <div class="panel">
+          <h2>Failure digest · ops loop</h2>
+          <div class="body">
+            ${failures.length === 0 ? "<p style='margin:0;color:var(--muted)'>(none at needs_revision)</p>" : failures.map((a) => {
+              const fails = [];
+              const details = [];
+              if (a.qa && !a.qa.structural.passed) {
+                fails.push("structural");
+                (a.qa.structural.violations || []).forEach((v) => details.push(v));
+              }
+              if (a.qa && !a.qa.factCheck.passed) {
+                fails.push("factCheck");
+                details.push(a.qa.factCheck.notes);
+              }
+              if (a.qa && !a.qa.qualitative.passed) {
+                fails.push("qualitative");
+                details.push(a.qa.qualitative.notes);
+              }
+              return `<div class="fail-card">
+                <h3>${escapeHtml(a.title || a.keyword)}</h3>
+                <p class="fails">${escapeHtml(a.template || "—")} · ${fails.join(" · ") || "unspecified"} · $${(a.cost || 0).toFixed(2)}</p>
+                <ul>${details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>
+                <div class="actions">
+                  <button type="button" class="btn primary" data-open="${a.id}">Open review</button>
+                  <button type="button" class="btn" data-board="${a.id}">Show on board</button>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+
+        <div class="panel">
           <h2>Status mix</h2>
           <div class="body">
             ${COLUMNS.map((c) => {
@@ -809,29 +1039,6 @@
             ${spendByModel.map((r) => `<div class="bar-row"><span>${r.model}</span><div class="bar-track"><div class="bar-fill" style="width:${(r.usd/42.8)*100}%"></div></div><span class="amt">$${r.usd.toFixed(2)}</span></div>`).join("")}
           </div>
         </div>
-
-        <div class="panel">
-          <h2>Failure digest</h2>
-          <div class="body">
-            ${failures.length === 0 ? "<p style='margin:0;color:var(--muted)'>(none)</p>" : `
-            <table class="digest">
-              <thead><tr><th>Article</th><th>Template</th><th>Fails</th></tr></thead>
-              <tbody>
-                ${failures.map((a) => {
-                  const fails = [];
-                  if (a.qa && !a.qa.structural.passed) fails.push("structural");
-                  if (a.qa && !a.qa.factCheck.passed) fails.push("factCheck");
-                  if (a.qa && !a.qa.qualitative.passed) fails.push("qualitative");
-                  return `<tr>
-                    <td><button type="button" class="btn ghost" data-open="${a.id}" style="padding:0;border:0;text-decoration:underline">${escapeHtml(a.title || a.keyword)}</button></td>
-                    <td>${escapeHtml(a.template || "—")}</td>
-                    <td>${fails.join(", ") || "—"}</td>
-                  </tr>`;
-                }).join("")}
-              </tbody>
-            </table>`}
-          </div>
-        </div>
       `;
 
       document.querySelectorAll("#reports-page [data-period]").forEach((b) => {
@@ -844,12 +1051,121 @@
       document.querySelectorAll("#reports-page [data-open]").forEach((b) => {
         b.addEventListener("click", () => openReview(b.dataset.open));
       });
+      document.querySelectorAll("#reports-page [data-board]").forEach((b) => {
+        b.addEventListener("click", () => {
+          focusId = b.dataset.board;
+          setScreen("board");
+          render();
+          toast("Board focused on failed article");
+        });
+      });
+    }
+
+    function renderTemplates() {
+      const list = document.getElementById("tpl-list");
+      list.innerHTML = TEMPLATES.map((name) => `
+        <button type="button" class="${tplName === name ? "active" : ""}" data-tpl="${name}">
+          ${name}
+          <span class="meta">${TEMPLATE_DOCS[name].requiredSections.length} required H2s</span>
+        </button>
+      `).join("");
+      list.querySelectorAll("[data-tpl]").forEach((b) => {
+        b.addEventListener("click", () => {
+          tplName = b.dataset.tpl;
+          renderTemplates();
+        });
+      });
+
+      document.querySelectorAll("#tpl-tabs button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.tab === tplTab);
+        b.onclick = () => { tplTab = b.dataset.tab; renderTemplates(); };
+      });
+
+      const doc = TEMPLATE_DOCS[tplName];
+      const panel = document.getElementById("tpl-panel");
+      if (tplTab === "outline") {
+        panel.innerHTML = `
+          <h2 style="margin:0 0 8px;font-size:18px">${tplName} · Outline</h2>
+          <p style="color:var(--muted);font-size:13px;margin:0 0 12px">Prose guidance for generate — not enforced directly. Required H2s live under Rules.</p>
+          <div class="field"><label>Outline</label><textarea style="min-height:180px">${escapeHtml(doc.outline)}</textarea></div>
+          <div class="actions"><button type="button" class="btn primary" id="tpl-save">Save config</button></div>
+        `;
+      } else if (tplTab === "rules") {
+        panel.innerHTML = `
+          <h2 style="margin:0 0 8px;font-size:18px">${tplName} · Rules</h2>
+          <p style="color:var(--muted);font-size:13px;margin:0 0 12px">Dos/don’ts feed generate + qualitative review. Required sections are enforced by structural QA.</p>
+          <div class="block"><h3>Dos</h3>
+            <ul class="list-edit">${doc.dos.map((t) => `<li><input value="${escapeHtml(t)}" /></li>`).join("")}</ul>
+          </div>
+          <div class="block"><h3>Don’ts</h3>
+            <ul class="list-edit">${doc.donts.map((t) => `<li><input value="${escapeHtml(t)}" /></li>`).join("")}</ul>
+          </div>
+          <div class="block"><h3>Required H2 sections</h3>
+            <div class="chip-row">${doc.requiredSections.map((h) => `<span class="chip">${escapeHtml(h)}</span>`).join("")}</div>
+          </div>
+          <div class="actions"><button type="button" class="btn primary" id="tpl-save">Save config</button></div>
+        `;
+      } else if (tplTab === "seo") {
+        const s = doc.seo;
+        panel.innerHTML = `
+          <h2 style="margin:0 0 8px;font-size:18px">${tplName} · SEO spec</h2>
+          <div class="metrics" style="margin-top:12px">
+            <div class="metric"><div class="label">Title max</div><div class="value">${s.titleMax}</div></div>
+            <div class="metric"><div class="label">Meta max</div><div class="value">${s.metaMax}</div></div>
+            <div class="metric"><div class="label">FAQ</div><div class="value">${s.faqMin}–${s.faqMax}</div></div>
+          </div>
+          <div class="field" style="margin-top:12px"><label>Heading structure rules</label><textarea>${escapeHtml(s.headingRules)}</textarea></div>
+          <div class="actions"><button type="button" class="btn primary" id="tpl-save">Save config</button></div>
+        `;
+      } else {
+        panel.innerHTML = `
+          <h2 style="margin:0 0 8px;font-size:18px">${tplName} · Examples</h2>
+          <div class="prose"><h3>Canonical example</h3><p>${escapeHtml(doc.example)}</p></div>
+          <div class="actions" style="margin-top:12px"><button type="button" class="btn primary" id="tpl-save">Save config</button></div>
+        `;
+      }
+      panel.querySelector("#tpl-save")?.addEventListener("click", () => toast(`Saved ${tplName} (prototype — not persisted)`));
+    }
+
+    function renderPublic() {
+      const tocLinks = PUBLISHED_DEMO.sections
+        .filter((s) => s.heading)
+        .map((s) => `<a href="#${s.id}">${escapeHtml(s.heading)}</a>`)
+        .join("");
+      const bodyHtml = PUBLISHED_DEMO.sections.map((s) => {
+        if (s.faq) {
+          return `<h2 id="${s.id}">${escapeHtml(s.heading)}</h2>` +
+            s.faq.map((f) => `<div class="faq-item"><strong>${escapeHtml(f.q)}</strong><p>${escapeHtml(f.a)}</p></div>`).join("");
+        }
+        return `${s.heading ? `<h2 id="${s.id}">${escapeHtml(s.heading)}</h2>` : ""}<p>${escapeHtml(s.body)}</p>`;
+      }).join("");
+
+      const articleInner = `
+        <div class="reader-body">
+          <h1>${escapeHtml(PUBLISHED_DEMO.title)}</h1>
+          <p class="dek">${escapeHtml(PUBLISHED_DEMO.dek)}</p>
+          ${bodyHtml}
+        </div>
+      `;
+
+      document.getElementById("public-shell").innerHTML = `
+        <div class="reader-top">
+          <div class="reader-logo">Datum</div>
+          <span class="hint">published · monochrome</span>
+        </div>
+        <div class="reader-article ${publicLayout === "toc" ? "with-toc" : ""}">
+          ${publicLayout === "toc" ? `<nav class="reader-toc" aria-label="Sections">${tocLinks}</nav>` : ""}
+          ${articleInner}
+        </div>
+      `;
     }
 
     function render() {
       if (screen === "board") renderBoard();
       else if (screen === "review") renderReview();
       else if (screen === "reports") renderReports();
+      else if (screen === "templates") renderTemplates();
+      else if (screen === "public") renderPublic();
     }
 
     function focusedIndex() {
@@ -887,21 +1203,10 @@
     }
 
     // Events
-    document.getElementById("embed-replace").addEventListener("click", () => setEmbed("replace"));
-    document.getElementById("embed-extra").addEventListener("click", () => setEmbed("extra"));
-    document.getElementById("meta-board").addEventListener("click", () => {
-      document.getElementById("meta-board").classList.add("active");
-      document.getElementById("meta-inbox").classList.remove("active");
+    wireDecisionBarDefaults();
+    document.getElementById("back-from-inbox").addEventListener("click", () => {
       setScreen("board");
       render();
-    });
-    document.getElementById("meta-inbox").addEventListener("click", () => {
-      document.getElementById("meta-inbox").classList.add("active");
-      document.getElementById("meta-board").classList.remove("active");
-      setScreen("inbox");
-    });
-    document.getElementById("back-from-inbox").addEventListener("click", () => {
-      document.getElementById("meta-board").click();
     });
     document.getElementById("back-board").addEventListener("click", () => {
       setScreen("board");
@@ -923,8 +1228,12 @@
 
     document.addEventListener("keydown", (e) => {
       if (e.target.matches("input, textarea, select")) return;
-      if (e.key === "[") setEmbed("replace");
-      if (e.key === "]") setEmbed("extra");
+      if (screen === "public") {
+        if (e.key === "1") { publicLayout = "scroll"; showDecisionFor("public"); renderPublic(); }
+        if (e.key === "2") { publicLayout = "toc"; showDecisionFor("public"); renderPublic(); }
+      }
+      if (e.key === "[" && (screen === "board" || screen === "inbox")) setEmbed("replace");
+      if (e.key === "]" && (screen === "board" || screen === "inbox")) setEmbed("extra");
       if (e.key === "Escape" && screen === "review") {
         setScreen("board");
         render();
