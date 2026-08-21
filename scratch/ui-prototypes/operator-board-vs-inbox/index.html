@@ -324,13 +324,16 @@
     </header>
 
     <div class="decision-bar" id="decision-bar">
-      <strong>Embed fork</strong>
-      <p>Where the board lives in Payload — still open. <kbd>[</kbd>/<kbd>]</kbd> switch.</p>
+      <strong>Where is the board?</strong>
+      <p id="embed-explain">
+        <strong>Replace:</strong> Articles opens the board (no default table).
+        <strong>Extra route:</strong> Articles stays a table; board is a separate Ops link.
+      </p>
       <div class="switcher" aria-label="Embed variant">
-        <button type="button" id="embed-replace" class="active">Replace Articles list</button>
-        <button type="button" id="embed-extra">Extra admin route</button>
+        <button type="button" id="embed-replace" class="active">Replace Articles</button>
+        <button type="button" id="embed-extra">Extra Ops route</button>
       </div>
-      <div class="hint" id="embed-hint">Board replaces default collection list</div>
+      <div class="hint" id="embed-hint">Articles → board (table replaced)</div>
       <div class="switcher" aria-label="Metaphor archive" style="margin-left:auto">
         <button type="button" id="meta-board" class="active">Board ✓</button>
         <button type="button" id="meta-inbox">Inbox archive</button>
@@ -355,7 +358,7 @@
           <h1 id="board-title">Articles</h1>
           <div class="pills" id="counts"></div>
           <div class="spacer"></div>
-          <span class="hint">Drag cards to move status · click or Enter to review</span>
+          <span class="hint">Actions only · click or Enter to review · no drag-to-status</span>
         </div>
         <div class="legend">
           <span>Dashed = needs template</span>
@@ -477,8 +480,8 @@
       document.getElementById("embed-extra").classList.toggle("active", mode === "extra");
       document.getElementById("embed-hint").textContent =
         mode === "replace"
-          ? "Board replaces default collection list"
-          : "Stock Articles CRUD stays; Board is an Ops route";
+          ? "Articles → board (table replaced)"
+          : "Articles = table · sidebar “Article board” = this view";
       document.getElementById("brand-mode").textContent =
         mode === "replace" ? "· admin" : "· admin + ops";
       document.getElementById("board-title").textContent =
@@ -539,33 +542,13 @@
           <div class="column-body" data-status="${col.id}"></div>
         `;
         const body = column.querySelector(".column-body");
-        body.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          column.classList.add("drag-over");
-        });
-        body.addEventListener("dragleave", () => column.classList.remove("drag-over"));
-        body.addEventListener("drop", (e) => {
-          e.preventDefault();
-          column.classList.remove("drag-over");
-          const id = e.dataTransfer.getData("text/article-id") || dragId;
-          const a = find(id);
-          if (!a) return;
-          if (a.status === col.id) return;
-          const prev = a.status;
-          a.status = col.id;
-          focusId = a.id;
-          toast(`Moved → ${col.id} (was ${prev})`);
-          render();
-        });
-
         if (!items.length) {
-          body.innerHTML = `<div class="empty-col">Nothing here<br><span style="font-size:11px">Drop a card</span></div>`;
+          body.innerHTML = `<div class="empty-col">Nothing here</div>`;
         }
         for (const a of items) {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "card" + (focusId === a.id ? " focus" : "");
-          btn.draggable = true;
           btn.dataset.id = a.id;
           btn.innerHTML = `
             <p class="kw">${escapeHtml(a.keyword)}</p>
@@ -577,13 +560,6 @@
           `;
           btn.addEventListener("click", () => openReview(a.id));
           btn.addEventListener("focus", () => { focusId = a.id; });
-          btn.addEventListener("dragstart", (e) => {
-            dragId = a.id;
-            btn.classList.add("dragging");
-            e.dataTransfer.setData("text/article-id", a.id);
-            e.dataTransfer.effectAllowed = "move";
-          });
-          btn.addEventListener("dragend", () => btn.classList.remove("dragging"));
           body.appendChild(btn);
         }
         board.appendChild(column);

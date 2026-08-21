@@ -18,7 +18,8 @@
 | Primary metaphor | **Board** |
 | Columns | **All 7 statuses** |
 | Detail UX | **Full review page** (board = return), not drawer |
-| Payload embed | **Undecided** — prototype both (replace Articles list vs extra route) |
+| Payload embed | **Still open** — see “Embed explained” below; try both in the prototype |
+| Status changes | **Actions only** — no free drag/manual status moves; assign / reset / approve (etc.) only |
 | Next artifacts | Deeper Board + Phase 2 Reports stub |
 
 ## Phased plan
@@ -34,7 +35,7 @@ Board with:
 1. Assign template on `topic_selected`
 2. Full-page triage for `needs_revision` → reset to `drafted`
 3. Approve / approve+publish from `qa_passed`
-4. Drag cards across status columns (prototype; real status writes TBD)
+4. Status moves only via explicit actions (not drag / not raw status select)
 5. Keyboard: arrows move focus, Enter opens review, Esc returns to board
 6. Embed fork switcher until we pick Payload wiring
 
@@ -50,7 +51,26 @@ Editorial authoring — nav stub only for now.
 
 Reader pages for `published` — nav stub only for now.
 
+## Embed explained (plain language)
+
+Payload’s admin today shows a normal **Articles** table (rows you click into). The board has to plug in somehow:
+
+| Option | What you see day-to-day |
+| --- | --- |
+| **Replace Articles list** | Clicking **Articles** in admin opens the **board** instead of the table. One place for the queue. Stock table is gone (or buried). |
+| **Extra admin route** | **Articles** stays the familiar table. A separate nav item (e.g. **Article board** under Ops) opens the board. Two entry points. |
+
+Toggle both in the prototype decision bar (`[` / `]`) and say which matches how you work.
+
+## Locked: actions only
+
+Cards do **not** change status by dragging. Pipeline owns `researched` / `drafted` / QA transitions; humans only:
+
+- Assign template (`topic_selected`)
+- Reset to `drafted` (triage)
+- Approve / publish (`qa_passed` → …)
+- Send back (editor judgment)
+
 ## Open decisions
 
-- Embed path: replace default Articles collection list **vs** extra admin route
-- Whether drag-to-status is allowed in production or statuses stay pipeline-owned except explicit actions
+- Embed path: replace Articles list **vs** extra Ops route (try both above)
