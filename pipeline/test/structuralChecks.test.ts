@@ -11,7 +11,10 @@ const styleGuide = loadStyleGuide()
 const template: Template = {
   id: 1,
   name: 'Test template',
-  outline: markdownToLexical('## Introduction\nOpen with the answer.\n## FAQ\nThree to four questions.') as Template['outline'],
+  outline: markdownToLexical(
+    '## Introduction\nOpen with the answer.\n## One H2 per list item, numbered\nInstructional placeholder that must not be enforced.\n## FAQ\nThree to four questions.',
+  ) as Template['outline'],
+  requiredSections: [{ heading: 'Introduction' }, { heading: 'FAQ' }],
   seoSpec: {
     titleTagMaxLength: 60,
     metaDescriptionMaxLength: 160,
@@ -133,4 +136,21 @@ test('FAQ count outside the template range is flagged', () => {
   const over = tooMany.find((v) => v.code === 'FAQ_COUNT_OUT_OF_RANGE')
   assert.ok(over, 'expected FAQ_COUNT_OUT_OF_RANGE for too many items')
   assert.equal(over.actual, 5)
+})
+
+test('a missing requiredSections heading is flagged; instructional outline headings are not', () => {
+  const article = makeArticle({
+    body: markdownToLexical(
+      ['## Introduction', 'Short intro that answers the question directly.'].join('\n'),
+    ) as Article['body'],
+  })
+  const violations = runStructuralChecks(article, template, styleGuide)
+  const missing = violations.filter(
+    (v) => v.code === 'HEADING_STRUCTURE' && v.problem === 'missing_section',
+  )
+  assert.deepEqual(
+    missing.map((v) => (v.code === 'HEADING_STRUCTURE' ? v.heading : '')),
+    ['FAQ'],
+    `expected only FAQ missing, got ${JSON.stringify(violations)}`,
+  )
 })

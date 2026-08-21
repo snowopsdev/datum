@@ -84,6 +84,7 @@ const templates: TemplateSeed[] = [
       { text: 'Do not repeat the same opening sentence pattern across items' },
       { text: 'Do not rank items without saying what the ranking is based on' },
     ],
+    requiredSections: [{ heading: 'How we chose' }, { heading: 'Conclusion' }],
     seoSpec: {
       titleTagMaxLength: 60,
       metaDescriptionMaxLength: 160,
@@ -126,6 +127,7 @@ const templates: TemplateSeed[] = [
       { text: 'Do not use vague steps like "configure the settings" without saying which' },
       { text: 'Do not skip failure cases; say what to do when a step does not work' },
     ],
+    requiredSections: [{ heading: 'What you need' }, { heading: 'Step-by-step instructions' }, { heading: 'Common mistakes' }, { heading: 'FAQ' }],
     seoSpec: {
       titleTagMaxLength: 60,
       metaDescriptionMaxLength: 160,
@@ -169,6 +171,7 @@ const templates: TemplateSeed[] = [
       { text: 'Do not compare on criteria only one option can win' },
       { text: 'Do not hide pricing differences in prose; make them scannable' },
     ],
+    requiredSections: [{ heading: 'Quick verdict' }, { heading: 'Head-to-head comparison' }, { heading: 'Who should pick which' }, { heading: 'Conclusion' }],
     seoSpec: {
       titleTagMaxLength: 60,
       metaDescriptionMaxLength: 160,

@@ -43,6 +43,21 @@ export const Templates: CollectionConfig = {
       type: 'richText',
     },
     {
+      name: 'requiredSections',
+      type: 'array',
+      admin: {
+        description:
+          'H2 headings every article using this template must contain. The outline is prose guidance; only these are enforced by the structural QA check.',
+      },
+      fields: [
+        {
+          name: 'heading',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+    {
       name: 'seoSpec',
       type: 'group',
       fields: [

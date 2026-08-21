@@ -86,18 +86,17 @@ function headingViolations(article: Article, template: Template): Violation[] {
     previousLevel = heading.level
   }
 
-  if (template.outline) {
-    const bodyH2s = new Set(headings.filter((h) => h.level === 2).map((h) => h.text.toLowerCase()))
-    const outlineH2s = extractHeadings(template.outline as RichText).filter((h) => h.level === 2)
-    for (const section of outlineH2s) {
-      if (!bodyH2s.has(section.text.toLowerCase())) {
-        violations.push({
-          code: 'HEADING_STRUCTURE',
-          problem: 'missing_section',
-          heading: section.text,
-          detail: `outline section "${section.text}" has no matching H2 in the body`,
-        })
-      }
+  // The outline is prose guidance and may contain instructional placeholders;
+  // only the template's explicit requiredSections are enforced.
+  const bodyH2s = new Set(headings.filter((h) => h.level === 2).map((h) => h.text.toLowerCase()))
+  for (const section of template.requiredSections ?? []) {
+    if (!bodyH2s.has(section.heading.toLowerCase())) {
+      violations.push({
+        code: 'HEADING_STRUCTURE',
+        problem: 'missing_section',
+        heading: section.heading,
+        detail: `required section "${section.heading}" has no matching H2 in the body`,
+      })
     }
   }
   return violations

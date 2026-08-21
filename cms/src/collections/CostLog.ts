@@ -40,6 +40,10 @@ export const CostLog: CollectionConfig = {
       type: 'number',
     },
     {
+      name: 'webSearchRequests',
+      type: 'number',
+    },
+    {
       name: 'costUsd',
       type: 'number',
     },

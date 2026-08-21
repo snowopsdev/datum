@@ -13,7 +13,7 @@ export interface LlmRequest {
 
 export interface LlmResult {
   json: unknown
-  usage: { inputTokens: number; outputTokens: number }
+  usage: { inputTokens: number; outputTokens: number; webSearchRequests: number }
   provider: 'anthropic' | 'mock'
   model: string
 }
@@ -73,6 +73,7 @@ async function completeJSONAnthropic(stage: LlmStage, request: LlmRequest): Prom
       usage: {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
+        webSearchRequests: response.usage.server_tool_use?.web_search_requests ?? 0,
       },
       provider: 'anthropic',
       model,
@@ -134,7 +135,13 @@ export async function completeJSONLogged(
       model: result.model,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
-      costUsd: costUsd(result.model, result.usage.inputTokens, result.usage.outputTokens),
+      webSearchRequests: result.usage.webSearchRequests,
+      costUsd: costUsd(
+        result.model,
+        result.usage.inputTokens,
+        result.usage.outputTokens,
+        result.usage.webSearchRequests,
+      ),
     },
   })
   return result

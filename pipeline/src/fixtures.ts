@@ -84,8 +84,11 @@ export function mockFixture(stage: LlmStage): unknown {
   return JSON.parse(JSON.stringify(fixtures[stage]))
 }
 
-export const mockUsage: Record<LlmStage, { inputTokens: number; outputTokens: number }> = {
-  generate: { inputTokens: 1240, outputTokens: 860 },
-  factCheck: { inputTokens: 1180, outputTokens: 790 },
-  qualitativeReview: { inputTokens: 1210, outputTokens: 805 },
+export const mockUsage: Record<
+  LlmStage,
+  { inputTokens: number; outputTokens: number; webSearchRequests: number }
+> = {
+  generate: { inputTokens: 1240, outputTokens: 860, webSearchRequests: 0 },
+  factCheck: { inputTokens: 1180, outputTokens: 790, webSearchRequests: 2 },
+  qualitativeReview: { inputTokens: 1210, outputTokens: 805, webSearchRequests: 0 },
 }

@@ -216,6 +216,15 @@ export interface Template {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * H2 headings every article using this template must contain. The outline is prose guidance; only these are enforced by the structural QA check.
+   */
+  requiredSections?:
+    | {
+        heading: string;
+        id?: string | null;
+      }[]
+    | null;
   seoSpec?: {
     titleTagMaxLength?: number | null;
     metaDescriptionMaxLength?: number | null;
@@ -342,6 +351,7 @@ export interface CostLog {
   model?: string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  webSearchRequests?: number | null;
   costUsd?: number | null;
   updatedAt: string;
   createdAt: string;
@@ -492,6 +502,12 @@ export interface TemplatesSelect<T extends boolean = true> {
         id?: T;
       };
   example?: T;
+  requiredSections?:
+    | T
+    | {
+        heading?: T;
+        id?: T;
+      };
   seoSpec?:
     | T
     | {
@@ -590,6 +606,7 @@ export interface CostLogSelect<T extends boolean = true> {
   model?: T;
   inputTokens?: T;
   outputTokens?: T;
+  webSearchRequests?: T;
   costUsd?: T;
   updatedAt?: T;
   createdAt?: T;

@@ -57,12 +57,14 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     depth: 1,
     sort: 'createdAt',
   })
-  const { docs: costRows } = await payload.find({
+  const { docs: allCostRows } = await payload.find({
     collection: 'cost-log',
-    where: { createdAt: { greater_than_equal: periodStart.toISOString() } },
     pagination: false,
     depth: 0,
   })
+  const costRows = allCostRows.filter(
+    (r) => r.createdAt >= periodStart.toISOString(),
+  )
 
   const lines: string[] = []
   lines.push('PIPELINE REPORT')
@@ -143,24 +145,27 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   for (const [model, spend] of byModel) lines.push(`  ${model}: ${usd(spend)}`)
 
   // ---- Published economics ----
+  // Computed over all-time cost rows: dividing period-scoped spend by the
+  // lifetime published count would understate cost per article.
   const published = articles.filter((a) => a.status === 'published')
   const publishedIds = new Set(published.map((a) => a.id))
-  const publishedSpend = costRows
+  const allTimeSpend = allCostRows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0)
+  const publishedSpend = allCostRows
     .filter((r) => {
       const id = articleIdOf(r)
       return id !== null && publishedIds.has(id)
     })
     .reduce((sum, r) => sum + (r.costUsd ?? 0), 0)
   lines.push('')
-  lines.push('== Published ==')
+  lines.push('== Published (all-time) ==')
   lines.push(`published articles: ${published.length}, spend on them: ${usd(publishedSpend)}`)
   lines.push(
     `cost per published article: ${published.length > 0 ? usd(publishedSpend / published.length) : 'n/a'}`,
   )
-  const waste = totalSpend - publishedSpend
+  const waste = allTimeSpend - publishedSpend
   lines.push(
     `waste (spend on unpublished articles): ${usd(waste)}${
-      totalSpend > 0 ? ` (${((waste / totalSpend) * 100).toFixed(1)}% of spend)` : ''
+      allTimeSpend > 0 ? ` (${((waste / allTimeSpend) * 100).toFixed(1)}% of all-time spend)` : ''
     }`,
   )
 
