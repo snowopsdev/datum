@@ -1,0 +1,23 @@
+{
+  "name": "pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "fetch": "tsx src/index.ts fetch",
+    "run": "tsx src/index.ts run",
+    "report": "tsx src/index.ts report",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "dotenv": "16.4.7",
+    "payload": "3.88.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.9",
+    "tsx": "4.22.4",
+    "typescript": "5.7.3"
+  }
+}
