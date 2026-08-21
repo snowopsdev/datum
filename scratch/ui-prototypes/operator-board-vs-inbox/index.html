@@ -3,36 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Datum · Operator UI — Board vs Inbox</title>
+  <title>Datum · Operator Board (Phase 1)</title>
   <style>
     :root {
-      --bg: #f4f4f4;
-      --surface: #ffffff;
-      --ink: #111111;
-      --muted: #666666;
-      --line: #d8d8d8;
-      --line-strong: #111111;
-      --soft: #ececec;
-      --warn: #111111;
-      --ok: #111111;
-      --shadow: 0 1px 0 rgba(0,0,0,.06);
+      --bg: #f2f2f2;
+      --surface: #fff;
+      --ink: #111;
+      --muted: #666;
+      --line: #d6d6d6;
+      --soft: #ebebeb;
       --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
       --sans: "IBM Plex Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
-
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
+    html, body { height: 100%; margin: 0; }
     body {
-      margin: 0;
       font-family: var(--sans);
       color: var(--ink);
       background: var(--bg);
       font-size: 14px;
       line-height: 1.4;
     }
-    button, select { font: inherit; color: inherit; }
+    button, select, input { font: inherit; color: inherit; }
     button { cursor: pointer; }
-    a { color: inherit; }
+    code { font-family: var(--mono); font-size: 12px; }
 
     .app {
       display: grid;
@@ -41,694 +35,388 @@
       min-height: 640px;
     }
 
-    /* —— chrome —— */
+    /* Payload chrome simulation */
+    .payload-shell {
+      display: contents;
+    }
+    .app.embed-extra {
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: auto auto 1fr;
+    }
+    .app.embed-extra .topbar { grid-column: 1 / -1; }
+    .app.embed-extra .decision-bar { grid-column: 1 / -1; }
+    .app.embed-extra .side-nav {
+      display: flex;
+      flex-direction: column;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 16px 12px;
+      gap: 4px;
+      grid-row: 3;
+    }
+    .side-nav { display: none; }
+    .side-nav .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.5;
+      margin: 12px 8px 6px;
+    }
+    .side-nav button {
+      text-align: left;
+      background: transparent;
+      border: 0;
+      color: rgba(255,255,255,.7);
+      padding: 8px 10px;
+      border-radius: 2px;
+    }
+    .side-nav button.active,
+    .side-nav button:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .app.embed-extra .main-stage {
+      grid-column: 2;
+      grid-row: 3;
+    }
+
     .topbar {
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 20px;
       padding: 10px 16px;
       background: var(--ink);
       color: #fff;
     }
-    .brand {
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      font-size: 13px;
-      text-transform: uppercase;
-    }
+    .brand { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
     .brand span { opacity: 0.55; font-weight: 400; }
-    .nav {
-      display: flex;
-      gap: 4px;
-      flex: 1;
-    }
+    .nav { display: flex; gap: 4px; flex: 1; }
     .nav button {
-      background: transparent;
-      border: 0;
-      color: rgba(255,255,255,.65);
-      padding: 6px 10px;
-      border-radius: 2px;
+      background: transparent; border: 0; color: rgba(255,255,255,.65);
+      padding: 6px 10px; border-radius: 2px;
     }
-    .nav button.active,
-    .nav button:hover { color: #fff; background: rgba(255,255,255,.1); }
-    .top-meta {
-      font-family: var(--mono);
-      font-size: 11px;
-      opacity: 0.7;
-    }
+    .nav button.active, .nav button:hover { color: #fff; background: rgba(255,255,255,.1); }
+    .app.embed-extra .nav { display: none; }
+    .top-meta { font-family: var(--mono); font-size: 11px; opacity: 0.7; }
 
     .decision-bar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
-      flex-wrap: wrap;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+      padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
     }
-    .decision-bar strong { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .decision-bar p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      flex: 1;
-      min-width: 220px;
+    .decision-bar strong {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
     }
+    .decision-bar p { margin: 0; color: var(--muted); font-size: 13px; flex: 1; min-width: 180px; }
     .switcher {
-      display: inline-flex;
-      border: 1px solid var(--line-strong);
-      border-radius: 2px;
-      overflow: hidden;
+      display: inline-flex; border: 1px solid var(--ink); border-radius: 2px; overflow: hidden;
     }
     .switcher button {
-      border: 0;
-      background: var(--surface);
-      padding: 7px 14px;
-      font-size: 13px;
+      border: 0; background: #fff; padding: 6px 12px; font-size: 12px;
     }
-    .switcher button + button { border-left: 1px solid var(--line-strong); }
-    .switcher button.active {
-      background: var(--ink);
-      color: #fff;
-    }
-    .hint {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--muted);
-      white-space: nowrap;
+    .switcher button + button { border-left: 1px solid var(--ink); }
+    .switcher button.active { background: var(--ink); color: #fff; }
+    .hint { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+    .main-stage {
+      min-height: 0; overflow: hidden; display: flex; flex-direction: column;
+      background: var(--bg);
     }
 
-    .workspace {
-      display: grid;
-      grid-template-columns: 1fr;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .workspace.with-drawer {
-      grid-template-columns: 1fr minmax(320px, 380px);
-    }
-
-    /* —— shared —— */
     .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: var(--surface);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
     }
-    .toolbar h1 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    .toolbar .counts {
-      display: flex;
-      gap: 8px;
-      margin-left: auto;
-      flex-wrap: wrap;
-    }
+    .toolbar h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    .toolbar .spacer { flex: 1; }
+    .pills { display: flex; gap: 6px; flex-wrap: wrap; }
     .pill {
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 3px 8px;
-      border: 1px solid var(--line);
-      background: var(--soft);
-      border-radius: 2px;
+      font-family: var(--mono); font-size: 11px; padding: 3px 8px;
+      border: 1px solid var(--line); background: var(--soft); border-radius: 2px;
     }
-    .pill.hot {
-      border-color: var(--ink);
-      background: var(--ink);
-      color: #fff;
-    }
+    .pill.hot { background: var(--ink); color: #fff; border-color: var(--ink); }
 
     .btn {
-      border: 1px solid var(--line-strong);
-      background: var(--surface);
-      padding: 6px 10px;
-      border-radius: 2px;
-      font-size: 13px;
+      border: 1px solid var(--ink); background: #fff; padding: 6px 10px;
+      border-radius: 2px; font-size: 13px;
     }
     .btn:hover { background: var(--soft); }
-    .btn.primary {
-      background: var(--ink);
-      color: #fff;
-    }
+    .btn.primary { background: var(--ink); color: #fff; }
     .btn.primary:hover { background: #333; }
-    .btn.ghost {
-      border-color: transparent;
-      background: transparent;
-      color: var(--muted);
-    }
+    .btn.ghost { border-color: transparent; color: var(--muted); }
     .btn.ghost:hover { color: var(--ink); background: var(--soft); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .status {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      padding: 2px 6px;
-      border: 1px solid var(--line);
-      border-radius: 2px;
-      white-space: nowrap;
+      font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.03em; padding: 2px 6px; border: 1px solid var(--line); border-radius: 2px;
     }
-    .status.needs_revision { border-color: var(--ink); background: var(--ink); color: #fff; }
+    .status.needs_revision { background: var(--ink); color: #fff; border-color: var(--ink); }
     .status.topic_selected { border-style: dashed; }
     .status.qa_passed { border-width: 2px; }
 
-    /* —— BOARD —— */
-    #view-board { display: none; flex-direction: column; min-height: 0; overflow: hidden; }
+    /* Board */
+    #view-board { display: none; flex-direction: column; min-height: 0; flex: 1; }
     #view-board.active { display: flex; }
+    .legend {
+      display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted);
+      padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+    }
+    .kbd-help { margin-left: auto; font-family: var(--mono); font-size: 11px; }
+    kbd {
+      font-family: var(--mono); font-size: 10px; border: 1px solid var(--line);
+      padding: 1px 4px; border-radius: 2px; background: var(--soft);
+    }
     .board-scroll {
-      display: flex;
-      gap: 10px;
-      padding: 12px 16px 20px;
-      overflow-x: auto;
-      min-height: 0;
-      flex: 1;
-      align-items: stretch;
+      display: flex; gap: 10px; padding: 12px 16px 20px; overflow: auto; flex: 1; min-height: 0;
     }
     .column {
-      flex: 0 0 240px;
-      display: flex;
-      flex-direction: column;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 2px;
-      min-height: 0;
-      max-height: 100%;
+      flex: 0 0 220px; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 2px;
+      max-height: 100%; min-height: 280px;
     }
     .column.actionable { border-color: var(--ink); }
+    .column.drag-over { background: var(--soft); outline: 2px dashed var(--ink); outline-offset: -2px; }
     .column-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      padding: 10px 10px 8px;
-      border-bottom: 1px solid var(--line);
-      gap: 8px;
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 10px 10px 6px; gap: 8px;
     }
     .column-head h2 {
-      margin: 0;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
     }
-    .column-head .n {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--muted);
-    }
+    .column-head .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
     .column-sub {
-      padding: 0 10px 8px;
-      font-size: 11px;
-      color: var(--muted);
-      border-bottom: 1px solid var(--line);
+      padding: 0 10px 8px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line);
     }
     .column-body {
-      padding: 8px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1;
+      padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; flex: 1;
+    }
+    .empty-col {
+      border: 1px dashed var(--line); color: var(--muted); font-size: 12px;
+      padding: 16px 10px; text-align: center; border-radius: 2px;
     }
     .card {
-      border: 1px solid var(--line);
-      background: #fff;
-      padding: 10px;
-      border-radius: 2px;
-      box-shadow: var(--shadow);
-      text-align: left;
-      width: 100%;
+      border: 1px solid var(--line); background: #fff; padding: 10px; border-radius: 2px;
+      text-align: left; width: 100%; box-shadow: 0 1px 0 rgba(0,0,0,.05);
     }
-    .card:hover { border-color: var(--ink); }
-    .card.selected { outline: 2px solid var(--ink); outline-offset: -1px; }
-    .card .kw {
-      font-weight: 600;
-      font-size: 13px;
-      margin: 0 0 4px;
+    .card:hover, .card:focus { border-color: var(--ink); outline: none; }
+    .card.focus {
+      outline: 2px solid var(--ink); outline-offset: 1px;
     }
-    .card .meta {
-      color: var(--muted);
-      font-size: 12px;
-      margin: 0 0 8px;
-    }
-    .card .row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .card .cost {
-      margin-left: auto;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--muted);
-    }
+    .card.dragging { opacity: 0.45; }
+    .card .kw { font-weight: 600; font-size: 13px; margin: 0 0 4px; }
+    .card .meta { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+    .card .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .card .cost { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
-    /* —— INBOX —— */
-    #view-inbox { display: none; flex-direction: column; min-height: 0; overflow: hidden; }
-    #view-inbox.active { display: flex; }
-    .inbox-layout {
-      display: grid;
-      grid-template-columns: minmax(300px, 420px) 1fr;
-      min-height: 0;
-      flex: 1;
-      overflow: hidden;
+    /* Review page */
+    #view-review { display: none; flex-direction: column; min-height: 0; flex: 1; overflow: auto; }
+    #view-review.active { display: flex; }
+    .review-layout {
+      display: grid; grid-template-columns: 1fr minmax(300px, 360px);
+      gap: 0; min-height: 0; flex: 1;
     }
-    .inbox-list {
-      border-right: 1px solid var(--line);
-      background: var(--surface);
-      overflow-y: auto;
-      min-height: 0;
+    @media (max-width: 900px) {
+      .review-layout { grid-template-columns: 1fr; }
     }
-    .section-label {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: var(--soft);
-      border-bottom: 1px solid var(--line);
-      padding: 8px 14px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-weight: 600;
+    .review-main { padding: 20px 24px 48px; max-width: 820px; }
+    .review-aside {
+      border-left: 1px solid var(--line); background: var(--surface);
+      padding: 20px 16px 40px; position: sticky; top: 0; align-self: start;
+      max-height: 100%; overflow-y: auto;
     }
-    .inbox-item {
-      width: 100%;
-      text-align: left;
-      border: 0;
-      border-bottom: 1px solid var(--line);
-      background: transparent;
-      padding: 12px 14px;
-      display: grid;
-      grid-template-columns: 18px 1fr auto;
-      gap: 10px;
-      align-items: start;
+    .crumb {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
     }
-    .inbox-item:hover { background: var(--soft); }
-    .inbox-item.selected { background: var(--ink); color: #fff; }
-    .inbox-item.selected .meta,
-    .inbox-item.selected .why { color: rgba(255,255,255,.7); }
-    .inbox-item.selected .status {
-      border-color: rgba(255,255,255,.5);
-      color: #fff;
-      background: transparent;
+    .review-main h1 { margin: 0 0 6px; font-size: 22px; line-height: 1.25; }
+    .review-main .sub { margin: 0 0 20px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .prose {
+      border: 1px solid var(--line); background: #fff; padding: 16px 18px; border-radius: 2px;
     }
-    .prio {
-      font-family: var(--mono);
-      font-size: 10px;
-      width: 18px;
-      height: 18px;
-      display: grid;
-      place-items: center;
-      border: 1px solid currentColor;
-      border-radius: 2px;
-      margin-top: 2px;
-      opacity: 0.7;
-    }
-    .inbox-item .kw { font-weight: 600; margin: 0 0 2px; font-size: 13px; }
-    .inbox-item .why { margin: 0; font-size: 12px; color: var(--muted); }
-    .inbox-item .meta { margin: 4px 0 0; font-size: 11px; color: var(--muted); font-family: var(--mono); }
-    .inbox-empty {
-      padding: 40px 16px;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .inbox-detail {
-      background: var(--bg);
-      overflow-y: auto;
-      min-height: 0;
-      padding: 20px 24px 40px;
-    }
-    .detail-empty {
-      height: 100%;
-      display: grid;
-      place-items: center;
-      color: var(--muted);
-      text-align: center;
-      padding: 40px;
-    }
-
-    /* —— drawer / detail shared —— */
-    .drawer {
-      border-left: 1px solid var(--line);
-      background: var(--surface);
-      overflow-y: auto;
-      min-height: 0;
-      display: none;
-      flex-direction: column;
-    }
-    .workspace.with-drawer .drawer { display: flex; }
-    .drawer-head, .detail-head {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-    }
-    .drawer-head h2, .detail-head h2 {
-      margin: 0 0 4px;
-      font-size: 16px;
-    }
-    .drawer-head .sub, .detail-head .sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-      font-family: var(--mono);
-    }
-    .drawer-body, .detail-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .prose h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .prose p { margin: 0 0 10px; color: #333; }
+    .prose p:last-child { margin-bottom: 0; }
     .block {
-      border: 1px solid var(--line);
-      border-radius: 2px;
-      padding: 12px;
-      background: #fff;
+      border: 1px solid var(--line); border-radius: 2px; padding: 12px; background: #fff; margin-bottom: 12px;
     }
     .block h3 {
-      margin: 0 0 8px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
     }
-    .block p, .block li { margin: 0; font-size: 13px; }
-    .block ul { margin: 0; padding-left: 18px; }
-    .block li + li { margin-top: 4px; }
     .check-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
+      display: flex; align-items: center; gap: 8px; padding: 8px 0;
+      border-bottom: 1px solid var(--line); font-size: 13px;
     }
-    .check-row:last-child { border-bottom: 0; padding-bottom: 0; }
-    .check-row:first-child { padding-top: 0; }
+    .check-row:last-child { border-bottom: 0; }
     .mark {
-      font-family: var(--mono);
-      font-size: 11px;
-      width: 42px;
-      text-align: center;
-      border: 1px solid var(--line);
-      padding: 2px 0;
+      font-family: var(--mono); font-size: 11px; width: 42px; text-align: center;
+      border: 1px solid var(--line); padding: 2px 0;
     }
     .mark.fail { background: var(--ink); color: #fff; border-color: var(--ink); }
     .mark.pass { background: var(--soft); }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 4px;
-    }
     .field label {
-      display: block;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 6px;
-      color: var(--muted);
+      display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); margin-bottom: 6px;
     }
     .field select, .field textarea {
-      width: 100%;
-      border: 1px solid var(--line-strong);
-      border-radius: 2px;
-      padding: 8px;
-      background: #fff;
+      width: 100%; border: 1px solid var(--ink); border-radius: 2px; padding: 8px; background: #fff;
     }
     .field textarea { min-height: 72px; resize: vertical; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    ul.tight { margin: 0; padding-left: 18px; }
+    ul.tight li + li { margin-top: 4px; }
 
-    /* —— other nav stubs —— */
-    .stub {
-      display: none;
-      padding: 40px 24px;
-      max-width: 720px;
+    /* Reports */
+    #view-reports, #view-templates, #view-public, #view-inbox {
+      display: none; flex-direction: column; min-height: 0; flex: 1; overflow: auto;
     }
-    .stub.active { display: block; }
-    .stub h1 { margin: 0 0 8px; font-size: 22px; }
-    .stub p { color: var(--muted); }
-    .stub .phase {
-      margin-top: 20px;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      padding: 14px 16px;
+    #view-reports.active, #view-templates.active, #view-public.active, #view-inbox.active { display: flex; }
+    .page { padding: 20px 24px 48px; max-width: 960px; }
+    .page h1 { margin: 0 0 6px; font-size: 22px; }
+    .page .lede { margin: 0 0 20px; color: var(--muted); }
+    .metrics {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;
+      margin-bottom: 20px;
     }
-    .stub .phase h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .stub .phase p { margin: 0; font-size: 13px; }
+    .metric {
+      border: 1px solid var(--line); background: #fff; padding: 12px; border-radius: 2px;
+    }
+    .metric .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .metric .value { font-size: 22px; font-weight: 600; margin-top: 4px; font-family: var(--mono); }
+    .metric .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .panel {
+      border: 1px solid var(--line); background: #fff; border-radius: 2px; margin-bottom: 14px;
+    }
+    .panel h2 {
+      margin: 0; padding: 12px 14px; font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.04em; border-bottom: 1px solid var(--line);
+    }
+    .panel .body { padding: 12px 14px; }
+    .bar-row { display: grid; grid-template-columns: 120px 1fr 56px; gap: 10px; align-items: center; margin: 6px 0; font-size: 13px; }
+    .bar-track { height: 8px; background: var(--soft); border-radius: 1px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--ink); }
+    .bar-row .amt { font-family: var(--mono); font-size: 12px; text-align: right; }
+    table.digest { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.digest th, table.digest td {
+      text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top;
+    }
+    table.digest th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+    .period-switch { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
 
     .toast {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: var(--ink);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 2px;
-      font-size: 13px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .2s, transform .2s;
-      z-index: 50;
-      max-width: 90vw;
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(16px);
+      background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 2px;
+      font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; z-index: 40;
     }
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    .legend {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      font-size: 12px;
-      color: var(--muted);
-      padding: 0 16px 10px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
-    }
-    .legend span::before {
-      content: "";
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border: 1px solid var(--ink);
-      margin-right: 6px;
-      vertical-align: -1px;
-    }
-    .legend .dashed::before { border-style: dashed; background: transparent; }
-    .legend .solid::before { background: var(--ink); }
-    .legend .thick::before { border-width: 2px; background: #fff; }
-
-    kbd {
-      font-family: var(--mono);
-      font-size: 11px;
-      border: 1px solid var(--line);
-      padding: 1px 5px;
-      border-radius: 2px;
-      background: var(--soft);
+    .inbox-note {
+      padding: 40px 24px; color: var(--muted); max-width: 520px;
     }
   </style>
 </head>
 <body>
-  <div class="app">
+  <div class="app embed-replace" id="app">
     <header class="topbar">
-      <div class="brand">Datum <span>· operator</span></div>
-      <nav class="nav" id="main-nav">
+      <div class="brand">Datum <span id="brand-mode">· admin</span></div>
+      <nav class="nav" id="top-nav">
         <button type="button" data-nav="articles" class="active">Articles</button>
-        <button type="button" data-nav="templates">Templates</button>
         <button type="button" data-nav="reports">Reports</button>
+        <button type="button" data-nav="templates">Templates</button>
         <button type="button" data-nav="public">Public site</button>
       </nav>
-      <div class="top-meta">throwaway · monochrome · Payload-adjacent</div>
+      <div class="top-meta">throwaway · monochrome · Phase 1</div>
     </header>
 
     <div class="decision-bar" id="decision-bar">
-      <strong>Locked · Board</strong>
-      <p>Phase 0 chose <strong>Board</strong>. Inbox stays for comparison only — press <kbd>1</kbd> / <kbd>2</kbd>.</p>
-      <div class="switcher" role="tablist" aria-label="Layout variant">
-        <button type="button" id="btn-board" class="active" aria-pressed="true">A · Board ✓</button>
-        <button type="button" id="btn-inbox" aria-pressed="false">B · Inbox (archive)</button>
+      <strong>Embed fork</strong>
+      <p>Where the board lives in Payload — still open. <kbd>[</kbd>/<kbd>]</kbd> switch.</p>
+      <div class="switcher" aria-label="Embed variant">
+        <button type="button" id="embed-replace" class="active">Replace Articles list</button>
+        <button type="button" id="embed-extra">Extra admin route</button>
       </div>
-      <div class="hint" id="variant-hint">A: status columns · scan pipeline · act on hot columns</div>
+      <div class="hint" id="embed-hint">Board replaces default collection list</div>
+      <div class="switcher" aria-label="Metaphor archive" style="margin-left:auto">
+        <button type="button" id="meta-board" class="active">Board ✓</button>
+        <button type="button" id="meta-inbox">Inbox archive</button>
+      </div>
     </div>
 
-    <div class="workspace" id="workspace">
+    <aside class="side-nav" id="side-nav" aria-label="Payload sidebar">
+      <div class="label">Collections</div>
+      <button type="button" data-nav="articles" class="active">Articles</button>
+      <button type="button" data-nav="templates">Templates</button>
+      <div class="label">Ops</div>
+      <button type="button" data-nav="board-route">Article board</button>
+      <button type="button" data-nav="reports">Reports</button>
+      <div class="label">Site</div>
+      <button type="button" data-nav="public">Public site</button>
+    </aside>
+
+    <div class="main-stage" id="main-stage">
       <!-- BOARD -->
-      <section id="view-board" class="active" aria-label="Board variant">
+      <section id="view-board" class="active" aria-label="Article board">
         <div class="toolbar">
-          <h1>Article board</h1>
-          <div class="counts" id="board-counts"></div>
+          <h1 id="board-title">Articles</h1>
+          <div class="pills" id="counts"></div>
+          <div class="spacer"></div>
+          <span class="hint">Drag cards to move status · click or Enter to review</span>
         </div>
         <div class="legend">
-          <span class="dashed">Needs template</span>
-          <span class="solid">Needs triage</span>
-          <span class="thick">Ready to approve</span>
+          <span>Dashed = needs template</span>
+          <span>Filled = needs triage</span>
+          <span>Thick = ready to approve</span>
+          <span class="kbd-help">
+            <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> focus ·
+            <kbd>Enter</kbd> review · <kbd>Esc</kbd> board
+          </span>
         </div>
         <div class="board-scroll" id="board"></div>
       </section>
 
-      <!-- INBOX -->
-      <section id="view-inbox" aria-label="Inbox variant">
+      <!-- REVIEW -->
+      <section id="view-review" aria-label="Article review">
         <div class="toolbar">
-          <h1>Work inbox</h1>
-          <div class="counts" id="inbox-counts"></div>
+          <button type="button" class="btn ghost" id="back-board">← Board</button>
+          <h1>Review</h1>
+          <div class="spacer"></div>
+          <span class="status" id="review-status"></span>
         </div>
-        <div class="inbox-layout">
-          <div class="inbox-list" id="inbox-list"></div>
-          <div class="inbox-detail" id="inbox-detail">
-            <div class="detail-empty">Select an item — inbox ranks human work first.</div>
-          </div>
+        <div class="review-layout">
+          <div class="review-main" id="review-main"></div>
+          <aside class="review-aside" id="review-aside"></aside>
         </div>
       </section>
 
-      <!-- DRAWER (board only) -->
-      <aside class="drawer" id="drawer" aria-label="Article detail"></aside>
+      <!-- REPORTS -->
+      <section id="view-reports" aria-label="Pipeline reports">
+        <div class="page" id="reports-page"></div>
+      </section>
+
+      <!-- TEMPLATES / PUBLIC stubs -->
+      <section id="view-templates">
+        <div class="page">
+          <h1>Templates</h1>
+          <p class="lede">Phase 3 — editorial authoring for outline, dos/don’ts, required H2s, SEO spec.</p>
+          <div class="panel"><h2>Seeded</h2><div class="body">Listicle · How-To · Comparison</div></div>
+        </div>
+      </section>
+      <section id="view-public">
+        <div class="page">
+          <h1>Public site</h1>
+          <p class="lede">Phase 4 — reader pages for <code>published</code> articles (Lexical body, FAQ, SEO/OG).</p>
+        </div>
+      </section>
+
+      <!-- Inbox archive -->
+      <section id="view-inbox">
+        <div class="inbox-note">
+          <h1 style="margin:0 0 8px;font-size:22px;color:var(--ink)">Inbox (archive)</h1>
+          <p>Phase 0 rejected Inbox as primary. Board is locked. This stub exists only so the comparison stays one click away.</p>
+          <button type="button" class="btn primary" id="back-from-inbox">Return to Board</button>
+        </div>
+      </section>
     </div>
-
-    <section class="stub" id="stub-templates" aria-label="Templates stub">
-      <h1>Templates</h1>
-      <p>Phase later (surface D). Editorial tool for outline, dos/don’ts, required H2s, SEO spec — not in this fork.</p>
-      <div class="phase">
-        <h3>Placeholder</h3>
-        <p>Listicle · How-To · Comparison — seeded today; this nav proves Payload-adjacent IA.</p>
-      </div>
-    </section>
-
-    <section class="stub" id="stub-reports" aria-label="Reports stub">
-      <h1>Reports</h1>
-      <p>Phase later (surface B). What <code>pipeline:report</code> prints: pass rates, spend, failure digest.</p>
-      <div class="phase">
-        <h3>Placeholder metrics</h3>
-        <p>QA pass 62% · spend $48.20 this week · waste on unpublished $12.40 · top fail: BANNED_PHRASE</p>
-      </div>
-    </section>
-
-    <section class="stub" id="stub-public" aria-label="Public site stub">
-      <h1>Public site</h1>
-      <p>Phase later (surface C). Published articles as reader pages (Lexical body, FAQ, SEO/OG).</p>
-      <div class="phase">
-        <h3>Placeholder</h3>
-        <p>Approve → publish writes <code>publishedAt</code>; public route renders slug. Out of scope for Board vs Inbox.</p>
-      </div>
-    </section>
   </div>
-
   <div class="toast" id="toast" role="status"></div>
 
   <script>
     const TEMPLATES = ["Listicle", "How-To", "Comparison"];
-
-    /** @typedef {{ id: string, keyword: string, title?: string, status: string, template?: string, cost?: number, age: string, qa?: object, researchHint?: string }} Article */
-
-    /** @type {Article[]} */
-    let articles = [
-      {
-        id: "a1",
-        keyword: "best project management tools for freelancers",
-        status: "topic_selected",
-        age: "2h",
-        researchHint: "High volume / mid difficulty gap",
-      },
-      {
-        id: "a2",
-        keyword: "how to write a statement of work",
-        status: "topic_selected",
-        age: "5h",
-        researchHint: "Competitor ranks #3–#8",
-      },
-      {
-        id: "a3",
-        keyword: "asana vs monday.com for agencies",
-        title: "Asana vs Monday.com for Agencies: Which Fits?",
-        status: "needs_revision",
-        template: "Comparison",
-        cost: 1.84,
-        age: "1d",
-        qa: {
-          structural: { passed: false, violations: ["TITLE_TOO_LONG (68 > 60)", "Missing required H2: Pricing"] },
-          factCheck: { passed: true, notes: "Claims checked against vendor pricing pages." },
-          qualitative: { passed: false, notes: "Opening leans salesy; banned cadence near 'game-changer'." },
-        },
-      },
-      {
-        id: "a4",
-        keyword: "notion templates for content calendars",
-        title: "12 Notion Templates for Content Calendars",
-        status: "needs_revision",
-        template: "Listicle",
-        cost: 2.11,
-        age: "6h",
-        qa: {
-          structural: { passed: true, violations: [] },
-          factCheck: { passed: false, notes: "Template #4 download URL 404s; verify Notion gallery links." },
-          qualitative: { passed: true, notes: "Voice matches style guide." },
-        },
-      },
-      {
-        id: "a5",
-        keyword: "how to price retainers",
-        title: "How to Price Client Retainers Without Guesswork",
-        status: "qa_passed",
-        template: "How-To",
-        cost: 1.52,
-        age: "3h",
-        qa: {
-          structural: { passed: true, violations: [] },
-          factCheck: { passed: true, notes: "No contested claims." },
-          qualitative: { passed: true, notes: "Clear steps; good FAQ." },
-        },
-      },
-      {
-        id: "a6",
-        keyword: "client onboarding checklist",
-        title: "Client Onboarding Checklist for Solo Consultants",
-        status: "qa_passed",
-        template: "Listicle",
-        cost: 1.09,
-        age: "1d",
-        qa: {
-          structural: { passed: true, violations: [] },
-          factCheck: { passed: true, notes: "OK" },
-          qualitative: { passed: true, notes: "OK" },
-        },
-      },
-      {
-        id: "a7",
-        keyword: "crm for independent consultants",
-        title: "CRM Options for Independent Consultants",
-        status: "drafted",
-        template: "Comparison",
-        cost: 0.74,
-        age: "40m",
-      },
-      {
-        id: "a8",
-        keyword: "time tracking apps for billable hours",
-        status: "researched",
-        template: "Listicle",
-        age: "20m",
-      },
-      {
-        id: "a9",
-        keyword: "proposal software comparison",
-        title: "Proposal Software Comparison for Small Studios",
-        status: "approved",
-        template: "Comparison",
-        cost: 1.33,
-        age: "2d",
-      },
-      {
-        id: "a10",
-        keyword: "invoice templates for freelancers",
-        title: "Invoice Templates Freelancers Actually Use",
-        status: "published",
-        template: "Listicle",
-        cost: 0.98,
-        age: "5d",
-      },
-    ];
-
     const COLUMNS = [
       { id: "topic_selected", label: "Topic selected", actionable: true, blurb: "Assign a template" },
       { id: "researched", label: "Researched", actionable: false, blurb: "Pipeline" },
@@ -739,100 +427,146 @@
       { id: "published", label: "Published", actionable: false, blurb: "Live" },
     ];
 
-    let variant = "board"; // board | inbox
-    let selectedId = null;
-    let nav = "articles";
+    let articles = [
+      { id: "a1", keyword: "best project management tools for freelancers", status: "topic_selected", age: "2h", researchHint: "High volume / mid difficulty gap" },
+      { id: "a2", keyword: "how to write a statement of work", status: "topic_selected", age: "5h", researchHint: "Competitor ranks #3–#8" },
+      { id: "a3", keyword: "asana vs monday.com for agencies", title: "Asana vs Monday.com for Agencies: Which Fits?", status: "needs_revision", template: "Comparison", cost: 1.84, age: "1d",
+        bodyPreview: "Agencies juggling delivery and account work often shortlist Asana and Monday.com. This comparison covers workflow depth, pricing shape, and where each tool breaks down for multi-client teams.",
+        qa: { structural: { passed: false, violations: ["TITLE_TOO_LONG (68 > 60)", "Missing required H2: Pricing"] }, factCheck: { passed: true, notes: "Claims checked against vendor pricing pages." }, qualitative: { passed: false, notes: "Opening leans salesy; banned cadence near 'game-changer'." } } },
+      { id: "a4", keyword: "notion templates for content calendars", title: "12 Notion Templates for Content Calendars", status: "needs_revision", template: "Listicle", cost: 2.11, age: "6h",
+        bodyPreview: "A practical shortlist of Notion calendar setups — from editorial grids to social posting boards — with what each template is good for and where it falls short.",
+        qa: { structural: { passed: true, violations: [] }, factCheck: { passed: false, notes: "Template #4 download URL 404s; verify Notion gallery links." }, qualitative: { passed: true, notes: "Voice matches style guide." } } },
+      { id: "a5", keyword: "how to price retainers", title: "How to Price Client Retainers Without Guesswork", status: "qa_passed", template: "How-To", cost: 1.52, age: "3h",
+        bodyPreview: "A step-by-step method to price retainers from scope, capacity, and risk — plus FAQ on discounts and change orders.",
+        qa: { structural: { passed: true, violations: [] }, factCheck: { passed: true, notes: "No contested claims." }, qualitative: { passed: true, notes: "Clear steps; good FAQ." } } },
+      { id: "a6", keyword: "client onboarding checklist", title: "Client Onboarding Checklist for Solo Consultants", status: "qa_passed", template: "Listicle", cost: 1.09, age: "1d",
+        bodyPreview: "Fourteen onboarding steps from kickoff call to first deliverable, ordered for solo operators.",
+        qa: { structural: { passed: true, violations: [] }, factCheck: { passed: true, notes: "OK" }, qualitative: { passed: true, notes: "OK" } } },
+      { id: "a7", keyword: "crm for independent consultants", title: "CRM Options for Independent Consultants", status: "drafted", template: "Comparison", cost: 0.74, age: "40m", bodyPreview: "Draft in flight — awaiting QA." },
+      { id: "a8", keyword: "time tracking apps for billable hours", status: "researched", template: "Listicle", age: "20m" },
+      { id: "a9", keyword: "proposal software comparison", title: "Proposal Software Comparison for Small Studios", status: "approved", template: "Comparison", cost: 1.33, age: "2d", bodyPreview: "Approved and waiting to publish." },
+      { id: "a10", keyword: "invoice templates for freelancers", title: "Invoice Templates Freelancers Actually Use", status: "published", template: "Listicle", cost: 0.98, age: "5d", bodyPreview: "Live on the public site." },
+    ];
 
-    const els = {
-      board: document.getElementById("board"),
-      boardCounts: document.getElementById("board-counts"),
-      inboxList: document.getElementById("inbox-list"),
-      inboxDetail: document.getElementById("inbox-detail"),
-      inboxCounts: document.getElementById("inbox-counts"),
-      drawer: document.getElementById("drawer"),
-      workspace: document.getElementById("workspace"),
-      viewBoard: document.getElementById("view-board"),
-      viewInbox: document.getElementById("view-inbox"),
-      btnBoard: document.getElementById("btn-board"),
-      btnInbox: document.getElementById("btn-inbox"),
-      hint: document.getElementById("variant-hint"),
-      decisionBar: document.getElementById("decision-bar"),
-      toast: document.getElementById("toast"),
-    };
+    let embed = "replace"; // replace | extra
+    let nav = "articles";
+    let screen = "board"; // board | review | reports | templates | public | inbox
+    let focusId = articles[0]?.id ?? null;
+    let reviewId = null;
+    let dragId = null;
+
+    const app = document.getElementById("app");
+    const toastEl = document.getElementById("toast");
 
     function toast(msg) {
-      els.toast.textContent = msg;
-      els.toast.classList.add("show");
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
       clearTimeout(toast._t);
-      toast._t = setTimeout(() => els.toast.classList.remove("show"), 2200);
+      toast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+    }
+    function find(id) { return articles.find((a) => a.id === id); }
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
 
-    function counts() {
-      const c = {
-        assign: articles.filter((a) => a.status === "topic_selected").length,
-        triage: articles.filter((a) => a.status === "needs_revision").length,
-        approve: articles.filter((a) => a.status === "qa_passed").length,
+    function setEmbed(mode) {
+      embed = mode;
+      app.classList.toggle("embed-extra", mode === "extra");
+      app.classList.toggle("embed-replace", mode === "replace");
+      document.getElementById("embed-replace").classList.toggle("active", mode === "replace");
+      document.getElementById("embed-extra").classList.toggle("active", mode === "extra");
+      document.getElementById("embed-hint").textContent =
+        mode === "replace"
+          ? "Board replaces default collection list"
+          : "Stock Articles CRUD stays; Board is an Ops route";
+      document.getElementById("brand-mode").textContent =
+        mode === "replace" ? "· admin" : "· admin + ops";
+      document.getElementById("board-title").textContent =
+        mode === "replace" ? "Articles" : "Article board";
+      // In extra mode, Articles nav goes to board route conceptually
+      render();
+    }
+
+    function setScreen(name) {
+      screen = name;
+      if (name === "articles" || name === "board-route") screen = "board";
+      const map = {
+        board: "view-board",
+        review: "view-review",
+        reports: "view-reports",
+        templates: "view-templates",
+        public: "view-public",
+        inbox: "view-inbox",
       };
-      const html = `
-        <span class="pill hot">${c.triage} triage</span>
-        <span class="pill hot">${c.assign} assign</span>
-        <span class="pill">${c.approve} approve</span>
-      `;
-      els.boardCounts.innerHTML = html;
-      els.inboxCounts.innerHTML = html;
+      Object.values(map).forEach((id) => document.getElementById(id).classList.remove("active"));
+      document.getElementById(map[screen]).classList.add("active");
+
+      const navKey = screen === "board" ? (embed === "extra" ? "board-route" : "articles") : screen;
+      document.querySelectorAll("#top-nav button, #side-nav button").forEach((b) => {
+        const key = b.dataset.nav;
+        let active = key === navKey;
+        if (screen === "board" && embed === "replace" && key === "articles") active = true;
+        if (screen === "board" && embed === "extra" && key === "board-route") active = true;
+        if (screen === "board" && embed === "extra" && key === "articles") active = false;
+        b.classList.toggle("active", active);
+      });
+
+      document.getElementById("decision-bar").style.display =
+        screen === "board" || screen === "inbox" ? "flex" : "none";
     }
 
-    function actionWhy(a) {
-      if (a.status === "needs_revision") return "QA failed — triage & retry";
-      if (a.status === "topic_selected") return "Assign template to enter pipeline";
-      if (a.status === "qa_passed") return "Approve for publish";
-      if (a.status === "approved") return "Publish when ready";
-      if (a.status === "drafted") return "In flight — QA next";
-      if (a.status === "researched") return "In flight — generate next";
-      if (a.status === "published") return "Live";
-      return a.status;
+    function countsHtml() {
+      const triage = articles.filter((a) => a.status === "needs_revision").length;
+      const assign = articles.filter((a) => a.status === "topic_selected").length;
+      const approve = articles.filter((a) => a.status === "qa_passed").length;
+      return `<span class="pill hot">${triage} triage</span>
+        <span class="pill hot">${assign} assign</span>
+        <span class="pill">${approve} approve</span>`;
     }
 
-    function inboxRank(a) {
-      const order = {
-        needs_revision: 0,
-        topic_selected: 1,
-        qa_passed: 2,
-        approved: 3,
-        drafted: 4,
-        researched: 5,
-        published: 6,
-      };
-      return order[a.status] ?? 9;
-    }
-
-    function find(id) {
-      return articles.find((a) => a.id === id);
-    }
-
-    /* —— BOARD —— */
     function renderBoard() {
-      els.board.innerHTML = "";
+      document.getElementById("counts").innerHTML = countsHtml();
+      const board = document.getElementById("board");
+      board.innerHTML = "";
       for (const col of COLUMNS) {
         const items = articles.filter((a) => a.status === col.id);
         const column = document.createElement("div");
         column.className = "column" + (col.actionable ? " actionable" : "");
+        column.dataset.status = col.id;
         column.innerHTML = `
-          <div class="column-head">
-            <h2>${col.label}</h2>
-            <span class="n">${items.length}</span>
-          </div>
+          <div class="column-head"><h2>${col.label}</h2><span class="n">${items.length}</span></div>
           <div class="column-sub">${col.blurb}</div>
-          <div class="column-body"></div>
+          <div class="column-body" data-status="${col.id}"></div>
         `;
         const body = column.querySelector(".column-body");
+        body.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          column.classList.add("drag-over");
+        });
+        body.addEventListener("dragleave", () => column.classList.remove("drag-over"));
+        body.addEventListener("drop", (e) => {
+          e.preventDefault();
+          column.classList.remove("drag-over");
+          const id = e.dataTransfer.getData("text/article-id") || dragId;
+          const a = find(id);
+          if (!a) return;
+          if (a.status === col.id) return;
+          const prev = a.status;
+          a.status = col.id;
+          focusId = a.id;
+          toast(`Moved → ${col.id} (was ${prev})`);
+          render();
+        });
+
         if (!items.length) {
-          body.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:8px 2px">Empty</div>`;
+          body.innerHTML = `<div class="empty-col">Nothing here<br><span style="font-size:11px">Drop a card</span></div>`;
         }
         for (const a of items) {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "card" + (selectedId === a.id ? " selected" : "");
+          btn.className = "card" + (focusId === a.id ? " focus" : "");
+          btn.draggable = true;
+          btn.dataset.id = a.id;
           btn.innerHTML = `
             <p class="kw">${escapeHtml(a.keyword)}</p>
             <p class="meta">${a.template ? escapeHtml(a.template) : "No template"} · ${a.age}</p>
@@ -841,105 +575,77 @@
               ${a.cost != null ? `<span class="cost">$${a.cost.toFixed(2)}</span>` : ""}
             </div>
           `;
-          btn.addEventListener("click", () => selectArticle(a.id));
+          btn.addEventListener("click", () => openReview(a.id));
+          btn.addEventListener("focus", () => { focusId = a.id; });
+          btn.addEventListener("dragstart", (e) => {
+            dragId = a.id;
+            btn.classList.add("dragging");
+            e.dataTransfer.setData("text/article-id", a.id);
+            e.dataTransfer.effectAllowed = "move";
+          });
+          btn.addEventListener("dragend", () => btn.classList.remove("dragging"));
           body.appendChild(btn);
         }
-        els.board.appendChild(column);
+        board.appendChild(column);
+      }
+      // restore focus outline target
+      const focused = board.querySelector(`.card[data-id="${focusId}"]`);
+      if (focused && document.activeElement?.tagName !== "INPUT") {
+        // don't steal focus while typing
       }
     }
 
-    /* —— INBOX —— */
-    function renderInboxList() {
-      const needsYou = articles
-        .filter((a) => ["needs_revision", "topic_selected", "qa_passed"].includes(a.status))
-        .sort((a, b) => inboxRank(a) - inboxRank(b));
-      const watching = articles
-        .filter((a) => !["needs_revision", "topic_selected", "qa_passed"].includes(a.status))
-        .sort((a, b) => inboxRank(a) - inboxRank(b));
-
-      els.inboxList.innerHTML = "";
-      const addSection = (label, list) => {
-        const lab = document.createElement("div");
-        lab.className = "section-label";
-        lab.textContent = `${label} · ${list.length}`;
-        els.inboxList.appendChild(lab);
-        if (!list.length) {
-          const empty = document.createElement("div");
-          empty.className = "inbox-empty";
-          empty.textContent = "Nothing here";
-          els.inboxList.appendChild(empty);
-          return;
-        }
-        for (const a of list) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "inbox-item" + (selectedId === a.id ? " selected" : "");
-          const prio = inboxRank(a) < 3 ? String(inboxRank(a) + 1) : "·";
-          btn.innerHTML = `
-            <span class="prio">${prio}</span>
-            <div>
-              <p class="kw">${escapeHtml(a.keyword)}</p>
-              <p class="why">${escapeHtml(actionWhy(a))}</p>
-              <p class="meta">${a.template || "—"} · ${a.age}${a.cost != null ? ` · $${a.cost.toFixed(2)}` : ""}</p>
-            </div>
-            <span class="status ${a.status}">${shortStatus(a.status)}</span>
-          `;
-          btn.addEventListener("click", () => selectArticle(a.id));
-          els.inboxList.appendChild(btn);
-        }
-      };
-      addSection("Needs you", needsYou);
-      addSection("Watching", watching);
+    function openReview(id) {
+      reviewId = id;
+      focusId = id;
+      setScreen("review");
+      renderReview();
     }
 
-    function shortStatus(s) {
-      return s.replace(/_/g, " ");
-    }
-
-    function selectArticle(id) {
-      selectedId = id;
-      renderAll();
-    }
-
-    function renderDetailInto(container, a, { closable }) {
+    function renderReview() {
+      const a = find(reviewId);
+      const main = document.getElementById("review-main");
+      const aside = document.getElementById("review-aside");
+      const st = document.getElementById("review-status");
       if (!a) {
-        container.innerHTML = `<div class="detail-empty">Select an article</div>`;
+        main.innerHTML = `<p>Article not found.</p>`;
+        aside.innerHTML = "";
         return;
       }
+      st.className = "status " + a.status;
+      st.textContent = a.status;
 
-      const head = `
-        <div class="${container === els.drawer ? "drawer-head" : "detail-head"}">
-          <div style="flex:1">
-            <h2>${escapeHtml(a.title || a.keyword)}</h2>
-            <p class="sub">${escapeHtml(a.keyword)} · ${a.status}${a.template ? ` · ${escapeHtml(a.template)}` : ""}</p>
-          </div>
-          ${closable ? `<button type="button" class="btn ghost" data-act="close">Close</button>` : ""}
+      main.innerHTML = `
+        <div class="crumb">
+          <span class="hint">Full review page · Esc returns to board</span>
+        </div>
+        <h1>${escapeHtml(a.title || a.keyword)}</h1>
+        <p class="sub">${escapeHtml(a.keyword)}${a.template ? ` · ${escapeHtml(a.template)}` : ""} · ${a.age}${a.cost != null ? ` · $${a.cost.toFixed(2)}` : ""}</p>
+        <div class="prose">
+          <h3>Body preview</h3>
+          <p>${escapeHtml(a.bodyPreview || a.researchHint || "No body yet — topic awaiting template / generation.")}</p>
         </div>
       `;
 
-      let body = `<div class="${container === els.drawer ? "drawer-body" : "detail-body"}">`;
-
+      let actions = "";
       if (a.status === "topic_selected") {
-        body += `
+        actions = `
           <div class="block">
             <h3>Assign template</h3>
-            <p style="margin-bottom:10px;color:var(--muted)">${escapeHtml(a.researchHint || "Content-gap keyword — pick a shape before research/generate.")}</p>
+            <p style="color:var(--muted);margin:0 0 10px;font-size:13px">${escapeHtml(a.researchHint || "Pick a shape before pipeline run.")}</p>
             <div class="field">
-              <label for="tpl-${a.id}">Template</label>
-              <select id="tpl-${a.id}">
+              <label for="tpl">Template</label>
+              <select id="tpl">
                 <option value="">Select…</option>
-                ${TEMPLATES.map((t) => `<option value="${t}" ${a.template === t ? "selected" : ""}>${t}</option>`).join("")}
+                ${TEMPLATES.map((t) => `<option value="${t}">${t}</option>`).join("")}
               </select>
             </div>
             <div class="actions">
-              <button type="button" class="btn primary" data-act="assign">Assign & queue</button>
+              <button type="button" class="btn primary" data-act="assign">Assign &amp; return</button>
             </div>
-          </div>
-        `;
-      }
-
-      if (a.status === "needs_revision" && a.qa) {
-        body += `
+          </div>`;
+      } else if (a.status === "needs_revision" && a.qa) {
+        actions = `
           <div class="block">
             <h3>QA triage</h3>
             ${checkRow("Structural", a.qa.structural)}
@@ -948,7 +654,7 @@
           </div>
           <div class="block">
             <h3>Failure detail</h3>
-            <ul>
+            <ul class="tight">
               ${(a.qa.structural.violations || []).map((v) => `<li>${escapeHtml(v)}</li>`).join("")}
               ${!a.qa.factCheck.passed ? `<li>Fact: ${escapeHtml(a.qa.factCheck.notes)}</li>` : ""}
               ${!a.qa.qualitative.passed ? `<li>Style: ${escapeHtml(a.qa.qualitative.notes)}</li>` : ""}
@@ -956,197 +662,310 @@
           </div>
           <div class="block">
             <h3>Resolve</h3>
-            <p style="margin-bottom:10px;color:var(--muted)">Reset to <code>drafted</code> re-enters QA on next pipeline run. Edit body in Payload for now.</p>
+            <p style="color:var(--muted);font-size:13px;margin:0 0 10px">Reset to <code>drafted</code> re-enters QA on next <code>pipeline:run</code>.</p>
             <div class="field">
-              <label for="note-${a.id}">Review note (optional)</label>
-              <textarea id="note-${a.id}" placeholder="What you fixed or why retrying…"></textarea>
+              <label for="note">Review note</label>
+              <textarea id="note" placeholder="What you fixed…"></textarea>
             </div>
             <div class="actions">
               <button type="button" class="btn primary" data-act="retry">Reset to drafted</button>
-              <button type="button" class="btn" data-act="open-edit">Open in admin</button>
+              <button type="button" class="btn" data-act="edit">Open in admin</button>
             </div>
-          </div>
-        `;
-      }
-
-      if (a.status === "qa_passed") {
-        body += `
+          </div>`;
+      } else if (a.status === "qa_passed") {
+        actions = `
           <div class="block">
-            <h3>Ready for approval</h3>
-            <p style="margin-bottom:10px">All QA checks passed${a.cost != null ? ` · generation+QA $${a.cost.toFixed(2)}` : ""}.</p>
-            <div class="field">
-              <label for="note-${a.id}">Review notes</label>
-              <textarea id="note-${a.id}" placeholder="Optional notes for the record"></textarea>
-            </div>
+            <h3>Approve</h3>
+            <p style="margin:0 0 10px;font-size:13px">All QA checks passed.</p>
+            <div class="field"><label for="note">Review notes</label><textarea id="note"></textarea></div>
             <div class="actions">
               <button type="button" class="btn primary" data-act="approve">Approve</button>
-              <button type="button" class="btn" data-act="approve-publish">Approve & publish</button>
-              <button type="button" class="btn ghost" data-act="send-revision">Send back</button>
+              <button type="button" class="btn" data-act="publish">Approve &amp; publish</button>
+              <button type="button" class="btn ghost" data-act="send-back">Send back</button>
             </div>
-          </div>
-        `;
-      }
-
-      if (a.status === "approved") {
-        body += `
+          </div>`;
+      } else if (a.status === "approved") {
+        actions = `
           <div class="block">
-            <h3>Approved</h3>
-            <p style="margin-bottom:10px;color:var(--muted)">Waiting to go live on the public site.</p>
-            <div class="actions">
-              <button type="button" class="btn primary" data-act="publish">Publish</button>
-            </div>
-          </div>
-        `;
-      }
-
-      if (["researched", "drafted", "published"].includes(a.status)) {
-        body += `
+            <h3>Publish</h3>
+            <div class="actions"><button type="button" class="btn primary" data-act="publish-only">Publish</button></div>
+          </div>`;
+      } else {
+        actions = `
           <div class="block">
             <h3>Status</h3>
-            <p>${escapeHtml(actionWhy(a))}</p>
-            <p style="margin-top:8px;color:var(--muted);font-size:12px">No operator action required in this prototype.</p>
-          </div>
-        `;
+            <p style="margin:0;color:var(--muted);font-size:13px">No operator action required. Drag on the board to move, or wait for pipeline.</p>
+          </div>`;
       }
 
-      body += `</div>`;
-      container.innerHTML = head + body;
+      aside.innerHTML = actions;
 
-      container.querySelector('[data-act="close"]')?.addEventListener("click", () => {
-        selectedId = null;
-        renderAll();
-      });
-      container.querySelector('[data-act="assign"]')?.addEventListener("click", () => {
-        const sel = container.querySelector(`#tpl-${a.id}`);
-        if (!sel.value) {
-          toast("Pick a template first");
-          return;
-        }
+      aside.querySelector('[data-act="assign"]')?.addEventListener("click", () => {
+        const sel = aside.querySelector("#tpl");
+        if (!sel.value) return toast("Pick a template first");
         a.template = sel.value;
-        a.status = "researched"; // mock: assign → pipeline picks it up; jump for demo clarity
-        toast(`Assigned ${sel.value} · article enters pipeline`);
-        selectedId = a.id;
-        renderAll();
+        a.status = "researched";
+        toast(`Assigned ${sel.value}`);
+        setScreen("board");
+        render();
       });
-      container.querySelector('[data-act="retry"]')?.addEventListener("click", () => {
+      aside.querySelector('[data-act="retry"]')?.addEventListener("click", () => {
         a.status = "drafted";
         a.qa = undefined;
-        toast("Reset to drafted — next pipeline:run will re-QA");
-        renderAll();
+        toast("Reset to drafted");
+        setScreen("board");
+        render();
       });
-      container.querySelector('[data-act="open-edit"]')?.addEventListener("click", () => {
-        toast("Would open Payload article editor (stub)");
-      });
-      container.querySelector('[data-act="approve"]')?.addEventListener("click", () => {
+      aside.querySelector('[data-act="edit"]')?.addEventListener("click", () => toast("Would open Payload editor (stub)"));
+      aside.querySelector('[data-act="approve"]')?.addEventListener("click", () => {
         a.status = "approved";
         toast("Approved");
-        renderAll();
+        setScreen("board");
+        render();
       });
-      container.querySelector('[data-act="approve-publish"]')?.addEventListener("click", () => {
+      aside.querySelector('[data-act="publish"]')?.addEventListener("click", () => {
         a.status = "published";
         toast("Approved & published");
-        renderAll();
+        setScreen("board");
+        render();
       });
-      container.querySelector('[data-act="send-revision"]')?.addEventListener("click", () => {
+      aside.querySelector('[data-act="publish-only"]')?.addEventListener("click", () => {
+        a.status = "published";
+        toast("Published");
+        setScreen("board");
+        render();
+      });
+      aside.querySelector('[data-act="send-back"]')?.addEventListener("click", () => {
         a.status = "needs_revision";
         a.qa = {
           structural: { passed: true, violations: [] },
           factCheck: { passed: true, notes: "OK" },
           qualitative: { passed: false, notes: "Editor sent back for voice pass." },
         };
-        toast("Sent back to needs_revision");
-        renderAll();
-      });
-      container.querySelector('[data-act="publish"]')?.addEventListener("click", () => {
-        a.status = "published";
-        toast("Published");
-        renderAll();
+        toast("Sent to needs_revision");
+        renderReview();
       });
     }
 
     function checkRow(label, result) {
       const ok = result.passed;
-      return `
-        <div class="check-row">
-          <span class="mark ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span>
-          <span>${label}</span>
+      return `<div class="check-row"><span class="mark ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span><span>${label}</span></div>`;
+    }
+
+    function renderReports() {
+      const byStatus = {};
+      for (const a of articles) byStatus[a.status] = (byStatus[a.status] || 0) + 1;
+      const qaArts = articles.filter((a) => a.qa);
+      const passRate = (key) => {
+        const withQ = articles.filter((a) => a.qa && a.qa[key]);
+        if (!withQ.length) return { t: 0, p: 0 };
+        const p = withQ.filter((a) => a.qa[key].passed).length;
+        return { t: withQ.length, p };
+      };
+      const st = passRate("structural");
+      const fc = passRate("factCheck");
+      const qu = passRate("qualitative");
+      const spendByStage = [
+        { stage: "generate", usd: 28.4 },
+        { stage: "factCheck", usd: 12.1 },
+        { stage: "qualitativeReview", usd: 7.7 },
+      ];
+      const spendByModel = [
+        { model: "claude-opus-5", usd: 42.8 },
+        { model: "fixtures/mock", usd: 5.4 },
+      ];
+      const totalSpend = 48.2;
+      const published = articles.filter((a) => a.status === "published");
+      const publishedSpend = published.reduce((s, a) => s + (a.cost || 0), 0);
+      const allCost = articles.reduce((s, a) => s + (a.cost || 0), 0);
+      const waste = Math.max(0, allCost - publishedSpend);
+      const failures = articles.filter((a) => a.status === "needs_revision");
+
+      const maxStage = Math.max(...spendByStage.map((x) => x.usd));
+      document.getElementById("reports-page").innerHTML = `
+        <h1>Reports</h1>
+        <p class="lede">Parity with <code>pipeline:report</code> — period spend, QA rates, failure digest. Prototype data.</p>
+        <div class="period-switch">
+          <span class="hint">Period</span>
+          <div class="switcher">
+            <button type="button" class="active" data-period="week">Week</button>
+            <button type="button" data-period="month">Month</button>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="label">Articles</div><div class="value">${articles.length}</div><div class="sub">in workspace</div></div>
+          <div class="metric"><div class="label">Period spend</div><div class="value">$${totalSpend.toFixed(2)}</div><div class="sub">${spendByStage.length} stages</div></div>
+          <div class="metric"><div class="label">QA structural</div><div class="value">${st.t ? Math.round((st.p/st.t)*100) : 0}%</div><div class="sub">${st.p}/${st.t}</div></div>
+          <div class="metric"><div class="label">Needs revision</div><div class="value">${failures.length}</div><div class="sub">in failure digest</div></div>
+          <div class="metric"><div class="label">Cost / published</div><div class="value">${published.length ? "$" + (publishedSpend/published.length).toFixed(2) : "n/a"}</div><div class="sub">${published.length} published</div></div>
+          <div class="metric"><div class="label">Waste</div><div class="value">$${waste.toFixed(2)}</div><div class="sub">unpublished spend</div></div>
+        </div>
+
+        <div class="panel">
+          <h2>Status mix</h2>
+          <div class="body">
+            ${COLUMNS.map((c) => {
+              const n = byStatus[c.id] || 0;
+              const pct = articles.length ? (n / articles.length) * 100 : 0;
+              return `<div class="bar-row"><span>${c.label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="amt">${n}</span></div>`;
+            }).join("")}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>QA pass rates</h2>
+          <div class="body">
+            <div class="bar-row"><span>structural</span><div class="bar-track"><div class="bar-fill" style="width:${st.t? (st.p/st.t)*100:0}%"></div></div><span class="amt">${st.p}/${st.t}</span></div>
+            <div class="bar-row"><span>factCheck</span><div class="bar-track"><div class="bar-fill" style="width:${fc.t? (fc.p/fc.t)*100:0}%"></div></div><span class="amt">${fc.p}/${fc.t}</span></div>
+            <div class="bar-row"><span>qualitative</span><div class="bar-track"><div class="bar-fill" style="width:${qu.t? (qu.p/qu.t)*100:0}%"></div></div><span class="amt">${qu.p}/${qu.t}</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Spend by stage</h2>
+          <div class="body">
+            ${spendByStage.map((r) => `<div class="bar-row"><span>${r.stage}</span><div class="bar-track"><div class="bar-fill" style="width:${(r.usd/maxStage)*100}%"></div></div><span class="amt">$${r.usd.toFixed(2)}</span></div>`).join("")}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Spend by model</h2>
+          <div class="body">
+            ${spendByModel.map((r) => `<div class="bar-row"><span>${r.model}</span><div class="bar-track"><div class="bar-fill" style="width:${(r.usd/42.8)*100}%"></div></div><span class="amt">$${r.usd.toFixed(2)}</span></div>`).join("")}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Failure digest</h2>
+          <div class="body">
+            ${failures.length === 0 ? "<p style='margin:0;color:var(--muted)'>(none)</p>" : `
+            <table class="digest">
+              <thead><tr><th>Article</th><th>Template</th><th>Fails</th></tr></thead>
+              <tbody>
+                ${failures.map((a) => {
+                  const fails = [];
+                  if (a.qa && !a.qa.structural.passed) fails.push("structural");
+                  if (a.qa && !a.qa.factCheck.passed) fails.push("factCheck");
+                  if (a.qa && !a.qa.qualitative.passed) fails.push("qualitative");
+                  return `<tr>
+                    <td><button type="button" class="btn ghost" data-open="${a.id}" style="padding:0;border:0;text-decoration:underline">${escapeHtml(a.title || a.keyword)}</button></td>
+                    <td>${escapeHtml(a.template || "—")}</td>
+                    <td>${fails.join(", ") || "—"}</td>
+                  </tr>`;
+                }).join("")}
+              </tbody>
+            </table>`}
+          </div>
         </div>
       `;
-    }
 
-    function escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-
-    function setVariant(v) {
-      variant = v;
-      els.btnBoard.classList.toggle("active", v === "board");
-      els.btnInbox.classList.toggle("active", v === "inbox");
-      els.btnBoard.setAttribute("aria-pressed", String(v === "board"));
-      els.btnInbox.setAttribute("aria-pressed", String(v === "inbox"));
-      els.hint.textContent =
-        v === "board"
-          ? "A: status columns · scan pipeline · act on hot columns"
-          : "B: ranked work · Needs you first · detail always open";
-      renderAll();
-    }
-
-    function setNav(name) {
-      nav = name;
-      document.querySelectorAll("#main-nav button").forEach((b) => {
-        b.classList.toggle("active", b.dataset.nav === name);
+      document.querySelectorAll("#reports-page [data-period]").forEach((b) => {
+        b.addEventListener("click", () => {
+          document.querySelectorAll("#reports-page [data-period]").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          toast(`Period → ${b.dataset.period} (demo toggle)`);
+        });
       });
-      const showArticles = name === "articles";
-      els.decisionBar.style.display = showArticles ? "flex" : "none";
-      els.workspace.style.display = showArticles ? "grid" : "none";
-      document.getElementById("stub-templates").classList.toggle("active", name === "templates");
-      document.getElementById("stub-reports").classList.toggle("active", name === "reports");
-      document.getElementById("stub-public").classList.toggle("active", name === "public");
+      document.querySelectorAll("#reports-page [data-open]").forEach((b) => {
+        b.addEventListener("click", () => openReview(b.dataset.open));
+      });
     }
 
-    function renderAll() {
-      counts();
-      const showBoard = variant === "board";
-      els.viewBoard.classList.toggle("active", showBoard);
-      els.viewInbox.classList.toggle("active", !showBoard);
+    function render() {
+      if (screen === "board") renderBoard();
+      else if (screen === "review") renderReview();
+      else if (screen === "reports") renderReports();
+    }
 
-      if (showBoard) {
-        const open = Boolean(selectedId);
-        els.workspace.classList.toggle("with-drawer", open);
+    function focusedIndex() {
+      return articles.findIndex((a) => a.id === focusId);
+    }
+
+    function moveFocus(dx, dy) {
+      // Prefer spatial: same column vertical, else adjacent column
+      const a = find(focusId);
+      if (!a) {
+        focusId = articles[0]?.id;
         renderBoard();
-        if (open) {
-          renderDetailInto(els.drawer, find(selectedId), { closable: true });
-        } else {
-          els.drawer.innerHTML = "";
-        }
-      } else {
-        els.workspace.classList.remove("with-drawer");
-        renderInboxList();
-        if (selectedId) {
-          renderDetailInto(els.inboxDetail, find(selectedId), { closable: false });
-        } else {
-          els.inboxDetail.innerHTML = `<div class="detail-empty">Select an item — inbox ranks human work first.</div>`;
+        return;
+      }
+      if (dy !== 0) {
+        const colItems = articles.filter((x) => x.status === a.status);
+        const i = colItems.findIndex((x) => x.id === a.id);
+        const next = colItems[i + dy];
+        if (next) focusId = next.id;
+      }
+      if (dx !== 0) {
+        const colIdx = COLUMNS.findIndex((c) => c.id === a.status);
+        let target = colIdx + dx;
+        while (target >= 0 && target < COLUMNS.length) {
+          const items = articles.filter((x) => x.status === COLUMNS[target].id);
+          if (items.length) {
+            focusId = items[0].id;
+            break;
+          }
+          target += dx;
         }
       }
+      renderBoard();
+      document.querySelector(`.card[data-id="${focusId}"]`)?.focus();
     }
 
-    els.btnBoard.addEventListener("click", () => setVariant("board"));
-    els.btnInbox.addEventListener("click", () => setVariant("inbox"));
-    document.querySelectorAll("#main-nav button").forEach((b) => {
-      b.addEventListener("click", () => setNav(b.dataset.nav));
+    // Events
+    document.getElementById("embed-replace").addEventListener("click", () => setEmbed("replace"));
+    document.getElementById("embed-extra").addEventListener("click", () => setEmbed("extra"));
+    document.getElementById("meta-board").addEventListener("click", () => {
+      document.getElementById("meta-board").classList.add("active");
+      document.getElementById("meta-inbox").classList.remove("active");
+      setScreen("board");
+      render();
     });
-    document.addEventListener("keydown", (e) => {
-      if (e.target.matches("input, textarea, select")) return;
-      if (e.key === "1") setVariant("board");
-      if (e.key === "2") setVariant("inbox");
+    document.getElementById("meta-inbox").addEventListener("click", () => {
+      document.getElementById("meta-inbox").classList.add("active");
+      document.getElementById("meta-board").classList.remove("active");
+      setScreen("inbox");
+    });
+    document.getElementById("back-from-inbox").addEventListener("click", () => {
+      document.getElementById("meta-board").click();
+    });
+    document.getElementById("back-board").addEventListener("click", () => {
+      setScreen("board");
+      render();
     });
 
-    setVariant("board");
-    setNav("articles");
+    document.querySelectorAll("#top-nav button, #side-nav button").forEach((b) => {
+      b.addEventListener("click", () => {
+        const n = b.dataset.nav;
+        if (n === "articles" && embed === "extra") {
+          toast("Stock Articles CRUD (stub) — use Article board in Ops");
+          return;
+        }
+        if (n === "board-route" || n === "articles") setScreen("board");
+        else setScreen(n);
+        render();
+      });
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.matches("input, textarea, select")) return;
+      if (e.key === "[") setEmbed("replace");
+      if (e.key === "]") setEmbed("extra");
+      if (e.key === "Escape" && screen === "review") {
+        setScreen("board");
+        render();
+        return;
+      }
+      if (screen !== "board") return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); moveFocus(-1, 0); }
+      if (e.key === "ArrowRight") { e.preventDefault(); moveFocus(1, 0); }
+      if (e.key === "ArrowUp") { e.preventDefault(); moveFocus(0, -1); }
+      if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(0, 1); }
+      if (e.key === "Enter" && focusId) { e.preventDefault(); openReview(focusId); }
+    });
+
+    setEmbed("replace");
+    setScreen("board");
+    render();
   </script>
 </body>
 </html>
