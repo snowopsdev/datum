@@ -71,7 +71,7 @@ Template assignment (`topic_selected` → having a `template`) is a manual step 
 
 ## Cost tracking
 
-Every LLM call must go through `completeJSONLogged()` in `pipeline/src/llm.ts` — it wraps `completeJSON()` and unconditionally writes one `cost-log` row (tokens, provider, model, computed `costUsd`) per call, keyed by `pipelineRunId` and `article`. Stages should never call `completeJSON()` directly for anything that should be cost-tracked. `qaStage` sums that article's `cost-log` rows into `totalCostUsd` after its own LLM calls, so it always includes the current run's `factCheck`/`qualitativeReview` cost. `pipeline/src/report.ts` reads `cost-log` for spend-by-stage/spend-by-model and a "cost per published article" / "waste on unpublished articles" breakdown.
+Every LLM call must go through `completeJSONLogged()` in `pipeline/src/llm.ts` — it wraps `completeJSON()` and writes one `cost-log` row (tokens, provider, model, computed `costUsd`) per call, keyed by `pipelineRunId` and `article`. One gap: if the model's reply isn't valid JSON, `parseJsonReply` throws inside `completeJSON()` before the row is written, so that call's (paid) tokens go unrecorded and spend reports undercount. Stages should never call `completeJSON()` directly for anything that should be cost-tracked. `qaStage` sums that article's `cost-log` rows into `totalCostUsd` after its own LLM calls, so it always includes the current run's `factCheck`/`qualitativeReview` cost. `pipeline/src/report.ts` reads `cost-log` for spend-by-stage/spend-by-model and a "cost per published article" / "waste on unpublished articles" breakdown.
 
 ## Rich text conversion
 
@@ -85,7 +85,7 @@ Payload stores article/template body content as Lexical JSON. `pipeline/src/rich
 
 - **`Templates`** — content templates (`Listicle`, `How-To`, `Comparison` are seeded); holds the outline (rich text), dos/don'ts arrays, `requiredSections` (H2s enforced by structural QA — the outline itself is prose guidance, not enforced directly), and `seoSpec`.
 - **`Articles`** — one row per article; `status` drives the pipeline; `research`, `qaResults`, `qaModels`, `generationModel`, `totalCostUsd` are pipeline-written fields — by convention only, as the collection doesn't mark them `admin.readOnly` or restrict access, so the admin UI will happily let a human overwrite them (and the next `pipeline:run` may overwrite them back).
-- **`CostLog`** — append-only, one row per LLM call (see Cost tracking above).
+- **`CostLog`** — one row per LLM call (see Cost tracking above); append-only by convention — the pipeline only ever creates rows, but the collection has no access rules stopping the admin UI/API from editing or deleting them.
 - **`Users`** / **`Media`** — stock Payload auth/upload collections, unmodified from the Payload blank template.
 
 After changing any collection's fields, run `npm run generate:types --workspace cms` — `pipeline` imports `Article`/`Template`/`CostLog` types straight from `cms/src/payload-types.ts` via relative path (`../../cms/src/payload-types`), so stale types there will silently drift from the actual schema.
