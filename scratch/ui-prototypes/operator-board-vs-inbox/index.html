@@ -736,16 +736,24 @@
       document.getElementById("embed-replace")?.addEventListener("click", () => setEmbed("replace"));
       document.getElementById("embed-extra")?.addEventListener("click", () => setEmbed("extra"));
       document.getElementById("meta-board")?.addEventListener("click", () => {
-        document.getElementById("meta-board").classList.add("active");
-        document.getElementById("meta-inbox")?.classList.remove("active");
         setScreen("board");
         render();
       });
       document.getElementById("meta-inbox")?.addEventListener("click", () => {
-        document.getElementById("meta-inbox").classList.add("active");
-        document.getElementById("meta-board")?.classList.remove("active");
         setScreen("inbox");
+        render();
       });
+    }
+
+    function syncMetaphorSwitcher(screenName) {
+      document.getElementById("meta-board")?.classList.toggle("active", screenName === "board");
+      document.getElementById("meta-inbox")?.classList.toggle("active", screenName === "inbox");
+    }
+
+    function exitPublicPreview() {
+      setScreen("board");
+      render();
+      toast("Back to admin");
     }
 
     function showDecisionFor(screenName) {
@@ -755,6 +763,7 @@
         decisionBar.innerHTML = decisionBarDefault;
         wireDecisionBarDefaults();
         setEmbed(embed);
+        syncMetaphorSwitcher(screenName);
         return;
       }
       if (screenName === "public") {
@@ -762,12 +771,14 @@
         decisionBar.innerHTML = `
           <strong>Locked · Long scroll</strong>
           <p>Minimal chrome (logo + article). Sticky TOC kept as archive preview.</p>
+          <button type="button" class="btn" id="exit-public">← Admin</button>
           <div class="switcher" aria-label="Public layout">
             <button type="button" id="pub-scroll" class="${publicLayout === "scroll" ? "active" : ""}">A · Long scroll ✓</button>
             <button type="button" id="pub-toc" class="${publicLayout === "toc" ? "active" : ""}">B · TOC (archive)</button>
           </div>
           <div class="hint">Styled with root DESIGN.md (Notion)</div>
         `;
+        document.getElementById("exit-public").addEventListener("click", exitPublicPreview);
         document.getElementById("pub-scroll").addEventListener("click", () => { publicLayout = "scroll"; renderPublic(); showDecisionFor("public"); });
         document.getElementById("pub-toc").addEventListener("click", () => { publicLayout = "toc"; renderPublic(); showDecisionFor("public"); });
         return;
@@ -1255,13 +1266,14 @@
       document.getElementById("public-shell").innerHTML = `
         <div class="reader-top">
           <div class="reader-logo">Datum</div>
-          <span class="hint">published · monochrome</span>
+          <button type="button" class="btn" id="exit-public-reader">← Back to admin</button>
         </div>
         <div class="reader-article ${publicLayout === "toc" ? "with-toc" : ""}">
           ${publicLayout === "toc" ? `<nav class="reader-toc" aria-label="Sections">${tocLinks}</nav>` : ""}
           ${articleInner}
         </div>
       `;
+      document.getElementById("exit-public-reader")?.addEventListener("click", exitPublicPreview);
     }
 
     function render() {
@@ -1335,6 +1347,7 @@
       if (screen === "public") {
         if (e.key === "1") { publicLayout = "scroll"; showDecisionFor("public"); renderPublic(); }
         if (e.key === "2") { publicLayout = "toc"; showDecisionFor("public"); renderPublic(); }
+        if (e.key === "Escape") { e.preventDefault(); exitPublicPreview(); }
       }
       if (e.key === "[" && (screen === "board" || screen === "inbox")) setEmbed("replace");
       if (e.key === "]" && (screen === "board" || screen === "inbox")) setEmbed("extra");
