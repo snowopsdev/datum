@@ -108,4 +108,4 @@ Agent helpers under `.claude/` and `vendor/claude-plugins/` are optional and not
 
 ## License
 
-[MIT](LICENSE) © 2026 Aj Nieves
+[MIT](LICENSE) © 2026
