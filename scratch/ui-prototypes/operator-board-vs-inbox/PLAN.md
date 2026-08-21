@@ -1,6 +1,6 @@
 # Operator UI — design plan (throwaway prototypes)
 
-**Status:** dialing shape · not production  
+**Status:** Phase 0 locked · Board chosen · not production  
 **Prototype:** `scratch/ui-prototypes/operator-board-vs-inbox/index.html`  
 **Open:** `npx --yes serve scratch/ui-prototypes/operator-board-vs-inbox` → open the URL
 
@@ -15,23 +15,19 @@
 | Day-one jobs | Assign template + triage `needs_revision` |
 | Approve → publish → public | Yes, in product scope |
 | Fidelity now | Clickable HTML, monochrome |
-| First fork | **Board vs Inbox** |
+| Primary metaphor | **Board** (Inbox kept in prototype for comparison only) |
 
 ## Phased plan
 
-### Phase 0 — Metaphor (this prototype)
+### Phase 0 — Metaphor ✅
 
-Settle primary Articles IA: **Board** vs **Inbox** for assign + triage + approve.
+**Chose Board.** Status columns are the primary Articles IA; card → drawer for assign / triage / approve.
 
-- Same sample data and actions in both variants.
-- Switcher / keys `1` · `2`.
-- Nav stubs for Templates / Reports / Public prove IA without designing those yet.
-
-**Decision criteria:** which layout makes “what do I do next?” obvious in under 3 seconds; which makes QA triage readable without leaving the flow.
+Inbox remains available via the switcher as an archive of the rejected alternative — do not ship it unless we revisit.
 
 ### Phase 1 — Operator workflow (surface A)
 
-Ship the winning metaphor inside Payload (custom admin view or adjacent route):
+Ship **Board** inside Payload (custom admin view or adjacent route):
 
 1. Assign template on `topic_selected` (replaces script-only path).
 2. Triage `needs_revision` with structural / fact / qualitative surfaced; one-click reset → `drafted`.
