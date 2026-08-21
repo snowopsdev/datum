@@ -324,16 +324,16 @@
     </header>
 
     <div class="decision-bar" id="decision-bar">
-      <strong>Where is the board?</strong>
+      <strong>Locked · Extra Ops route</strong>
       <p id="embed-explain">
-        <strong>Replace:</strong> Articles opens the board (no default table).
-        <strong>Extra route:</strong> Articles stays a table; board is a separate Ops link.
+        Articles stays the table. Board is a separate Ops link.
+        Preview the rejected option with the switcher if needed.
       </p>
       <div class="switcher" aria-label="Embed variant">
-        <button type="button" id="embed-replace" class="active">Replace Articles</button>
-        <button type="button" id="embed-extra">Extra Ops route</button>
+        <button type="button" id="embed-replace">Replace (archive)</button>
+        <button type="button" id="embed-extra" class="active">Extra Ops ✓</button>
       </div>
-      <div class="hint" id="embed-hint">Articles → board (table replaced)</div>
+      <div class="hint" id="embed-hint">Articles = table · sidebar “Article board” = this view</div>
       <div class="switcher" aria-label="Metaphor archive" style="margin-left:auto">
         <button type="button" id="meta-board" class="active">Board ✓</button>
         <button type="button" id="meta-inbox">Inbox archive</button>
@@ -451,12 +451,11 @@
       { id: "a10", keyword: "invoice templates for freelancers", title: "Invoice Templates Freelancers Actually Use", status: "published", template: "Listicle", cost: 0.98, age: "5d", bodyPreview: "Live on the public site." },
     ];
 
-    let embed = "replace"; // replace | extra
+    let embed = "extra"; // replace | extra — locked default: extra
     let nav = "articles";
     let screen = "board"; // board | review | reports | templates | public | inbox
     let focusId = articles[0]?.id ?? null;
     let reviewId = null;
-    let dragId = null;
 
     const app = document.getElementById("app");
     const toastEl = document.getElementById("toast");
@@ -939,7 +938,7 @@
       if (e.key === "Enter" && focusId) { e.preventDefault(); openReview(focusId); }
     });
 
-    setEmbed("replace");
+    setEmbed("extra");
     setScreen("board");
     render();
   </script>

@@ -1,6 +1,6 @@
 # Operator UI — design plan (throwaway prototypes)
 
-**Status:** Phase 0–1 shape dialing · Board deeper + Reports stub · not production  
+**Status:** Phase 0–1 shape **locked** · ready for Feature build · throwaway prototypes  
 **Prototype:** `scratch/ui-prototypes/operator-board-vs-inbox/index.html`  
 **Open:** `npx --yes serve scratch/ui-prototypes/operator-board-vs-inbox`
 
@@ -18,9 +18,9 @@
 | Primary metaphor | **Board** |
 | Columns | **All 7 statuses** |
 | Detail UX | **Full review page** (board = return), not drawer |
-| Payload embed | **Still open** — see “Embed explained” below; try both in the prototype |
+| Payload embed | **Extra Ops route** — Articles stays the table; separate **Article board** nav |
 | Status changes | **Actions only** — no free drag/manual status moves; assign / reset / approve (etc.) only |
-| Next artifacts | Deeper Board + Phase 2 Reports stub |
+| Fidelity | Clickable HTML, monochrome |
 
 ## Phased plan
 
@@ -37,7 +37,7 @@ Board with:
 3. Approve / approve+publish from `qa_passed`
 4. Status moves only via explicit actions (not drag / not raw status select)
 5. Keyboard: arrows move focus, Enter opens review, Esc returns to board
-6. Embed fork switcher until we pick Payload wiring
+6. Board ships as an **extra Ops route**; stock Articles CRUD remains
 
 ### Phase 2 — Reports (stub in prototype)
 
@@ -51,16 +51,9 @@ Editorial authoring — nav stub only for now.
 
 Reader pages for `published` — nav stub only for now.
 
-## Embed explained (plain language)
+## Embed (locked)
 
-Payload’s admin today shows a normal **Articles** table (rows you click into). The board has to plug in somehow:
-
-| Option | What you see day-to-day |
-| --- | --- |
-| **Replace Articles list** | Clicking **Articles** in admin opens the **board** instead of the table. One place for the queue. Stock table is gone (or buried). |
-| **Extra admin route** | **Articles** stays the familiar table. A separate nav item (e.g. **Article board** under Ops) opens the board. Two entry points. |
-
-Toggle both in the prototype decision bar (`[` / `]`) and say which matches how you work.
+**Extra Ops route.** Articles collection keeps the default table. A separate admin nav item (e.g. **Article board** under Ops) opens the board. Prototype still lets you preview the rejected “Replace Articles” option for comparison.
 
 ## Locked: actions only
 
@@ -71,6 +64,14 @@ Cards do **not** change status by dragging. Pipeline owns `researched` / `drafte
 - Approve / publish (`qa_passed` → …)
 - Send back (editor judgment)
 
-## Open decisions
+## Phase 0–1 shape summary ✅
 
-- Embed path: replace Articles list **vs** extra Ops route (try both above)
+| Decision | Choice |
+| --- | --- |
+| Metaphor | Board |
+| Columns | All 7 statuses |
+| Detail | Full review page |
+| Status writes | Actions only |
+| Payload home | Extra Ops route |
+
+**Next:** Feature build of Article board + review in Payload, or continue prototyping Templates / Public stubs.
