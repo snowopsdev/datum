@@ -1,58 +1,45 @@
 # Operator UI — design plan (throwaway prototypes)
 
-**Status:** Phases 0–3 locked / Phase 4 layout fork open · throwaway  
+**Status:** Phases 0–4 shape locked · visual language from root `DESIGN.md` (Notion)  
 **Prototype:** `scratch/ui-prototypes/operator-board-vs-inbox/index.html`  
-**Open:** `npx --yes serve scratch/ui-prototypes/operator-board-vs-inbox`
+**Open:** `npx --yes serve scratch/ui-prototypes/operator-board-vs-inbox`  
+**Design system:** `/DESIGN.md` via `npx getdesign@latest add notion`
 
 ## Constraints (locked)
 
 | Choice | Decision |
 | --- | --- |
-| Surfaces | A–D (workflow, reports, public, templates) |
+| Surfaces | A–D |
 | Users | Solo / small team |
 | Device | Desktop primary |
-| Day-one jobs | Assign + triage |
-| Approve → publish → public | Yes |
-| Fidelity | Clickable HTML, monochrome |
 | Metaphor | **Board** |
 | Columns | All 7 statuses |
 | Detail | Full review page |
 | Status writes | **Actions only** |
 | Payload home | **Extra Ops route** |
-| Templates editor | **Tabbed** (Outline · Rules · SEO · Examples) |
-| Templates audience | **Config work** (rare) |
-| Public chrome | **Minimal** (logo + article), monochrome |
-| Reports focus | **Failure digest → review/board** |
+| Templates | **Tabbed** config editor |
+| Reports | Failure digest → review/board |
+| Public chrome | Minimal (logo + article) |
+| Public layout | **Long scroll** (TOC archive) |
+| Visual language | **Notion `DESIGN.md`** (warm paper canvas, Inter, primary blue CTAs) |
 
-## Phased plan
+## Visual system (from DESIGN.md)
 
-### Phase 0–1 ✅ Operator board
+- Canvas: warm paper `#f6f5f4`; cards white with hairline `#e6e6e6`
+- Type: Inter, tight tracking on headings
+- Structural accent only: Notion blue `#0075de` for primary CTAs / active / links
+- Sticker accents only for status dots (orange triage, green pass) — not CTAs
+- Primary buttons: pill; utility buttons: 8px radius
+- Elevation: hairline + soft layered shadow
 
-Board + full review + Extra Ops route + actions-only.
+## Phase summary ✅
 
-### Phase 2 ✅ Reports (ops loop)
-
-Metrics + spend retained; **failure digest first** with Open review / Show on board.
-
-### Phase 3 ✅ Templates (config)
-
-Left list of templates; tabbed editor. Required H2s + seoSpec called out as QA-enforced.
-
-### Phase 4 🔄 Public reader
-
-Minimal chrome. **Fork open:** A long-scroll vs B sticky TOC — switcher on Public nav (`1`/`2`).
-
-## Phase 0–3 summary
-
-| Decision | Choice |
+| Phase | Outcome |
 | --- | --- |
-| Metaphor | Board |
-| Columns | All 7 |
-| Detail | Full review page |
-| Status writes | Actions only |
-| Payload home | Extra Ops route |
-| Templates | Tabbed config editor |
-| Reports | Failure digest → triage loop |
-| Public chrome | Minimal mono |
+| 0 | Board metaphor |
+| 1 | Review page + Extra Ops + actions-only |
+| 2 | Reports failure digest loop |
+| 3 | Tabbed template config |
+| 4 | Minimal public long-scroll reader |
 
-**Open:** Public layout A vs B.
+**Next:** Feature build in Payload using this shape + `DESIGN.md`.
