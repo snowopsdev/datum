@@ -7,6 +7,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace cms",
-    "seed": "npm run seed --workspace cms"
+    "seed": "npm run seed --workspace cms",
+    "pipeline:fetch": "npm run fetch --workspace pipeline --",
+    "pipeline:run": "npm run run --workspace pipeline --",
+    "pipeline:report": "npm run report --workspace pipeline --"
   }
 }

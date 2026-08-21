@@ -1,0 +1,66 @@
+import type { Payload } from 'payload'
+
+import type { Article, Template } from '../../cms/src/payload-types'
+
+import type { AhrefsClient } from './ahrefs'
+import { generateStage } from './generate'
+import { qaStage } from './qa/index'
+import { researchStage } from './research'
+import type { StyleGuide } from './styleGuide'
+
+export type ArticleStatus = Article['status']
+
+export interface StageContext {
+  payload: Payload
+  runId: string
+  ahrefs: AhrefsClient
+  styleGuide: StyleGuide
+}
+
+export interface StageOutcome {
+  data: Partial<Article>
+  status: ArticleStatus
+}
+
+export interface Stage {
+  name: 'research' | 'generate' | 'qa'
+  entryStatus: ArticleStatus
+  exitStatus: ArticleStatus
+  run(article: Article, ctx: StageContext): Promise<StageOutcome>
+}
+
+/**
+ * The whole pipeline as a table. pipeline:run walks it in order; work is
+ * selected purely by current status, so re-running converges instead of
+ * duplicating work.
+ */
+export const stages: Stage[] = [researchStage, generateStage, qaStage]
+
+export function resolveTemplate(article: Article): Template {
+  if (article.template && typeof article.template === 'object') return article.template
+  throw new Error(`article ${article.id} has no populated template`)
+}
+
+export async function runPipeline(ctx: StageContext): Promise<void> {
+  for (const stage of stages) {
+    const { docs } = await ctx.payload.find({
+      collection: 'articles',
+      where: {
+        and: [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }],
+      },
+      pagination: false,
+      depth: 1,
+      sort: 'createdAt',
+    })
+    console.log(`[${stage.name}] ${docs.length} article(s) at status "${stage.entryStatus}"`)
+    for (const article of docs) {
+      const outcome = await stage.run(article, ctx)
+      await ctx.payload.update({
+        collection: 'articles',
+        id: article.id,
+        data: { ...outcome.data, status: outcome.status },
+      })
+      console.log(`[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`)
+    }
+  }
+}
