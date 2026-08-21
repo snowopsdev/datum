@@ -84,7 +84,7 @@ Payload stores article/template body content as Lexical JSON. `pipeline/src/rich
 ## CMS collections (`cms/src/collections/`)
 
 - **`Templates`** — content templates (`Listicle`, `How-To`, `Comparison` are seeded); holds the outline (rich text), dos/don'ts arrays, `requiredSections` (H2s enforced by structural QA — the outline itself is prose guidance, not enforced directly), and `seoSpec`.
-- **`Articles`** — one row per article; `status` drives the pipeline; `research`, `qaResults`, `qaModels`, `generationModel`, `totalCostUsd` are all pipeline-written fields, not admin-editable content.
+- **`Articles`** — one row per article; `status` drives the pipeline; `research`, `qaResults`, `qaModels`, `generationModel`, `totalCostUsd` are pipeline-written fields — by convention only, as the collection doesn't mark them `admin.readOnly` or restrict access, so the admin UI will happily let a human overwrite them (and the next `pipeline:run` may overwrite them back).
 - **`CostLog`** — append-only, one row per LLM call (see Cost tracking above).
 - **`Users`** / **`Media`** — stock Payload auth/upload collections, unmodified from the Payload blank template.
 
