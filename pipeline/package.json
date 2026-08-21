@@ -25,7 +25,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.70.0",
+    "@anthropic-ai/sdk": "^0.117.1",
     "dotenv": "16.4.7",
     "payload": "3.88.0"
   },
