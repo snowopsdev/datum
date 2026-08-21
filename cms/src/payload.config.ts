@@ -20,6 +20,28 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    components: {
+      afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
+      views: {
+        articleBoard: {
+          Component: '/components/ops/ArticleBoardView#ArticleBoardView',
+          path: '/ops/articles',
+          exact: true,
+          meta: { title: 'Article board' },
+        },
+        articleReview: {
+          Component: '/components/ops/ArticleReviewView#ArticleReviewView',
+          path: '/ops/articles/:id',
+          meta: { title: 'Article review' },
+        },
+        opsReports: {
+          Component: '/components/ops/ReportsView#ReportsView',
+          path: '/ops/reports',
+          exact: true,
+          meta: { title: 'Reports' },
+        },
+      },
+    },
   },
   collections: [Users, Media, Templates, Articles, CostLog],
   editor: lexicalEditor(),

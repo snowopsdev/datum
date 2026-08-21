@@ -1,9 +1,20 @@
 # Operator UI — design plan (throwaway prototypes)
 
-**Status:** Phases 0–4 shape locked · visual language from root `DESIGN.md` (Notion)  
-**Prototype:** `scratch/ui-prototypes/operator-board-vs-inbox/index.html`  
-**Open:** `npx --yes serve scratch/ui-prototypes/operator-board-vs-inbox`  
+**Status:** Phases 0–4 shape locked · **Payload Feature build in progress** · visual language from root `DESIGN.md`  
+**Prototype (throwaway):** `scratch/ui-prototypes/operator-board-vs-inbox/index.html`  
 **Design system:** `/DESIGN.md` via `npx getdesign@latest add notion`
+
+## Shipped in CMS (Feature)
+
+| Route | Purpose |
+| --- | --- |
+| `/admin/ops/articles` | Article board (Extra Ops) |
+| `/admin/ops/articles/:id` | Full review (assign / triage / approve / publish) |
+| `/admin/ops/reports` | Failure digest → review |
+| `/articles/[slug]` | Public long-scroll reader for `published` |
+| Nav | `afterNavLinks` → Article board, Reports |
+
+Stock Articles collection list remains. Status writes are actions-only.
 
 ## Constraints (locked)
 
