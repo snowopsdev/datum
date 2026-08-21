@@ -90,6 +90,10 @@ Payload stores article/template body content as Lexical JSON. `pipeline/src/rich
 
 After changing any collection's fields, run `npm run generate:types --workspace cms` — `pipeline` imports `Article`/`Template`/`CostLog` types straight from `cms/src/payload-types.ts` via relative path (`../../cms/src/payload-types`), so stale types there will silently drift from the actual schema.
 
+## Claude Code plugins
+
+`vendor/claude-plugins/` is a local plugin marketplace registered by `.claude/settings.json` (marketplace name `datum-local`). It currently vendors the `pstack` plugin (agent workflow skills, MIT, from [cursor/plugins](https://github.com/cursor/plugins)) so its skills load in every session — a local-directory marketplace loads without a manual `/plugin install`, unlike GitHub-sourced plugins. Provenance and update steps are in `vendor/claude-plugins/README.md`.
+
 ## Conventions
 
 - CMS code: 2-space, single quotes, no semicolons, `printWidth: 100`, trailing commas (`cms/.prettierrc.json`) — run through the CMS ESLint config (`cms/eslint.config.mjs`), not a separate pipeline linter (pipeline has no lint script, only `typecheck`).

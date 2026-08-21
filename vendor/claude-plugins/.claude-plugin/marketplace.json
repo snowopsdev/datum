@@ -1,0 +1,22 @@
+{
+	"name": "datum-local",
+	"owner": {
+		"name": "datum maintainers"
+	},
+	"metadata": {
+		"description": "Plugins vendored into the datum repo so they load in every session, local or cloud."
+	},
+	"plugins": [
+		{
+			"name": "pstack",
+			"source": "./pstack",
+			"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+			"version": "0.14.2",
+			"author": {
+				"name": "Lauren Tan"
+			},
+			"license": "MIT",
+			"category": "developer-tools"
+		}
+	]
+}
