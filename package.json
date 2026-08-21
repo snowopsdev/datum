@@ -1,0 +1,12 @@
+{
+  "name": "datum",
+  "private": true,
+  "workspaces": [
+    "cms",
+    "pipeline"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace cms",
+    "seed": "npm run seed --workspace cms"
+  }
+}
