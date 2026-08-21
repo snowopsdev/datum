@@ -2,6 +2,20 @@
   "name": "pipeline",
   "private": true,
   "version": "1.0.0",
+  "description": "Datum content pipeline CLI — research, generate, and QA articles via Payload",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snowopsdev/datum.git",
+    "directory": "pipeline"
+  },
+  "bugs": {
+    "url": "https://github.com/snowopsdev/datum/issues"
+  },
+  "homepage": "https://github.com/snowopsdev/datum#readme",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "fetch": "tsx src/index.ts fetch",

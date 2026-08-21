@@ -1,8 +1,17 @@
 {
   "name": "cms",
   "version": "1.0.0",
-  "description": "A blank template to get started with Payload 3.0",
+  "description": "Payload CMS app for Datum — templates, articles, and admin UI",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snowopsdev/datum.git",
+    "directory": "cms"
+  },
+  "bugs": {
+    "url": "https://github.com/snowopsdev/datum/issues"
+  },
+  "homepage": "https://github.com/snowopsdev/datum#readme",
   "type": "module",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" next build",
@@ -50,8 +59,7 @@
     "vitest": "4.0.18"
   },
   "engines": {
-    "node": "^18.20.2 || >=20.9.0",
-    "pnpm": "^9 || ^10 || ^11"
+    "node": ">=22"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
