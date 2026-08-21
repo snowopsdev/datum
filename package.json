@@ -1,6 +1,19 @@
 {
   "name": "datum",
   "private": true,
+  "description": "SEO content pipeline built on Payload CMS — research, generate, and QA articles end to end",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snowopsdev/datum.git"
+  },
+  "bugs": {
+    "url": "https://github.com/snowopsdev/datum/issues"
+  },
+  "homepage": "https://github.com/snowopsdev/datum#readme",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "cms",
     "pipeline"
@@ -10,6 +23,9 @@
     "seed": "npm run seed --workspace cms",
     "pipeline:fetch": "npm run fetch --workspace pipeline --",
     "pipeline:run": "npm run run --workspace pipeline --",
-    "pipeline:report": "npm run report --workspace pipeline --"
+    "pipeline:report": "npm run report --workspace pipeline --",
+    "typecheck": "npm run typecheck --workspace cms && npm run typecheck --workspace pipeline",
+    "lint": "npm run lint --workspace cms",
+    "test": "npm run test --workspace pipeline && npm run test:int --workspace cms"
   }
 }

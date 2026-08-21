@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: datum
+          POSTGRES_PASSWORD: datum
+          POSTGRES_DB: datum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U datum -d datum"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://datum:datum@127.0.0.1:5432/datum
+      PAYLOAD_SECRET: ci-payload-secret-not-for-production
+      MOCK_MODE: "true"
+      NODE_OPTIONS: --no-deprecation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint (cms)
+        run: npm run lint
+
+      - name: Test pipeline
+        run: npm test --workspace pipeline
+
+      - name: Test cms integration
+        run: npm run test:int --workspace cms
