@@ -1,0 +1,13 @@
+{
+	"extraKnownMarketplaces": {
+		"datum-local": {
+			"source": {
+				"source": "directory",
+				"path": "./vendor/claude-plugins"
+			}
+		}
+	},
+	"enabledPlugins": {
+		"pstack@datum-local": true
+	}
+}
