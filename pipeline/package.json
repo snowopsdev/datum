@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/snowopsdev/datum#readme",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.22.2"
   },
   "type": "module",
   "scripts": {
