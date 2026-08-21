@@ -1,0 +1,103 @@
+.datum-public {
+  --primary: #0075de;
+  --canvas: #ffffff;
+  --canvas-soft: #f6f5f4;
+  --ink: #000000;
+  --ink-secondary: #31302e;
+  --ink-muted: #615d59;
+  --hairline: #e6e6e6;
+  min-height: 100vh;
+  background: var(--canvas-soft);
+  color: var(--ink);
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-size: 16px;
+}
+
+.datum-public__top {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas);
+}
+
+.datum-public__logo {
+  font-weight: 700;
+  letter-spacing: -0.125px;
+  font-size: 15px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.datum-public__article {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.datum-public__article h1 {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin: 0 0 12px;
+}
+
+.datum-public__dek {
+  color: var(--ink-muted);
+  margin: 0 0 28px;
+  font-size: 16px;
+}
+
+.datum-public__body h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+  line-height: 1.27;
+  margin: 32px 0 10px;
+}
+
+.datum-public__body h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 24px 0 8px;
+}
+
+.datum-public__body p {
+  margin: 0 0 12px;
+  color: var(--ink-secondary);
+}
+
+.datum-public__body ul,
+.datum-public__body ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: var(--ink-secondary);
+}
+
+.datum-public__faq {
+  margin-top: 40px;
+}
+
+.datum-public__faq h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+  margin: 0 0 12px;
+}
+
+.datum-public__faq-item {
+  border-top: 1px solid var(--hairline);
+  padding: 14px 0;
+}
+
+.datum-public__faq-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.datum-public__faq-item p {
+  margin: 0;
+  color: var(--ink-secondary);
+}

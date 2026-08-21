@@ -1,8 +1,7 @@
 import { headers as getHeaders } from 'next/headers.js'
-import Image from 'next/image'
+import Link from 'next/link'
 import { getPayload } from 'payload'
 import React from 'react'
-import { fileURLToPath } from 'url'
 
 import config from '@/payload.config'
 import './styles.css'
@@ -13,47 +12,47 @@ export default async function HomePage() {
   const payload = await getPayload({ config: payloadConfig })
   const { user } = await payload.auth({ headers })
 
-  const fileURL = `vscode://file/${fileURLToPath(import.meta.url)}`
+  const { docs: published } = await payload.find({
+    collection: 'articles',
+    where: { status: { equals: 'published' } },
+    limit: 12,
+    depth: 0,
+    sort: '-publishedAt',
+    overrideAccess: true,
+  })
 
   return (
-    <div className="home">
-      <div className="content">
-        <picture>
-          <source srcSet="https://raw.githubusercontent.com/payloadcms/payload/3.x/packages/ui/src/assets/payload-favicon.svg" />
-          <Image
-            alt="Payload Logo"
-            height={65}
-            src="https://raw.githubusercontent.com/payloadcms/payload/3.x/packages/ui/src/assets/payload-favicon.svg"
-            width={65}
-          />
-        </picture>
-        {!user && <h1>Welcome to your new project.</h1>}
-        {user && <h1>Welcome back, {user.email}</h1>}
-        <div className="links">
-          <a
-            className="admin"
-            href={payloadConfig.routes.admin}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            Go to admin panel
-          </a>
-          <a
-            className="docs"
-            href="https://payloadcms.com/docs"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            Documentation
-          </a>
-        </div>
-      </div>
-      <div className="footer">
-        <p>Update this page by editing</p>
-        <a className="codeLink" href={fileURL}>
-          <code>app/(frontend)/page.tsx</code>
-        </a>
-      </div>
+    <div className="datum-home">
+      <header className="datum-home__top">
+        <div className="datum-home__logo">Datum</div>
+        <nav className="datum-home__nav">
+          {user ? (
+            <>
+              <a href={payloadConfig.routes.admin}>Admin</a>
+              <Link href="/admin/ops/articles">Article board</Link>
+            </>
+          ) : (
+            <a href={`${payloadConfig.routes.admin}/login`}>Log in</a>
+          )}
+        </nav>
+      </header>
+      <main className="datum-home__main">
+        <h1>Published articles</h1>
+        <p className="datum-home__lede">
+          Minimal public reader — long-scroll articles from the content pipeline.
+        </p>
+        {published.length === 0 ? (
+          <p className="datum-home__empty">No published articles yet.</p>
+        ) : (
+          <ul className="datum-home__list">
+            {published.map((a) => (
+              <li key={a.id}>
+                <Link href={`/articles/${a.slug || a.id}`}>{a.title || a.keyword}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
     </div>
   )
 }
