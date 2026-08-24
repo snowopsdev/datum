@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   const ctx: StageContext = {
     payload,
     runId,
+    mode: config.mockMode ? 'mock' : 'live',
     ahrefs: createAhrefsClient(),
     styleGuide: loadStyleGuide(),
   }

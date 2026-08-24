@@ -72,6 +72,7 @@ export interface Config {
     templates: Template;
     articles: Article;
     'cost-log': CostLog;
+    'article-audit': ArticleAudit;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +85,7 @@ export interface Config {
     templates: TemplatesSelect<false> | TemplatesSelect<true>;
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
     'cost-log': CostLogSelect<false> | CostLogSelect<true>;
+    'article-audit': ArticleAuditSelect<false> | ArticleAuditSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -353,6 +355,51 @@ export interface CostLog {
   outputTokens?: number | null;
   webSearchRequests?: number | null;
   costUsd?: number | null;
+  request?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  response?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "article-audit".
+ */
+export interface ArticleAudit {
+  id: number;
+  article: number | Article;
+  event: string;
+  summary: string;
+  actorType: 'pipeline' | 'user' | 'system';
+  actor: string;
+  pipelineRunId?: string | null;
+  stage?: string | null;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  details?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -399,6 +446,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cost-log';
         value: number | CostLog;
+      } | null)
+    | ({
+        relationTo: 'article-audit';
+        value: number | ArticleAudit;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -608,6 +659,26 @@ export interface CostLogSelect<T extends boolean = true> {
   outputTokens?: T;
   webSearchRequests?: T;
   costUsd?: T;
+  request?: T;
+  response?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "article-audit_select".
+ */
+export interface ArticleAuditSelect<T extends boolean = true> {
+  article?: T;
+  event?: T;
+  summary?: T;
+  actorType?: T;
+  actor?: T;
+  pipelineRunId?: T;
+  stage?: T;
+  fromStatus?: T;
+  toStatus?: T;
+  details?: T;
   updatedAt?: T;
   createdAt?: T;
 }

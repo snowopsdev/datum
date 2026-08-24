@@ -10,6 +10,7 @@ import { Media } from './collections/Media'
 import { Templates } from './collections/Templates'
 import { Articles } from './collections/Articles'
 import { CostLog } from './collections/CostLog'
+import { ArticleAudit } from './collections/ArticleAudit'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -49,7 +50,7 @@ export default buildConfig({
       },
     },
   },
-  collections: [Users, Media, Templates, Articles, CostLog],
+  collections: [Users, Media, Templates, Articles, CostLog, ArticleAudit],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

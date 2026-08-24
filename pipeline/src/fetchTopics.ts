@@ -32,6 +32,23 @@ export async function fetchTopics(ctx: StageContext, count: number): Promise<voi
         title: sentenceCase(gap.keyword),
         status: 'topic_selected',
       },
+      context: {
+        articleAudit: {
+          actor: 'pipeline',
+          actorType: 'pipeline',
+          event: 'topic_created',
+          pipelineRunId: ctx.runId,
+          stage: 'fetch',
+          summary: `Topic created from ${ctx.mode} content-gap research`,
+          details: {
+            mode: ctx.mode,
+            keyword: gap.keyword,
+            volume: gap.volume,
+            difficulty: gap.difficulty,
+            bestCompetitorPosition: gap.bestCompetitorPosition,
+          },
+        },
+      },
     })
     created += 1
     console.log(
