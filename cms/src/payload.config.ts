@@ -11,6 +11,9 @@ import { Templates } from './collections/Templates'
 import { Articles } from './collections/Articles'
 import { CostLog } from './collections/CostLog'
 import { ArticleAudit } from './collections/ArticleAudit'
+import { BrandVoices } from './collections/BrandVoices'
+import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
+import { GovernanceAudit } from './collections/GovernanceAudit'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -47,10 +50,26 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Templates' },
         },
+        brandVoice: {
+          Component: '/components/ops/BrandVoiceView#BrandVoiceView',
+          path: '/ops/governance/brand-voice',
+          exact: true,
+          meta: { title: 'Brand voice' },
+        },
       },
     },
   },
-  collections: [Users, Media, Templates, Articles, CostLog, ArticleAudit],
+  collections: [
+    Users,
+    Media,
+    Templates,
+    Articles,
+    CostLog,
+    ArticleAudit,
+    BrandVoices,
+    BrandVoiceFiles,
+    GovernanceAudit,
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

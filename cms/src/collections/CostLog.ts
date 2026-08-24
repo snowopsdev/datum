@@ -36,7 +36,7 @@ export const CostLog: CollectionConfig = {
     {
       name: 'stage',
       type: 'select',
-      options: ['generate', 'factCheck', 'qualitativeReview'],
+      options: ['generate', 'factCheck', 'qualitativeReview', 'brandVoiceExtract'],
     },
     {
       name: 'provider',

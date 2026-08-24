@@ -41,6 +41,7 @@ next-env.d.ts
 .env
 
 /media
+/brand-voice-files
 
 # Playwright
 node_modules/

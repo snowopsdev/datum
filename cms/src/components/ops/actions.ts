@@ -67,7 +67,13 @@ export async function resetToDraftedAction(articleId: number, reviewNotes?: stri
       qaResults: {
         structural: { passed: null, violations: null },
         factCheck: { passed: null, notes: null, sources: null },
-        qualitativeReview: { passed: null, notes: null },
+        qualitativeReview: {
+          passed: null,
+          notes: null,
+          voiceScore: null,
+          voiceNotes: null,
+          notTraitViolations: null,
+        },
       },
     },
     context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
@@ -131,7 +137,13 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
       qaResults: {
         structural: { passed: true, violations: [] },
         factCheck: { passed: true, notes: 'OK' },
-        qualitativeReview: { passed: false, notes: note },
+        qualitativeReview: {
+          passed: false,
+          notes: note,
+          voiceScore: null,
+          voiceNotes: null,
+          notTraitViolations: [],
+        },
       },
     },
     context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {

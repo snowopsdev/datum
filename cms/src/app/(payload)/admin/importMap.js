@@ -26,6 +26,7 @@ import { ArticleBoardView as ArticleBoardView_3e471ab06f5e89b1354bf6b4c3e56d5d }
 import { ArticleReviewView as ArticleReviewView_0b183b90e21e51193906e378b3fedb91 } from '../../../components/ops/ArticleReviewView'
 import { ReportsView as ReportsView_4e12243a45054e6b16c5796533624330 } from '../../../components/ops/ReportsView'
 import { TemplateConfigView as TemplateConfigView_4cfa7707bf0c3bd28485eb6f1967a638 } from '../../../components/ops/TemplateConfigView'
+import { BrandVoiceView as BrandVoiceView_188651a7efa8bbbb01f96beb46ed8216 } from '../../../components/ops/BrandVoiceView'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -58,5 +59,6 @@ export const importMap = {
   "/components/ops/ArticleReviewView#ArticleReviewView": ArticleReviewView_0b183b90e21e51193906e378b3fedb91,
   "/components/ops/ReportsView#ReportsView": ReportsView_4e12243a45054e6b16c5796533624330,
   "/components/ops/TemplateConfigView#TemplateConfigView": TemplateConfigView_4cfa7707bf0c3bd28485eb6f1967a638,
+  "/components/ops/BrandVoiceView#BrandVoiceView": BrandVoiceView_188651a7efa8bbbb01f96beb46ed8216,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

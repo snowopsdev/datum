@@ -29,6 +29,7 @@
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/next": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
@@ -36,8 +37,10 @@
     "cross-env": "^10.1.0",
     "dotenv": "17.4.2",
     "graphql": "^16.8.1",
+    "mammoth": "^1.12.1",
     "next": "16.3.1",
     "payload": "3.88.0",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sharp": "0.35.3"

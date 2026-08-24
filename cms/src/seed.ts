@@ -3,6 +3,7 @@ import 'dotenv/config'
 import config from '@payload-config'
 import { getPayload, type Payload } from 'payload'
 
+import { BRAND_VOICE_FIXTURE } from './lib/brandVoiceFixture'
 import type { Template } from './payload-types'
 
 type RichText = NonNullable<Template['outline']>
@@ -216,10 +217,40 @@ const upsertAdminUser = async (payload: Payload): Promise<void> => {
   }
 }
 
+/**
+ * Opt-in only (`npm run seed -- --with-brand-voice`): the default seed leaves
+ * no brand voice so the admin's onboarding empty state stays reachable.
+ * Activating runs the single-active cascade, so re-seeding never leaves two
+ * active records.
+ */
+const upsertBrandVoice = async (payload: Payload): Promise<void> => {
+  const data = {
+    ...BRAND_VOICE_FIXTURE,
+    status: 'active' as const,
+    source: 'onboarding' as const,
+    onboardingStep: 9,
+  }
+  const existing = await payload.find({
+    collection: 'brand-voices',
+    where: { name: { equals: data.name } },
+    limit: 1,
+  })
+  if (existing.docs.length > 0) {
+    await payload.update({ collection: 'brand-voices', id: existing.docs[0].id, data })
+    payload.logger.info(`Updated brand voice "${data.name}"`)
+  } else {
+    await payload.create({ collection: 'brand-voices', data })
+    payload.logger.info(`Created brand voice "${data.name}"`)
+  }
+}
+
 const seed = async (): Promise<void> => {
   const payload = await getPayload({ config })
   await upsertTemplates(payload)
   await upsertAdminUser(payload)
+  if (process.argv.includes('--with-brand-voice')) {
+    await upsertBrandVoice(payload)
+  }
   const { totalDocs } = await payload.count({ collection: 'templates' })
   payload.logger.info(`Seed complete. Template count: ${totalDocs}`)
   process.exit(0)
