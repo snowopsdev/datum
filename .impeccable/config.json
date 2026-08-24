@@ -14,6 +14,12 @@
         "value": "18px",
         "createdAt": "2026-08-24T20:00:49.337Z",
         "reason": "user requested preserving the current public-reader design"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "instrument serif",
+        "createdAt": "2026-08-24T20:31:39.087Z",
+        "reason": "diagram-design skill requires Instrument Serif and the existing Datum diagram uses it"
       }
     ]
   }
