@@ -1,32 +1,36 @@
 # Datum
 
-SEO content pipeline built on [Payload CMS](https://payloadcms.com/). Datum helps you discover content-gap keywords, generate articles from templates, and run structural + LLM QA before publish.
+Datum is an SEO content pipeline built on [Payload CMS](https://payloadcms.com/). It finds content-gap keywords, drafts articles from reusable templates, and checks each draft before publication.
+
+## Why Datum is different
+
+Datum makes its editorial rules visible and editable. Editors set template rules in Payload. Maintainers keep shared rules in [`docs/style-guide.md`](docs/style-guide.md). The generator and QA checks read both.
+
+Before an editor can approve a draft, Datum checks its structure and readability without an LLM. One model call fact-checks claims with web search. A second reviews the writing against the template and style guide. Datum records tokens and cost for responses that parse successfully. Responses that fail JSON parsing are not yet recorded.
+
+Everything runs in your Payload and Postgres setup under the MIT license. If a rule is wrong, edit it. If a draft fails, the QA results say which check rejected it.
 
 ## Workspaces
 
 | Path | Role |
 | --- | --- |
-| [`cms/`](cms/) | Payload CMS 3 app (Next.js 16 + Postgres) — templates, articles, admin UI |
+| [`cms/`](cms/) | Payload CMS 3 app using Next.js 16 and Postgres. Stores templates and articles and provides the admin UI. |
 | [`pipeline/`](pipeline/) | Node/TypeScript CLI that advances articles through research → generate → QA |
-| [`docs/`](docs/) | Style guide and other content rules consumed by the pipeline |
+| [`docs/`](docs/) | Style guide and other content rules that the pipeline reads |
 
-`cms` and `pipeline` share one Postgres database and generated types (`cms/src/payload-types.ts`). The pipeline imports Payload in-process (not over HTTP).
+`cms` and `pipeline` share one Postgres database and the types generated in `cms/src/payload-types.ts`. The pipeline imports Payload in the same process. It does not call the CMS over HTTP.
 
 ## Article status flow
 
-```
-topic_selected → researched → drafted → qa_passed → approved → published
-                                   ↓
-                            needs_revision
-```
+![Article status flow showing the pipeline, QA branch, revision loop, and editor actions](docs/diagrams/article-status-flow.svg)
 
-Template assignment on `topic_selected` articles is manual (`pipeline/scripts/assign-template.ts`). `needs_revision` is a dead end until status is reset to `drafted`.
+Assign a template in the admin UI or with `pipeline/scripts/assign-template.ts`. The pipeline does not process `needs_revision` articles. Reset one to `drafted` to run QA again. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
 
 ## Prerequisites
 
 - Node.js 22+
-- npm (workspaces; do not require pnpm for day-to-day use)
-- Docker (Postgres via `docker-compose`)
+- npm with workspaces. You do not need pnpm for daily use.
+- Docker for local Postgres through Docker Compose
 
 ## Quick start
 
@@ -36,7 +40,7 @@ cp .env.example .env
 cp cms/.env.example cms/.env
 # Generate a Payload secret:
 #   openssl rand -hex 32
-# and set PAYLOAD_SECRET in both .env files (or at least cms/.env).
+# Set PAYLOAD_SECRET in both .env files, or at least in cms/.env.
 
 # 2. Database
 docker compose up -d
@@ -50,14 +54,16 @@ npm run dev
 # → http://localhost:3000
 ```
 
-**Local-dev admin only** (from seed; change before any shared/deployed use):
+### Seeded local admin
+
+The seed creates this account for local development. Change its password before using Datum in a shared or deployed environment.
 
 - Email: `admin@datum.local`
 - Password: value of `SEED_ADMIN_PASSWORD`, or `datum-dev-password` if unset
 
-### Pipeline in mock mode (no API keys)
+### Pipeline mock mode
 
-With `MOCK_MODE=true` (default in `.env.example`), Ahrefs and Anthropic calls use fixtures:
+Mock mode needs no API keys. Set `MOCK_MODE=true`, as shown in `.env.example`, and Datum uses fixtures instead of calling Ahrefs or Anthropic.
 
 ```bash
 npm run pipeline:fetch -- --count 3
@@ -67,44 +73,44 @@ npm run pipeline:run
 npm run pipeline:report -- --period week
 ```
 
-Set `MOCK_MODE=false` and provide `ANTHROPIC_API_KEY` (and optionally `AHREFS_API_KEY`, `TARGET_DOMAIN`, `COMPETITOR_DOMAINS`) for live API calls. See [`.env.example`](.env.example).
+For live API calls, set `MOCK_MODE=false` and provide `ANTHROPIC_API_KEY`. Ahrefs also needs `AHREFS_API_KEY`, `TARGET_DOMAIN`, and `COMPETITOR_DOMAINS`. See [`.env.example`](.env.example).
 
 ## Environment variables
 
-Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example). Pipeline loads `cms/.env` first, then root `.env`; real environment variables win over both.
+Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example). The pipeline loads `cms/.env` first and the root `.env` second. Environment variables set in the shell override both files.
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `PAYLOAD_SECRET` | Payload token signing secret |
-| `ANTHROPIC_API_KEY` | Claude for generate / QA (not required in mock mode) |
-| `AHREFS_API_KEY` | Keyword / SERP research (not required in mock mode) |
-| `TARGET_DOMAIN` | Domain articles are written for |
+| `ANTHROPIC_API_KEY` | Claude for generation and QA. Not required in mock mode. |
+| `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
+| `TARGET_DOMAIN` | Domain that will publish the articles |
 | `COMPETITOR_DOMAINS` | Comma-separated competitors for content-gap fetch |
 | `MOCK_MODE` | `true` to use fixtures instead of paid APIs |
 | `SEED_ADMIN_PASSWORD` | Password for the seeded admin user |
 
-## Scripts (from repo root)
+## Root scripts
 
 | Script | Description |
 | --- | --- |
 | `npm run dev` | CMS Next.js dev server |
-| `npm run seed` | Upsert templates + admin user |
+| `npm run seed` | Create or update templates and the admin user |
 | `npm run pipeline:fetch` | Create articles from content-gap keywords |
 | `npm run pipeline:run` | Run research → generate → QA for eligible articles |
-| `npm run pipeline:report` | QA / spend digest |
-| `npm run typecheck` / `lint` / `test` | Workspace checks (see [CONTRIBUTING.md](CONTRIBUTING.md)) |
+| `npm run pipeline:report` | Print the QA and spending report |
+| `npm run typecheck` / `lint` / `test` | Workspace checks described in [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 ## Documentation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, tests, PR expectations
-- [SECURITY.md](SECURITY.md) — vulnerability reporting
+- [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, tests, and pull request expectations.
+- [SECURITY.md](SECURITY.md) explains how to report a vulnerability.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [CLAUDE.md](CLAUDE.md) — deep-dive architecture for humans and coding agents
-- [docs/style-guide.md](docs/style-guide.md) — editorial rules (including banned phrases used by QA)
-- [docs/open-source-checklist.md](docs/open-source-checklist.md) — maintainer steps to flip the repo public
+- [CLAUDE.md](CLAUDE.md) documents the architecture for contributors and coding agents.
+- [docs/style-guide.md](docs/style-guide.md) contains the editorial rules and banned phrases checked by QA.
+- [docs/open-source-checklist.md](docs/open-source-checklist.md) lists the maintainer steps for making the repository public.
 
-Agent helpers under `.claude/` and `vendor/claude-plugins/` are optional and not required to run Datum.
+Agent helpers live under `.claude/` and `vendor/claude-plugins/`. Datum runs without them.
 
 ## License
 

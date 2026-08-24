@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Article status flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #f7f7f5;
+      --ink: #171717;
+      --muted: #666666;
+      --soft: #8a8a8a;
+      --rule: #c8c8c4;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--font-sans);
+    }
+    .frame { width: min(100%, 1280px); }
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font: 500 8px/1 var(--font-mono);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin-bottom: 24px;
+      font: 400 28px/1.1 var(--font-serif);
+    }
+    svg { display: block; width: 100%; min-width: 960px; }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <p class="eyebrow">State machine</p>
+    <h1>Article status flow</h1>
+
+    <svg width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="article-status-flow-title article-status-flow-desc">
+      <title id="article-status-flow-title">Article status flow</title>
+      <desc id="article-status-flow-desc">An article moves from topic selection through research, drafting, quality checks, editor approval, and publication. Failed checks or an editor decision send it to revision before quality checks run again.</desc>
+      <defs>
+        <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap');</style>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#666666"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#171717"/>
+        </marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#444444"/>
+        </marker>
+      </defs>
+
+      <rect width="1280" height="720" fill="#f7f7f5"/>
+
+      <!-- Automated pipeline transitions -->
+      <line x1="48" y1="280" x2="72" y2="280" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="216" y1="280" x2="264" y2="280" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="408" y1="280" x2="456" y2="280" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="600" y1="280" x2="648" y2="280" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="528" y1="320" x2="528" y2="440" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- Editor transitions -->
+      <line x1="792" y1="280" x2="840" y2="280" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="984" y1="280" x2="1032" y2="280" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 744 240 V 160 Q 744 152 752 152 H 1096 Q 1104 152 1104 160 V 240" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 696 320 V 360 Q 696 368 688 368 H 576 Q 568 368 568 376 V 440" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 456 480 H 424 Q 416 480 416 472 V 360 Q 416 352 424 352 H 492 Q 500 352 500 344 V 320" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+      <!-- Transition labels -->
+      <rect x="36" y="240" width="32" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="52" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FETCH</text>
+
+      <rect x="220" y="240" width="40" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="240" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RUN</text>
+
+      <rect x="412" y="240" width="40" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="432" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GENERATE</text>
+
+      <rect x="604" y="240" width="40" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="624" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA PASS</text>
+
+      <rect x="544" y="368" width="48" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="568" y="380" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA FAIL</text>
+
+      <rect x="796" y="240" width="40" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="816" y="252" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">APPROVE</text>
+
+      <rect x="988" y="240" width="40" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="1008" y="252" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PUBLISH</text>
+
+      <rect x="880" y="120" width="88" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="924" y="132" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">APPROVE + POST</text>
+
+      <rect x="608" y="336" width="64" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="640" y="348" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEND BACK</text>
+
+      <rect x="348" y="396" width="48" height="16" rx="4" fill="#f7f7f5"/>
+      <text x="372" y="408" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RESET</text>
+
+      <!-- Start -->
+      <circle cx="40" cy="280" r="8" fill="#171717"/>
+
+      <!-- Topic selected -->
+      <rect x="72" y="240" width="144" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <text x="144" y="276" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Topic selected</text>
+      <text x="144" y="296" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">template required</text>
+
+      <!-- Researched -->
+      <rect x="264" y="240" width="144" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <text x="336" y="276" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Researched</text>
+      <text x="336" y="296" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">SERP data saved</text>
+
+      <!-- Drafted -->
+      <rect x="456" y="240" width="144" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <text x="528" y="276" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Drafted</text>
+      <text x="528" y="296" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">awaiting QA</text>
+
+      <!-- QA passed -->
+      <rect x="648" y="240" width="144" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
+      <text x="720" y="276" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">QA passed</text>
+      <text x="720" y="296" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">editor decision</text>
+
+      <!-- Approved -->
+      <rect x="840" y="240" width="144" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
+      <text x="912" y="276" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Approved</text>
+      <text x="912" y="296" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ready to publish</text>
+
+      <!-- Published -->
+      <rect x="1032" y="240" width="144" height="80" rx="8" fill="#171717" stroke="#171717" stroke-width="1.2"/>
+      <text x="1104" y="276" fill="#ffffff" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Published</text>
+      <text x="1104" y="296" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">live on site</text>
+
+      <!-- Needs revision -->
+      <rect x="456" y="440" width="144" height="80" rx="8" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
+      <text x="528" y="476" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Needs revision</text>
+      <text x="528" y="496" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">fix, then reset</text>
+
+      <!-- Legend -->
+      <line x1="40" y1="632" x2="1240" y2="632" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="40" y="664" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">TRANSITIONS</text>
+      <line x1="168" y1="660" x2="208" y2="660" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="224" y="664" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIPELINE</text>
+      <line x1="320" y1="660" x2="360" y2="660" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <text x="376" y="664" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">EDITOR ACTION</text>
+    </svg>
+  </main>
+</body>
+</html>
