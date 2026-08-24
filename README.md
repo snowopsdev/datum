@@ -6,7 +6,7 @@ Datum is an SEO content pipeline built on [Payload CMS](https://payloadcms.com/)
 
 Datum makes its editorial rules visible and editable. Editors set template rules in Payload. Maintainers keep shared rules in [`docs/style-guide.md`](docs/style-guide.md). The generator and QA checks read both.
 
-Before an editor can approve a draft, Datum checks its structure and readability without an LLM. One model call fact-checks claims with web search. A second reviews the writing against the template and style guide. Datum records the tokens and cost for each call.
+Before an editor can approve a draft, Datum checks its structure and readability without an LLM. One model call fact-checks claims with web search. A second reviews the writing against the template and style guide. Datum records tokens and cost for responses that parse successfully. Responses that fail JSON parsing are not yet recorded.
 
 Everything runs in your Payload and Postgres setup under the MIT license. If a rule is wrong, edit it. If a draft fails, the QA results say which check rejected it.
 
