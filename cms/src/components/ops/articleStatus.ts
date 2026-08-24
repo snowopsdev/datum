@@ -62,3 +62,17 @@ export function toBoardArticle(doc: Article): BoardArticle {
 }
 
 export type TemplateOption = { id: number; name: string }
+
+export type AuditTimelineEntry = {
+  id: string
+  actor: string
+  actorType: 'pipeline' | 'user' | 'system'
+  createdAt: string
+  details: unknown
+  event: string
+  fromStatus: string | null
+  pipelineRunId: string | null
+  stage: string | null
+  summary: string
+  toStatus: string | null
+}

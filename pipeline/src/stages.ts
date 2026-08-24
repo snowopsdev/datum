@@ -13,6 +13,7 @@ export type ArticleStatus = Article['status']
 export interface StageContext {
   payload: Payload
   runId: string
+  mode: 'mock' | 'live'
   ahrefs: AhrefsClient
   styleGuide: StyleGuide
 }
@@ -59,6 +60,21 @@ export async function runPipeline(ctx: StageContext): Promise<void> {
         collection: 'articles',
         id: article.id,
         data: { ...outcome.data, status: outcome.status },
+        context: {
+          articleAudit: {
+            actor: 'pipeline',
+            actorType: 'pipeline',
+            event: `${stage.name}_completed`,
+            pipelineRunId: ctx.runId,
+            stage: stage.name,
+            summary: `${stage.name} completed in ${ctx.mode} mode`,
+            details: {
+              mode: ctx.mode,
+              keyword: article.keyword,
+              output: outcome.data,
+            },
+          },
+        },
       })
       console.log(`[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`)
     }

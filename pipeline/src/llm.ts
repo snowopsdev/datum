@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Payload } from 'payload'
 
+import type { CostLog } from '../../cms/src/payload-types'
+
 import { config, type LlmStage } from './config'
 import { mockFixture, mockUsage } from './fixtures'
 import { costUsd } from './pricing'
@@ -114,6 +116,10 @@ export interface CostContext {
   runId: string
 }
 
+function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
+  return JSON.parse(JSON.stringify(value)) as NonNullable<CostLog['request']>
+}
+
 /**
  * completeJSON plus the one CostLog row every LLM call must leave behind.
  * Stages call this so cost tracking cannot be forgotten at individual call sites.
@@ -142,6 +148,8 @@ export async function completeJSONLogged(
         result.usage.outputTokens,
         result.usage.webSearchRequests,
       ),
+      request: jsonSnapshot(request),
+      response: jsonSnapshot(result.json),
     },
   })
   return result

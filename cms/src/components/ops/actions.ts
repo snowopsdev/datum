@@ -25,12 +25,30 @@ function revalidateOps(articleId?: number | string) {
   }
 }
 
+function auditContext(
+  user: { email?: string | null; id: number | string },
+  event: string,
+  summary: string,
+  details?: Record<string, unknown>,
+) {
+  return {
+    articleAudit: {
+      actor: typeof user.email === 'string' ? user.email : String(user.id),
+      actorType: 'user' as const,
+      event,
+      summary,
+      details,
+    },
+  }
+}
+
 export async function assignTemplateAction(articleId: number, templateId: number) {
   const { payload, user } = await requireUser()
   await payload.update({
     collection: 'articles',
     id: articleId,
     data: { template: templateId },
+    context: auditContext(user, 'template_assigned', 'Template assigned', { templateId }),
     user,
     overrideAccess: false,
   })
@@ -52,6 +70,9 @@ export async function resetToDraftedAction(articleId: number, reviewNotes?: stri
         qualitativeReview: { passed: null, notes: null },
       },
     },
+    context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
+      reviewNotes: reviewNotes?.trim() || null,
+    }),
     user,
     overrideAccess: false,
   })
@@ -68,6 +89,9 @@ export async function approveArticleAction(articleId: number, reviewNotes?: stri
       reviewNotes: reviewNotes?.trim() || null,
       reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
     },
+    context: auditContext(user, 'article_approved', 'Article approved', {
+      reviewNotes: reviewNotes?.trim() || null,
+    }),
     user,
     overrideAccess: false,
   })
@@ -85,6 +109,9 @@ export async function publishArticleAction(articleId: number, reviewNotes?: stri
       reviewNotes: reviewNotes?.trim() || null,
       reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
     },
+    context: auditContext(user, 'article_published', 'Article published', {
+      reviewNotes: reviewNotes?.trim() || null,
+    }),
     user,
     overrideAccess: false,
   })
@@ -107,6 +134,9 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
         qualitativeReview: { passed: false, notes: note },
       },
     },
+    context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
+      reviewNotes: note,
+    }),
     user,
     overrideAccess: false,
   })

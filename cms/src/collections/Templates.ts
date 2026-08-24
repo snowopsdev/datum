@@ -3,6 +3,7 @@ import type { CollectionConfig } from 'payload'
 export const Templates: CollectionConfig = {
   slug: 'templates',
   admin: {
+    group: false,
     useAsTitle: 'name',
   },
   fields: [

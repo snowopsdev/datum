@@ -3,6 +3,7 @@ import type { CollectionConfig } from 'payload'
 export const CostLog: CollectionConfig = {
   slug: 'cost-log',
   admin: {
+    group: false,
     useAsTitle: 'pipelineRunId',
   },
   timestamps: true,
@@ -46,6 +47,14 @@ export const CostLog: CollectionConfig = {
     {
       name: 'costUsd',
       type: 'number',
+    },
+    {
+      name: 'request',
+      type: 'json',
+    },
+    {
+      name: 'response',
+      type: 'json',
     },
   ],
 }

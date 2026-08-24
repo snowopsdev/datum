@@ -1,8 +1,14 @@
 import type { CollectionConfig } from 'payload'
 
+import { auditArticleChange } from '../lib/articleAudit'
+
 export const Articles: CollectionConfig = {
   slug: 'articles',
+  hooks: {
+    afterChange: [auditArticleChange],
+  },
   admin: {
+    group: false,
     useAsTitle: 'title',
   },
   fields: [
