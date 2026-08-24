@@ -8,7 +8,7 @@ import type { Article, ArticleAudit, CostLog, Template } from '../../payload-typ
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { ArticleReview } from './ArticleReview'
 import type { AuditTimelineEntry } from './articleStatus'
-import { toBoardArticle } from './articleStatus'
+import { formatAuditTimestamp, toBoardArticle } from './articleStatus'
 
 export async function ArticleReviewView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -81,6 +81,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       actor: entry.actor,
       actorType: entry.actorType,
       createdAt: entry.createdAt,
+      createdAtLabel: formatAuditTimestamp(entry.createdAt),
       details: entry.details,
       event: entry.event,
       fromStatus: entry.fromStatus ?? null,
@@ -94,6 +95,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       actor: [entry.provider, entry.model].filter(Boolean).join(' / ') || 'model',
       actorType: 'pipeline' as const,
       createdAt: entry.createdAt,
+      createdAtLabel: formatAuditTimestamp(entry.createdAt),
       details: {
         inputTokens: entry.inputTokens,
         outputTokens: entry.outputTokens,

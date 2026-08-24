@@ -133,6 +133,7 @@ export async function completeJSONLogged(
   const result = await completeJSON(stage, request)
   await ctx.payload.create({
     collection: 'cost-log',
+    overrideAccess: true,
     data: {
       pipelineRunId: ctx.runId,
       article: articleId,

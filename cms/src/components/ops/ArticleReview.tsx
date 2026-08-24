@@ -147,7 +147,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                       <div className="datum-ops__timeline-title">
                         <strong>{entry.summary}</strong>
                         <time dateTime={entry.createdAt}>
-                          {new Date(entry.createdAt).toLocaleString()}
+                          {entry.createdAtLabel}
                         </time>
                       </div>
                       <div className="datum-ops__timeline-meta">

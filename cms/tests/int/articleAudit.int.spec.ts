@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { ArticleAudit } from '@/collections/ArticleAudit'
+import { CostLog } from '@/collections/CostLog'
+import { formatAuditTimestamp } from '@/components/ops/articleStatus'
 import { auditArticleChange } from '@/lib/articleAudit'
 
 describe('article audit trail', () => {
@@ -74,5 +76,27 @@ describe('article audit trail', () => {
 
     expect(() => beforeChange?.({ operation: 'update' } as never)).toThrow('append-only')
     expect(() => beforeDelete?.({} as never)).toThrow('append-only')
+  })
+
+  it('protects model evidence and permits only authenticated reads', async () => {
+    const read = CostLog.access?.read
+    const create = CostLog.access?.create
+    const update = CostLog.access?.update
+    const remove = CostLog.access?.delete
+    const beforeChange = CostLog.hooks?.beforeChange?.[0]
+    const beforeDelete = CostLog.hooks?.beforeDelete?.[0]
+
+    expect(await read?.({ req: { user: null } } as never)).toBe(false)
+    expect(await read?.({ req: { user: { id: 7 } } } as never)).toBe(true)
+    expect(await create?.({} as never)).toBe(false)
+    expect(await update?.({} as never)).toBe(false)
+    expect(await remove?.({} as never)).toBe(false)
+    expect(() => beforeChange?.({ operation: 'update' } as never)).toThrow('append-only')
+    expect(() => beforeDelete?.({} as never)).toThrow('append-only')
+  })
+
+  it('formats audit timestamps deterministically in UTC', () => {
+    expect(formatAuditTimestamp('2026-08-24T18:17:31Z')).toBe('Aug 24, 2026, 6:17 PM UTC')
+    expect(formatAuditTimestamp('not-a-date')).toBe('Unknown time')
   })
 })
