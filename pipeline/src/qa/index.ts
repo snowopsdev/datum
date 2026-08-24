@@ -1,38 +1,21 @@
+import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
 import { completeJSONLogged } from '../llm'
 import { lexicalToPlainText, type RichText } from '../richtext'
 import { resolveTemplate, type Stage } from '../stages'
 
 import { runStructuralChecks } from './structuralChecks'
+import { decideQualitative, parseFactCheck, parseQualitative } from './verdicts'
 
-interface FactCheckVerdict {
-  passed: boolean
-  notes: string
-  sources: string[]
-}
+const BASE_QUALITATIVE_SYSTEM =
+  'You are an exacting content editor. Judge whether the article follows the style guide and the template rules. '
 
-interface QualitativeVerdict {
-  passed: boolean
-  notes: string
-}
+const LEGACY_SHAPE = 'Return JSON: {"passed": boolean, "notes": string}.'
 
-function parseFactCheck(json: unknown): FactCheckVerdict {
-  const record = json as Record<string, unknown>
-  if (typeof record?.passed !== 'boolean' || typeof record?.notes !== 'string') {
-    throw new Error('factCheck verdict must have boolean "passed" and string "notes"')
-  }
-  const sources = Array.isArray(record.sources)
-    ? record.sources.filter((s): s is string => typeof s === 'string')
-    : []
-  return { passed: record.passed, notes: record.notes, sources }
-}
-
-function parseQualitative(json: unknown): QualitativeVerdict {
-  const record = json as Record<string, unknown>
-  if (typeof record?.passed !== 'boolean' || typeof record?.notes !== 'string') {
-    throw new Error('qualitativeReview verdict must have boolean "passed" and string "notes"')
-  }
-  return { passed: record.passed, notes: record.notes }
-}
+const BRAND_VOICE_SHAPE =
+  'Also judge brand voice fit against the "Brand voice (tenant)" section: score it 1–5 as voiceScore with a short voiceNotes explanation. ' +
+  'List notTraitViolations ONLY for a clear breach of a "What we are NOT" trait; each entry must quote the offending text verbatim as excerpt. ' +
+  'If there is no clear breach, return an empty array — do not fail the article on voice fit alone. ' +
+  'Return JSON: {"passed": boolean, "notes": string, "voiceScore": number, "voiceNotes": string, "notTraitViolations": [{"trait": string, "excerpt": string, "explanation": string}]}.'
 
 export const qaStage: Stage = {
   name: 'qa',
@@ -40,7 +23,9 @@ export const qaStage: Stage = {
   exitStatus: 'qa_passed',
   async run(article, ctx) {
     const template = resolveTemplate(article)
-    const violations = runStructuralChecks(article, template, ctx.styleGuide)
+    const violations = runStructuralChecks(article, template, ctx.styleGuide, {
+      brandBannedWords: ctx.brandVoice ? bannedWordsOf(ctx.brandVoice) : [],
+    })
 
     const bodyText = article.body ? lexicalToPlainText(article.body as RichText) : ''
     const faqText =
@@ -57,11 +42,17 @@ export const qaStage: Stage = {
 
     const dos = template.dos?.map((d) => `- ${d.text}`).join('\n') || '(none)'
     const donts = template.donts?.map((d) => `- ${d.text}`).join('\n') || '(none)'
+    const brandVoiceBlock = ctx.brandVoice ? `\n\n${brandVoiceToPrompt(ctx.brandVoice)}` : ''
+    // The brand voice governs every generated field, so the meta fields are reviewed too.
+    const metaText = [
+      `Title tag: ${article.titleTag ?? '(none)'}`,
+      `Meta description: ${article.metaDescription ?? '(none)'}`,
+      `OG title: ${article.ogTitle ?? '(none)'}`,
+      `OG description: ${article.ogDescription ?? '(none)'}`,
+    ].join('\n')
     const qualResult = await completeJSONLogged(ctx, 'qualitativeReview', article.id, {
-      system:
-        'You are an exacting content editor. Judge whether the article follows the style guide and the template rules. ' +
-        'Return JSON: {"passed": boolean, "notes": string}.',
-      user: `Style guide:\n${ctx.styleGuide.text}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${bodyText}\n\nFAQ:\n${faqText}`,
+      system: BASE_QUALITATIVE_SYSTEM + (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE),
+      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyText}\n\nFAQ:\n${faqText}`,
     })
     const qualitativeReview = parseQualitative(qualResult.json)
 
@@ -76,7 +67,7 @@ export const qaStage: Stage = {
     const totalCostUsd = costRows.docs.reduce((sum, row) => sum + (row.costUsd ?? 0), 0)
 
     const structuralPassed = violations.length === 0
-    const allPassed = structuralPassed && factCheck.passed && qualitativeReview.passed
+    const allPassed = structuralPassed && factCheck.passed && decideQualitative(qualitativeReview)
     return {
       status: allPassed ? 'qa_passed' : 'needs_revision',
       data: {

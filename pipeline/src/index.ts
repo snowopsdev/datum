@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { createAhrefsClient } from './ahrefs'
+import { loadActiveBrandVoice } from './brandVoice'
 import { config } from './config'
 import { fetchTopics } from './fetchTopics'
 import { initPayload } from './payloadClient'
@@ -54,12 +55,16 @@ async function main(): Promise<void> {
   const runId = randomUUID()
   console.log(`[pipeline] ${args.command} — run ${runId} (${config.mockMode ? 'MOCK' : 'live'} mode)`)
 
+  const brandVoice = await loadActiveBrandVoice(payload)
+  console.log(`[pipeline] brand voice: ${brandVoice ? `"${brandVoice.name}"` : 'none'}`)
+
   const ctx: StageContext = {
     payload,
     runId,
     mode: config.mockMode ? 'mock' : 'live',
     ahrefs: createAhrefsClient(),
     styleGuide: loadStyleGuide(),
+    brandVoice,
   }
 
   if (args.command === 'fetch') {

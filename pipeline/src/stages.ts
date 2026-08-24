@@ -3,6 +3,7 @@ import type { Payload } from 'payload'
 import type { Article, Template } from '../../cms/src/payload-types'
 
 import type { AhrefsClient } from './ahrefs'
+import type { BrandVoiceContent } from './brandVoice'
 import { generateStage } from './generate'
 import { qaStage } from './qa/index'
 import { researchStage } from './research'
@@ -16,6 +17,8 @@ export interface StageContext {
   mode: 'mock' | 'live'
   ahrefs: AhrefsClient
   styleGuide: StyleGuide
+  /** The tenant's active brand voice; null when none has been activated. */
+  brandVoice: BrandVoiceContent | null
 }
 
 export interface StageOutcome {

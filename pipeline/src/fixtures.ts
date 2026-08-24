@@ -71,6 +71,10 @@ const qualitativeReviewFixture = {
   passed: true,
   notes:
     'Voice matches the style guide: plain-spoken, active, concrete numbers throughout. Paragraphs stay under four sentences and every heading is answered in its first sentence. No banned phrases found.',
+  voiceScore: 4,
+  voiceNotes:
+    'Plain-spoken and confident throughout; the intro could be a touch warmer. No hype, no sarcasm, no jargon walls.',
+  notTraitViolations: [],
 }
 
 const fixtures: Record<LlmStage, unknown> = {
