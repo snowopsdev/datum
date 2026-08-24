@@ -11,7 +11,7 @@ Please **do not** open a public GitHub issue for security vulnerabilities.
 Prefer one of:
 
 1. **[GitHub private vulnerability advisory](https://github.com/snowopsdev/datum/security/advisories/new)** (recommended once the repository is public and advisories are enabled)
-2. Email the maintainer: **nievesaj@gmail.com**
+2. Email the maintainer: **aj@snowops.dev**
 
 Include:
 
