@@ -18,9 +18,17 @@ import { GovernanceAudit } from './collections/GovernanceAudit'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+// Dev convenience: PAYLOAD_AUTO_LOGIN=true in cms/.env skips the admin login
+// form by signing in as the seeded admin. Never honoured in production.
+const autoLogin =
+  process.env.PAYLOAD_AUTO_LOGIN === 'true' && process.env.NODE_ENV !== 'production'
+    ? { email: process.env.PAYLOAD_AUTO_LOGIN_EMAIL || 'admin@datum.local' }
+    : false
+
 export default buildConfig({
   admin: {
     user: Users.slug,
+    autoLogin,
     importMap: {
       baseDir: path.resolve(dirname),
     },
