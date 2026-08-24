@@ -68,6 +68,9 @@ describe('article audit trail', () => {
         }),
       }),
     )
+    const auditData = create.mock.calls[0]?.[0]?.data
+    expect(auditData).not.toHaveProperty('fromStatus')
+    expect(auditData).not.toHaveProperty('toStatus')
   })
 
   it('rejects updates and deletes even when collection access is bypassed', () => {

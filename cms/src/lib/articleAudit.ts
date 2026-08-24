@@ -26,13 +26,19 @@ export const auditArticleChange: CollectionAfterChangeHook = async ({
 }) => {
   const supplied = (context as AuditRequestContext).articleAudit
   const user = req.user as { email?: string; id?: number | string } | null | undefined
-  const fromStatus = operation === 'create' ? undefined : (previousDoc.status as string | undefined)
-  const toStatus = doc.status as string | undefined
+  const previousStatus = previousDoc?.status as string | undefined
+  const currentStatus = doc.status as string | undefined
+  const statusTransition =
+    operation === 'create'
+      ? { toStatus: currentStatus }
+      : previousStatus !== currentStatus
+        ? { fromStatus: previousStatus, toStatus: currentStatus }
+        : {}
   const event =
     supplied?.event ??
     (operation === 'create'
       ? 'article_created'
-      : fromStatus !== toStatus
+      : previousStatus !== currentStatus
         ? 'status_changed'
         : 'article_updated')
   const actorType = supplied?.actorType ?? (user ? 'user' : 'system')
@@ -49,8 +55,7 @@ export const auditArticleChange: CollectionAfterChangeHook = async ({
       actor,
       pipelineRunId: supplied?.pipelineRunId,
       stage: supplied?.stage,
-      fromStatus,
-      toStatus,
+      ...statusTransition,
       details: supplied?.details ?? { changedFields },
     },
     overrideAccess: true,
