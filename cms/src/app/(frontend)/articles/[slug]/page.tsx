@@ -4,9 +4,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import React from 'react'
 
+import { buildArticleMetadata } from '@/lib/articleMetadata'
 import { findPublishedArticle } from '@/lib/findPublishedArticle'
 import { lexicalBodyToHtml } from '@/lib/lexicalHtml'
-import '../styles.css'
 import './article.css'
 
 type Props = {
@@ -18,15 +18,7 @@ export async function generateMetadata({ params }: Props) {
   const payload = await getPayload({ config })
   const article = await findPublishedArticle(payload, slug)
   if (!article) return { title: 'Not found' }
-  return {
-    title: article.titleTag || article.title || article.keyword,
-    description: article.metaDescription || undefined,
-    openGraph: {
-      title: article.ogTitle || article.titleTag || article.title || undefined,
-      description: article.ogDescription || article.metaDescription || undefined,
-      images: article.ogImage ? [article.ogImage] : undefined,
-    },
-  }
+  return buildArticleMetadata(article)
 }
 
 export default async function PublishedArticlePage({ params }: Props) {
@@ -47,7 +39,9 @@ export default async function PublishedArticlePage({ params }: Props) {
       </header>
       <article className="datum-public__article">
         <h1>{article.title || article.keyword}</h1>
-        {article.metaDescription ? <p className="datum-public__dek">{article.metaDescription}</p> : null}
+        {article.metaDescription ? (
+          <p className="datum-public__dek">{article.metaDescription}</p>
+        ) : null}
         {html ? (
           <div className="datum-public__body" dangerouslySetInnerHTML={{ __html: html }} />
         ) : (

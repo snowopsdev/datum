@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "inter",
+        "createdAt": "2026-08-24T19:59:47.421Z",
+        "reason": "user requested preserving the current public-reader design"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "18px",
+        "createdAt": "2026-08-24T20:00:49.337Z",
+        "reason": "user requested preserving the current public-reader design"
+      }
+    ]
+  }
+}

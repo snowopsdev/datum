@@ -83,6 +83,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example). 
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `PAYLOAD_SECRET` | Payload token signing secret |
+| `SITE_URL` | Public CMS origin used for canonical article URLs (defaults to `http://localhost:3000`) |
 | `ANTHROPIC_API_KEY` | Claude for generation and QA. Not required in mock mode. |
 | `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
 | `TARGET_DOMAIN` | Domain that will publish the articles |
