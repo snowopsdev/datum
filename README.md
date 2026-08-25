@@ -1,5 +1,9 @@
 # Datum
 
+[![CI](https://github.com/snowopsdev/datum/actions/workflows/ci.yml/badge.svg)](https://github.com/snowopsdev/datum/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/snowopsdev/datum?sort=semver)](https://github.com/snowopsdev/datum/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Datum is an SEO content pipeline built on [Payload CMS](https://payloadcms.com/). It finds content-gap keywords, drafts articles from reusable templates, and checks each draft before publication.
 
 ## Why Datum is different
@@ -19,6 +23,12 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 | [`docs/`](docs/) | Style guide and other content rules that the pipeline reads |
 
 `cms` and `pipeline` share one Postgres database and the types generated in `cms/src/payload-types.ts`. The pipeline imports Payload in the same process. It does not call the CMS over HTTP.
+
+## Pipeline and data integration
+
+![Datum data flow from external SEO sources through the provider integration seam, automated pipeline, editor review, and public reader](docs/diagrams/pipeline-data-flow.svg)
+
+External SEO data is isolated behind the `AhrefsClient` contract. To add another provider, implement that interface and inject it through `StageContext`; topic discovery and SERP research will consume the normalized results. The editable [diagram source](docs/diagrams/pipeline-data-flow.html) lives beside the SVG.
 
 ## Article status flow
 
@@ -90,6 +100,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) â
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `PAYLOAD_SECRET` | Payload token signing secret |
+| `SITE_URL` | Public CMS origin used for canonical article URLs (defaults to `http://localhost:3000`) |
 | `ANTHROPIC_API_KEY` | Claude models (`claude-*`). Not required in mock mode. |
 | `OPENAI_API_KEY` | OpenAI models (`gpt-*`, `o3`, `o4-mini`). Not required in mock mode. |
 | `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
