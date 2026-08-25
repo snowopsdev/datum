@@ -20,6 +20,12 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 
 `cms` and `pipeline` share one Postgres database and the types generated in `cms/src/payload-types.ts`. The pipeline imports Payload in the same process. It does not call the CMS over HTTP.
 
+## Pipeline and data integration
+
+![Datum data flow from external SEO sources through the provider integration seam, automated pipeline, editor review, and public reader](docs/diagrams/pipeline-data-flow.svg)
+
+External SEO data is isolated behind the `AhrefsClient` contract. To add another provider, implement that interface and inject it through `StageContext`; topic discovery and SERP research will consume the normalized results. The editable [diagram source](docs/diagrams/pipeline-data-flow.html) lives beside the SVG.
+
 ## Article status flow
 
 ![Article status flow showing the pipeline, QA branch, revision loop, and editor actions](docs/diagrams/article-status-flow.svg)
@@ -83,6 +89,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example). 
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `PAYLOAD_SECRET` | Payload token signing secret |
+| `SITE_URL` | Public CMS origin used for canonical article URLs (defaults to `http://localhost:3000`) |
 | `ANTHROPIC_API_KEY` | Claude for generation and QA. Not required in mock mode. |
 | `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
 | `TARGET_DOMAIN` | Domain that will publish the articles |
