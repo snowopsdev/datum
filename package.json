@@ -1,5 +1,6 @@
 {
   "name": "datum",
+  "version": "0.1.0",
   "private": true,
   "description": "SEO content pipeline built on Payload CMS — research, generate, and QA articles end to end",
   "license": "MIT",
