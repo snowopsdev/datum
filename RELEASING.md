@@ -8,7 +8,7 @@ Datum uses [release-please](https://github.com/googleapis/release-please) to aut
 2. On every push to `main`, the `Release Please` workflow (`.github/workflows/release-please.yml`) opens or updates a **release PR** titled `chore(main): release X.Y.Z`. It accumulates pending changes into `CHANGELOG.md` and bumps the `version` field in the root `package.json`:
    - `fix:` → patch (`0.1.0` → `0.1.1`)
    - `feat:` → minor (`0.1.0` → `0.2.0`)
-   - `feat!:` / a `BREAKING CHANGE:` footer → major (`0.1.0` → `1.0.0`)
+   - `feat!:` (or any `type!:`) → major (`0.1.0` → `1.0.0`). Always signal breaking changes with the `!` marker **in the PR title**: the squash commit keeps only the title, so a `BREAKING CHANGE:` footer in the PR body or branch commits never reaches `main`, and release-please would compute a minor bump instead of a major one.
    - `docs:`, `chore:`, `ci:`, etc. → no bump (still listed in the changelog where configured)
 3. **Cutting a release = merging that release PR.** On merge, the workflow creates the `vX.Y.Z` git tag and the GitHub Release with the changelog notes. That's the entire release procedure.
 
