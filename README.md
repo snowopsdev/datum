@@ -1,5 +1,9 @@
 # Datum
 
+[![CI](https://github.com/snowopsdev/datum/actions/workflows/ci.yml/badge.svg)](https://github.com/snowopsdev/datum/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/snowopsdev/datum?sort=semver)](https://github.com/snowopsdev/datum/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Datum is an SEO content pipeline built on [Payload CMS](https://payloadcms.com/). It finds content-gap keywords, drafts articles from reusable templates, and checks each draft before publication.
 
 ## Why Datum is different
