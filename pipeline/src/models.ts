@@ -9,7 +9,7 @@ import {
 } from '../../cms/src/lib/llmSettings'
 
 import { config } from './config'
-import { apiKeyForModel, PROVIDER_API_KEY_ENV, providerForModel } from './llmProvider'
+import { apiKeyForModel, envVarNameForModel } from './llmProvider'
 
 export type StageModels = Record<PipelineStage, string>
 
@@ -26,7 +26,7 @@ export async function loadStageModels(payload: Payload): Promise<StageModels> {
     const { model, source } = resolved[stage] as ResolvedModel
     if (!config.mockMode && apiKeyForModel(model, process.env) === undefined) {
       throw new Error(
-        `${stage} model "${model}" (from ${source}) needs ${PROVIDER_API_KEY_ENV[providerForModel(model)]} set (MOCK_MODE=false)`,
+        `${stage} model "${model}" (from ${source}) needs ${envVarNameForModel(model)} set (MOCK_MODE=false)`,
       )
     }
     console.log(`[pipeline] ${stage}: ${model} (${source})`)
