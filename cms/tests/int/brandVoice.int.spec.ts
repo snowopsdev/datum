@@ -123,6 +123,18 @@ describe('brand voice content helpers', () => {
     expect(brandVoiceToGuideMarkdown(emptyBrandVoiceContent())).toContain('_Not defined yet._')
   })
 
+  it('escapes backslashes before pipes in table cells, not after', () => {
+    const bv = {
+      ...emptyBrandVoiceContent('Backslash co'),
+      voiceAdjectives: [{ adjective: 'blunt', description: 'a\\|b', doExample: '', dontExample: '' }],
+    }
+    const md = brandVoiceToGuideMarkdown(bv)
+    const row = md.split('\n').find((l) => l.includes('blunt'))
+    // "a\|b" must become "a\\\|b" (escaped backslash, then escaped pipe) so a
+    // markdown renderer doesn't read \| as an escaped literal pipe and merge cells.
+    expect(row).toContain('a\\\\\\|b')
+  })
+
   it('slugs names for export file names', () => {
     expect(brandVoiceSlug('Datum demo brand voice')).toBe('datum-demo-brand-voice')
     expect(brandVoiceSlug('   ')).toBe('brand-voice')

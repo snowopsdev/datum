@@ -411,7 +411,8 @@ function dialBar(value: number): string {
   return `${'●'.repeat(value)}${'○'.repeat(5 - value)}`
 }
 
-const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\n+/g, ' ') || '—'
+const cell = (text: string): string =>
+  text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n+/g, ' ') || '—'
 
 /**
  * Notion-template-style "Brand & Voice Guide" as markdown, for the Guide tab
