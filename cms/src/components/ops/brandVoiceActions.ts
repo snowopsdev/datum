@@ -11,9 +11,11 @@ import { parseBrandVoiceContent } from '../../lib/brandVoice'
 import {
   BrandVoiceExtractionError,
   extractBrandVoiceFromText,
+  extractionModel,
   logExtractionCost,
 } from '../../lib/brandVoiceExtract'
 import { detectKind, extractText, UnsupportedUploadError } from '../../lib/extractText'
+import type { LlmSettingsDoc } from '../../lib/llmSettings'
 import type { BrandVoiceInput } from './brandVoiceTypes'
 
 const VIEW_PATH = '/admin/ops/governance/brand-voice'
@@ -172,9 +174,11 @@ export async function extractBrandVoiceFromUploadAction(
 
   const runId = `brand-voice-extract:${randomUUID()}`
   const request = { filename: file.name, sourceChars: extracted.sourceChars }
+  const settings = (await payload.findGlobal({ slug: 'llm-settings', depth: 0 })) as LlmSettingsDoc
+  const model = extractionModel(process.env, settings)
   let result
   try {
-    result = await extractBrandVoiceFromText({ text: extracted.text, filename: file.name })
+    result = await extractBrandVoiceFromText({ text: extracted.text, filename: file.name, model })
   } catch (e) {
     if (e instanceof BrandVoiceExtractionError) {
       // The call was billed even though the reply was unusable — record it.

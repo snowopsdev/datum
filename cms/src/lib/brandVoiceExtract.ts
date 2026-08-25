@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import type { Payload } from 'payload'
 
 import {
@@ -9,14 +10,14 @@ import {
   parseBrandVoiceContent,
 } from './brandVoice'
 import { BRAND_VOICE_FIXTURE } from './brandVoiceFixture'
+import { apiKeyForModel, type LlmProvider, providerForModel } from './llmProvider'
+import { type LlmSettingsDoc, resolveExtractionModel } from './llmSettings'
 import { costUsd } from './pricing'
-
-export const DEFAULT_EXTRACT_MODEL = 'claude-opus-5'
 
 export interface ExtractionResult {
   content: BrandVoiceContent
   warnings: string[]
-  provider: 'anthropic' | 'mock'
+  provider: LlmProvider | 'mock'
   model: string
   usage: { inputTokens: number; outputTokens: number }
 }
@@ -28,17 +29,24 @@ function parseBool(value: string | undefined): boolean | undefined {
   return undefined
 }
 
-/**
- * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
- * mock whenever there is no API key. Never throws — the admin flow must work
- * in a keyless dev environment.
- */
-export function extractionMockMode(env: Record<string, string | undefined> = process.env): boolean {
-  return parseBool(env.MOCK_MODE) ?? !env.ANTHROPIC_API_KEY
+/** Admin Models global → BRAND_VOICE_EXTRACT_MODEL → default. */
+export function extractionModel(
+  env: Record<string, string | undefined> = process.env,
+  settings: LlmSettingsDoc | null = null,
+): string {
+  return resolveExtractionModel(settings, env).model
 }
 
-export function extractionModel(env: Record<string, string | undefined> = process.env): string {
-  return env.BRAND_VOICE_EXTRACT_MODEL || DEFAULT_EXTRACT_MODEL
+/**
+ * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
+ * mock whenever the extraction model's provider has no API key. Never throws —
+ * the admin flow must work in a keyless dev environment.
+ */
+export function extractionMockMode(
+  env: Record<string, string | undefined> = process.env,
+  model: string = extractionModel(env),
+): boolean {
+  return parseBool(env.MOCK_MODE) ?? apiKeyForModel(model, env) === undefined
 }
 
 const EXTRACTION_SYSTEM_PROMPT = [
@@ -85,13 +93,13 @@ function parseJsonReply(text: string): unknown {
   return JSON.parse(stripped)
 }
 
-function mockExtraction(filename: string): ExtractionResult {
+function mockExtraction(filename: string, model: string): ExtractionResult {
   const base = filename.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim()
   return {
     content: { ...BRAND_VOICE_FIXTURE, name: base ? `${base} (extracted)` : BRAND_VOICE_FIXTURE.name },
     warnings: ['Mock mode: returned the demo brand voice instead of calling the model'],
     provider: 'mock',
-    model: extractionModel(),
+    model,
     usage: { inputTokens: 0, outputTokens: 0 },
   }
 }
@@ -99,41 +107,61 @@ function mockExtraction(filename: string): ExtractionResult {
 /**
  * One model call that fills the same fields the onboarding stepper produces.
  * The result is always run through `parseBrandVoiceContent`, so callers get a
- * clean record plus the list of anything that had to be fixed.
+ * clean record plus the list of anything that had to be fixed. `model`
+ * defaults to the env/default resolution; the server action passes the
+ * admin's Models-global choice.
  */
 export async function extractBrandVoiceFromText(input: {
   text: string
   filename: string
+  model?: string
 }): Promise<ExtractionResult> {
-  if (extractionMockMode()) return mockExtraction(input.filename)
+  const model = input.model || extractionModel()
+  if (extractionMockMode(process.env, model)) return mockExtraction(input.filename, model)
 
-  const model = extractionModel()
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const response = await client.messages.create({
-    model,
-    max_tokens: 8000,
-    system: EXTRACTION_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`,
-      },
-    ],
-  })
-  const billed = {
-    provider: 'anthropic' as const,
-    model,
-    usage: {
+  const provider = providerForModel(model)
+  const userMessage = `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`
+
+  let text: string | undefined
+  let stopReason: string
+  let usage: { inputTokens: number; outputTokens: number }
+  if (provider === 'openai') {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const response = await client.responses.create({
+      model,
+      instructions: EXTRACTION_SYSTEM_PROMPT,
+      input: userMessage,
+      max_output_tokens: 8000,
+      text: { format: { type: 'json_object' } },
+    })
+    text = response.output_text || undefined
+    stopReason = response.incomplete_details?.reason ?? response.status ?? 'unknown'
+    usage = {
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+    }
+  } else {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const response = await client.messages.create({
+      model,
+      max_tokens: 8000,
+      system: EXTRACTION_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMessage }],
+    })
+    text = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+      .at(-1)?.text
+    stopReason = response.stop_reason ?? 'unknown'
+    usage = {
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
-    },
+    }
   }
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .at(-1)?.text
+
+  const billed = { provider, model, usage }
   if (!text) {
     throw new BrandVoiceExtractionError(
-      `Brand voice extraction returned no text (stop_reason: ${response.stop_reason})`,
+      `Brand voice extraction returned no text (stop_reason: ${stopReason})`,
       billed,
     )
   }

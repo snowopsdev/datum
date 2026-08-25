@@ -4,6 +4,7 @@ import { createAhrefsClient } from './ahrefs'
 import { loadActiveBrandVoice } from './brandVoice'
 import { config } from './config'
 import { fetchTopics } from './fetchTopics'
+import { loadStageModels } from './models'
 import { initPayload } from './payloadClient'
 import { printReport, type ReportPeriod } from './report'
 import { runPipeline, type StageContext } from './stages'
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
     mode: config.mockMode ? 'mock' : 'live',
     ahrefs: createAhrefsClient(),
     styleGuide: loadStyleGuide(),
+    models: await loadStageModels(payload),
     brandVoice,
   }
 

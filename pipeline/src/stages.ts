@@ -7,6 +7,7 @@ import type { BrandVoiceContent } from './brandVoice'
 import { generateStage } from './generate'
 import { qaStage } from './qa/index'
 import { researchStage } from './research'
+import type { StageModels } from './models'
 import type { StyleGuide } from './styleGuide'
 
 export type ArticleStatus = Article['status']
@@ -17,6 +18,8 @@ export interface StageContext {
   mode: 'mock' | 'live'
   ahrefs: AhrefsClient
   styleGuide: StyleGuide
+  /** Model per LLM stage for this run (admin Models global → env → default). */
+  models: StageModels
   /** The tenant's active brand voice; null when none has been activated. */
   brandVoice: BrandVoiceContent | null
 }

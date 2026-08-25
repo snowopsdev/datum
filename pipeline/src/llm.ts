@@ -1,10 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import type { Payload } from 'payload'
 
 import type { CostLog } from '../../cms/src/payload-types'
 
 import { config, type LlmStage } from './config'
 import { mockFixture, mockUsage } from './fixtures'
+import { type LlmProvider, providerForModel } from './llmProvider'
 import { costUsd } from './pricing'
 
 export interface LlmRequest {
@@ -16,15 +18,23 @@ export interface LlmRequest {
 export interface LlmResult {
   json: unknown
   usage: { inputTokens: number; outputTokens: number; webSearchRequests: number }
-  provider: 'anthropic' | 'mock'
+  provider: LlmProvider | 'mock'
   model: string
 }
 
+const JSON_ONLY = 'Reply with only a single JSON object. No prose, no code fences.'
+
 let anthropicClient: Anthropic | undefined
+let openaiClient: OpenAI | undefined
 
 function getClient(): Anthropic {
   anthropicClient ??= new Anthropic({ apiKey: config.anthropicApiKey })
   return anthropicClient
+}
+
+function getOpenAI(): OpenAI {
+  openaiClient ??= new OpenAI({ apiKey: config.openaiApiKey })
+  return openaiClient
 }
 
 function parseJsonReply(text: string, stage: LlmStage): unknown {
@@ -41,13 +51,16 @@ function parseJsonReply(text: string, stage: LlmStage): unknown {
   }
 }
 
-async function completeJSONAnthropic(stage: LlmStage, request: LlmRequest): Promise<LlmResult> {
-  const model = config.models[stage]
+async function completeJSONAnthropic(
+  stage: LlmStage,
+  request: LlmRequest,
+  model: string,
+): Promise<LlmResult> {
   try {
     const response = await getClient().messages.create({
       model,
       max_tokens: 16000,
-      system: `${request.system}\n\nReply with only a single JSON object. No prose, no code fences.`,
+      system: `${request.system}\n\n${JSON_ONLY}`,
       messages: [{ role: 'user', content: request.user }],
       ...(request.needWebSearch
         ? {
@@ -97,23 +110,83 @@ async function completeJSONAnthropic(stage: LlmStage, request: LlmRequest): Prom
   }
 }
 
-async function completeJSONMock(stage: LlmStage): Promise<LlmResult> {
+async function completeJSONOpenAI(
+  stage: LlmStage,
+  request: LlmRequest,
+  model: string,
+): Promise<LlmResult> {
+  try {
+    const response = await getOpenAI().responses.create({
+      model,
+      instructions: `${request.system}\n\n${JSON_ONLY}`,
+      input: request.user,
+      max_output_tokens: 16000,
+      text: { format: { type: 'json_object' } },
+      ...(request.needWebSearch ? { tools: [{ type: 'web_search' as const }] } : {}),
+    })
+    const finalText = response.output_text
+    if (!finalText) {
+      throw new Error(
+        `[llm:${stage}] response contained no text (status: ${response.status}, reason: ${response.incomplete_details?.reason ?? 'n/a'})`,
+      )
+    }
+    return {
+      json: parseJsonReply(finalText, stage),
+      usage: {
+        inputTokens: response.usage?.input_tokens ?? 0,
+        outputTokens: response.usage?.output_tokens ?? 0,
+        webSearchRequests: response.output.filter((item) => item.type === 'web_search_call').length,
+      },
+      provider: 'openai',
+      model,
+    }
+  } catch (error) {
+    if (error instanceof OpenAI.AuthenticationError) {
+      throw new Error(`[llm:${stage}] invalid OPENAI_API_KEY: ${error.message}`)
+    }
+    if (error instanceof OpenAI.RateLimitError) {
+      throw new Error(`[llm:${stage}] rate limited by the OpenAI API — retry later: ${error.message}`)
+    }
+    if (error instanceof OpenAI.APIConnectionError) {
+      throw new Error(`[llm:${stage}] could not reach the OpenAI API: ${error.message}`)
+    }
+    if (error instanceof OpenAI.APIError) {
+      throw new Error(`[llm:${stage}] OpenAI API error ${error.status}: ${error.message}`)
+    }
+    throw error
+  }
+}
+
+async function completeJSONMock(stage: LlmStage, model: string): Promise<LlmResult> {
   return {
     json: mockFixture(stage),
     usage: { ...mockUsage[stage] },
     provider: 'mock',
-    model: config.models[stage],
+    model,
   }
 }
 
-/** The single LLM call site: every model-calling stage goes through here. */
-export async function completeJSON(stage: LlmStage, request: LlmRequest): Promise<LlmResult> {
-  return config.mockMode ? completeJSONMock(stage) : completeJSONAnthropic(stage, request)
+/**
+ * The single LLM call site: every model-calling stage goes through here. The
+ * model id decides the provider (`claude-*` → Anthropic, `gpt-*` → OpenAI);
+ * which model a stage uses is resolved once per run (see models.ts).
+ */
+export async function completeJSON(
+  stage: LlmStage,
+  request: LlmRequest,
+  model: string,
+): Promise<LlmResult> {
+  if (config.mockMode) return completeJSONMock(stage, model)
+  return providerForModel(model) === 'openai'
+    ? completeJSONOpenAI(stage, request, model)
+    : completeJSONAnthropic(stage, request, model)
 }
 
 export interface CostContext {
   payload: Payload
   runId: string
+  /** Model per stage for this run, from the admin's Models global / env / default. */
+  models: Record<LlmStage, string>
 }
 
 function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
@@ -130,7 +203,7 @@ export async function completeJSONLogged(
   articleId: number,
   request: LlmRequest,
 ): Promise<LlmResult> {
-  const result = await completeJSON(stage, request)
+  const result = await completeJSON(stage, request, ctx.models[stage])
   await ctx.payload.create({
     collection: 'cost-log',
     overrideAccess: true,

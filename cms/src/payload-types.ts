@@ -101,8 +101,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'llm-settings': LlmSetting;
+  };
+  globalsSelect: {
+    'llm-settings': LlmSettingsSelect<false> | LlmSettingsSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -1076,6 +1080,114 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; prices are USD per 1M tokens and feed the cost log.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "llm-settings".
+ */
+export interface LlmSetting {
+  id: number;
+  /**
+   * Writes the article draft from the template, research, and brand voice. Leave blank to use PIPELINE_MODEL_GENERATE from the environment, or the platform default (Claude Opus 5).
+   */
+  generateModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Verifies claims with web search during QA. Leave blank to use PIPELINE_MODEL_FACT_CHECK from the environment, or the platform default (Claude Opus 5).
+   */
+  factCheckModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Judges style guide, template rules, and brand voice fit during QA. Leave blank to use PIPELINE_MODEL_QUALITATIVE_REVIEW from the environment, or the platform default (Claude Opus 5).
+   */
+  qualitativeReviewModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the platform default (Claude Opus 5).
+   */
+  brandVoiceExtractModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "llm-settings_select".
+ */
+export interface LlmSettingsSelect<T extends boolean = true> {
+  generateModel?: T;
+  factCheckModel?: T;
+  qualitativeReviewModel?: T;
+  brandVoiceExtractModel?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

@@ -14,6 +14,7 @@ export function ExtraOpsNavLinks() {
       links: [
         { label: 'Brand voice', href: '/admin/ops/governance/brand-voice' },
         { label: 'Templates', href: '/admin/ops/templates' },
+        { label: 'Models', href: '/admin/globals/llm-settings' },
         { label: 'Users', href: '/admin/collections/users' },
       ],
     },

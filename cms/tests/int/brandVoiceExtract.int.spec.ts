@@ -59,13 +59,27 @@ describe('extractText', () => {
 })
 
 describe('brand voice extraction', () => {
-  it('follows the pipeline mock rule: MOCK_MODE wins, else mock without an API key', () => {
+  it('follows the pipeline mock rule: MOCK_MODE wins, else mock without the model provider key', () => {
     expect(extractionMockMode({})).toBe(true)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k' })).toBe(false)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', MOCK_MODE: 'true' })).toBe(true)
     expect(extractionMockMode({ MOCK_MODE: 'false' })).toBe(false)
     expect(extractionModel({})).toBe('claude-opus-5')
     expect(extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' })).toBe('claude-sonnet-5')
+    expect(
+      extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' }, { brandVoiceExtractModel: 'gpt-5.6-terra' }),
+    ).toBe('gpt-5.6-terra')
+  })
+
+  it('mocks or not based on the model actually passed in, not just the env default', () => {
+    expect(extractionMockMode({ OPENAI_API_KEY: 'k' }, 'gpt-5.6-sol')).toBe(false)
+    expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k' }, 'gpt-5.6-sol')).toBe(true)
+  })
+
+  it('needs the OpenAI key, not the Anthropic one, when the extraction model is a gpt-* id', () => {
+    expect(extractionMockMode({ OPENAI_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(false)
+    expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(true)
+    expect(extractionMockMode({ OPENAI_API_KEY: 'k' })).toBe(true)
   })
 
   it('returns the demo fixture in mock mode without touching the network', async () => {
