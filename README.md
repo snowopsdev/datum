@@ -26,6 +26,13 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 
 Assign a template in the admin UI or with `pipeline/scripts/assign-template.ts`. The pipeline does not process `needs_revision` articles. Reset one to `drafted` to run QA again. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
 
+## Governance: brand voice and model choice
+
+Editorial rules live in two places in the admin, both under the **Governance** nav group:
+
+- **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. A fresh install has none — the pipeline runs on the style guide alone until you activate one. Seed a demo voice with `npm run seed -- --with-brand-voice`.
+- **Models** (`/admin/globals/llm-settings`) — which model runs generate, fact-check, qualitative review, and brand-voice extraction. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`/`o3`/`o4-mini`) wherever that call runs — see the env var split below.
+
 ## Prerequisites
 
 - Node.js 22+
@@ -77,25 +84,30 @@ For live API calls, set `MOCK_MODE=false` and provide `ANTHROPIC_API_KEY`. Ahref
 
 ## Environment variables
 
-Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example). The pipeline loads `cms/.env` first and the root `.env` second. Environment variables set in the shell override both files.
+Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) — **both**. The pipeline CLI loads `cms/.env` first and the root `.env` second, but the admin UI (Next.js) only ever loads `cms/.env`, so any variable the admin needs at request time — API keys, `MOCK_MODE`, `BRAND_VOICE_EXTRACT_MODEL` — has to be set in `cms/.env` too, not just the root file. Environment variables set in the shell override both files.
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `PAYLOAD_SECRET` | Payload token signing secret |
-| `ANTHROPIC_API_KEY` | Claude for generation and QA. Not required in mock mode. |
+| `ANTHROPIC_API_KEY` | Claude models (`claude-*`). Not required in mock mode. |
+| `OPENAI_API_KEY` | OpenAI models (`gpt-*`, `o3`, `o4-mini`). Not required in mock mode. |
 | `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
 | `TARGET_DOMAIN` | Domain that will publish the articles |
 | `COMPETITOR_DOMAINS` | Comma-separated competitors for content-gap fetch |
 | `MOCK_MODE` | `true` to use fixtures instead of paid APIs |
 | `SEED_ADMIN_PASSWORD` | Password for the seeded admin user |
+| `PIPELINE_MODEL_GENERATE` / `_FACT_CHECK` / `_QUALITATIVE_REVIEW` | Fallback model per pipeline stage when the [Models](#governance-brand-voice-and-model-choice) admin field is blank |
+| `BRAND_VOICE_EXTRACT_MODEL` | Fallback model for brand-guide upload extraction, same rule |
+| `PAYLOAD_AUTO_LOGIN` (cms/.env only) | `true` to skip the admin login form in local dev; never honoured when `NODE_ENV=production` |
+| `PAYLOAD_AUTO_LOGIN_EMAIL` (cms/.env only) | Which seeded user to auto-login as (default `admin@datum.local`) |
 
 ## Root scripts
 
 | Script | Description |
 | --- | --- |
 | `npm run dev` | CMS Next.js dev server |
-| `npm run seed` | Create or update templates and the admin user |
+| `npm run seed` | Create or update templates and the admin user. Add `-- --with-brand-voice` to also seed and activate a demo brand voice. |
 | `npm run pipeline:fetch` | Create articles from content-gap keywords |
 | `npm run pipeline:run` | Run research → generate → QA for eligible articles |
 | `npm run pipeline:report` | Print the QA and spending report |
