@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { createAhrefsClient } from './ahrefs'
 import { loadActiveBrandVoice } from './brandVoice'
 import { config } from './config'
-import { fetchTopics } from './fetchTopics'
+import { type FetchContext, fetchTopics } from './fetchTopics'
 import { loadStageModels } from './models'
 import { initPayload } from './payloadClient'
 import { printReport, type ReportPeriod } from './report'
@@ -56,22 +56,26 @@ async function main(): Promise<void> {
   const runId = randomUUID()
   console.log(`[pipeline] ${args.command} — run ${runId} (${config.mockMode ? 'MOCK' : 'live'} mode)`)
 
-  const brandVoice = await loadActiveBrandVoice(payload)
-  console.log(`[pipeline] brand voice: ${brandVoice ? `"${brandVoice.name}"` : 'none'}`)
-
-  const ctx: StageContext = {
+  const fetchCtx: FetchContext = {
     payload,
     runId,
     mode: config.mockMode ? 'mock' : 'live',
     ahrefs: createAhrefsClient(),
-    styleGuide: loadStyleGuide(),
-    models: await loadStageModels(payload),
-    brandVoice,
   }
 
   if (args.command === 'fetch') {
-    await fetchTopics(ctx, args.count)
+    // Ahrefs-only, no LLM call — skip loading models/style guide/brand voice
+    // so a report/fetch run never fails on a provider key it doesn't need.
+    await fetchTopics(fetchCtx, args.count)
   } else if (args.command === 'run') {
+    const brandVoice = await loadActiveBrandVoice(payload)
+    console.log(`[pipeline] brand voice: ${brandVoice ? `"${brandVoice.name}"` : 'none'}`)
+    const ctx: StageContext = {
+      ...fetchCtx,
+      styleGuide: loadStyleGuide(),
+      models: await loadStageModels(payload),
+      brandVoice,
+    }
     await runPipeline(ctx)
   } else {
     await printReport(payload, args.period)
