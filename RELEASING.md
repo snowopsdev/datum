@@ -26,10 +26,6 @@ Never manually:
 
 If a release needs correcting, fix it through release-please (e.g. a `release-as` override in `release-please-config.json`), not by hand.
 
-## First release (one-time bootstrap)
-
-`release-please-config.json` currently pins `"release-as": "0.1.0"` so the first release PR proposes exactly **v0.1.0** with a changelog covering the repo's full history. **After merging the v0.1.0 release PR, remove the `release-as` line** from `release-please-config.json` (a `chore(release): drop release-as bootstrap pin` PR) — if it stays, every subsequent release is forced to 0.1.0.
-
 ## One-time repository settings
 
 Configure these in GitHub settings (they can't be committed as code):

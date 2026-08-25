@@ -12,5 +12,3 @@ Releases are automated by release-please (see RELEASING.md). Your job is only to
 3. Verify the PR is mergeable and its required checks (`ci`, `pr-title`) are green. If checks never started (release PR opened with the default `GITHUB_TOKEN`), tell the user — the fix is the `RELEASE_PLEASE_TOKEN` secret described in RELEASING.md.
 4. Merge only with the user's explicit go-ahead in this conversation (squash merge, keeping the PR title). Merging IS the release: release-please then tags `vX.Y.Z` and publishes the GitHub Release automatically — don't do either by hand and don't edit CHANGELOG.md.
 5. Afterwards, confirm the tag and GitHub Release exist and report the release URL.
-
-Special case: if this is the repo's first release (v0.1.0), remind the user to remove the `"release-as": "0.1.0"` bootstrap pin from `release-please-config.json` afterwards (see RELEASING.md).
