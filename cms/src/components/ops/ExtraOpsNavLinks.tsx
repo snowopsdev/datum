@@ -12,7 +12,9 @@ export function ExtraOpsNavLinks() {
     {
       label: 'Governance',
       links: [
+        { label: 'Brand voice', href: '/admin/ops/governance/brand-voice' },
         { label: 'Templates', href: '/admin/ops/templates' },
+        { label: 'Models', href: '/admin/globals/llm-settings' },
         { label: 'Users', href: '/admin/collections/users' },
       ],
     },
@@ -30,6 +32,7 @@ export function ExtraOpsNavLinks() {
       links: [
         { label: 'Cost logs', href: '/admin/collections/cost-log' },
         { label: 'Article audits', href: '/admin/collections/article-audit' },
+        { label: 'Governance audits', href: '/admin/collections/governance-audit' },
       ],
     },
   ]

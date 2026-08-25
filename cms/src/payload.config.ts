@@ -11,13 +11,25 @@ import { Templates } from './collections/Templates'
 import { Articles } from './collections/Articles'
 import { CostLog } from './collections/CostLog'
 import { ArticleAudit } from './collections/ArticleAudit'
+import { BrandVoices } from './collections/BrandVoices'
+import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
+import { GovernanceAudit } from './collections/GovernanceAudit'
+import { LlmSettings } from './globals/LlmSettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+// Dev convenience: PAYLOAD_AUTO_LOGIN=true in cms/.env skips the admin login
+// form by signing in as the seeded admin. Never honoured in production.
+const autoLogin =
+  process.env.PAYLOAD_AUTO_LOGIN === 'true' && process.env.NODE_ENV !== 'production'
+    ? { email: process.env.PAYLOAD_AUTO_LOGIN_EMAIL || 'admin@datum.local' }
+    : false
+
 export default buildConfig({
   admin: {
     user: Users.slug,
+    autoLogin,
     importMap: {
       baseDir: path.resolve(dirname),
     },
@@ -47,10 +59,27 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Templates' },
         },
+        brandVoice: {
+          Component: '/components/ops/BrandVoiceView#BrandVoiceView',
+          path: '/ops/governance/brand-voice',
+          exact: true,
+          meta: { title: 'Brand voice' },
+        },
       },
     },
   },
-  collections: [Users, Media, Templates, Articles, CostLog, ArticleAudit],
+  collections: [
+    Users,
+    Media,
+    Templates,
+    Articles,
+    CostLog,
+    ArticleAudit,
+    BrandVoices,
+    BrandVoiceFiles,
+    GovernanceAudit,
+  ],
+  globals: [LlmSettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

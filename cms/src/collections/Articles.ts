@@ -165,6 +165,25 @@ export const Articles: CollectionConfig = {
               name: 'notes',
               type: 'textarea',
             },
+            {
+              name: 'voiceScore',
+              type: 'number',
+              min: 1,
+              max: 5,
+              admin: { description: 'Brand voice fit 1–5 from the qualitative review. Informational only.' },
+            },
+            {
+              name: 'voiceNotes',
+              type: 'textarea',
+            },
+            {
+              name: 'notTraitViolations',
+              type: 'json',
+              admin: {
+                description:
+                  'Clear breaches of a "what we are NOT" trait ({trait, excerpt, explanation}[]). Any entry fails QA.',
+              },
+            },
           ],
         },
       ],

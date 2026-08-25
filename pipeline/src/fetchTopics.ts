@@ -1,13 +1,16 @@
 import type { GapKeyword } from './ahrefs'
 import type { StageContext } from './stages'
 
+/** fetch is Ahrefs-only — no LLM call — so it needs none of StageContext's model/voice/style-guide fields. */
+export type FetchContext = Pick<StageContext, 'ahrefs' | 'payload' | 'runId' | 'mode'>
+
 // Volume per point of difficulty; higher = better opportunity.
 const score = (gap: GapKeyword): number => gap.volume / Math.max(gap.difficulty, 1)
 
 const sentenceCase = (keyword: string): string =>
   keyword.charAt(0).toUpperCase() + keyword.slice(1)
 
-export async function fetchTopics(ctx: StageContext, count: number): Promise<void> {
+export async function fetchTopics(ctx: FetchContext, count: number): Promise<void> {
   const gaps = await ctx.ahrefs.contentGapKeywords()
   // Only the top N ranked keywords are considered, so a rerun skips the same
   // ones instead of walking further down the list (idempotent).

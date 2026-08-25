@@ -12,7 +12,19 @@ export type Violation =
   | { code: 'FAQ_COUNT_OUT_OF_RANGE'; min: number; max: number | null; actual: number }
   | { code: 'OG_TAGS_MISSING'; missing: ('ogTitle' | 'ogDescription' | 'ogImage')[] }
   | { code: 'READING_LEVEL_TOO_HIGH'; limit: number; actual: number }
-  | { code: 'BANNED_PHRASE'; phrase: string; field: string; context: string }
+  | {
+      code: 'BANNED_PHRASE'
+      phrase: string
+      field: string
+      context: string
+      /** `platform` = docs/style-guide.md, `brand` = the tenant's active brand voice. */
+      source: 'platform' | 'brand'
+    }
+
+export interface StructuralCheckOptions {
+  /** Lower-cased tenant banned words from the active brand voice. */
+  brandBannedWords?: string[]
+}
 
 const READING_GRADE_LIMIT = 11
 
@@ -37,7 +49,12 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function bannedPhraseViolations(field: string, text: string, phrases: string[]): Violation[] {
+function bannedPhraseViolations(
+  field: string,
+  text: string,
+  phrases: string[],
+  source: 'platform' | 'brand',
+): Violation[] {
   const violations: Violation[] = []
   for (const phrase of phrases) {
     const pattern = new RegExp(`(?<![a-zA-Z0-9])${escapeRegex(phrase)}(?![a-zA-Z0-9])`, 'gi')
@@ -49,6 +66,7 @@ function bannedPhraseViolations(field: string, text: string, phrases: string[]):
         phrase,
         field,
         context: `…${text.slice(start, end).replace(/\n/g, ' ')}…`,
+        source,
       })
     }
   }
@@ -102,11 +120,15 @@ function headingViolations(article: Article, template: Template): Violation[] {
   return violations
 }
 
-/** Pure, deterministic, zero-LLM checks against the template's SEO spec and the style guide. */
+/**
+ * Pure, deterministic, zero-LLM checks against the template's SEO spec, the
+ * platform style guide, and (optionally) the tenant brand voice's banned words.
+ */
 export function runStructuralChecks(
   article: Article,
   template: Template,
   styleGuide: StyleGuide,
+  options: StructuralCheckOptions = {},
 ): Violation[] {
   const violations: Violation[] = []
   const seo = template.seoSpec ?? {}
@@ -162,15 +184,25 @@ export function runStructuralChecks(
     }
   }
 
+  // Every generated text field is governed, so every one is scanned.
   const textFields: [string, string | null | undefined][] = [
     ['body', bodyText],
     ['title', article.title],
     ['titleTag', article.titleTag],
     ['metaDescription', article.metaDescription],
+    ['ogTitle', article.ogTitle],
+    ['ogDescription', article.ogDescription],
     ['faqItems', article.faqItems?.map((f) => `${f.question} ${f.answer}`).join('\n')],
   ]
+  // A word banned by both platform and brand is reported once, as platform.
+  const platformLower = new Set(styleGuide.bannedPhrases.map((p) => p.toLowerCase()))
+  const brandWords = (options.brandBannedWords ?? []).filter(
+    (w) => w && !platformLower.has(w.toLowerCase()),
+  )
   for (const [field, text] of textFields) {
-    if (text) violations.push(...bannedPhraseViolations(field, text, styleGuide.bannedPhrases))
+    if (!text) continue
+    violations.push(...bannedPhraseViolations(field, text, styleGuide.bannedPhrases, 'platform'))
+    violations.push(...bannedPhraseViolations(field, text, brandWords, 'brand'))
   }
 
   return violations

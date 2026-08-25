@@ -12,19 +12,17 @@ export const repoRoot = path.resolve(here, '..', '..')
 dotenv.config({ path: path.join(repoRoot, 'cms', '.env') })
 dotenv.config({ path: path.join(repoRoot, '.env') })
 
-export type LlmStage = 'generate' | 'factCheck' | 'qualitativeReview'
+export type { PipelineStage as LlmStage } from '../../cms/src/lib/llmSettings'
 
 export interface PipelineConfig {
   mockMode: boolean
   anthropicApiKey: string | undefined
-  models: Record<LlmStage, string>
+  openaiApiKey: string | undefined
   targetDomain: string
   competitorDomains: string[]
   ahrefsApiKey: string | undefined
   ahrefsCountry: string
 }
-
-const DEFAULT_MODEL = 'claude-opus-5'
 
 function parseBool(value: string | undefined): boolean | undefined {
   if (value === undefined || value === '') return undefined
@@ -35,9 +33,14 @@ function parseBool(value: string | undefined): boolean | undefined {
 
 function buildConfig(): PipelineConfig {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY || undefined
-  const mockMode = parseBool(process.env.MOCK_MODE) ?? anthropicApiKey === undefined
-  if (!mockMode && anthropicApiKey === undefined) {
-    throw new Error('MOCK_MODE=false requires ANTHROPIC_API_KEY to be set')
+  const openaiApiKey = process.env.OPENAI_API_KEY || undefined
+
+  // Per-stage model choice lives in the admin's Models global (see models.ts),
+  // so the per-model key check happens there once the run knows its models.
+  const mockMode =
+    parseBool(process.env.MOCK_MODE) ?? (anthropicApiKey === undefined && openaiApiKey === undefined)
+  if (!mockMode && anthropicApiKey === undefined && openaiApiKey === undefined) {
+    throw new Error('MOCK_MODE=false requires ANTHROPIC_API_KEY or OPENAI_API_KEY to be set')
   }
 
   const ahrefsApiKey = process.env.AHREFS_API_KEY || undefined
@@ -59,11 +62,7 @@ function buildConfig(): PipelineConfig {
   return {
     mockMode,
     anthropicApiKey,
-    models: {
-      generate: process.env.PIPELINE_MODEL_GENERATE || DEFAULT_MODEL,
-      factCheck: process.env.PIPELINE_MODEL_FACT_CHECK || DEFAULT_MODEL,
-      qualitativeReview: process.env.PIPELINE_MODEL_QUALITATIVE_REVIEW || DEFAULT_MODEL,
-    },
+    openaiApiKey,
     targetDomain,
     competitorDomains,
     ahrefsApiKey,

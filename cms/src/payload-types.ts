@@ -73,6 +73,9 @@ export interface Config {
     articles: Article;
     'cost-log': CostLog;
     'article-audit': ArticleAudit;
+    'brand-voices': BrandVoice;
+    'brand-voice-files': BrandVoiceFile;
+    'governance-audit': GovernanceAudit;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +89,9 @@ export interface Config {
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
     'cost-log': CostLogSelect<false> | CostLogSelect<true>;
     'article-audit': ArticleAuditSelect<false> | ArticleAuditSelect<true>;
+    'brand-voices': BrandVoicesSelect<false> | BrandVoicesSelect<true>;
+    'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
+    'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -95,8 +101,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'llm-settings': LlmSetting;
+  };
+  globalsSelect: {
+    'llm-settings': LlmSettingsSelect<false> | LlmSettingsSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -321,6 +331,23 @@ export interface Article {
     qualitativeReview?: {
       passed?: boolean | null;
       notes?: string | null;
+      /**
+       * Brand voice fit 1–5 from the qualitative review. Informational only.
+       */
+      voiceScore?: number | null;
+      voiceNotes?: string | null;
+      /**
+       * Clear breaches of a "what we are NOT" trait ({trait, excerpt, explanation}[]). Any entry fails QA.
+       */
+      notTraitViolations?:
+        | {
+            [k: string]: unknown;
+          }
+        | unknown[]
+        | string
+        | number
+        | boolean
+        | null;
     };
   };
   generationModel?: string | null;
@@ -348,7 +375,7 @@ export interface CostLog {
   id: number;
   pipelineRunId: string;
   article?: (number | null) | Article;
-  stage?: ('generate' | 'factCheck' | 'qualitativeReview') | null;
+  stage?: ('generate' | 'factCheck' | 'qualitativeReview' | 'brandVoiceExtract') | null;
   provider?: string | null;
   model?: string | null;
   inputTokens?: number | null;
@@ -389,6 +416,197 @@ export interface ArticleAudit {
   actor: string;
   pipelineRunId?: string | null;
   stage?: string | null;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  details?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "brand-voices".
+ */
+export interface BrandVoice {
+  id: number;
+  name: string;
+  /**
+   * Only the single active record governs the pipeline. Activating one archives the previous active record.
+   */
+  status: 'draft' | 'active' | 'archived';
+  source: 'onboarding' | 'upload';
+  /**
+   * The uploaded guide this record was extracted from, if any.
+   */
+  sourceFile?: (number | null) | BrandVoiceFile;
+  /**
+   * Last completed onboarding step; the stepper resumes from here.
+   */
+  onboardingStep?: number | null;
+  activatedAt?: string | null;
+  activatedBy?: string | null;
+  essence?: {
+    /**
+     * What you do and for whom, in one sentence.
+     */
+    oneLiner?: string | null;
+    mission?: string | null;
+  };
+  /**
+   * What the business stands for (e.g. trust, speed). The voice must reflect these.
+   */
+  coreValues?:
+    | {
+        value: string;
+        description?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  audience?: {
+    description?: string | null;
+    languageLevel?: ('plain' | 'general' | 'professional' | 'expert') | null;
+    interests?: string | null;
+    needs?: string | null;
+  };
+  /**
+   * Your brand as a real person at a party: how do they talk, joke, or help others?
+   */
+  persona?: string | null;
+  /**
+   * Exactly 3 adjectives that describe the brand, each with a do/don't example.
+   */
+  voiceAdjectives?:
+    | {
+        adjective: string;
+        description?: string | null;
+        doExample?: string | null;
+        dontExample?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Longer-form description of the voice, in your own words.
+   */
+  voiceInOwnWords?: string | null;
+  /**
+   * Traits to avoid so the team knows the boundaries (e.g. "funny, but not sarcastic").
+   */
+  notTraits?:
+    | {
+        trait: string;
+        boundaryNote?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  tone?: {
+    /**
+     * 1 = Formal … 5 = Casual
+     */
+    formality?: number | null;
+    /**
+     * 1 = Warm … 5 = Neutral
+     */
+    warmth?: number | null;
+    /**
+     * 1 = Bold … 5 = Careful
+     */
+    boldness?: number | null;
+    /**
+     * 1 = Enthusiastic … 5 = Matter-of-fact
+     */
+    energy?: number | null;
+  };
+  /**
+   * Words you love to use.
+   */
+  preferredWords?:
+    | {
+        word: string;
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Jargon and words to ban. Enforced by a deterministic QA check on every generated field.
+   */
+  bannedWords?:
+    | {
+        word: string;
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Existing on-voice writing, used as examples when generating.
+   */
+  samples?:
+    | {
+        title?: string | null;
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Set when the record was extracted from an uploaded guide.
+   */
+  extraction?: {
+    model?: string | null;
+    provider?: string | null;
+    extractedAt?: string | null;
+    sourceChars?: number | null;
+    warnings?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "brand-voice-files".
+ */
+export interface BrandVoiceFile {
+  id: number;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "governance-audit".
+ */
+export interface GovernanceAudit {
+  id: number;
+  subject: {
+    relationTo: 'brand-voices';
+    value: number | BrandVoice;
+  };
+  event: string;
+  summary: string;
+  actorType: 'pipeline' | 'user' | 'system';
+  actor: string;
   fromStatus?: string | null;
   toStatus?: string | null;
   details?:
@@ -450,6 +668,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'article-audit';
         value: number | ArticleAudit;
+      } | null)
+    | ({
+        relationTo: 'brand-voices';
+        value: number | BrandVoice;
+      } | null)
+    | ({
+        relationTo: 'brand-voice-files';
+        value: number | BrandVoiceFile;
+      } | null)
+    | ({
+        relationTo: 'governance-audit';
+        value: number | GovernanceAudit;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -634,6 +864,9 @@ export interface ArticlesSelect<T extends boolean = true> {
           | {
               passed?: T;
               notes?: T;
+              voiceScore?: T;
+              voiceNotes?: T;
+              notTraitViolations?: T;
             };
       };
   generationModel?: T;
@@ -684,6 +917,132 @@ export interface ArticleAuditSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "brand-voices_select".
+ */
+export interface BrandVoicesSelect<T extends boolean = true> {
+  name?: T;
+  status?: T;
+  source?: T;
+  sourceFile?: T;
+  onboardingStep?: T;
+  activatedAt?: T;
+  activatedBy?: T;
+  essence?:
+    | T
+    | {
+        oneLiner?: T;
+        mission?: T;
+      };
+  coreValues?:
+    | T
+    | {
+        value?: T;
+        description?: T;
+        id?: T;
+      };
+  audience?:
+    | T
+    | {
+        description?: T;
+        languageLevel?: T;
+        interests?: T;
+        needs?: T;
+      };
+  persona?: T;
+  voiceAdjectives?:
+    | T
+    | {
+        adjective?: T;
+        description?: T;
+        doExample?: T;
+        dontExample?: T;
+        id?: T;
+      };
+  voiceInOwnWords?: T;
+  notTraits?:
+    | T
+    | {
+        trait?: T;
+        boundaryNote?: T;
+        id?: T;
+      };
+  tone?:
+    | T
+    | {
+        formality?: T;
+        warmth?: T;
+        boldness?: T;
+        energy?: T;
+      };
+  preferredWords?:
+    | T
+    | {
+        word?: T;
+        note?: T;
+        id?: T;
+      };
+  bannedWords?:
+    | T
+    | {
+        word?: T;
+        note?: T;
+        id?: T;
+      };
+  samples?:
+    | T
+    | {
+        title?: T;
+        text?: T;
+        id?: T;
+      };
+  extraction?:
+    | T
+    | {
+        model?: T;
+        provider?: T;
+        extractedAt?: T;
+        sourceChars?: T;
+        warnings?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "brand-voice-files_select".
+ */
+export interface BrandVoiceFilesSelect<T extends boolean = true> {
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "governance-audit_select".
+ */
+export interface GovernanceAuditSelect<T extends boolean = true> {
+  subject?: T;
+  event?: T;
+  summary?: T;
+  actorType?: T;
+  actor?: T;
+  fromStatus?: T;
+  toStatus?: T;
+  details?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -721,6 +1080,114 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; prices are USD per 1M tokens and feed the cost log.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "llm-settings".
+ */
+export interface LlmSetting {
+  id: number;
+  /**
+   * Writes the article draft from the template, research, and brand voice. Leave blank to use PIPELINE_MODEL_GENERATE from the environment, or the platform default (Claude Opus 5).
+   */
+  generateModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Verifies claims with web search during QA. Leave blank to use PIPELINE_MODEL_FACT_CHECK from the environment, or the platform default (Claude Opus 5).
+   */
+  factCheckModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Judges style guide, template rules, and brand voice fit during QA. Leave blank to use PIPELINE_MODEL_QUALITATIVE_REVIEW from the environment, or the platform default (Claude Opus 5).
+   */
+  qualitativeReviewModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the platform default (Claude Opus 5).
+   */
+  brandVoiceExtractModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "llm-settings_select".
+ */
+export interface LlmSettingsSelect<T extends boolean = true> {
+  generateModel?: T;
+  factCheckModel?: T;
+  qualitativeReviewModel?: T;
+  brandVoiceExtractModel?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

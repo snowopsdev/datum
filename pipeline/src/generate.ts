@@ -1,9 +1,9 @@
 import type { Article, Template } from '../../cms/src/payload-types'
 
+import { buildPrompt, buildSystemPrompt } from './generatePrompt'
 import { completeJSONLogged } from './llm'
-import { lexicalToMarkdown, markdownToLexical, type RichText } from './richtext'
+import { markdownToLexical } from './richtext'
 import { resolveTemplate, type Stage } from './stages'
-import type { StyleGuide } from './styleGuide'
 
 interface GeneratedArticle {
   title: string
@@ -44,30 +44,6 @@ function parseGenerated(json: unknown): GeneratedArticle {
   return record as unknown as GeneratedArticle
 }
 
-function buildPrompt(article: Article, template: Template, styleGuide: StyleGuide): string {
-  const outline = template.outline ? lexicalToMarkdown(template.outline as RichText) : '(none)'
-  const dos = template.dos?.map((d) => `- ${d.text}`).join('\n') || '(none)'
-  const donts = template.donts?.map((d) => `- ${d.text}`).join('\n') || '(none)'
-  const research = article.research
-  const subtopics = research?.commonSubtopics?.map((s) => `- ${s.text}`).join('\n') || '(none)'
-  const questions = research?.relatedQuestions?.map((q) => `- ${q.text}`).join('\n') || '(none)'
-  return [
-    `Write a complete article targeting the keyword: "${article.keyword}".`,
-    `# Template: ${template.name}`,
-    `## Outline\n${outline}`,
-    `## Dos\n${dos}`,
-    `## Don'ts\n${donts}`,
-    `## SEO spec\n${JSON.stringify(template.seoSpec ?? {}, null, 2)}`,
-    `# SERP research`,
-    `## Ranking pages\n${research?.rankingPagesSummary || '(none)'}`,
-    `## Common subtopics\n${subtopics}`,
-    `## Related questions\n${questions}`,
-    `# Output`,
-    `Return a JSON object with exactly these keys: title, slug, titleTag, metaDescription, ogTitle, ogDescription, ogImage, faqItems (array of {question, answer}), bodyMarkdown.`,
-    `bodyMarkdown uses ## for sections and ### for subsections, never # (the title is the page H1). Respect the SEO spec limits and the outline's section headings.`,
-  ].join('\n\n')
-}
-
 export const generateStage: Stage = {
   name: 'generate',
   entryStatus: 'researched',
@@ -75,8 +51,8 @@ export const generateStage: Stage = {
   async run(article, ctx) {
     const template = resolveTemplate(article)
     const result = await completeJSONLogged(ctx, 'generate', article.id, {
-      system: `You are a senior content writer. Follow this style guide exactly:\n\n${ctx.styleGuide.text}`,
-      user: buildPrompt(article, template, ctx.styleGuide),
+      system: buildSystemPrompt(ctx.styleGuide.text, ctx.brandVoice),
+      user: buildPrompt(article, template, ctx.brandVoice),
     })
     const generated = parseGenerated(result.json)
     return {
