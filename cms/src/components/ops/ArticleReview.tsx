@@ -11,7 +11,12 @@ import {
   resetToDraftedAction,
   sendBackAction,
 } from './actions'
-import type { AuditTimelineEntry, BoardArticle, TemplateOption } from './articleStatus'
+import {
+  qaFailureLines,
+  type AuditTimelineEntry,
+  type BoardArticle,
+  type TemplateOption,
+} from './articleStatus'
 import './ops.css'
 
 type Props = {
@@ -32,32 +37,6 @@ function CheckRow({ label, passed }: { label: string; passed: boolean | null | u
       <span>{label}</span>
     </div>
   )
-}
-
-function violationLines(article: BoardArticle): string[] {
-  const lines: string[] = []
-  const qa = article.qaResults
-  const raw = qa?.structural?.violations
-  if (Array.isArray(raw)) {
-    for (const v of raw) {
-      if (typeof v === 'string') lines.push(v)
-      else if (v && typeof v === 'object' && 'code' in v) {
-        const code = String((v as { code: unknown }).code)
-        const detail =
-          'message' in v && (v as { message?: unknown }).message != null
-            ? ` — ${String((v as { message: unknown }).message)}`
-            : ''
-        lines.push(`${code}${detail}`)
-      }
-    }
-  }
-  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
-    lines.push(`Fact: ${qa.factCheck.notes}`)
-  }
-  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
-    lines.push(`Style: ${qa.qualitativeReview.notes}`)
-  }
-  return lines
 }
 
 export function ArticleReview({ article, templates, editHref, bodyHtml, auditEntries }: Props) {
@@ -83,7 +62,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
   }
 
   const qa = article.qaResults
-  const details = violationLines(article)
+  const details = qaFailureLines(article)
 
   return (
     <div className="datum-ops">

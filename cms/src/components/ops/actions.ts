@@ -5,7 +5,45 @@ import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
-import type { ArticleStatus } from './articleStatus'
+import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
+
+/**
+ * Nulls every `informationGain` key. The group has `access.update: () =>
+ * false` (see `Articles.ts`) so the scoring stage's own write — the Local
+ * API's default `overrideAccess: true` — is the only caller that can ever set
+ * a decision; an ordinary `overrideAccess: false` update, like every other
+ * action in this file, is refused for that group even when clearing it back
+ * to null. Both `resetToDraftedAction` and `regenerateArticleAction` send an
+ * article back to be reworked, and a stale decision left on it would make the
+ * board show a scored verdict for a draft nobody has scored yet — so those two
+ * calls alone pass `overrideAccess: true`, and only to reach this same fixed,
+ * all-null payload. `gateVerifiedStatus`/`gateReviewOverride` are `beforeChange`
+ * hooks, not access checks, so they still run and still guard `status` even
+ * with `overrideAccess: true`.
+ */
+const NULL_INFORMATION_GAIN = {
+  run: null,
+  decision: null,
+  policyVersion: null,
+  consensusCoverage: null,
+  verifiedGainUnits: null,
+  verificationRatio: null,
+  internalDuplicationRate: null,
+  verifiedNovelClaims: null,
+  scoredAt: null,
+} as const
+
+const NULL_QA_RESULTS = {
+  structural: { passed: null, violations: null },
+  factCheck: { passed: null, notes: null, sources: null },
+  qualitativeReview: {
+    passed: null,
+    notes: null,
+    voiceScore: null,
+    voiceNotes: null,
+    notTraitViolations: null,
+  },
+} as const
 
 async function requireUser() {
   const headers = await getHeaders()
@@ -64,23 +102,15 @@ export async function resetToDraftedAction(articleId: number, reviewNotes?: stri
       status: 'drafted' satisfies ArticleStatus,
       reviewNotes: reviewNotes?.trim() || null,
       reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-      qaResults: {
-        structural: { passed: null, violations: null },
-        factCheck: { passed: null, notes: null, sources: null },
-        qualitativeReview: {
-          passed: null,
-          notes: null,
-          voiceScore: null,
-          voiceNotes: null,
-          notTraitViolations: null,
-        },
-      },
+      qaResults: NULL_QA_RESULTS,
+      informationGain: NULL_INFORMATION_GAIN,
     },
     context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
       reviewNotes: reviewNotes?.trim() || null,
     }),
     user,
-    overrideAccess: false,
+    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+    overrideAccess: true,
   })
   revalidateOps(articleId)
 }
@@ -151,6 +181,116 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
     }),
     user,
     overrideAccess: false,
+  })
+  revalidateOps(articleId)
+}
+
+/**
+ * Overrides a `needs_review`/`blocked` article straight to `verified` on the
+ * reviewer's judgment rather than a `PASS` decision. `gateReviewOverride`
+ * (`articleReviewGate.ts`) requires the submitted `reviewJustification` to be
+ * different from whatever is already persisted — a stale justification left
+ * over from an earlier review must not silently re-satisfy the gate — and
+ * `gateVerifiedStatus` requires that same freshness before it will allow
+ * `verified` for an article that never earned a `PASS`. Neither hook is
+ * bypassed by anything here: this call uses `overrideAccess: false`, same as
+ * every other reviewer action, and simply lets the hooks' `APIError` propagate
+ * to the caller — catching and re-wrapping it would strip the message the
+ * gate wrote explaining *why* the override was refused (e.g. a stale or
+ * missing justification), which is the one thing the reviewer needs to see.
+ */
+export async function overrideReviewAction(articleId: number, justification: string) {
+  const { payload, user } = await requireUser()
+  const trimmed = justification.trim()
+  if (!trimmed) {
+    throw new Error('A justification is required to override this decision')
+  }
+  const article = await payload.findByID({
+    collection: 'articles',
+    id: articleId,
+    overrideAccess: false,
+    user,
+  })
+  const from = article.status
+  const latestRun = await payload.find({
+    collection: 'information-gain-runs',
+    where: { article: { equals: articleId } },
+    sort: '-createdAt',
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+  const runId = latestRun.docs[0]?.id ?? null
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: {
+      status: 'verified' satisfies ArticleStatus,
+      reviewJustification: trimmed,
+      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+    },
+    context: auditContext(
+      user,
+      from === 'blocked' ? 'block_overridden' : 'review_overridden',
+      from === 'blocked'
+        ? 'Reviewer overrode blocked to verified'
+        : 'Reviewer overrode needs_review to verified',
+      { justification: trimmed, runId },
+    ),
+    user,
+    overrideAccess: false,
+  })
+  revalidateOps(articleId)
+}
+
+/**
+ * Sends an article back to `researched` to regenerate with the reasons the
+ * last information-gain run (or, absent a run, QA) found — `revisionNotes` is
+ * injected into the next `generate` prompt verbatim (see
+ * `docs/information-gain.md`'s gap-fed generation section). Nulls `qaResults`
+ * and `informationGain` for the same reason `resetToDraftedAction` does: a
+ * stale decision must not linger next to a draft nobody has re-scored yet, so
+ * this call also needs `overrideAccess: true` — see `NULL_INFORMATION_GAIN`.
+ */
+export async function regenerateArticleAction(articleId: number, note?: string) {
+  const { payload, user } = await requireUser()
+  const article = await payload.findByID({
+    collection: 'articles',
+    id: articleId,
+    overrideAccess: false,
+    user,
+  })
+  const latestRun = await payload.find({
+    collection: 'information-gain-runs',
+    where: { article: { equals: articleId } },
+    sort: '-createdAt',
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+  const run = latestRun.docs[0] ?? null
+  const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: {
+      status: 'researched' satisfies ArticleStatus,
+      revisionNotes,
+      revisionCount: (article.revisionCount ?? 0) + 1,
+      qaResults: NULL_QA_RESULTS,
+      informationGain: NULL_INFORMATION_GAIN,
+    },
+    context: auditContext(
+      user,
+      'article_regenerate_requested',
+      'Article sent back for regeneration',
+      { note: note?.trim() || null, runId: run?.id ?? null },
+    ),
+    user,
+    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+    overrideAccess: true,
   })
   revalidateOps(articleId)
 }

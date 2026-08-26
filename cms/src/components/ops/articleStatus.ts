@@ -1,4 +1,4 @@
-import type { Article } from '../../payload-types'
+import type { Article, InformationGainRun } from '../../payload-types'
 
 export const ARTICLE_STATUSES = [
   'topic_selected',
@@ -92,4 +92,65 @@ export function formatAuditTimestamp(iso: string): string {
     timeStyle: 'short',
     timeZone: 'UTC',
   }).format(date)} UTC`
+}
+
+/**
+ * Human-readable QA failure lines for an article's `qaResults` — structural
+ * violations, and the fact-check/qualitative notes when those checks failed.
+ * Pure and shared between `ArticleReview.tsx` (triage display) and
+ * `actions.ts` (the `regenerateArticleAction` fallback when there is no
+ * information-gain run to explain the send-back instead).
+ */
+export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): string[] {
+  const lines: string[] = []
+  const qa = article.qaResults
+  const raw = qa?.structural?.violations
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      if (typeof v === 'string') lines.push(v)
+      else if (v && typeof v === 'object' && 'code' in v) {
+        const code = String((v as { code: unknown }).code)
+        const detail =
+          'message' in v && (v as { message?: unknown }).message != null
+            ? ` — ${String((v as { message: unknown }).message)}`
+            : ''
+        lines.push(`${code}${detail}`)
+      }
+    }
+  }
+  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
+    lines.push(`Fact: ${qa.factCheck.notes}`)
+  }
+  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
+    lines.push(`Style: ${qa.qualitativeReview.notes}`)
+  }
+  return lines
+}
+
+/**
+ * The `revisionNotes` text `regenerateArticleAction` writes when a reviewer
+ * sends an article back for regeneration: one bullet per reason from the
+ * latest `information-gain-runs` row, or — when no run exists yet, e.g. an
+ * article a reviewer sends back before information-gain ever scored it — one
+ * bullet per `qaFailureLines`. The reviewer's own note, when given, is
+ * appended last so `generate`'s prompt sees both the machine-found gaps and
+ * whatever the human added.
+ */
+export function buildRegenerateRevisionNotes(
+  latestRun: Pick<InformationGainRun, 'reasons'> | null,
+  article: { qaResults?: Article['qaResults'] },
+  note?: string,
+): string {
+  const reasons = Array.isArray(latestRun?.reasons)
+    ? (latestRun.reasons as { policy?: unknown; message?: unknown }[])
+    : null
+  const lines =
+    reasons && reasons.length > 0
+      ? reasons.map((r) => `- [${String(r.policy ?? 'unknown')}] ${String(r.message ?? '')}`)
+      : qaFailureLines(article).map((line) => `- ${line}`)
+  const trimmedNote = note?.trim()
+  const sections = [lines.join('\n'), trimmedNote ? `Reviewer note: ${trimmedNote}` : ''].filter(
+    Boolean,
+  )
+  return sections.join('\n\n')
 }
