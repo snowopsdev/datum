@@ -6,8 +6,9 @@
  * with `grep`/`sed` and needs no `jq`.
  *
  * Usage:
- *   tsx scripts/ig-e2e-probe.ts reset <keyword>   ensure a templateless topic_selected article
- *   tsx scripts/ig-e2e-probe.ts state <articleId> the article's status, decision, run and cost rows
+ *   tsx scripts/ig-e2e-probe.ts reset <keyword>       ensure a templateless topic_selected article
+ *   tsx scripts/ig-e2e-probe.ts state <articleId>     the article's status, decision, run and cost rows
+ *   tsx scripts/ig-e2e-probe.ts candidates <domain…>  each domain's review-queue row, or `none`
  */
 import { initPayload } from '../src/payloadClient'
 
@@ -152,5 +153,34 @@ if (command === 'state') {
   process.exit(0)
 }
 
-console.error(`Unknown command "${command ?? ''}". Expected "reset" or "state".`)
+if (command === 'candidates') {
+  // One line per domain named on the command line, so the script can assert on
+  // domains that should be queued *and* on ones that should not be — a seeded
+  // evidence-sources domain must never become a candidate.
+  const wanted = rest.length > 0 ? rest : []
+  const { docs } = await payload.find({
+    collection: 'evidence-source-candidates',
+    pagination: false,
+    depth: 0,
+  })
+  const byDomain = new Map(docs.map((doc) => [doc.domain, doc]))
+  for (const domain of wanted) {
+    const row = byDomain.get(domain)
+    if (!row) {
+      console.log(`candidate.${domain}=none`)
+      continue
+    }
+    const kinds = Array.isArray(row.sightings)
+      ? [...new Set(row.sightings.map((s) => (s as { kind?: string })?.kind ?? '?'))].sort().join('+')
+      : 'none'
+    console.log(`candidate.${domain}=${row.status}:${kinds}:${row.suggestedClass}`)
+    console.log(`candidateSerpCount.${domain}=${row.serpCount ?? 0}`)
+    console.log(`candidateCitationCount.${domain}=${row.citationCount ?? 0}`)
+  }
+  console.log(`candidates.total=${docs.length}`)
+  console.log(`candidates.pending=${docs.filter((doc) => doc.status === 'pending').length}`)
+  process.exit(0)
+}
+
+console.error(`Unknown command "${command ?? ''}". Expected "reset", "state" or "candidates".`)
 process.exit(1)

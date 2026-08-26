@@ -319,6 +319,8 @@ export interface ArticleOutcomeInput {
   scorecard: Scorecard
   totalCostUsd: number
   scoredAt: string
+  /** Bookkeeping that failed without changing the decision; see `StageOutcome`. */
+  warnings?: string[]
 }
 
 /**
@@ -348,7 +350,11 @@ export function articleOutcome(input: ArticleOutcomeInput): StageOutcome {
     totalCostUsd: input.totalCostUsd,
   }
   if (REVIEW_STATUSES.has(status)) data.reviewJustification = null
-  return { status, data }
+  return {
+    status,
+    data,
+    ...(input.warnings?.length ? { warnings: input.warnings } : {}),
+  }
 }
 
 /** The `information-gain-runs` create payload, minus the columns Payload fills in. */

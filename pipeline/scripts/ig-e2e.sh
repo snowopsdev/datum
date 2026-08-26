@@ -146,6 +146,25 @@ RUN_ID_AFTER_FIRST="$(value_of "$STATE_OUT" latestRunId)"
 RUN_ROWS_AFTER_FIRST="$(value_of "$STATE_OUT" runRows)"
 
 # ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Assert the source review queue"
+# The three mock SERP hosts rank for the keyword and nobody has rated them, so
+# each is queued from its `serp` sighting. The rating drives the suggestion:
+# DR 78/71/66 all clear SERP_SECONDARY_MIN_DR, so all three suggest `secondary`.
+# The three seeded domains must NOT be queued — an active evidence-sources rule
+# covers them, which is the whole drop-out rule.
+CAND_OUT="$(probe candidates competitor-one.com competitor-two.com industry-mag.example.com \
+  sca.coffee baristahustle.com homegrounds.co)"
+printf '%s\n' "$CAND_OUT"
+for domain in competitor-one.com competitor-two.com industry-mag.example.com; do
+  assert_eq "candidate $domain" "$(value_of "$CAND_OUT" "candidate.$domain")" 'pending:serp:secondary'
+done
+for domain in sca.coffee baristahustle.com homegrounds.co; do
+  assert_eq "rated domain $domain stays out of the queue" \
+    "$(value_of "$CAND_OUT" "candidate.$domain")" 'none'
+done
+SERP_COUNT_AFTER_FIRST="$(value_of "$CAND_OUT" candidateSerpCount.competitor-one.com)"
+
+# ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Run again — a settled article must not move"
 # No stage has `verified` as its entryStatus, so the second run finds nothing to
 # do for this article: same status, same run row, no new scoring cost.
@@ -157,6 +176,11 @@ assert_eq 'run rows after re-run' "$(value_of "$SECOND_OUT" runRows)" "$RUN_ROWS
 assert_eq 'run id after re-run'   "$(value_of "$SECOND_OUT" latestRunId)" "$RUN_ID_AFTER_FIRST"
 assert_eq 'total cost after re-run' \
   "$(value_of "$SECOND_OUT" totalCostUsd)" "$(value_of "$STATE_OUT" totalCostUsd)"
+# The scoring stage never ran, so it recorded no new sightings either — a
+# candidate's counts must not creep upward on runs that did no work.
+SECOND_CAND_OUT="$(probe candidates competitor-one.com)"
+assert_eq 'candidate serp count after re-run' \
+  "$(value_of "$SECOND_CAND_OUT" candidateSerpCount.competitor-one.com)" "$SERP_COUNT_AFTER_FIRST"
 
 # ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Report"

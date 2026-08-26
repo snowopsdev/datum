@@ -28,6 +28,7 @@ import { lexicalToPlainText, type RichText } from '../richtext'
 import type { Stage, StageContext } from '../stages'
 
 import { intraDocumentNovelty } from './batching'
+import { recordCandidateSightings } from './candidates'
 import { runJudge, runVerifier } from './passes'
 import { DRAFT_CLAIM_EXTRACTION_SYSTEM, draftClaimUser } from './prompts'
 import {
@@ -44,6 +45,7 @@ import {
   type VerificationOutcome,
 } from './scorecard'
 import {
+  collectCandidateSightings,
   decidePolicy,
   estimateTokens,
   parseDraftClaims,
@@ -192,6 +194,34 @@ export const informationGainStage: Stage = {
       }),
     })
 
+    // Bookkeeping, not scoring: the decision above is already final, and a
+    // throw here would cost the article its progress and re-buy all three LLM
+    // passes on the next run over a queue row. The failure still surfaces —
+    // `runPipeline` logs and counts every warning and stores it on the audit row.
+    const warnings: string[] = []
+    try {
+      const sightings = collectCandidateSightings({
+        claims,
+        pages: snapshot?.pages ?? [],
+        rules: ctx.evidenceSources,
+        articleId: article.id,
+        keyword: article.keyword,
+        runId: run.id,
+        seenAt: scoredAt,
+      })
+      if (sightings.length > 0) {
+        const { created, updated } = await recordCandidateSightings(ctx.payload, sightings)
+        console.log(
+          `[informationGain] article ${article.id}: ${created + updated} candidate domain(s) ` +
+            `recorded (${created} new)`,
+        )
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      warnings.push(`evidence-source candidates not recorded: ${message}`)
+      console.error(`[informationGain] article ${article.id} candidate write failed`, error)
+    }
+
     const totalCostUsd = await sumCost(ctx, article.id)
     console.log(
       `[informationGain] article ${article.id}: ${decision} ` +
@@ -210,6 +240,7 @@ export const informationGainStage: Stage = {
       scorecard,
       totalCostUsd,
       scoredAt,
+      warnings,
     })
   },
 }
