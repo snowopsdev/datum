@@ -19,6 +19,8 @@
  * without Payload. Every 0–1 signal here is an uncalibrated LLM estimate.
  */
 
+import type { Where } from 'payload'
+
 import type { CorpusSnapshot } from '../../../cms/src/payload-types'
 import { completeJSONLogged } from '../llm'
 import { lexicalToPlainText, type RichText } from '../richtext'
@@ -312,13 +314,13 @@ async function runVerifier(
  * run's information-gain rows for the run record's own `costUsd`.
  */
 async function sumCost(ctx: StageContext, articleId: number, runId?: string): Promise<number> {
-  const and: Record<string, unknown>[] = [{ article: { equals: articleId } }]
+  const and: Where[] = [{ article: { equals: articleId } }]
   if (runId !== undefined) {
     and.push({ pipelineRunId: { equals: runId } }, { stage: { in: IG_COST_STAGES } })
   }
   const { docs } = await ctx.payload.find({
     collection: 'cost-log',
-    where: { and } as Parameters<typeof ctx.payload.find>[0]['where'],
+    where: { and },
     pagination: false,
     depth: 0,
     overrideAccess: true,
