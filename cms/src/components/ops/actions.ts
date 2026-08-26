@@ -13,13 +13,15 @@ import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatu
  * API's default `overrideAccess: true` — is the only caller that can ever set
  * a decision; an ordinary `overrideAccess: false` update, like every other
  * action in this file, is refused for that group even when clearing it back
- * to null. Both `resetToDraftedAction` and `regenerateArticleAction` send an
- * article back to be reworked, and a stale decision left on it would make the
- * board show a scored verdict for a draft nobody has scored yet — so those two
- * calls alone pass `overrideAccess: true`, and only to reach this same fixed,
- * all-null payload. `gateVerifiedStatus`/`gateReviewOverride` are `beforeChange`
- * hooks, not access checks, so they still run and still guard `status` even
- * with `overrideAccess: true`.
+ * to null. `resetToDraftedAction`, `regenerateArticleAction`, and
+ * `sendBackAction` all send an article back to be reworked (or, for
+ * `sendBackAction`, back for revision on editorial grounds even when
+ * information-gain passed it), and a stale decision left on it would make the
+ * board show a scored verdict for a draft nobody has scored — or reworked —
+ * since. All three calls pass `overrideAccess: true`, and only to reach this
+ * same fixed, all-null payload. `gateVerifiedStatus`/`gateReviewOverride` are
+ * `beforeChange` hooks, not access checks, so they still run and still guard
+ * `status` even with `overrideAccess: true`.
  */
 const NULL_INFORMATION_GAIN = {
   run: null,
@@ -175,12 +177,14 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
           notTraitViolations: [],
         },
       },
+      informationGain: NULL_INFORMATION_GAIN,
     },
     context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
       reviewNotes: note,
     }),
     user,
-    overrideAccess: false,
+    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+    overrideAccess: true,
   })
   revalidateOps(articleId)
 }
