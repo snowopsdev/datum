@@ -78,6 +78,12 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Brand voice' },
         },
+        sourceReview: {
+          Component: '/components/ops/SourceReviewView#SourceReviewView',
+          path: '/ops/governance/source-review',
+          exact: true,
+          meta: { title: 'Source review' },
+        },
       },
     },
   },

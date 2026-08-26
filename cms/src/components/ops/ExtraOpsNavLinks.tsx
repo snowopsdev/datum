@@ -17,6 +17,7 @@ export function ExtraOpsNavLinks() {
         { label: 'Models', href: '/admin/globals/llm-settings' },
         { label: 'Information-gain policy', href: '/admin/globals/information-gain-policy' },
         { label: 'Evidence sources', href: '/admin/collections/evidence-sources' },
+        { label: 'Source review', href: '/admin/ops/governance/source-review' },
         { label: 'Users', href: '/admin/collections/users' },
       ],
     },

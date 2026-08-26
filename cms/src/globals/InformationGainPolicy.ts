@@ -15,8 +15,14 @@ const humaniseKey = (key: string): string => {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/** What happens to the draft when a gate is breached, in plain terms. */
-const OUTCOME_COPY: Record<PolicyFieldDef['outcome'], string> = {
+/**
+ * What happens to the draft when a gate is breached, in plain terms.
+ *
+ * Exported so the admin copy and the test that guarantees every field names its
+ * consequence read the same strings — the raw REVISE/BLOCK/HUMAN_REVIEW codes
+ * mean nothing to whoever is setting these dials.
+ */
+export const OUTCOME_COPY: Record<PolicyFieldDef['outcome'], string> = {
   REVISE: 'sent back for revision',
   BLOCK: 'blocked from publishing',
   HUMAN_REVIEW: 'flagged for a person to review',
