@@ -15,13 +15,12 @@ const policyField = (f: PolicyFieldDef): Field => {
     description: `${f.description} Failing this gate → ${f.outcome}. Leave blank to use ${f.env} from the environment, or the default ${String(f.default)}.`,
   }
   if (f.kind === 'boolean') {
-    return { name: f.key, type: 'checkbox', label, defaultValue: Boolean(f.default), admin }
+    return { name: f.key, type: 'checkbox', label, admin }
   }
   return {
     name: f.key,
     type: 'number',
     label,
-    defaultValue: Number(f.default),
     min: 0,
     ...(f.kind === 'ratio' ? { max: 1 } : {}),
     admin,
@@ -32,8 +31,12 @@ const policyField = (f: PolicyFieldDef): Field => {
  * The information-gain thresholds, editable by an admin. Resolution order is
  * the same as the Models global's: this global wins, then the env override,
  * then `DEFAULT_POLICY` — see `resolvePolicy` in `lib/informationGain`. Every
- * field is optional so a blank means "fall through to env/default", and the
- * ratios are uncalibrated policy dials rather than probabilities.
+ * field is optional and deliberately carries **no** Payload `defaultValue`: one
+ * would be persisted on the first admin save, which `resolvePolicy` could not
+ * tell from a real admin choice, silently killing the env override and the
+ * reported provenance. The default lives in `POLICY_FIELDS` and is named in
+ * each field's description instead. The ratios are uncalibrated policy dials
+ * rather than probabilities.
  */
 export const InformationGainPolicy: GlobalConfig = {
   slug: 'information-gain-policy',

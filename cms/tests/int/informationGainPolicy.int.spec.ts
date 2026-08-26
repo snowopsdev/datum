@@ -10,17 +10,20 @@ const descriptionOf = (field: Field): string =>
   field.type === 'number' || field.type === 'checkbox' ? String(field.admin?.description ?? '') : ''
 
 describe('Information-gain policy global', () => {
-  it('mirrors POLICY_FIELDS field for field, in order', () => {
+  it('mirrors POLICY_FIELDS field for field, in order, with no persisted default', () => {
     const names = InformationGainPolicy.fields.map((f) => ('name' in f ? f.name : ''))
     expect(names).toEqual(POLICY_FIELDS.map((f) => f.key))
 
     for (const [index, def] of POLICY_FIELDS.entries()) {
       const field = InformationGainPolicy.fields[index]
       expect(field.type).toBe(def.kind === 'boolean' ? 'checkbox' : 'number')
-      expect('defaultValue' in field ? field.defaultValue : undefined).toBe(def.default)
+      // No Payload `defaultValue`: it would be persisted on the first admin
+      // save, which `resolvePolicy` could not tell from a real admin choice.
+      expect('defaultValue' in field).toBe(false)
+      expect('required' in field).toBe(false)
       expect(descriptionOf(field)).toContain(def.env)
       expect(descriptionOf(field)).toContain(def.outcome)
-      expect('required' in field ? field.required : undefined).toBeFalsy()
+      expect(descriptionOf(field)).toContain(String(def.default))
     }
   })
 
