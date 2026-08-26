@@ -6,9 +6,14 @@ import React from 'react'
 import type { BoardArticle } from './articleStatus'
 import { STATUS_COLUMNS } from './articleStatus'
 import './ops.css'
+import { ContentRunForm } from './ContentRunForm'
 
 type Props = {
   articles: BoardArticle[]
+  templates: Array<{ id: number; name: string }>
+  mode: 'mock' | 'live'
+  pipelineReady: boolean
+  runActive: boolean
 }
 
 function ageLabel(iso: string): string {
@@ -19,7 +24,7 @@ function ageLabel(iso: string): string {
   return `${Math.floor(hours / 24)}d`
 }
 
-export function ArticleBoard({ articles }: Props) {
+export function ArticleBoard({ articles, templates, mode, pipelineReady, runActive }: Props) {
   const triage = articles.filter((a) => a.status === 'needs_revision').length
   const assign = articles.filter((a) => a.status === 'topic_selected').length
   const approve = articles.filter((a) => a.status === 'qa_passed').length
@@ -41,6 +46,23 @@ export function ArticleBoard({ articles }: Props) {
       <p className="datum-ops__lede">
         Actions only — open a card to assign, triage, or approve. Pipeline owns in-flight statuses.
       </p>
+      <section className="datum-ops__launch-panel">
+        <div>
+          <p className="datum-ops__eyebrow">New content run</p>
+          <h2>Discover topics and run the pipeline</h2>
+          <p>
+            Select the template for this batch. Datum will discover new opportunities and take only
+            those articles through QA.
+          </p>
+          {!pipelineReady ? <Link href="/admin">Review workspace readiness</Link> : null}
+        </div>
+        <ContentRunForm
+          disabled={!pipelineReady || runActive}
+          mode={mode}
+          source="admin"
+          templates={templates}
+        />
+      </section>
       <div className="datum-ops__board">
         {STATUS_COLUMNS.map((col) => {
           const items = articles.filter((a) => a.status === col.id)

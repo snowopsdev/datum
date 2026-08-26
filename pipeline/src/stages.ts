@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
 
 import type { Article, Template } from '../../cms/src/payload-types'
 
@@ -9,6 +9,7 @@ import { qaStage } from './qa/index'
 import { researchStage } from './research'
 import type { StageModels } from './models'
 import type { StyleGuide } from './styleGuide'
+import type { LlmClient } from './llm'
 
 export type ArticleStatus = Article['status']
 
@@ -22,6 +23,8 @@ export interface StageContext {
   models: StageModels
   /** The tenant's active brand voice; null when none has been activated. */
   brandVoice: BrandVoiceContent | null
+  /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
+  llm?: LlmClient
 }
 
 export interface StageOutcome {
@@ -36,6 +39,38 @@ export interface Stage {
   run(article: Article, ctx: StageContext): Promise<StageOutcome>
 }
 
+export interface RunPipelineOptions {
+  /** Restrict the run to these articles (the jobs queue runs one content run). */
+  articleIds?: number[]
+  /** Stages to walk; defaults to the real pipeline. Tests pass their own. */
+  stages?: Stage[]
+}
+
+/** What one stage did to its batch in a single run. */
+export interface StageRunSummary {
+  stage: Stage['name']
+  /** Articles found at the stage's `entryStatus` with a template assigned. */
+  total: number
+  failed: number
+}
+
+export interface RunPipelineResult {
+  articleIds: number[]
+  finalStatuses: Record<string, number>
+  /** Per-stage batch sizes and failure counts. */
+  stages: StageRunSummary[]
+  /** Articles that threw, across every stage; `0` means the run was clean. */
+  failed: number
+}
+
+/** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
+export function describeFailures(result: Pick<RunPipelineResult, 'stages'>): string {
+  return result.stages
+    .filter((entry) => entry.failed > 0)
+    .map((entry) => `${entry.stage} ${entry.failed}/${entry.total}`)
+    .join(', ')
+}
+
 /**
  * The whole pipeline as a table. pipeline:run walks it in order; work is
  * selected purely by current status, so re-running converges instead of
@@ -48,50 +83,20 @@ export function resolveTemplate(article: Article): Template {
   throw new Error(`article ${article.id} has no populated template`)
 }
 
-/** What one stage did to its batch in a single run. */
-export interface StageRunSummary {
-  stage: Stage['name']
-  /** Articles found at the stage's `entryStatus` with a template assigned. */
-  total: number
-  failed: number
-}
-
-/** The outcome of a whole `pipeline:run`, so the CLI can exit non-zero. */
-export interface PipelineRunSummary {
-  stages: StageRunSummary[]
-  /** Articles that threw, across every stage; `0` means the run was clean. */
-  failed: number
-}
-
-/** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
-export function describeFailures(summary: PipelineRunSummary): string {
-  return summary.stages
-    .filter((entry) => entry.failed > 0)
-    .map((entry) => `${entry.stage} ${entry.failed}/${entry.total}`)
-    .join(', ')
-}
-
-/**
- * Runs every stage over its eligible articles and reports what failed.
- *
- * Per-article failures are caught so one bad article cannot strand the batch or
- * the stages behind it, but they are *not* swallowed: the counts come back in
- * the summary and `pipeline/src/index.ts` exits non-zero on them, so a
- * scheduled run's failure alerting and retry policy still see stuck articles.
- *
- * `stagesToRun` defaults to the real pipeline; tests pass their own.
- */
 export async function runPipeline(
   ctx: StageContext,
-  stagesToRun: Stage[] = stages,
-): Promise<PipelineRunSummary> {
-  const summary: PipelineRunSummary = { stages: [], failed: 0 }
-  for (const stage of stagesToRun) {
+  options: RunPipelineOptions = {},
+): Promise<RunPipelineResult> {
+  const processed = new Set<number>()
+  const finalStatusByArticle = new Map<number, ArticleStatus>()
+  const stageSummaries: StageRunSummary[] = []
+  let totalFailed = 0
+  for (const stage of options.stages ?? stages) {
+    const and: Where[] = [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }]
+    if (options.articleIds?.length) and.push({ id: { in: options.articleIds } })
     const { docs } = await ctx.payload.find({
       collection: 'articles',
-      where: {
-        and: [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }],
-      },
+      where: { and },
       pagination: false,
       depth: 1,
       sort: 'createdAt',
@@ -103,8 +108,12 @@ export async function runPipeline(
       // must not take the rest of the batch, or the stages behind it, down with
       // it. The article keeps its current status, so the next run retries it,
       // which is the same convergent-rerun property the whole loop relies on.
+      // The counts still come back in the result, so `index.ts` exits non-zero
+      // and a scheduled run's alerting sees stuck articles.
       try {
         const outcome = await stage.run(article, ctx)
+        processed.add(article.id)
+        finalStatusByArticle.set(article.id, outcome.status)
         await ctx.payload.update({
           collection: 'articles',
           id: article.id,
@@ -140,8 +149,17 @@ export async function runPipeline(
           `"${stage.entryStatus}"; the next run retries them`,
       )
     }
-    summary.stages.push({ stage: stage.name, total: docs.length, failed })
-    summary.failed += failed
+    stageSummaries.push({ stage: stage.name, total: docs.length, failed })
+    totalFailed += failed
   }
-  return summary
+  const finalStatuses: Record<string, number> = {}
+  for (const status of finalStatusByArticle.values()) {
+    finalStatuses[status] = (finalStatuses[status] ?? 0) + 1
+  }
+  return {
+    articleIds: [...processed],
+    finalStatuses,
+    stages: stageSummaries,
+    failed: totalFailed,
+  }
 }

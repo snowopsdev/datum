@@ -6,23 +6,40 @@ import type { ArticleAuditContext } from './articleAudit'
 export const OVERRIDABLE_STATUSES = ['needs_review', 'blocked'] as const
 
 /**
- * The forward statuses an override can land on. `verified` is the ops UI's own
- * button, but `approved` and `published` are selectable in the admin/REST API
- * too, and jumping straight to one of them advances the article just as far — so
- * all three are gated identically rather than letting the longer jump skip the
- * justification.
+ * The only statuses a needs_review/blocked article may be moved to *without* a
+ * fresh justification: genuinely backward ones that send the work back to be
+ * redone, plus the review statuses themselves (re-saving in place, or moving
+ * between needs_review and blocked, still leaves the article gated).
+ *
+ * This is deliberately an allow-list of backward targets rather than a list of
+ * forward ones. Enumerating the forward targets makes every status that is not
+ * on the list default to *ungated*, so each new status — or each one whose
+ * meaning shifts — silently opens another detour out of review. That is exactly
+ * how `qa_passed` slipped through: it is not "forward" in the reviewer's mental
+ * model, but `ArticleReview.tsx` offers Approve at `qa_passed`, so an editor
+ * could reach `approved` in two ungated edits. Inverting the rule makes the
+ * failure mode an unexpected 400 that a reviewer reports, not a bypass nobody
+ * notices.
  */
-export const OVERRIDE_TARGET_STATUSES = ['verified', 'approved', 'published'] as const
+export const UNGATED_OVERRIDE_TARGETS = [
+  'needs_revision',
+  'drafted',
+  'researched',
+  'topic_selected',
+  ...OVERRIDABLE_STATUSES,
+] as const
 
 /**
- * Moving a needs_review or blocked article forward — to verified, approved, or
- * published — requires a *new* reviewJustification, enforced here so REST/admin
- * edits obey it too, not just the ops UI. The admin UI submits the whole
- * document, so a justification persisted by an earlier override would otherwise
- * ride along and satisfy the gate without a reviewer typing anything. Sending
- * the article back (needs_revision, drafted, researched) or resaving it in place
- * is not an override and passes through untouched, as does every transition that
- * does not start from a review state.
+ * Moving a needs_review or blocked article anywhere other than backward — so to
+ * qa_passed, verified, approved, or published — requires a *new*
+ * reviewJustification, enforced here so REST/admin edits obey it too, not just
+ * the ops UI. The admin UI submits the whole document, so a justification
+ * persisted by an earlier override would otherwise ride along and satisfy the
+ * gate without a reviewer typing anything; for the same reason `reviewedBy` is
+ * overwritten with the current actor rather than left at whatever value the
+ * submitted document carried. Sending the article back, re-saving it in place,
+ * and every transition that does not start from a review state pass through
+ * untouched.
  */
 export const gateReviewOverride: CollectionBeforeChangeHook = ({
   data,
@@ -33,7 +50,8 @@ export const gateReviewOverride: CollectionBeforeChangeHook = ({
   const from = originalDoc?.status as string | undefined
   const to = data.status as string | undefined
   if (!from || !OVERRIDABLE_STATUSES.includes(from as never)) return data
-  if (!to || !OVERRIDE_TARGET_STATUSES.includes(to as never)) return data
+  // An edit that does not touch `status` is not a transition at all.
+  if (!to || UNGATED_OVERRIDE_TARGETS.includes(to as never)) return data
   const justification =
     typeof data.reviewJustification === 'string' ? data.reviewJustification.trim() : ''
   const previous =
@@ -48,12 +66,12 @@ export const gateReviewOverride: CollectionBeforeChangeHook = ({
   }
   data.reviewJustification = justification
   const user = req.user as { email?: string; id?: number | string } | null | undefined
-  data.reviewedBy ??= user?.email ?? (user?.id != null ? String(user.id) : 'system')
+  data.reviewedBy = user?.email ?? (user?.id != null ? String(user.id) : 'system')
   const ctx = context as { articleAudit?: ArticleAuditContext }
   if (!ctx.articleAudit) {
     // The event names describe what is being audited — the override itself — so
-    // a direct jump to approved/published reuses them and carries the target
-    // status in `details` instead of inventing a second pair of event names.
+    // a direct jump to qa_passed/approved/published reuses them and carries the
+    // target status in `details` instead of inventing more event names.
     ctx.articleAudit = {
       event: from === 'blocked' ? 'block_overridden' : 'review_overridden',
       summary:

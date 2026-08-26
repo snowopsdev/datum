@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import type { Article } from '../../cms/src/payload-types'
 import {
   describeFailures,
-  type PipelineRunSummary,
+  type RunPipelineResult,
   runPipeline,
   type Stage,
   type StageContext,
@@ -72,7 +72,7 @@ describe('runPipeline', () => {
       articleAt(2, 'topic_selected'),
     ])
     const summary = await quietly(() =>
-      runPipeline(ctx, [stubStage('research', 'topic_selected', 'researched')]),
+      runPipeline(ctx, { stages: [stubStage('research', 'topic_selected', 'researched')] }),
     )
     assert.equal(summary.failed, 0)
     assert.deepEqual(summary.stages, [{ stage: 'research', total: 2, failed: 0 }])
@@ -89,7 +89,7 @@ describe('runPipeline', () => {
       articleAt(3, 'topic_selected'),
     ])
     const summary = await quietly(() =>
-      runPipeline(ctx, [stubStage('research', 'topic_selected', 'researched', [2])]),
+      runPipeline(ctx, { stages: [stubStage('research', 'topic_selected', 'researched', [2])] }),
     )
     assert.equal(summary.failed, 1)
     assert.deepEqual(summary.stages, [{ stage: 'research', total: 3, failed: 1 }])
@@ -107,10 +107,12 @@ describe('runPipeline', () => {
       articleAt(3, 'drafted'),
     ])
     const summary = await quietly(() =>
-      runPipeline(ctx, [
-        stubStage('research', 'topic_selected', 'researched', [1, 2]),
-        stubStage('qa', 'drafted', 'qa_passed', [3]),
-      ]),
+      runPipeline(ctx, {
+        stages: [
+          stubStage('research', 'topic_selected', 'researched', [1, 2]),
+          stubStage('qa', 'drafted', 'qa_passed', [3]),
+        ],
+      }),
     )
     assert.equal(summary.failed, 3)
     assert.deepEqual(summary.stages, [
@@ -122,7 +124,7 @@ describe('runPipeline', () => {
   it('reports a stage with nothing to do as an empty batch', async () => {
     const { ctx } = fakeCtx([])
     const summary = await quietly(() =>
-      runPipeline(ctx, [stubStage('generate', 'researched', 'drafted')]),
+      runPipeline(ctx, { stages: [stubStage('generate', 'researched', 'drafted')] }),
     )
     assert.equal(summary.failed, 0)
     assert.deepEqual(summary.stages, [{ stage: 'generate', total: 0, failed: 0 }])
@@ -130,7 +132,9 @@ describe('runPipeline', () => {
 })
 
 describe('describeFailures', () => {
-  const summary = (stages: PipelineRunSummary['stages']): PipelineRunSummary => ({
+  const summary = (stages: RunPipelineResult['stages']): RunPipelineResult => ({
+    articleIds: [],
+    finalStatuses: {},
     stages,
     failed: stages.reduce((sum, entry) => sum + entry.failed, 0),
   })
