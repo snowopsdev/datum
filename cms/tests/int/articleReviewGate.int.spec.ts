@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { gateReviewOverride, OVERRIDABLE_STATUSES } from '@/lib/articleReviewGate'
+import {
+  gateReviewOverride,
+  OVERRIDABLE_STATUSES,
+  OVERRIDE_TARGET_STATUSES,
+} from '@/lib/articleReviewGate'
 
 describe('article review-override gate', () => {
   it('throws when moving needs_review to verified without a justification', () => {
@@ -157,7 +161,139 @@ describe('article review-override gate', () => {
     expect(result).toBe(data)
   })
 
-  it('exports the exact overridable statuses', () => {
+  it.each(['approved', 'published'])(
+    'throws when jumping a needs_review article straight to %s without a justification',
+    (target) => {
+      expect(() =>
+        gateReviewOverride({
+          data: { status: target },
+          originalDoc: { status: 'needs_review' },
+          req: { user: null },
+          context: {},
+        } as never),
+      ).toThrow('reviewJustification')
+    },
+  )
+
+  it.each(['approved', 'published'])(
+    'throws when jumping a blocked article straight to %s reusing the persisted justification',
+    (target) => {
+      expect(() =>
+        gateReviewOverride({
+          data: { status: target, reviewJustification: 'same reason as last time' },
+          originalDoc: { status: 'blocked', reviewJustification: 'same reason as last time' },
+          req: { user: null },
+          context: {},
+        } as never),
+      ).toThrow('new reviewJustification')
+    },
+  )
+
+  it('audits a needs_review to approved jump as review_overridden with the target status', () => {
+    const context: Record<string, unknown> = {}
+    const result = gateReviewOverride({
+      data: { status: 'approved', reviewJustification: '  shipping it anyway  ' },
+      originalDoc: { status: 'needs_review' },
+      req: { user: { id: 7, email: 'reviewer@example.com' } },
+      context,
+    } as never) as Record<string, unknown>
+
+    expect(result.reviewJustification).toBe('shipping it anyway')
+    expect(result.reviewedBy).toBe('reviewer@example.com')
+    expect(context.articleAudit).toEqual({
+      event: 'review_overridden',
+      summary: 'Reviewer overrode needs_review straight to approved',
+      details: { justification: 'shipping it anyway', targetStatus: 'approved' },
+    })
+  })
+
+  it('audits a blocked to published jump as block_overridden with the target status', () => {
+    const context: Record<string, unknown> = {}
+    const result = gateReviewOverride({
+      data: { status: 'published', reviewJustification: 'legal signed off' },
+      originalDoc: { status: 'blocked' },
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
+
+    expect(result.reviewedBy).toBe('system')
+    expect(context.articleAudit).toEqual({
+      event: 'block_overridden',
+      summary: 'Reviewer overrode blocked straight to published',
+      details: { justification: 'legal signed off', targetStatus: 'published' },
+    })
+  })
+
+  it('keeps the verified target on the plain override summary and details', () => {
+    const context: Record<string, unknown> = {}
+    gateReviewOverride({
+      data: { status: 'verified', reviewJustification: 'checked by hand' },
+      originalDoc: { status: 'needs_review' },
+      req: { user: null },
+      context,
+    } as never)
+    expect(context.articleAudit).toEqual({
+      event: 'review_overridden',
+      summary: 'Reviewer overrode needs_review',
+      details: { justification: 'checked by hand', targetStatus: 'verified' },
+    })
+  })
+
+  it.each([
+    ['needs_review', 'needs_revision'],
+    ['needs_review', 'drafted'],
+    ['needs_review', 'researched'],
+    ['needs_review', 'needs_review'],
+    ['blocked', 'needs_revision'],
+    ['blocked', 'drafted'],
+    ['blocked', 'researched'],
+    ['blocked', 'blocked'],
+  ])('leaves %s to %s untouched', (from, to) => {
+    const data = { status: to }
+    const context: Record<string, unknown> = {}
+    const result = gateReviewOverride({
+      data,
+      originalDoc: { status: from },
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+    expect(result.reviewJustification).toBeUndefined()
+    expect(result.reviewedBy).toBeUndefined()
+    expect(context.articleAudit).toBeUndefined()
+  })
+
+  it.each(['approved', 'published'])(
+    'leaves qa_passed to %s untouched (not an override transition)',
+    (target) => {
+      const data = { status: target }
+      const context: Record<string, unknown> = {}
+      const result = gateReviewOverride({
+        data,
+        originalDoc: { status: 'qa_passed' },
+        req: { user: null },
+        context,
+      } as never) as Record<string, unknown>
+      expect(result).toBe(data)
+      expect(context.articleAudit).toBeUndefined()
+    },
+  )
+
+  it('leaves an edit that does not touch status untouched', () => {
+    const data = { reviewJustification: 'a note typed while still in review' }
+    const context: Record<string, unknown> = {}
+    const result = gateReviewOverride({
+      data,
+      originalDoc: { status: 'needs_review' },
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+    expect(context.articleAudit).toBeUndefined()
+  })
+
+  it('exports the exact overridable statuses and override targets', () => {
     expect(OVERRIDABLE_STATUSES).toEqual(['needs_review', 'blocked'])
+    expect(OVERRIDE_TARGET_STATUSES).toEqual(['verified', 'approved', 'published'])
   })
 })

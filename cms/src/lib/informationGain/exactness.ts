@@ -346,11 +346,39 @@ const OPPOSITE: Record<'increase' | 'decrease', 'increase' | 'decrease'> = {
   decrease: 'increase',
 }
 
+/** How a comparative reads in a mismatch message. */
+const COMPARATIVE_LABEL: Record<'more' | 'less' | 'equal', string> = {
+  more: 'more than',
+  less: 'less than',
+  equal: 'exactly',
+}
+
 /**
  * How much of the claim the evidence literally supports: the share of its
- * values, its direction, and its negation that the evidence excerpts confirm.
- * A claim with nothing comparable scores 1 — it is the policy gate's job, not
- * this function's, to decide whether an unfalsifiable claim may pass.
+ * values, its direction, its negation, and its comparative that the evidence
+ * excerpts confirm. `exactness = matched / comparable`, and a claim with nothing
+ * comparable scores 1 — it is the policy gate's job, not this function's, to
+ * decide whether an unfalsifiable claim may pass.
+ *
+ * The four checks each contribute at most one comparable:
+ *
+ * - **values** — one comparable per claim value; matched when any evidence
+ *   excerpt carries the same kind, value, and unit. No conversion.
+ * - **direction** — one comparable when the claim states one; matched unless the
+ *   evidence states the opposite direction and never the claim's.
+ * - **negation** — compared *symmetrically*: the check runs whenever the claim
+ *   or any evidence excerpt is negated, and is matched only when some excerpt's
+ *   negation equals the claim's. So an affirmative "80% recommend it" against
+ *   "80% do not recommend it" is a mismatch, not a silent pass — the numbers
+ *   agree while the propositions are opposites.
+ * - **comparative** — one comparable when the claim states one. `more`/`less`
+ *   are thresholds: only evidence asserting the same threshold supports them, so
+ *   a bare "10%" does not support "more than 10%". `equal` is what a bare figure
+ *   already asserts, so evidence with `equal` or with no comparative at all
+ *   supports it; only opposing threshold evidence fails it.
+ *
+ * As with negation, an empty evidence list supports nothing: it can satisfy
+ * neither the negation nor the comparative check.
  */
 export function compareValues(
   claim: TextValues,
@@ -383,10 +411,32 @@ export function compareValues(
     }
   }
 
-  if (claim.negated) {
+  // Symmetric: opposite negation is a mismatch whichever side carries it.
+  if (claim.negated || evidence.some((e) => e.negated)) {
     comparable += 1
-    if (evidence.some((e) => e.negated)) matched += 1
-    else mismatches.push('negation: claim is negated, evidence is not')
+    if (evidence.some((e) => e.negated === claim.negated)) {
+      matched += 1
+    } else if (claim.negated) {
+      mismatches.push('negation: claim is negated, evidence is not')
+    } else {
+      mismatches.push('negation: claim is affirmative, evidence is negated')
+    }
+  }
+
+  if (claim.comparative !== null) {
+    comparable += 1
+    const supported = evidence.some(
+      (e) =>
+        e.comparative === claim.comparative ||
+        (claim.comparative === 'equal' && e.comparative === null),
+    )
+    if (supported) {
+      matched += 1
+    } else {
+      mismatches.push(
+        `comparative: claim asserts ${COMPARATIVE_LABEL[claim.comparative]} the stated value, evidence does not`,
+      )
+    }
   }
 
   // With no evidence excerpts at all, a claim that asserts a value is

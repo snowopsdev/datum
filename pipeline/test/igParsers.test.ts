@@ -218,6 +218,88 @@ describe('parseFacetClustering', () => {
     ])
   })
 
+  it('gives a duplicate explicit id a fresh id, keeping the first facet on it', () => {
+    // Coverage keys off the id alone, so two facets sharing one would let a
+    // single covered draft claim mark both as covered.
+    const { facets, claimFacet } = parseFacetClustering(
+      {
+        facets: [
+          { id: 'pricing', label: 'Pricing', description: '', claimIds: ['c1'] },
+          { id: 'pricing', label: 'Pricing again', description: '', claimIds: ['c2'] },
+        ],
+        gaps: [],
+      },
+      claims,
+      [],
+      3,
+    )
+
+    assert.deepEqual(
+      facets.map((facet) => facet.id),
+      ['pricing', 'f2'],
+    )
+    assert.deepEqual(
+      facets.map((facet) => facet.claimIds),
+      [['c1'], ['c2']],
+    )
+    // Each claim maps once, to the facet it was listed under.
+    assert.deepEqual([...claimFacet.entries()], [
+      ['c1', 'pricing'],
+      ['c2', 'f2'],
+    ])
+  })
+
+  it('does not let a generated fallback collide with an explicit id further down', () => {
+    const { facets, claimFacet } = parseFacetClustering(
+      {
+        facets: [
+          { label: 'Unnamed', description: '', claimIds: ['c1'] },
+          { id: 'f1', label: 'Explicitly f1', description: '', claimIds: ['c2'] },
+        ],
+        gaps: [],
+      },
+      claims,
+      [],
+      3,
+    )
+
+    assert.deepEqual(
+      facets.map((facet) => facet.id),
+      ['f1-2', 'f1'],
+    )
+    assert.deepEqual([...claimFacet.entries()], [
+      ['c1', 'f1-2'],
+      ['c2', 'f1'],
+    ])
+  })
+
+  it('keeps generated ids unique across a run of duplicates', () => {
+    const { facets, claimFacet } = parseFacetClustering(
+      {
+        facets: [
+          { id: 'pricing', label: 'A', description: '', claimIds: ['c1'] },
+          { id: 'pricing', label: 'B', description: '', claimIds: ['c2'] },
+          { id: 'f2', label: 'C', description: '', claimIds: ['c3'] },
+        ],
+        gaps: [],
+      },
+      claims,
+      [],
+      3,
+    )
+
+    // The second facet cannot take `f2` — the third facet named it — so it
+    // falls through to the suffixed form, and every id is still distinct.
+    const ids = facets.map((facet) => facet.id)
+    assert.deepEqual(ids, ['pricing', 'f2-2', 'f2'])
+    assert.equal(new Set(ids).size, ids.length)
+    assert.deepEqual([...claimFacet.entries()], [
+      ['c1', 'pricing'],
+      ['c2', 'f2-2'],
+      ['c3', 'f2'],
+    ])
+  })
+
   it('caps facets at 12 and gaps at 8', () => {
     const { facets, gaps } = parseFacetClustering(
       {

@@ -153,11 +153,28 @@ export function parsePageClaims(json: unknown, opts: PageClaimsParseOptions): Ba
 
 type FacetDraft = Omit<Facet, 'weight'>
 
-const facetIdOf = (value: unknown, index: number): string => {
-  const explicit = asTrimmed(value)
-  if (explicit !== null) return explicit
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return `f${index + 1}`
+/** The id the reply asked for, or null when it did not name one usably. */
+const explicitFacetId = (value: unknown): string | null => {
+  const trimmed = asTrimmed(value)
+  if (trimmed !== null) return trimmed
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : null
+}
+
+/**
+ * An id for a facet the reply left unnamed — or whose name an earlier facet
+ * already took. `f<n>` is the plain form; it gains a `-<k>` suffix rather than
+ * colliding with any id named anywhere in the same reply, including one further
+ * down the list.
+ */
+const freshFacetId = (index: number, taken: (id: string) => boolean): string => {
+  const base = `f${index + 1}`
+  let candidate = base
+  let suffix = 2
+  while (taken(candidate)) {
+    candidate = `${base}-${suffix}`
+    suffix += 1
+  }
+  return candidate
 }
 
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -167,6 +184,13 @@ const asText = (value: unknown): string => (typeof value === 'string' ? value : 
  * A claim belongs to exactly one facet — the first that claims it — so
  * `docCount` counts each source document once and coverage cannot be inflated
  * by listing the same claim under every facet.
+ *
+ * Facet ids are forced unique for the same reason: `coverage.ts` keys off the id
+ * alone, so two facets sharing one would let a single covered draft claim mark
+ * both as covered and inflate `consensusCoverage` / `facetGainCoverage`. The
+ * first facet to name an id keeps it; every later duplicate — and every facet
+ * the reply left unnamed — gets a generated id that collides with nothing else
+ * in the reply.
  */
 export function parseFacetClustering(
   json: unknown,
@@ -185,10 +209,22 @@ export function parseFacetClustering(
     hints.map((hint) => hint.trim().toLowerCase()).filter((hint) => hint !== ''),
   )
 
+  const entries = rawFacets.slice(0, MAX_FACETS).map((entry) => asRecord(entry) ?? {})
+  // Resolved up front so a generated id can avoid every id the reply names,
+  // including ones belonging to facets further down the list.
+  const reserved = new Set(
+    entries.map((entry) => explicitFacetId(entry.id)).filter((id): id is string => id !== null),
+  )
+  const assigned = new Set<string>()
+
   const claimFacet = new Map<string, string>()
-  const drafts: FacetDraft[] = rawFacets.slice(0, MAX_FACETS).map((entry, index) => {
-    const facet = asRecord(entry) ?? {}
-    const id = facetIdOf(facet.id, index)
+  const drafts: FacetDraft[] = entries.map((facet, index) => {
+    const requested = explicitFacetId(facet.id)
+    const id =
+      requested !== null && !assigned.has(requested)
+        ? requested
+        : freshFacetId(index, (candidate) => reserved.has(candidate) || assigned.has(candidate))
+    assigned.add(id)
 
     const claimIds: string[] = []
     const docIds = new Set<string>()
