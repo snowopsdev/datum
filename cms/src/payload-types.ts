@@ -634,6 +634,59 @@ export interface InformationGainRun {
     firstPartyClaims?: number | null;
   };
   /**
+   * The claim ids behind each DocumentScore classification, captured at scoring time under policyVersion — not re-derivable once the policy changes.
+   */
+  claimIds?: {
+    /**
+     * Claim ids behind scores.blockedClaimIds.
+     */
+    blocked?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Claim ids behind scores.reviewClaimIds.
+     */
+    review?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Claim ids behind scores.materiallyNovelClaimIds.
+     */
+    materiallyNovel?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Claim ids behind scores.verifiedNovelClaimIds.
+     */
+    verifiedNovel?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  /**
    * ClaimRecord[] — full per-claim signals, evidence, and scores.
    */
   claims?:
@@ -1644,6 +1697,14 @@ export interface InformationGainRunsSelect<T extends boolean = true> {
         unsupportedNovelClaims?: T;
         contradictoryClaims?: T;
         firstPartyClaims?: T;
+      };
+  claimIds?:
+    | T
+    | {
+        blocked?: T;
+        review?: T;
+        materiallyNovel?: T;
+        verifiedNovel?: T;
       };
   claims?: T;
   tokenCount?: T;

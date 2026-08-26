@@ -94,7 +94,8 @@ export const InformationGainRuns: CollectionConfig = {
       defaultValue: false,
       admin: {
         readOnly: true,
-        description: 'Always false: every 0–1 signal in this record is an uncalibrated LLM estimate.',
+        description:
+          'Always false: every 0–1 signal in this record is an uncalibrated LLM estimate.',
       },
     },
     {
@@ -120,6 +121,37 @@ export const InformationGainRuns: CollectionConfig = {
         { name: 'unsupportedNovelClaims', type: 'number' },
         { name: 'contradictoryClaims', type: 'number' },
         { name: 'firstPartyClaims', type: 'number' },
+      ],
+    },
+    {
+      name: 'claimIds',
+      type: 'group',
+      admin: {
+        description:
+          'The claim ids behind each DocumentScore classification, captured at scoring ' +
+          'time under policyVersion — not re-derivable once the policy changes.',
+      },
+      fields: [
+        {
+          name: 'blocked',
+          type: 'json',
+          admin: { description: 'Claim ids behind scores.blockedClaimIds.' },
+        },
+        {
+          name: 'review',
+          type: 'json',
+          admin: { description: 'Claim ids behind scores.reviewClaimIds.' },
+        },
+        {
+          name: 'materiallyNovel',
+          type: 'json',
+          admin: { description: 'Claim ids behind scores.materiallyNovelClaimIds.' },
+        },
+        {
+          name: 'verifiedNovel',
+          type: 'json',
+          admin: { description: 'Claim ids behind scores.verifiedNovelClaimIds.' },
+        },
       ],
     },
     {

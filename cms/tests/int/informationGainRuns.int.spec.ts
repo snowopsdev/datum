@@ -20,6 +20,7 @@ const topLevelFields: Array<{ name: string; type: string }> = [
   { name: 'calibrated', type: 'checkbox' },
   { name: 'scores', type: 'group' },
   { name: 'claimSummary', type: 'group' },
+  { name: 'claimIds', type: 'group' },
   { name: 'claims', type: 'json' },
   { name: 'tokenCount', type: 'number' },
   { name: 'costUsd', type: 'number' },
@@ -44,6 +45,8 @@ const claimSummarySubfields = [
   'contradictoryClaims',
   'firstPartyClaims',
 ]
+
+const claimIdsSubfields = ['blocked', 'review', 'materiallyNovel', 'verifiedNovel']
 
 describe('information-gain-runs collection', () => {
   it('has slug information-gain-runs and expected admin config', () => {
@@ -139,6 +142,20 @@ describe('information-gain-runs collection', () => {
     for (const name of claimSummarySubfields) {
       expect(findField(field.fields, name)?.type).toBe('number')
     }
+  })
+
+  it('has a claimIds group with a json field per DocumentScore claim-id list', () => {
+    const field = findField(InformationGainRuns.fields, 'claimIds')
+    expect(field?.type).toBe('group')
+    if (field?.type !== 'group') return
+
+    const names = field.fields.map((f) => ('name' in f ? f.name : ''))
+    expect(names).toEqual(claimIdsSubfields)
+    for (const name of claimIdsSubfields) {
+      expect(findField(field.fields, name)?.type).toBe('json')
+    }
+
+    expect(field.admin?.description).toContain('not re-derivable once the policy changes')
   })
 
   it('is readable only when authenticated, and never writable through the admin API', async () => {
