@@ -1,7 +1,37 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { gateReviewOverride, gateVerifiedStatus } from '@/lib/articleReviewGate'
 import { buildRegenerateRevisionNotes, qaFailureLines } from '@/components/ops/articleStatus'
+
+// Mocked so resetToDraftedAction/sendBackAction/regenerateArticleAction can run outside a
+// real Next.js request scope and a real Payload instance below. `payload` itself keeps its
+// real exports (importOriginal) — gateReviewOverride/gateVerifiedStatus above import
+// `APIError` from it, and a bare replacement would break those.
+const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.com' } }))
+const findByIDMock = vi.fn(
+  async () => ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0 }) as never,
+)
+const findMock = vi.fn(async () => ({ docs: [] }) as never)
+const updateMock = vi.fn(async () => ({}) as never)
+
+vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('payload', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('payload')>()
+  return {
+    ...actual,
+    getPayload: vi.fn(async () => ({
+      auth: authMock,
+      findByID: findByIDMock,
+      find: findMock,
+      update: updateMock,
+    })),
+  }
+})
+
+const { regenerateArticleAction, resetToDraftedAction, sendBackAction } = await import(
+  '@/components/ops/actions'
+)
 
 describe('qaFailureLines', () => {
   it('returns an empty list when there are no qaResults', () => {
@@ -198,5 +228,67 @@ describe('overrideReviewAction write shape through both gates', () => {
     expect(() =>
       runGates({ status: 'verified' }, { status: 'blocked', reviewJustification: null }),
     ).toThrow('reviewJustification')
+  })
+})
+
+// resetToDraftedAction, sendBackAction, and regenerateArticleAction all send an article
+// back to be reworked, and all three must clear informationGain the same way — a decision
+// that lingers on any one of them would show a scored verdict beside a draft nobody has
+// re-scored yet. Locks the exact all-null shape and overrideAccess so the three can't
+// silently drift apart (e.g. one of them missing a key, or losing overrideAccess and
+// silently no-op'ing the clear because the field is access-guarded).
+describe('the three send-back-for-rework actions null informationGain identically', () => {
+  const EXPECTED_NULL_INFORMATION_GAIN = {
+    run: null,
+    decision: null,
+    policyVersion: null,
+    consensusCoverage: null,
+    verifiedGainUnits: null,
+    verificationRatio: null,
+    internalDuplicationRate: null,
+    verifiedNovelClaims: null,
+    scoredAt: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_revision',
+      qaResults: undefined,
+      revisionCount: 0,
+    } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  it('resetToDraftedAction nulls informationGain with overrideAccess: true', async () => {
+    await resetToDraftedAction(1, 'fixed the intro')
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ informationGain: EXPECTED_NULL_INFORMATION_GAIN }),
+        overrideAccess: true,
+      }),
+    )
+  })
+
+  it('sendBackAction nulls informationGain with overrideAccess: true', async () => {
+    await sendBackAction(1, 'not on brand')
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ informationGain: EXPECTED_NULL_INFORMATION_GAIN }),
+        overrideAccess: true,
+      }),
+    )
+  })
+
+  it('regenerateArticleAction nulls informationGain with overrideAccess: true', async () => {
+    await regenerateArticleAction(1, 'add a comparison table')
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ informationGain: EXPECTED_NULL_INFORMATION_GAIN }),
+        overrideAccess: true,
+      }),
+    )
   })
 })
