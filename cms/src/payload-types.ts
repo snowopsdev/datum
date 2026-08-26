@@ -305,7 +305,20 @@ export interface Article {
         id?: string | null;
       }[]
     | null;
-  status: 'topic_selected' | 'researched' | 'drafted' | 'qa_passed' | 'needs_revision' | 'approved' | 'published';
+  /**
+   * verified = information-gain PASS (ready to approve). needs_review / blocked = a reviewer must override or send back.
+   */
+  status:
+    | 'topic_selected'
+    | 'researched'
+    | 'drafted'
+    | 'qa_passed'
+    | 'verified'
+    | 'needs_review'
+    | 'blocked'
+    | 'needs_revision'
+    | 'approved'
+    | 'published';
   qaResults?: {
     structural?: {
       passed?: boolean | null;
@@ -367,6 +380,10 @@ export interface Article {
   totalCostUsd?: number | null;
   reviewedBy?: string | null;
   reviewNotes?: string | null;
+  /**
+   * Required to move a needs_review or blocked article to verified. Recorded in the audit trail.
+   */
+  reviewJustification?: string | null;
   publishedAt?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -926,6 +943,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   totalCostUsd?: T;
   reviewedBy?: T;
   reviewNotes?: T;
+  reviewJustification?: T;
   publishedAt?: T;
   updatedAt?: T;
   createdAt?: T;

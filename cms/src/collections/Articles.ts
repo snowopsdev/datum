@@ -1,10 +1,12 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
+import { gateReviewOverride } from '../lib/articleReviewGate'
 
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
+    beforeChange: [gateReviewOverride],
     afterChange: [auditArticleChange],
   },
   admin: {
@@ -112,10 +114,17 @@ export const Articles: CollectionConfig = {
         'researched',
         'drafted',
         'qa_passed',
+        'verified',
+        'needs_review',
+        'blocked',
         'needs_revision',
         'approved',
         'published',
       ],
+      admin: {
+        description:
+          'verified = information-gain PASS (ready to approve). needs_review / blocked = a reviewer must override or send back.',
+      },
     },
     {
       name: 'qaResults',
@@ -207,6 +216,13 @@ export const Articles: CollectionConfig = {
     {
       name: 'reviewNotes',
       type: 'textarea',
+    },
+    {
+      name: 'reviewJustification',
+      type: 'textarea',
+      admin: {
+        description: 'Required to move a needs_review or blocked article to verified. Recorded in the audit trail.',
+      },
     },
     {
       name: 'publishedAt',
