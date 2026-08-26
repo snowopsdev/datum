@@ -15,6 +15,7 @@ import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
 import { EvidenceSources } from './collections/EvidenceSources'
+import { CorpusSnapshots } from './collections/CorpusSnapshots'
 import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
 
@@ -81,6 +82,7 @@ export default buildConfig({
     BrandVoiceFiles,
     GovernanceAudit,
     EvidenceSources,
+    CorpusSnapshots,
   ],
   globals: [LlmSettings, InformationGainPolicy],
   editor: lexicalEditor(),

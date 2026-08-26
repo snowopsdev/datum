@@ -62,6 +62,35 @@ export const Articles: CollectionConfig = {
             },
           ],
         },
+        {
+          name: 'snapshot',
+          type: 'relationship',
+          relationTo: 'corpus-snapshots',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'queryCluster',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'facets',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'gaps',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
       ],
     },
     {
@@ -222,6 +251,23 @@ export const Articles: CollectionConfig = {
       type: 'textarea',
       admin: {
         description: 'Required to move a needs_review or blocked article to verified. Recorded in the audit trail.',
+      },
+    },
+    {
+      name: 'revisionNotes',
+      type: 'textarea',
+      admin: {
+        description:
+          'Reasons from the last information-gain run or reviewer; injected into the next generate prompt.',
+      },
+    },
+    {
+      name: 'revisionCount',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description: 'Times this article was sent back for regeneration. Informational.',
       },
     },
     {
