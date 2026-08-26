@@ -15,6 +15,7 @@ import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
 import { EvidenceSources } from './collections/EvidenceSources'
+import { EvidenceSourceCandidates } from './collections/EvidenceSourceCandidates'
 import { CorpusSnapshots } from './collections/CorpusSnapshots'
 import { InformationGainRuns } from './collections/InformationGainRuns'
 import { PipelineRuns } from './collections/PipelineRuns'
@@ -91,6 +92,7 @@ export default buildConfig({
     BrandVoiceFiles,
     GovernanceAudit,
     EvidenceSources,
+    EvidenceSourceCandidates,
     CorpusSnapshots,
     InformationGainRuns,
     PipelineRuns,
