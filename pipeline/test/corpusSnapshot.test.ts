@@ -87,20 +87,43 @@ describe('isSnapshotReusable', () => {
 })
 
 describe('snapshotStatus', () => {
-  it('is complete when every page fetched', () => {
-    assert.equal(snapshotStatus(3, 0), 'complete')
+  it('is complete when every page fetched and yielded claims', () => {
+    assert.equal(snapshotStatus(3, 0, 24), 'complete')
   })
 
   it('is partial when some pages failed', () => {
-    assert.equal(snapshotStatus(2, 1), 'partial')
+    assert.equal(snapshotStatus(2, 1, 16), 'partial')
   })
 
   it('is empty when every page failed', () => {
-    assert.equal(snapshotStatus(0, 3), 'empty')
+    assert.equal(snapshotStatus(0, 3, 0), 'empty')
   })
 
   it('is empty when there were no pages at all', () => {
-    assert.equal(snapshotStatus(0, 0), 'empty')
+    assert.equal(snapshotStatus(0, 0, 0), 'empty')
+  })
+
+  // A claimless build is a different failure from a failed crawl, but it is
+  // just as unusable: reusing it would score every draft against nothing.
+  it('is empty when pages were read but extraction produced no claims', () => {
+    assert.equal(snapshotStatus(3, 0, 0), 'empty')
+  })
+
+  it('is empty when a partial crawl produced no claims', () => {
+    assert.equal(snapshotStatus(2, 1, 0), 'empty')
+  })
+
+  it('is complete on a single claim from a clean crawl', () => {
+    assert.equal(snapshotStatus(3, 0, 1), 'complete')
+  })
+
+  it('never reuses either kind of empty snapshot', () => {
+    const claimless = snapshotStatus(3, 0, 0)
+    const failedCrawl = snapshotStatus(0, 3, 0)
+    for (const status of [claimless, failedCrawl]) {
+      assert.equal(isSnapshotReusable({ capturedAt: daysAgo(0), status }, NOW), false)
+      assert.equal(pickReusable([{ id: 1, capturedAt: daysAgo(0), status }], NOW), null)
+    }
   })
 })
 

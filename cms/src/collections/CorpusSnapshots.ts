@@ -55,6 +55,11 @@ export const CorpusSnapshots: CollectionConfig = {
       type: 'select',
       required: true,
       options: ['complete', 'partial', 'empty'],
+      admin: {
+        description:
+          'empty = unusable, never reused: either no page yielded text (baselineDocCount 0) ' +
+          'or pages were read but extraction produced no claims (baselineDocCount > 0).',
+      },
     },
     {
       name: 'pipelineRunId',
@@ -180,7 +185,9 @@ export const CorpusSnapshots: CollectionConfig = {
       type: 'number',
       admin: {
         description:
-          'Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.',
+          'Pages that yielded no text: failed fetches and skipped ones (a PDF, a refused ' +
+          'private address) both count. Zero next to status "empty" means the crawl was fine ' +
+          'and claim extraction came back empty.',
       },
     },
   ],

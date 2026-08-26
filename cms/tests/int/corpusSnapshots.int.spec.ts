@@ -100,11 +100,22 @@ describe('corpus-snapshots collection', () => {
     }
   })
 
+  // Two different failures both store as `empty`; the description is where a
+  // reader of a row learns how to tell them apart.
+  it('says on status that empty covers a claimless build as well as a failed crawl', () => {
+    const field = findField(CorpusSnapshots.fields, 'status')
+    const description = field?.type === 'select' ? field.admin?.description : undefined
+    expect(description).toContain('never reused')
+    expect(description).toContain('no page yielded text (baselineDocCount 0)')
+    expect(description).toContain('extraction produced no claims (baselineDocCount > 0)')
+  })
+
   it('says on failedPageCount that skipped pages count too', () => {
     const field = findField(CorpusSnapshots.fields, 'failedPageCount')
-    expect(field?.type === 'number' ? field.admin?.description : undefined).toBe(
-      'Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.',
-    )
+    const description = field?.type === 'number' ? field.admin?.description : undefined
+    expect(description).toContain('failed fetches and skipped ones')
+    expect(description).toContain('a refused private address')
+    expect(description).toContain('claim extraction came back empty')
   })
 
   it('has a pages array with the expected subfields', () => {

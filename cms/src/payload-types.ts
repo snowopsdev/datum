@@ -451,6 +451,9 @@ export interface CorpusSnapshot {
   keywordKey: string;
   country: string;
   capturedAt: string;
+  /**
+   * empty = unusable, never reused: either no page yielded text (baselineDocCount 0) or pages were read but extraction produced no claims (baselineDocCount > 0).
+   */
   status: 'complete' | 'partial' | 'empty';
   pipelineRunId?: string | null;
   snapshotHash?: string | null;
@@ -532,7 +535,7 @@ export interface CorpusSnapshot {
     | null;
   baselineDocCount?: number | null;
   /**
-   * Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.
+   * Pages that yielded no text: failed fetches and skipped ones (a PDF, a refused private address) both count. Zero next to status "empty" means the crawl was fine and claim extraction came back empty.
    */
   failedPageCount?: number | null;
   updatedAt: string;

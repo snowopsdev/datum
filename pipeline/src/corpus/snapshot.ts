@@ -15,7 +15,10 @@
  * that does not parse fails the whole snapshot, because a silently thinner
  * baseline would quietly inflate every novelty score computed against it — the
  * same reason a claim whose excerpt is not in the page is counted rather than
- * dropped (`countUnverifiedExcerpts`).
+ * dropped (`countUnverifiedExcerpts`). A build that parses everything and still
+ * ends up with no claims is recorded as `empty` for the same reason: a baseline
+ * of nothing is not a baseline, and reusing it for a fortnight would let every
+ * draft on that keyword score as wholly novel.
  */
 
 import { createHash } from 'node:crypto'
@@ -81,8 +84,9 @@ export function snapshotAgeDays(capturedAt: string, now: Date): number | null {
 
 /**
  * Whether an existing snapshot can stand in for a fresh crawl. An `empty` one
- * never can — it recorded a failed crawl, not a baseline — and neither can one
- * whose timestamp is unreadable, since we cannot tell how stale it is.
+ * never can — it recorded a failed crawl or a claimless one, not a baseline —
+ * and neither can one whose timestamp is unreadable, since we cannot tell how
+ * stale it is.
  */
 export function isSnapshotReusable(
   doc: { capturedAt: string; status: string },
@@ -110,12 +114,21 @@ export function pickReusable<T extends { capturedAt: string; status: string }>(
   return docs.find((doc) => isSnapshotReusable(doc, now)) ?? null
 }
 
-/** `empty` means no page yielded text at all, so there is no baseline to score against. */
+/**
+ * `empty` means there is no baseline to score against, for either of two
+ * reasons: no page yielded text at all, or pages were read but extraction
+ * produced no claims. Both are unusable — an `empty` snapshot is never reused —
+ * and the stored row still tells them apart: a claimless build has
+ * `baselineDocCount > 0` with `failedPageCount` counting only the pages that
+ * genuinely failed, where a failed crawl has `baselineDocCount` at zero and
+ * every page in `failedPageCount`. The builder also logs which one happened.
+ */
 export function snapshotStatus(
   okPages: number,
   failedPages: number,
+  claimCount: number,
 ): 'complete' | 'partial' | 'empty' {
-  if (okPages <= 0) return 'empty'
+  if (okPages <= 0 || claimCount <= 0) return 'empty'
   return failedPages > 0 ? 'partial' : 'complete'
 }
 
@@ -292,6 +305,13 @@ export async function getOrBuildSnapshot(
     unverifiedExcerptCount: unverifiedByPosition.get(page.position) ?? null,
   }))
 
+  if (okPages.length > 0 && claims.length === 0) {
+    console.warn(
+      `[research] corpus snapshot for "${article.keyword}": ${okPages.length} page(s) read but ` +
+        'claim extraction produced no claims; storing it as empty so it is not reused',
+    )
+  }
+
   const created = await ctx.payload.create({
     collection: 'corpus-snapshots',
     overrideAccess: true,
@@ -300,7 +320,7 @@ export async function getOrBuildSnapshot(
       keywordKey: key,
       country,
       capturedAt: now.toISOString(),
-      status: snapshotStatus(okPages.length, unusablePages),
+      status: snapshotStatus(okPages.length, unusablePages, claims.length),
       pipelineRunId: ctx.runId,
       snapshotHash: snapshotHash(
         pageRows.flatMap((row) => (row.textHash ? [{ url: row.url, textHash: row.textHash }] : [])),
