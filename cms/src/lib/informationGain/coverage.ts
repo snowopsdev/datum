@@ -34,6 +34,33 @@ export function facetWeights(
   })
 }
 
+/** The comparison `parseFacetClustering` uses to match a facet to a template heading. */
+const normaliseHint = (value: string): string => value.trim().toLowerCase()
+
+/**
+ * Re-derives `mustHave` against one article's template headings.
+ *
+ * A snapshot is keyed by (keyword, country), not by template, so the flags
+ * baked in when it was built belong to whichever article triggered the build. A
+ * second article on the same keyword with a different template must be graded —
+ * and prompted — against its own required sections, so the consumer re-applies
+ * its own headings before using the facets. `weight` is deliberately left
+ * alone: it is a property of the corpus, not of the template, and PR3's
+ * `facetWeights` re-floors a `mustHave` facet when it recomputes.
+ */
+export function applyTemplateHints<
+  T extends { label: string; mustHave: boolean; matchesHint?: string | null },
+>(facets: T[], headings: string[]): T[] {
+  const wanted = new Set(
+    headings.map(normaliseHint).filter((heading) => heading !== ''),
+  )
+  return facets.map((facet) => ({
+    ...facet,
+    mustHave:
+      wanted.has(normaliseHint(facet.matchesHint ?? '')) || wanted.has(normaliseHint(facet.label)),
+  }))
+}
+
 /**
  * Weighted share of consensus facets at least one draft claim addresses. Null
  * when there are no facets, or when their weights sum to nothing — in both

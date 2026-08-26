@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+  applyTemplateHints,
   consensusCoverage,
   facetWeights,
   internalDuplicationRate,
@@ -111,5 +112,79 @@ describe('internalDuplicationRate', () => {
 
   it('is null when there are no claims', () => {
     assert.equal(internalDuplicationRate([]), null)
+  })
+})
+
+describe('applyTemplateHints', () => {
+  const hinted = (overrides: Partial<Facet> = {}): Facet => facet({ mustHave: false, ...overrides })
+
+  it('flags a facet whose matchesHint is one of the headings', () => {
+    const [result] = applyTemplateHints([hinted({ matchesHint: 'Common mistakes' })], [
+      'What you need',
+      'Common mistakes',
+    ])
+    assert.equal(result.mustHave, true)
+  })
+
+  it('flags a facet whose label is one of the headings', () => {
+    const [result] = applyTemplateHints(
+      [hinted({ label: 'Step-by-step instructions', matchesHint: null })],
+      ['Step-by-step instructions'],
+    )
+    assert.equal(result.mustHave, true)
+  })
+
+  it('ignores case and surrounding whitespace on both sides', () => {
+    const [result] = applyTemplateHints(
+      [hinted({ label: 'x', matchesHint: '  COMMON   Mistakes ' })],
+      ['  common   Mistakes'],
+    )
+    assert.equal(result.mustHave, true)
+  })
+
+  it('clears the flag on a facet the new template does not require', () => {
+    const [result] = applyTemplateHints(
+      [hinted({ label: 'Pricing tiers', matchesHint: 'Pricing tiers', mustHave: true })],
+      ['What you need', 'FAQ'],
+    )
+    assert.equal(result.mustHave, false)
+  })
+
+  it('clears every flag when the template has no required sections', () => {
+    const results = applyTemplateHints(
+      [hinted({ matchesHint: 'FAQ', mustHave: true }), hinted({ label: 'FAQ', mustHave: true })],
+      [],
+    )
+    assert.deepEqual(
+      results.map((f) => f.mustHave),
+      [false, false],
+    )
+  })
+
+  it('does not treat a blank heading or a hintless facet as a match', () => {
+    const [result] = applyTemplateHints([hinted({ label: '', matchesHint: '   ' })], ['   ', ''])
+    assert.equal(result.mustHave, false)
+  })
+
+  it('leaves weight, docCount, and every other field untouched', () => {
+    const input = hinted({
+      id: 'f3',
+      label: 'Pricing tiers',
+      description: 'What each tier costs.',
+      weight: 0.25,
+      docCount: 1,
+      claimIds: ['b1-1'],
+      matchesHint: 'Pricing tiers',
+    })
+    const [result] = applyTemplateHints([input], ['Pricing tiers'])
+    assert.deepEqual({ ...result, mustHave: false }, { ...input, mustHave: false })
+    assert.equal(result.weight, 0.25)
+    assert.equal(result.docCount, 1)
+  })
+
+  it('does not mutate the facets it is given', () => {
+    const input = hinted({ matchesHint: 'FAQ', mustHave: true })
+    applyTemplateHints([input], ['What you need'])
+    assert.equal(input.mustHave, true)
   })
 })

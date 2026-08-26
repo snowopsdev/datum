@@ -150,6 +150,9 @@ describe('parseFacetClustering', () => {
       weight: 1,
       docCount: 2,
       mustHave: true,
+      // Kept verbatim so `applyTemplateHints` can re-match it for another
+      // article's template when this snapshot is reused.
+      matchesHint: '  pRiCiNg  ',
       claimIds: ['c1', 'c2'],
     })
     // `c2` was claimed by the first facet, so the second only keeps `c3`.
@@ -160,6 +163,7 @@ describe('parseFacetClustering', () => {
       weight: 1 / 3,
       docCount: 1,
       mustHave: false,
+      matchesHint: null,
       claimIds: ['c3'],
     })
     assert.deepEqual(gaps, [])

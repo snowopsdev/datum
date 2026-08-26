@@ -16,8 +16,11 @@
  */
 
 import { getOrBuildSnapshot } from './corpus/snapshot'
-import { buildQueryCluster } from './informationGain/lib'
+import { applyTemplateHints, buildQueryCluster, type Facet } from './informationGain/lib'
 import { resolveTemplate, type Stage } from './stages'
+
+/** `facets` is a JSON column on the snapshot, so trust nothing about its shape. */
+const storedFacets = (value: unknown): Facet[] => (Array.isArray(value) ? (value as Facet[]) : [])
 
 export const researchStage: Stage = {
   name: 'research',
@@ -29,6 +32,14 @@ export const researchStage: Stage = {
     const serp = await ctx.ahrefs.serpResearch(article.keyword)
     const queryCluster = buildQueryCluster(article.keyword, serp.relatedQuestions)
     const snapshot = await getOrBuildSnapshot(ctx, article, template, serp, queryCluster)
+    // A reused snapshot carries the template hints of whichever article built
+    // it, so `mustHave` is re-derived against this article's own required
+    // sections before the facets are copied onto it. The snapshot row keeps the
+    // build-time flags as its audit record.
+    const facets = applyTemplateHints(
+      storedFacets(snapshot.facets),
+      (template.requiredSections ?? []).map((section) => section.heading),
+    )
     return {
       status: 'researched',
       data: {
@@ -38,7 +49,7 @@ export const researchStage: Stage = {
           relatedQuestions: serp.relatedQuestions.map((text) => ({ text })),
           snapshot: snapshot.id,
           queryCluster,
-          facets: snapshot.facets,
+          facets,
           gaps: snapshot.gaps,
         },
       },

@@ -53,6 +53,13 @@ export interface Facet {
   /** How many baseline documents cover this facet. */
   docCount: number
   mustHave: boolean
+  /**
+   * The template heading the clustering model matched this facet to, verbatim.
+   * Kept so `mustHave` can be re-derived for another article's template when a
+   * snapshot is reused; optional because snapshots captured before it existed
+   * do not carry it.
+   */
+  matchesHint?: string | null
   claimIds: string[]
 }
 
