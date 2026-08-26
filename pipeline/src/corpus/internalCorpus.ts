@@ -84,6 +84,11 @@ async function cachedClaims(
     snapshots = docs
   } catch {
     // The adapter would not filter on the array subfield; re-extract instead.
+    // Worth a line: a silent refusal turns every internal doc into a paid call.
+    console.warn(
+      `[research] internal corpus claim cache unavailable (adapter rejected the ` +
+        `internalCorpus.article filter); re-extracting article ${doc.id}`,
+    )
     return null
   }
 

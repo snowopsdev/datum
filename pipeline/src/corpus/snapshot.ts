@@ -273,7 +273,8 @@ export async function getOrBuildSnapshot(
   })
   console.log(
     `[research] built corpus snapshot ${created.id} for "${article.keyword}": ` +
-      `${okPages.length}/${crawled.length} pages, ${internalEntries.length} internal, ` +
+      `${okPages.length}/${crawled.length} pages, ${internalEntries.length} internal ` +
+      `(${internalEntries.filter((entry) => entry.cached).length} from cache), ` +
       `${claims.length} claims, ${facets.length} facets, ${gaps.length} gaps`,
   )
   return created
