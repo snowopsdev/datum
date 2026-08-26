@@ -3,10 +3,13 @@ import { describe, it } from 'node:test'
 
 import { mockPageText } from '../src/corpus/mockPages'
 import {
+  countUnverifiedExcerpts,
   FACET_CLAIM_CAP,
   INTERNAL_CORPUS_CAP,
   isSnapshotReusable,
   keywordKey,
+  pickReusable,
+  REUSE_LOOKBACK,
   SERP_PAGE_CAP,
   SNAPSHOT_REUSE_DAYS,
   snapshotAgeDays,
@@ -214,5 +217,81 @@ describe('claimExtraction mock fixtures', () => {
         )
       }
     }
+  })
+})
+
+describe('pickReusable', () => {
+  it('takes the newest row when it is reusable', () => {
+    const docs = [
+      { id: 3, capturedAt: daysAgo(1), status: 'complete' },
+      { id: 2, capturedAt: daysAgo(2), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW)?.id, 3)
+  })
+
+  it('looks past a fresh empty snapshot to an older usable one', () => {
+    const docs = [
+      { id: 3, capturedAt: daysAgo(0), status: 'empty' },
+      { id: 2, capturedAt: daysAgo(3), status: 'complete' },
+      { id: 1, capturedAt: daysAgo(20), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW)?.id, 2)
+  })
+
+  it('is null when every candidate is stale or empty', () => {
+    const docs = [
+      { id: 2, capturedAt: daysAgo(0), status: 'empty' },
+      { id: 1, capturedAt: daysAgo(15), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW), null)
+  })
+
+  it('is null for no candidates at all', () => {
+    assert.equal(pickReusable([], NOW), null)
+  })
+
+  it('holds the agreed lookback', () => {
+    assert.equal(REUSE_LOOKBACK, 3)
+  })
+})
+
+describe('countUnverifiedExcerpts', () => {
+  const claim = (excerpt: string): BaselineClaim => ({
+    id: 'b1-1',
+    text: 't',
+    type: 'factual',
+    excerpt,
+    entities: [],
+    values: [],
+    facetId: null,
+    source: { kind: 'serp', docId: 'serp:1' },
+  })
+
+  const text = 'The grinder matters more than the machine. Purge the steam wand after each use.'
+
+  it('counts nothing when every excerpt is in the text', () => {
+    const claims = [claim('The grinder matters more than the machine.'), claim('the steam wand')]
+    assert.equal(countUnverifiedExcerpts(claims, text), 0)
+  })
+
+  it('counts an excerpt the page never says', () => {
+    const claims = [claim('The grinder matters more than the machine.'), claim('Invented quote.')]
+    assert.equal(countUnverifiedExcerpts(claims, text), 1)
+  })
+
+  it('matches case- and whitespace-insensitively, like excerptFoundIn', () => {
+    assert.equal(countUnverifiedExcerpts([claim('  THE   GRINDER matters ')], text), 0)
+  })
+
+  it('counts a blank excerpt as unverified', () => {
+    assert.equal(countUnverifiedExcerpts([claim('   ')], text), 1)
+  })
+
+  it('counts every claim when the text is empty', () => {
+    assert.equal(countUnverifiedExcerpts([claim('anything'), claim('else')], ''), 2)
+  })
+
+  it('is zero for no claims', () => {
+    assert.equal(countUnverifiedExcerpts([], text), 0)
   })
 })

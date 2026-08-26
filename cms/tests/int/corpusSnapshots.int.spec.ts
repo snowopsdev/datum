@@ -38,6 +38,7 @@ const pagesSubfields: Array<{ name: string; type: string }> = [
   { name: 'textHash', type: 'text' },
   { name: 'text', type: 'textarea' },
   { name: 'claimCount', type: 'number' },
+  { name: 'unverifiedExcerptCount', type: 'number' },
 ]
 
 const internalCorpusSubfields: Array<{ name: string; type: string }> = [
@@ -99,6 +100,13 @@ describe('corpus-snapshots collection', () => {
     }
   })
 
+  it('says on failedPageCount that skipped pages count too', () => {
+    const field = findField(CorpusSnapshots.fields, 'failedPageCount')
+    expect(field?.type === 'number' ? field.admin?.description : undefined).toBe(
+      'Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.',
+    )
+  })
+
   it('has a pages array with the expected subfields', () => {
     const field = findField(CorpusSnapshots.fields, 'pages')
     expect(field?.type).toBe('array')
@@ -126,6 +134,12 @@ describe('corpus-snapshots collection', () => {
     expect(text?.type === 'textarea' ? text.admin?.description : undefined).toBe(
       'Readable page text, capped at 24k chars (decision: stored for auditability).',
     )
+
+    // Excerpts are counted, never dropped: a smaller baseline inflates novelty.
+    const unverified = findField(field.fields, 'unverifiedExcerptCount')
+    expect(unverified?.type === 'number' ? unverified.admin?.description : undefined).toBe(
+      'Claims whose excerpt was not found in this page text; counted, not dropped.',
+    )
   })
 
   it('has an internalCorpus array with the expected subfields', () => {
@@ -149,9 +163,9 @@ describe('corpus-snapshots collection', () => {
     }
 
     const articleUpdatedAt = findField(field.fields, 'articleUpdatedAt')
-    expect(articleUpdatedAt && 'required' in articleUpdatedAt ? articleUpdatedAt.required : undefined).toBe(
-      true,
-    )
+    expect(
+      articleUpdatedAt && 'required' in articleUpdatedAt ? articleUpdatedAt.required : undefined,
+    ).toBe(true)
   })
 
   it('is readable only when authenticated, and never writable through the admin API', async () => {

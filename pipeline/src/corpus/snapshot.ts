@@ -13,7 +13,9 @@
  * Only the fetch layer tolerates failure: a page that will not load is recorded
  * with its reason and the snapshot goes `partial`. A claim-extraction reply
  * that does not parse fails the whole snapshot, because a silently thinner
- * baseline would quietly inflate every novelty score computed against it.
+ * baseline would quietly inflate every novelty score computed against it — the
+ * same reason a claim whose excerpt is not in the page is counted rather than
+ * dropped (`countUnverifiedExcerpts`).
  */
 
 import { createHash } from 'node:crypto'
@@ -23,6 +25,7 @@ import type { SerpResearch } from '../ahrefs'
 import { config } from '../config'
 import {
   type BaselineClaim,
+  excerptFoundIn,
   type Facet,
   hostnameOf,
   type InformationGap,
@@ -90,6 +93,23 @@ export function isSnapshotReusable(
   return age !== null && age < SNAPSHOT_REUSE_DAYS
 }
 
+/** How many recent snapshots to consider before deciding to rebuild. */
+export const REUSE_LOOKBACK = 3
+
+/**
+ * The newest reusable snapshot from a newest-first list, or null.
+ *
+ * Looking past the first row matters: a total crawl failure writes an `empty`
+ * row, and testing only the newest one would let that failure shadow a perfectly
+ * good snapshot from two days ago and pay for the whole crawl again.
+ */
+export function pickReusable<T extends { capturedAt: string; status: string }>(
+  docs: T[],
+  now: Date,
+): T | null {
+  return docs.find((doc) => isSnapshotReusable(doc, now)) ?? null
+}
+
 /** `empty` means no page yielded text at all, so there is no baseline to score against. */
 export function snapshotStatus(
   okPages: number,
@@ -121,6 +141,19 @@ export function snapshotHash(pages: { url: string; textHash: string }[]): string
 type PageRow = NonNullable<CorpusSnapshot['pages']>[number]
 
 /**
+ * How many of a document's claims quote something the document does not say.
+ *
+ * The claims are kept either way, deliberately: a hallucinated excerpt makes a
+ * baseline claim untrustworthy, but dropping it shrinks the baseline, and a
+ * smaller baseline makes every draft scored against it look *more* novel. Over-
+ * dropping would cause false passes, which is worse than a soft claim. The
+ * count is recorded per document so PR3 can decide whether to weight or drop.
+ */
+export function countUnverifiedExcerpts(claims: BaselineClaim[], text: string): number {
+  return claims.filter((claim) => !excerptFoundIn(claim.excerpt, text)).length
+}
+
+/**
  * The corpus snapshot for this article's keyword: an existing one when it is
  * fresh enough, otherwise a newly crawled, extracted, and clustered one.
  *
@@ -143,11 +176,11 @@ export async function getOrBuildSnapshot(
     collection: 'corpus-snapshots',
     where: { and: [{ keywordKey: { equals: key } }, { country: { equals: country } }] },
     sort: '-capturedAt',
-    limit: 1,
+    limit: REUSE_LOOKBACK,
     depth: 0,
   })
-  const previous = existing[0]
-  if (previous && isSnapshotReusable(previous, now)) {
+  const previous = pickReusable(existing, now)
+  if (previous) {
     const ageDays = Math.floor(snapshotAgeDays(previous.capturedAt, now) ?? 0)
     console.log(`[research] reusing corpus snapshot ${previous.id} (${ageDays}d old)`)
     return previous
@@ -167,12 +200,20 @@ export async function getOrBuildSnapshot(
       user: pageClaimUser(article.keyword, page, fetched.text),
       fixtureKey: 'page',
     })
-    return parsePageClaims(json, {
+    const claims = parsePageClaims(json, {
       docId: `serp:${page.position}`,
       sourceKind: 'serp',
       idPrefix: `b${page.position}`,
       url: page.url,
     })
+    const unverified = countUnverifiedExcerpts(claims, fetched.text)
+    if (unverified > 0) {
+      console.warn(
+        `[research] page ${page.position}: ${unverified}/${claims.length} claim excerpts ` +
+          `not found in the fetched text`,
+      )
+    }
+    return { position: page.position, claims, unverified }
   })
 
   // Our own published articles on the same topic.
@@ -180,6 +221,10 @@ export async function getOrBuildSnapshot(
     collection: 'articles',
     where: { and: [{ status: { equals: 'published' } }, { id: { not_equals: article.id } }] },
     depth: 0,
+    // Most-recently-touched first, so once the site passes 200 published
+    // articles the window we score against is at least the current content
+    // rather than an arbitrary slice.
+    sort: '-updatedAt',
     limit: 200,
     select: { keyword: true, updatedAt: true, title: true, body: true, faqItems: true },
   })
@@ -196,9 +241,12 @@ export async function getOrBuildSnapshot(
   }
 
   const claims: BaselineClaim[] = [
-    ...serpClaims.flat(),
+    ...serpClaims.flatMap((entry) => entry.claims),
     ...internalEntries.flatMap((entry) => entry.claims),
   ]
+  const unverifiedByPosition = new Map(
+    serpClaims.map((entry) => [entry.position, entry.unverified]),
+  )
   const baselineDocCount = okPages.length + internalEntries.length
 
   // Cluster the pooled claims into consensus facets and the gaps they leave.
@@ -241,6 +289,7 @@ export async function getOrBuildSnapshot(
     textHash: fetched.status === 'ok' ? textHash(fetched.text) : null,
     text: fetched.status === 'ok' ? fetched.text : null,
     claimCount: claimCountFor(`serp:${page.position}`),
+    unverifiedExcerptCount: unverifiedByPosition.get(page.position) ?? null,
   }))
 
   const created = await ctx.payload.create({

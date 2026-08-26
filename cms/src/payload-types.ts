@@ -488,6 +488,10 @@ export interface CorpusSnapshot {
          */
         text?: string | null;
         claimCount?: number | null;
+        /**
+         * Claims whose excerpt was not found in this page text; counted, not dropped.
+         */
+        unverifiedExcerptCount?: number | null;
         id?: string | null;
       }[]
     | null;
@@ -527,6 +531,9 @@ export interface CorpusSnapshot {
     | boolean
     | null;
   baselineDocCount?: number | null;
+  /**
+   * Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.
+   */
   failedPageCount?: number | null;
   updatedAt: string;
   createdAt: string;
@@ -1305,6 +1312,7 @@ export interface CorpusSnapshotsSelect<T extends boolean = true> {
         textHash?: T;
         text?: T;
         claimCount?: T;
+        unverifiedExcerptCount?: T;
         id?: T;
       };
   internalCorpus?:

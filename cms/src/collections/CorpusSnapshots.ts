@@ -6,7 +6,9 @@ import type { CollectionConfig } from 'payload'
  * Articles reference the snapshot they were researched from via
  * `research.snapshot`; a snapshot may be reused across articles that share a
  * keyword, and a future re-cluster may update `facets`/`queryCluster` on an
- * existing row, so unlike the audit collections this one allows update.
+ * existing row, so unlike the audit collections there is no hook forbidding
+ * update; the admin API still cannot write it (`access.update` is `() => false`
+ * and the pipeline writes with `overrideAccess`).
  */
 export const CorpusSnapshots: CollectionConfig = {
   slug: 'corpus-snapshots',
@@ -118,12 +120,21 @@ export const CorpusSnapshots: CollectionConfig = {
           name: 'text',
           type: 'textarea',
           admin: {
-            description: 'Readable page text, capped at 24k chars (decision: stored for auditability).',
+            description:
+              'Readable page text, capped at 24k chars (decision: stored for auditability).',
           },
         },
         {
           name: 'claimCount',
           type: 'number',
+        },
+        {
+          name: 'unverifiedExcerptCount',
+          type: 'number',
+          admin: {
+            description:
+              'Claims whose excerpt was not found in this page text; counted, not dropped.',
+          },
         },
       ],
     },
@@ -167,6 +178,10 @@ export const CorpusSnapshots: CollectionConfig = {
     {
       name: 'failedPageCount',
       type: 'number',
+      admin: {
+        description:
+          'Pages that yielded no text: failed fetches and skipped ones (a PDF, say) both count.',
+      },
     },
   ],
 }

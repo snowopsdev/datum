@@ -11,7 +11,7 @@
  */
 
 import type { Article, CorpusSnapshot } from '../../../cms/src/payload-types'
-import { type BaselineClaim, parsePageClaims } from '../informationGain/lib'
+import { type BaselineClaim, excerptFoundIn, parsePageClaims } from '../informationGain/lib'
 import { completeJSONLogged } from '../llm'
 import { lexicalToPlainText, type RichText } from '../richtext'
 import type { StageContext } from '../stages'
@@ -126,12 +126,13 @@ export async function internalCorpusEntry(
   const cached = await cachedClaims(ctx, doc)
   if (cached) return { doc, claims: cached, cached: true }
 
+  const text = articleText(doc)
   const { json } = await completeJSONLogged(ctx, 'claimExtraction', articleId, {
     system: PAGE_CLAIM_EXTRACTION_SYSTEM,
     user: internalClaimUser(
       keyword,
       { id: doc.id, title: doc.title ?? null, keyword: doc.keyword },
-      articleText(doc),
+      text,
     ),
     fixtureKey: 'page',
   })
@@ -141,5 +142,14 @@ export async function internalCorpusEntry(
     idPrefix: `i${doc.id}`,
     articleId: doc.id,
   })
+  // Same accounting as the SERP pages: excerpts are counted, never dropped.
+  // Only possible on the extraction path — a cache hit has no text at hand.
+  const unverified = claims.filter((claim) => !excerptFoundIn(claim.excerpt, text)).length
+  if (unverified > 0) {
+    console.warn(
+      `[research] internal article ${doc.id}: ${unverified}/${claims.length} claim excerpts ` +
+        `not found in the article text`,
+    )
+  }
   return { doc, claims, cached: false }
 }
