@@ -316,6 +316,13 @@ function ScorecardSection({
       <IgReasons claimById={claimById} reasons={run.reasons} />
 
       <h3 className="datum-ops__ig-subhead">Claims</h3>
+      {run.claimsTruncated ? (
+        <p className="datum-ops__warn">
+          Showing {run.claims.length} of {run.claimCount} claims. Claims a policy reason cites are
+          always shown, then blocked and review-flagged claims, then materially novel ones. Open the
+          run in admin to read the rest.
+        </p>
+      ) : null}
       {run.claims.length === 0 ? (
         <p className="datum-ops__sub" style={{ margin: 0 }}>
           This run recorded no claims.

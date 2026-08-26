@@ -256,9 +256,64 @@ export type InformationGainRunView = {
     firstPartyClaims: number | null
   }
   reasons: PolicyReason[]
+  /**
+   * The claims the review UI renders — a capped, reordered subset of the run's
+   * claims. See `selectRenderedClaims`.
+   */
   claims: ScorecardClaim[]
+  /** How many claims the run actually recorded, before the render cap. */
+  claimCount: number
+  /** True when `claims` is a strict subset of the run's claims. */
+  claimsTruncated: boolean
   tokenCount: number | null
   costUsd: number | null
+}
+
+/**
+ * Ceiling on how many claims cross the server/client boundary for one review
+ * page. 60 is the claim-extraction ceiling, so in practice a run fits under it
+ * and nothing is dropped; the cap exists so a future run that exceeds it
+ * degrades to a readable page instead of serialising an unbounded array of
+ * claims-with-evidence into the client bundle on every page load.
+ */
+export const MAX_RENDERED_CLAIMS = 60
+
+/**
+ * Orders claims by how much a reviewer needs to see them, then caps the list.
+ *
+ * Claims a run-level policy reason cites are **pinned**: they are kept ahead of
+ * everything else and are never dropped, even past the cap. This is not merely
+ * defensive. `EVIDENCE_LINEAGE_MISSING` and `FIRST_PARTY_MEASUREMENT_PRESENT`
+ * (`policy.ts`) attach a `claimId` at document level without setting `blocked`
+ * or `requiresHumanReview` on the claim itself, so a cited claim genuinely can
+ * carry neither flag. Truncating one would leave the reviewer a reason naming a
+ * claim that is not on the page — a dead link to the evidence for the decision
+ * they are being asked to make.
+ *
+ * The rest sort blocked/review-flagged first, then materially novel, then
+ * everything else. The sort is stable within each band, so a run's own claim
+ * order survives wherever the bands do not distinguish two claims.
+ */
+export function selectRenderedClaims(
+  claims: ScorecardClaim[],
+  reasons: PolicyReason[],
+  max = MAX_RENDERED_CLAIMS,
+): { claims: ScorecardClaim[]; truncated: boolean } {
+  if (claims.length <= max) return { claims, truncated: false }
+  const cited = new Set(reasons.map((r) => r.claimId).filter((id): id is string => Boolean(id)))
+  const pinned = claims.filter((c) => cited.has(c.id))
+  const rest = claims.filter((c) => !cited.has(c.id))
+  const band = (c: ScorecardClaim) =>
+    c.blocked || c.requiresHumanReview ? 0 : c.materiallyNovel ? 1 : 2
+  const ordered = rest
+    .map((claim, index) => ({ claim, index }))
+    .sort((a, b) => band(a.claim) - band(b.claim) || a.index - b.index)
+    .map((entry) => entry.claim)
+  // `pinned` is never sliced — see above. When it alone exceeds `max` the page
+  // renders more than the cap rather than hiding a cited claim.
+  const room = Math.max(0, max - pinned.length)
+  const selected = [...pinned, ...ordered.slice(0, room)]
+  return { claims: selected, truncated: selected.length < claims.length }
 }
 
 const DECISIONS: Decision[] = ['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK']
@@ -333,6 +388,35 @@ function toEvidence(value: unknown): ScorecardEvidence[] {
 export function toRunView(doc: InformationGainRun): InformationGainRunView {
   const materiallyNovel = asStringSet(doc.claimIds?.materiallyNovel)
   const verifiedNovel = asStringSet(doc.claimIds?.verifiedNovel)
+  const reasons = toPolicyReasons(doc.reasons)
+  const allClaims: ScorecardClaim[] = asRecordArray(doc.claims).map((c) => {
+    const scored = asRecord(c.scored)
+    const id = str(c.id)
+    return {
+      id,
+      text: str(c.text),
+      excerpt: str(c.excerpt),
+      section: typeof c.section === 'string' ? c.section : null,
+      kind: str(c.kind, 'unknown') as ScorecardClaim['kind'],
+      novelty: num(c.novelty),
+      relevance: num(c.relevance),
+      utility: num(c.utility),
+      intraDocumentNovelty: num(c.intraDocumentNovelty),
+      potentialGain: num(scored.potentialGain),
+      verifiedGain: num(scored.verifiedGain),
+      evidenceIntegrity: num(scored.evidenceIntegrity),
+      verificationMode: str(c.verificationMode, 'unknown') as ScorecardClaim['verificationMode'],
+      blocked: scored.blocked === true,
+      requiresHumanReview: scored.requiresHumanReview === true,
+      materiallyNovel: materiallyNovel.has(id),
+      verifiedNovel: verifiedNovel.has(id),
+      evidence: toEvidence(c.evidence),
+      reasons: toPolicyReasons(scored.reasons),
+    }
+  })
+  // Capped here, in the mapper the server view calls, so the cap is applied
+  // before the run ever crosses into the client component.
+  const rendered = selectRenderedClaims(allClaims, reasons)
   return {
     id: doc.id,
     createdAt: doc.createdAt,
@@ -358,32 +442,10 @@ export function toRunView(doc: InformationGainRun): InformationGainRunView {
       contradictoryClaims: num(doc.claimSummary?.contradictoryClaims),
       firstPartyClaims: num(doc.claimSummary?.firstPartyClaims),
     },
-    reasons: toPolicyReasons(doc.reasons),
-    claims: asRecordArray(doc.claims).map((c) => {
-      const scored = asRecord(c.scored)
-      const id = str(c.id)
-      return {
-        id,
-        text: str(c.text),
-        excerpt: str(c.excerpt),
-        section: typeof c.section === 'string' ? c.section : null,
-        kind: str(c.kind, 'unknown') as ScorecardClaim['kind'],
-        novelty: num(c.novelty),
-        relevance: num(c.relevance),
-        utility: num(c.utility),
-        intraDocumentNovelty: num(c.intraDocumentNovelty),
-        potentialGain: num(scored.potentialGain),
-        verifiedGain: num(scored.verifiedGain),
-        evidenceIntegrity: num(scored.evidenceIntegrity),
-        verificationMode: str(c.verificationMode, 'unknown') as ScorecardClaim['verificationMode'],
-        blocked: scored.blocked === true,
-        requiresHumanReview: scored.requiresHumanReview === true,
-        materiallyNovel: materiallyNovel.has(id),
-        verifiedNovel: verifiedNovel.has(id),
-        evidence: toEvidence(c.evidence),
-        reasons: toPolicyReasons(scored.reasons),
-      }
-    }),
+    reasons,
+    claims: rendered.claims,
+    claimCount: allClaims.length,
+    claimsTruncated: rendered.truncated,
     tokenCount: num(doc.tokenCount),
     costUsd: num(doc.costUsd),
   }
