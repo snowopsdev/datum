@@ -38,10 +38,11 @@ Choose a template when starting a run in the admin or when fetching topics from 
 
 ## Governance: brand voice and model choice
 
-Editorial rules live in two places in the admin, both under the **Governance** nav group:
+Editorial rules live in three places in the admin, all under the **Governance** nav group:
 
 - **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. An active voice is required for content runs. Seed a demo voice with `npm run seed -- --with-brand-voice`.
 - **Models** (`/admin/globals/llm-settings`) — which model runs generate, fact-check, qualitative review, and brand-voice extraction. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`/`o3`/`o4-mini`) wherever that call runs — see the env var split below.
+- **Source review** (`/admin/ops/governance/source-review`) — the domains the pipeline cited or saw ranking that nobody has rated yet. An unrated domain can't back a claim nobody else is making, so an article resting on one gets blocked; rate the ones you trust here and the next run counts them. See [`docs/information-gain.md`](docs/information-gain.md).
 
 ## Prerequisites
 
