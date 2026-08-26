@@ -48,8 +48,45 @@ export function resolveTemplate(article: Article): Template {
   throw new Error(`article ${article.id} has no populated template`)
 }
 
-export async function runPipeline(ctx: StageContext): Promise<void> {
-  for (const stage of stages) {
+/** What one stage did to its batch in a single run. */
+export interface StageRunSummary {
+  stage: Stage['name']
+  /** Articles found at the stage's `entryStatus` with a template assigned. */
+  total: number
+  failed: number
+}
+
+/** The outcome of a whole `pipeline:run`, so the CLI can exit non-zero. */
+export interface PipelineRunSummary {
+  stages: StageRunSummary[]
+  /** Articles that threw, across every stage; `0` means the run was clean. */
+  failed: number
+}
+
+/** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
+export function describeFailures(summary: PipelineRunSummary): string {
+  return summary.stages
+    .filter((entry) => entry.failed > 0)
+    .map((entry) => `${entry.stage} ${entry.failed}/${entry.total}`)
+    .join(', ')
+}
+
+/**
+ * Runs every stage over its eligible articles and reports what failed.
+ *
+ * Per-article failures are caught so one bad article cannot strand the batch or
+ * the stages behind it, but they are *not* swallowed: the counts come back in
+ * the summary and `pipeline/src/index.ts` exits non-zero on them, so a
+ * scheduled run's failure alerting and retry policy still see stuck articles.
+ *
+ * `stagesToRun` defaults to the real pipeline; tests pass their own.
+ */
+export async function runPipeline(
+  ctx: StageContext,
+  stagesToRun: Stage[] = stages,
+): Promise<PipelineRunSummary> {
+  const summary: PipelineRunSummary = { stages: [], failed: 0 }
+  for (const stage of stagesToRun) {
     const { docs } = await ctx.payload.find({
       collection: 'articles',
       where: {
@@ -103,5 +140,8 @@ export async function runPipeline(ctx: StageContext): Promise<void> {
           `"${stage.entryStatus}"; the next run retries them`,
       )
     }
+    summary.stages.push({ stage: stage.name, total: docs.length, failed })
+    summary.failed += failed
   }
+  return summary
 }

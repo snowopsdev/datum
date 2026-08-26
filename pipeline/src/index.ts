@@ -7,7 +7,7 @@ import { type FetchContext, fetchTopics } from './fetchTopics'
 import { loadStageModels } from './models'
 import { initPayload } from './payloadClient'
 import { printReport, type ReportPeriod } from './report'
-import { runPipeline, type StageContext } from './stages'
+import { describeFailures, runPipeline, type StageContext } from './stages'
 import { loadStyleGuide } from './styleGuide'
 
 interface CliArgs {
@@ -50,7 +50,8 @@ function parseArgs(argv: string[]): CliArgs {
   return { command, count, period }
 }
 
-async function main(): Promise<void> {
+/** `0` unless something failed; `main` sets it and the single exit at the end reads it. */
+async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2))
   const payload = await initPayload()
   const runId = randomUUID()
@@ -76,14 +77,27 @@ async function main(): Promise<void> {
       models: await loadStageModels(payload),
       brandVoice,
     }
-    await runPipeline(ctx)
+    const summary = await runPipeline(ctx)
+    if (summary.failed > 0) {
+      // Exit non-zero so a scheduled run's alerting and retry policy see the
+      // stuck articles; the batch itself already ran to completion.
+      console.error(
+        `[pipeline] ${summary.failed} article(s) failed (${describeFailures(summary)}); ` +
+          'they kept their status and the next run retries them',
+      )
+      return 1
+    }
   } else {
     await printReport(payload, args.period)
   }
-  process.exit(0)
+  return 0
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+main()
+  .then((code) => {
+    process.exit(code)
+  })
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
