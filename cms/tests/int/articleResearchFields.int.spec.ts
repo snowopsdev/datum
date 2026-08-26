@@ -32,6 +32,9 @@ describe('articles research fields', () => {
     expect(field?.type).toBe('relationship')
     if (field?.type === 'relationship') {
       expect(field.relationTo).toBe('corpus-snapshots')
+      // Never hydrated by a depth-1 query: a snapshot carries every crawled
+      // page's text, and no pipeline stage reads it off the article.
+      expect(field.maxDepth).toBe(0)
     }
   })
 
@@ -39,7 +42,9 @@ describe('articles research fields', () => {
     for (const name of ['snapshot', 'queryCluster', 'facets', 'gaps']) {
       const field = findField(research.fields, name)
       const description =
-        field?.type === 'relationship' || field?.type === 'json' ? field.admin?.description : undefined
+        field?.type === 'relationship' || field?.type === 'json'
+          ? field.admin?.description
+          : undefined
       expect(description).toBe('Written by the research stage; see docs/information-gain.md.')
     }
   })
@@ -47,9 +52,9 @@ describe('articles research fields', () => {
   it('adds top-level revisionNotes and revisionCount fields', () => {
     const revisionNotes = findField(Articles.fields, 'revisionNotes')
     expect(revisionNotes?.type).toBe('textarea')
-    expect(
-      revisionNotes?.type === 'textarea' ? revisionNotes.admin?.description : undefined,
-    ).toBe('Reasons from the last information-gain run or reviewer; injected into the next generate prompt.')
+    expect(revisionNotes?.type === 'textarea' ? revisionNotes.admin?.description : undefined).toBe(
+      'Reasons from the last information-gain run or reviewer; injected into the next generate prompt.',
+    )
 
     const revisionCount = findField(Articles.fields, 'revisionCount')
     expect(revisionCount?.type).toBe('number')

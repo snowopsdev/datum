@@ -66,6 +66,11 @@ export const Articles: CollectionConfig = {
           name: 'snapshot',
           type: 'relationship',
           relationTo: 'corpus-snapshots',
+          // Stays an id at any query depth: a snapshot carries every crawled
+          // page's text, and the pipeline's per-stage `find` would otherwise
+          // drag the whole corpus into memory for every article it loads.
+          // Load it explicitly when the baseline is actually needed.
+          maxDepth: 0,
           admin: {
             description: 'Written by the research stage; see docs/information-gain.md.',
           },
