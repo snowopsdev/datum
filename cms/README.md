@@ -14,3 +14,4 @@ For install, env setup, seeding, and day-to-day commands, use the [root README](
 | `npm run lint` / `typecheck` | ESLint and TypeScript |
 | `npm run test:int` | Vitest integration tests |
 | `npm run test:e2e` | Playwright e2e (start `npm run dev` first, or ensure Playwright’s webServer can start) |
+| `npm run jobs:run` | Process one queued `content` pipeline job (use from a production worker/scheduler) |

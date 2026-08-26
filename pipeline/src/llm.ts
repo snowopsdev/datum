@@ -17,9 +17,17 @@ export interface LlmRequest {
 
 export interface LlmResult {
   json: unknown
-  usage: { inputTokens: number; outputTokens: number; webSearchRequests: number }
+  usage: {
+    inputTokens: number
+    outputTokens: number
+    webSearchRequests: number
+  }
   provider: LlmProvider | 'mock'
   model: string
+}
+
+export interface LlmClient {
+  completeJSON(stage: LlmStage, request: LlmRequest, model: string): Promise<LlmResult>
 }
 
 const JSON_ONLY = 'Reply with only a single JSON object. No prose, no code fences.'
@@ -81,7 +89,9 @@ async function completeJSONAnthropic(
     )
     const finalText = textBlocks.at(-1)?.text
     if (!finalText) {
-      throw new Error(`[llm:${stage}] response contained no text block (stop_reason: ${response.stop_reason})`)
+      throw new Error(
+        `[llm:${stage}] response contained no text block (stop_reason: ${response.stop_reason})`,
+      )
     }
     return {
       json: parseJsonReply(finalText, stage),
@@ -98,7 +108,9 @@ async function completeJSONAnthropic(
       throw new Error(`[llm:${stage}] invalid ANTHROPIC_API_KEY: ${error.message}`)
     }
     if (error instanceof Anthropic.RateLimitError) {
-      throw new Error(`[llm:${stage}] rate limited by the Claude API — retry later: ${error.message}`)
+      throw new Error(
+        `[llm:${stage}] rate limited by the Claude API — retry later: ${error.message}`,
+      )
     }
     if (error instanceof Anthropic.APIConnectionError) {
       throw new Error(`[llm:${stage}] could not reach the Claude API: ${error.message}`)
@@ -145,7 +157,9 @@ async function completeJSONOpenAI(
       throw new Error(`[llm:${stage}] invalid OPENAI_API_KEY: ${error.message}`)
     }
     if (error instanceof OpenAI.RateLimitError) {
-      throw new Error(`[llm:${stage}] rate limited by the OpenAI API — retry later: ${error.message}`)
+      throw new Error(
+        `[llm:${stage}] rate limited by the OpenAI API — retry later: ${error.message}`,
+      )
     }
     if (error instanceof OpenAI.APIConnectionError) {
       throw new Error(`[llm:${stage}] could not reach the OpenAI API: ${error.message}`)
@@ -182,11 +196,24 @@ export async function completeJSON(
     : completeJSONAnthropic(stage, request, model)
 }
 
+/** Build a run-scoped adapter so queued runs do not depend on mutable module state. */
+export function createLlmClient(mode: 'mock' | 'live'): LlmClient {
+  return {
+    completeJSON(stage, request, model) {
+      if (mode === 'mock') return completeJSONMock(stage, model)
+      return providerForModel(model) === 'openai'
+        ? completeJSONOpenAI(stage, request, model)
+        : completeJSONAnthropic(stage, request, model)
+    },
+  }
+}
+
 export interface CostContext {
   payload: Payload
   runId: string
   /** Model per stage for this run, from the admin's Models global / env / default. */
   models: Record<LlmStage, string>
+  llm?: LlmClient
 }
 
 function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
@@ -203,7 +230,11 @@ export async function completeJSONLogged(
   articleId: number,
   request: LlmRequest,
 ): Promise<LlmResult> {
-  const result = await completeJSON(stage, request, ctx.models[stage])
+  const result = await (ctx.llm ?? createLlmClient(config.mockMode ? 'mock' : 'live')).completeJSON(
+    stage,
+    request,
+    ctx.models[stage],
+  )
   await ctx.payload.create({
     collection: 'cost-log',
     overrideAccess: true,

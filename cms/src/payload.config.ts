@@ -14,7 +14,9 @@ import { ArticleAudit } from './collections/ArticleAudit'
 import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
+import { PipelineRuns } from './collections/PipelineRuns'
 import { LlmSettings } from './globals/LlmSettings'
+import { ContentRunTask } from './jobs/contentRun'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -36,6 +38,12 @@ export default buildConfig({
     components: {
       afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
       views: {
+        dashboard: {
+          Component: '/components/ops/OnboardingDashboardView#OnboardingDashboardView',
+          path: '/',
+          exact: true,
+          meta: { title: 'Workspace setup' },
+        },
         articleBoard: {
           Component: '/components/ops/ArticleBoardView#ArticleBoardView',
           path: '/ops/articles',
@@ -78,8 +86,18 @@ export default buildConfig({
     BrandVoices,
     BrandVoiceFiles,
     GovernanceAudit,
+    PipelineRuns,
   ],
   globals: [LlmSettings],
+  jobs: {
+    tasks: [ContentRunTask],
+    enableConcurrencyControl: true,
+    processingOrder: 'createdAt',
+    autoRun:
+      process.env.NODE_ENV === 'production'
+        ? []
+        : [{ cron: '*/2 * * * * *', queue: 'content', limit: 1 }],
+  },
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

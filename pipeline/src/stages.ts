@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
 
 import type { Article, Template } from '../../cms/src/payload-types'
 
@@ -9,6 +9,7 @@ import { qaStage } from './qa/index'
 import { researchStage } from './research'
 import type { StageModels } from './models'
 import type { StyleGuide } from './styleGuide'
+import type { LlmClient } from './llm'
 
 export type ArticleStatus = Article['status']
 
@@ -22,6 +23,8 @@ export interface StageContext {
   models: StageModels
   /** The tenant's active brand voice; null when none has been activated. */
   brandVoice: BrandVoiceContent | null
+  /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
+  llm?: LlmClient
 }
 
 export interface StageOutcome {
@@ -36,6 +39,15 @@ export interface Stage {
   run(article: Article, ctx: StageContext): Promise<StageOutcome>
 }
 
+export interface RunPipelineOptions {
+  articleIds?: number[]
+}
+
+export interface RunPipelineResult {
+  articleIds: number[]
+  finalStatuses: Record<string, number>
+}
+
 /**
  * The whole pipeline as a table. pipeline:run walks it in order; work is
  * selected purely by current status, so re-running converges instead of
@@ -48,13 +60,18 @@ export function resolveTemplate(article: Article): Template {
   throw new Error(`article ${article.id} has no populated template`)
 }
 
-export async function runPipeline(ctx: StageContext): Promise<void> {
+export async function runPipeline(
+  ctx: StageContext,
+  options: RunPipelineOptions = {},
+): Promise<RunPipelineResult> {
+  const processed = new Set<number>()
+  const finalStatusByArticle = new Map<number, ArticleStatus>()
   for (const stage of stages) {
+    const and: Where[] = [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }]
+    if (options.articleIds?.length) and.push({ id: { in: options.articleIds } })
     const { docs } = await ctx.payload.find({
       collection: 'articles',
-      where: {
-        and: [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }],
-      },
+      where: { and },
       pagination: false,
       depth: 1,
       sort: 'createdAt',
@@ -62,6 +79,8 @@ export async function runPipeline(ctx: StageContext): Promise<void> {
     console.log(`[${stage.name}] ${docs.length} article(s) at status "${stage.entryStatus}"`)
     for (const article of docs) {
       const outcome = await stage.run(article, ctx)
+      processed.add(article.id)
+      finalStatusByArticle.set(article.id, outcome.status)
       await ctx.payload.update({
         collection: 'articles',
         id: article.id,
@@ -85,4 +104,9 @@ export async function runPipeline(ctx: StageContext): Promise<void> {
       console.log(`[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`)
     }
   }
+  const finalStatuses: Record<string, number> = {}
+  for (const status of finalStatusByArticle.values()) {
+    finalStatuses[status] = (finalStatuses[status] ?? 0) + 1
+  }
+  return { articleIds: [...processed], finalStatuses }
 }
