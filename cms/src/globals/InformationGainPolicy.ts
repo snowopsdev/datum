@@ -15,7 +15,19 @@ const policyField = (f: PolicyFieldDef): Field => {
     description: `${f.description} Failing this gate → ${f.outcome}. Leave blank to use ${f.env} from the environment, or the default ${String(f.default)}.`,
   }
   if (f.kind === 'boolean') {
-    return { name: f.key, type: 'checkbox', label, admin }
+    // A select rather than a checkbox: an unchecked box is indistinguishable
+    // from an unset one, which would show the three BLOCK gates (all defaulting
+    // to true) as if they were off. Clearing the select returns it to unset.
+    return {
+      name: f.key,
+      type: 'select',
+      label,
+      options: [
+        { label: 'Enabled', value: 'true' },
+        { label: 'Disabled', value: 'false' },
+      ],
+      admin: { ...admin, isClearable: true },
+    }
   }
   return {
     name: f.key,

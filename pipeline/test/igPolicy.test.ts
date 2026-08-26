@@ -197,10 +197,40 @@ describe('resolvePolicy', () => {
     assert.equal(bogus.sources.requireExactValueMatch, 'default')
   })
 
+  it("reads the global's 'true'/'false' select values as an admin choice", () => {
+    // The boolean gates are a clearable select in the admin, so the stored
+    // value is a string; blank/absent must stay "unset" and fall through.
+    const off = resolvePolicy({ requireExactValueMatch: 'false' }, {})
+    assert.equal(off.policy.requireExactValueMatch, false)
+    assert.equal(off.sources.requireExactValueMatch, 'admin')
+
+    const on = resolvePolicy(
+      { requireExactValueMatch: 'true' },
+      { INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH: 'false' },
+    )
+    assert.equal(on.policy.requireExactValueMatch, true)
+    assert.equal(on.sources.requireExactValueMatch, 'admin')
+
+    const cleared = resolvePolicy(
+      { requireExactValueMatch: '' },
+      { INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH: 'false' },
+    )
+    assert.equal(cleared.policy.requireExactValueMatch, false)
+    assert.equal(cleared.sources.requireExactValueMatch, 'env')
+
+    const nulled = resolvePolicy({ requireExactValueMatch: null }, {})
+    assert.equal(nulled.policy.requireExactValueMatch, true)
+    assert.equal(nulled.sources.requireExactValueMatch, 'default')
+  })
+
   it('rejects a non-boolean admin value for a boolean field', () => {
-    const resolved = resolvePolicy({ requireExactValueMatch: 'true' }, {})
+    const resolved = resolvePolicy({ requireExactValueMatch: 'maybe' }, {})
     assert.equal(resolved.policy.requireExactValueMatch, true)
     assert.equal(resolved.sources.requireExactValueMatch, 'default')
+
+    const numeric = resolvePolicy({ requireEvidenceLineage: 1 }, {})
+    assert.equal(numeric.policy.requireEvidenceLineage, true)
+    assert.equal(numeric.sources.requireEvidenceLineage, 'default')
   })
 
   it('requires counts to be non-negative integers', () => {

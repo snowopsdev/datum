@@ -168,6 +168,14 @@ export interface ResolvedPolicy {
 const TRUE_WORDS = new Set(['true', '1', 'yes'])
 const FALSE_WORDS = new Set(['false', '0', 'no'])
 
+/** Shared by the admin and env parsers so both read a boolean the same way. */
+function parseBooleanWord(raw: string): boolean | undefined {
+  const word = raw.trim().toLowerCase()
+  if (TRUE_WORDS.has(word)) return true
+  if (FALSE_WORDS.has(word)) return false
+  return undefined
+}
+
 const validNumber = (value: number, kind: PolicyKind): boolean => {
   if (!Number.isFinite(value)) return false
   if (kind === 'count') return Number.isInteger(value) && value >= 0
@@ -176,7 +184,13 @@ const validNumber = (value: number, kind: PolicyKind): boolean => {
 
 /** The admin value for a field, or undefined when it is absent or out of range. */
 function fromAdmin(value: unknown, kind: PolicyKind): number | boolean | undefined {
-  if (kind === 'boolean') return typeof value === 'boolean' ? value : undefined
+  if (kind === 'boolean') {
+    // The global stores the boolean gates as a clearable select ('true'/'false')
+    // so that "unset" stays a visible, distinct state; a real boolean is
+    // accepted too, for API callers and older stored docs.
+    if (typeof value === 'boolean') return value
+    return typeof value === 'string' ? parseBooleanWord(value) : undefined
+  }
   if (typeof value !== 'number') return undefined
   return validNumber(value, kind) ? value : undefined
 }
@@ -185,12 +199,7 @@ function fromAdmin(value: unknown, kind: PolicyKind): number | boolean | undefin
 function fromEnv(raw: string | undefined, kind: PolicyKind): number | boolean | undefined {
   const text = raw?.trim()
   if (!text) return undefined
-  if (kind === 'boolean') {
-    const word = text.toLowerCase()
-    if (TRUE_WORDS.has(word)) return true
-    if (FALSE_WORDS.has(word)) return false
-    return undefined
-  }
+  if (kind === 'boolean') return parseBooleanWord(text)
   const value = Number(text)
   return validNumber(value, kind) ? value : undefined
 }

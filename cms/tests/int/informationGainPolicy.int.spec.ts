@@ -7,7 +7,7 @@ import type { Field } from 'payload'
 
 /** Only some field types carry `admin.description` in Payload's union. */
 const descriptionOf = (field: Field): string =>
-  field.type === 'number' || field.type === 'checkbox' ? String(field.admin?.description ?? '') : ''
+  field.type === 'number' || field.type === 'select' ? String(field.admin?.description ?? '') : ''
 
 describe('Information-gain policy global', () => {
   it('mirrors POLICY_FIELDS field for field, in order, with no persisted default', () => {
@@ -16,7 +16,7 @@ describe('Information-gain policy global', () => {
 
     for (const [index, def] of POLICY_FIELDS.entries()) {
       const field = InformationGainPolicy.fields[index]
-      expect(field.type).toBe(def.kind === 'boolean' ? 'checkbox' : 'number')
+      expect(field.type).toBe(def.kind === 'boolean' ? 'select' : 'number')
       // No Payload `defaultValue`: it would be persisted on the first admin
       // save, which `resolvePolicy` could not tell from a real admin choice.
       expect('defaultValue' in field).toBe(false)
@@ -24,6 +24,22 @@ describe('Information-gain policy global', () => {
       expect(descriptionOf(field)).toContain(def.env)
       expect(descriptionOf(field)).toContain(def.outcome)
       expect(descriptionOf(field)).toContain(String(def.default))
+    }
+  })
+
+  it('renders boolean gates as a clearable Enabled/Disabled select, not a checkbox', () => {
+    // An unchecked checkbox is indistinguishable from an unset one, which would
+    // show the three BLOCK gates (all defaulting to true) as if they were off.
+    for (const [index, def] of POLICY_FIELDS.entries()) {
+      if (def.kind !== 'boolean') continue
+      const field = InformationGainPolicy.fields[index]
+      expect(field.type).toBe('select')
+      if (field.type !== 'select') continue
+      expect(field.options).toEqual([
+        { label: 'Enabled', value: 'true' },
+        { label: 'Disabled', value: 'false' },
+      ])
+      expect(field.admin?.isClearable).toBe(true)
     }
   })
 

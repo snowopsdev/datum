@@ -1349,15 +1349,15 @@ export interface InformationGainPolicy {
   /**
    * Numeric or temporal values in a materially novel claim must match the cited evidence exactly. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH from the environment, or the default true.
    */
-  requireExactValueMatch?: boolean | null;
+  requireExactValueMatch?: ('true' | 'false') | null;
   /**
    * Every materially novel verifiable claim must cite at least one evidence excerpt. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EVIDENCE_LINEAGE from the environment, or the default true.
    */
-  requireEvidenceLineage?: boolean | null;
+  requireEvidenceLineage?: ('true' | 'false') | null;
   /**
    * Drafts are model-generated, so any claimed first-party test, survey, or dataset is fabricated. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS from the environment, or the default true.
    */
-  blockFirstPartyMeasurements?: boolean | null;
+  blockFirstPartyMeasurements?: ('true' | 'false') | null;
   /**
    * A claim contradicting reliable evidence at or above this probability needs a human decision (it may be legitimately new). Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MAX_CONTRADICTION_PROBABILITY from the environment, or the default 0.25.
    */
