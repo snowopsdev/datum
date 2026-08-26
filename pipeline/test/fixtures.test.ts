@@ -2,6 +2,38 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { mockFixture } from '../src/fixtures'
+import { createLlmClient } from '../src/llm'
+
+describe('createLlmClient (mock mode)', () => {
+  const client = createLlmClient('mock')
+
+  // A dropped `fixtureKey` hands the research stage the whole
+  // `{ page, facets }` object, which `parsePageClaims` rejects — so every mock
+  // snapshot build fails at the first page.
+  it('passes fixtureKey through to the fixture lookup', async () => {
+    const page = await client.completeJSON(
+      'claimExtraction',
+      { system: 's', user: 'u', fixtureKey: 'page' },
+      'claude-opus-5',
+    )
+    assert.deepEqual(page.json, mockFixture('claimExtraction', 'page'))
+    assert.equal((page.json as { claims: unknown[] }).claims.length, 8)
+
+    const facets = await client.completeJSON(
+      'claimExtraction',
+      { system: 's', user: 'u', fixtureKey: 'facets' },
+      'claude-opus-5',
+    )
+    assert.deepEqual(facets.json, mockFixture('claimExtraction', 'facets'))
+    assert.notDeepEqual(facets.json, page.json)
+  })
+
+  it('still returns the whole fixture when no fixtureKey is asked for', async () => {
+    const result = await client.completeJSON('generate', { system: 's', user: 'u' }, 'claude-opus-5')
+    assert.deepEqual(result.json, mockFixture('generate'))
+    assert.equal(result.provider, 'mock')
+  })
+})
 
 describe('mockFixture', () => {
   it('returns the claimExtraction sub-fixture for a given fixtureKey', () => {
