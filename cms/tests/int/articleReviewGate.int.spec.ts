@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   gateReviewOverride,
   OVERRIDABLE_STATUSES,
-  OVERRIDE_TARGET_STATUSES,
+  UNGATED_OVERRIDE_TARGETS,
 } from '@/lib/articleReviewGate'
 
 describe('article review-override gate', () => {
@@ -161,7 +161,7 @@ describe('article review-override gate', () => {
     expect(result).toBe(data)
   })
 
-  it.each(['approved', 'published'])(
+  it.each(['qa_passed', 'approved', 'published'])(
     'throws when jumping a needs_review article straight to %s without a justification',
     (target) => {
       expect(() =>
@@ -175,7 +175,7 @@ describe('article review-override gate', () => {
     },
   )
 
-  it.each(['approved', 'published'])(
+  it.each(['qa_passed', 'approved', 'published'])(
     'throws when jumping a blocked article straight to %s reusing the persisted justification',
     (target) => {
       expect(() =>
@@ -248,12 +248,12 @@ describe('article review-override gate', () => {
     ['blocked', 'drafted'],
     ['blocked', 'researched'],
     ['blocked', 'blocked'],
-  ])('leaves %s to %s untouched', (from, to) => {
+  ])('leaves %s to %s untouched', (from_, to) => {
     const data = { status: to }
     const context: Record<string, unknown> = {}
     const result = gateReviewOverride({
       data,
-      originalDoc: { status: from },
+      originalDoc: { status: from_ },
       req: { user: null },
       context,
     } as never) as Record<string, unknown>
@@ -292,8 +292,64 @@ describe('article review-override gate', () => {
     expect(context.articleAudit).toBeUndefined()
   })
 
-  it('exports the exact overridable statuses and override targets', () => {
+  it('audits a needs_review to qa_passed hop as an override with the target status', () => {
+    // The reviewer's detour: qa_passed is Approve-eligible in ArticleReview.tsx,
+    // so reaching it from review must cost a justification like verified does.
+    const context: Record<string, unknown> = {}
+    const result = gateReviewOverride({
+      data: { status: 'qa_passed', reviewJustification: 'rerunning QA by hand' },
+      originalDoc: { status: 'needs_review' },
+      req: { user: { id: 7, email: 'reviewer@example.com' } },
+      context,
+    } as never) as Record<string, unknown>
+
+    expect(result.reviewedBy).toBe('reviewer@example.com')
+    expect(context.articleAudit).toEqual({
+      event: 'review_overridden',
+      summary: 'Reviewer overrode needs_review straight to qa_passed',
+      details: { justification: 'rerunning QA by hand', targetStatus: 'qa_passed' },
+    })
+  })
+
+  it('overwrites a stale reviewedBy submitted with the document', () => {
+    // The stock admin submits the whole document, so the previous reviewer's
+    // value rides along; the override must be attributed to the current actor.
+    const result = gateReviewOverride({
+      data: {
+        status: 'verified',
+        reviewJustification: 'a fresh reason',
+        reviewedBy: 'previous@example.com',
+      },
+      originalDoc: { status: 'needs_review', reviewedBy: 'previous@example.com' },
+      req: { user: { id: 9, email: 'current@example.com' } },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result.reviewedBy).toBe('current@example.com')
+  })
+
+  it('overwrites a stale reviewedBy with "system" when the request is unauthenticated', () => {
+    const result = gateReviewOverride({
+      data: {
+        status: 'approved',
+        reviewJustification: 'a fresh reason',
+        reviewedBy: 'previous@example.com',
+      },
+      originalDoc: { status: 'blocked' },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result.reviewedBy).toBe('system')
+  })
+
+  it('exports the exact overridable statuses and ungated targets', () => {
     expect(OVERRIDABLE_STATUSES).toEqual(['needs_review', 'blocked'])
-    expect(OVERRIDE_TARGET_STATUSES).toEqual(['verified', 'approved', 'published'])
+    expect(UNGATED_OVERRIDE_TARGETS).toEqual([
+      'needs_revision',
+      'drafted',
+      'researched',
+      'topic_selected',
+      'needs_review',
+      'blocked',
+    ])
   })
 })
