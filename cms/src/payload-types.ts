@@ -422,7 +422,7 @@ export interface Article {
     };
   };
   /**
-   * Written by the informationGain stage; the linked run holds the full scorecard.
+   * Written by the informationGain stage; the linked run holds the full scorecard. Read-only: a decision can only be earned by scoring.
    */
   informationGain?: {
     run?: (number | null) | InformationGainRun;
