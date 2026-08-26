@@ -1,12 +1,14 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
-import { gateReviewOverride } from '../lib/articleReviewGate'
+import { gateReviewOverride, gateVerifiedStatus } from '../lib/articleReviewGate'
 
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
-    beforeChange: [gateReviewOverride],
+    // Order is documentation, not dependency: `gateVerifiedStatus` re-derives
+    // the fresh-justification test rather than trusting the hook before it.
+    beforeChange: [gateReviewOverride, gateVerifiedStatus],
     afterChange: [auditArticleChange],
   },
   admin: {
@@ -234,9 +236,20 @@ export const Articles: CollectionConfig = {
     {
       name: 'informationGain',
       type: 'group',
+      access: {
+        // The scoring stage writes this with the Local API's default
+        // `overrideAccess: true`, which skips field access entirely; every
+        // other caller — the admin panel, REST, the ops server actions, which
+        // all pass `overrideAccess: false` — is refused. Without this an editor
+        // could hand-set `decision: 'PASS'` and then `status: 'verified'` in
+        // two ordinary edits and skip scoring; `gateVerifiedStatus` owns the
+        // other half of that, the status transition itself.
+        update: () => false,
+      },
       admin: {
+        readOnly: true,
         description:
-          'Written by the informationGain stage; the linked run holds the full scorecard.',
+          'Written by the informationGain stage; the linked run holds the full scorecard. Read-only: a decision can only be earned by scoring.',
       },
       fields: [
         {

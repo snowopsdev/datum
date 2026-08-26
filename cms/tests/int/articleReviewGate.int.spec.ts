@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   gateReviewOverride,
+  gateVerifiedStatus,
   OVERRIDABLE_STATUSES,
+  PASSING_DECISION,
   UNGATED_OVERRIDE_TARGETS,
 } from '@/lib/articleReviewGate'
 
@@ -124,6 +126,9 @@ describe('article review-override gate', () => {
   })
 
   it('leaves qa_passed to verified untouched (not an override transition)', () => {
+    // gateReviewOverride only governs transitions *out of* a review status.
+    // The qa_passed -> verified path is gateVerifiedStatus's business; see the
+    // "verified is reachable only through scoring" block below.
     const data = { status: 'verified' }
     const context: Record<string, unknown> = {}
     const result = gateReviewOverride({
@@ -351,5 +356,206 @@ describe('article review-override gate', () => {
       'needs_review',
       'blocked',
     ])
+  })
+})
+
+describe('verified is reachable only through scoring or a reviewed override', () => {
+  const scored = (decision: string) => ({ informationGain: { decision } })
+
+  it('refuses a hand-set qa_passed to verified with no scoring run', () => {
+    // The two-move bypass this gate exists for: without it an editor reaches
+    // approved having never been scored.
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: { status: 'qa_passed' },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('only through information-gain scoring')
+  })
+
+  it('names the decision it found in the error', () => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: { status: 'qa_passed', ...scored('BLOCK') },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('decision BLOCK')
+
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: { status: 'qa_passed' },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('decision none')
+  })
+
+  it.each(['REVISE', 'HUMAN_REVIEW', 'BLOCK'])('refuses a persisted %s decision', (decision) => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: { status: 'qa_passed', ...scored(decision) },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('only through information-gain scoring')
+  })
+
+  it('allows the transition when the article already carries a persisted PASS', () => {
+    const data = { status: 'verified' }
+    const result = gateVerifiedStatus({
+      data,
+      originalDoc: { status: 'qa_passed', ...scored(PASSING_DECISION) },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+  })
+
+  it('allows the stage-shaped write that sets the decision and the status together', () => {
+    // Exactly what runPipeline sends: one update carrying the whole
+    // `informationGain` summary alongside the new status. Reading only
+    // originalDoc here would reject the one write the gate exists to permit.
+    const data = {
+      status: 'verified',
+      informationGain: {
+        run: 12,
+        decision: 'PASS',
+        policyVersion: 'ig-v1:2a9ee80976c03c4b',
+        consensusCoverage: 1,
+        verifiedGainUnits: 2.08,
+        verificationRatio: 0.957,
+        internalDuplicationRate: 0,
+        verifiedNovelClaims: 2,
+        scoredAt: '2026-08-26T15:05:08.029Z',
+      },
+      totalCostUsd: 0.87,
+    }
+    const result = gateVerifiedStatus({
+      data,
+      originalDoc: { status: 'qa_passed' },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+  })
+
+  it('refuses a stage-shaped write whose decision is not PASS', () => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified', informationGain: { decision: 'BLOCK' } },
+        originalDoc: { status: 'qa_passed', ...scored(PASSING_DECISION) },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('decision BLOCK')
+  })
+
+  it('refuses a create that asserts verified out of nowhere', () => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: undefined,
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('decision none')
+  })
+
+  it.each([...OVERRIDABLE_STATUSES])(
+    'allows the %s override when the reviewer supplies a fresh justification',
+    (from) => {
+      const data = { status: 'verified', reviewJustification: 'checked the sources by hand' }
+      const result = gateVerifiedStatus({
+        data,
+        originalDoc: { status: from, reviewJustification: null },
+        req: { user: null },
+        context: {},
+      } as never) as Record<string, unknown>
+      expect(result).toBe(data)
+    },
+  )
+
+  it.each([...OVERRIDABLE_STATUSES])('refuses the %s override with no justification', (from) => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified' },
+        originalDoc: { status: from },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('requires a new reviewJustification')
+  })
+
+  it('refuses the override when the justification is the persisted one reused', () => {
+    expect(() =>
+      gateVerifiedStatus({
+        data: { status: 'verified', reviewJustification: '  same reason as last time ' },
+        originalDoc: { status: 'blocked', reviewJustification: 'same reason as last time' },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('requires a new reviewJustification')
+  })
+
+  it('does not depend on hook order: it accepts data gateReviewOverride already trimmed', () => {
+    // gateReviewOverride runs first and rewrites data.reviewJustification to
+    // its trimmed form. gateVerifiedStatus must still see that as fresh.
+    const originalDoc = { status: 'needs_review', reviewJustification: 'an older reason' }
+    const data: Record<string, unknown> = {
+      status: 'verified',
+      reviewJustification: '  a fresh reason  ',
+    }
+    gateReviewOverride({ data, originalDoc, req: { user: null }, context: {} } as never)
+    expect(data.reviewJustification).toBe('a fresh reason')
+
+    const result = gateVerifiedStatus({
+      data,
+      originalDoc,
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+  })
+
+  it('leaves a re-save of an already-verified article untouched', () => {
+    const data = { status: 'verified', title: 'a retitled article' }
+    const result = gateVerifiedStatus({
+      data,
+      originalDoc: { status: 'verified' },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
+  })
+
+  it.each(['approved', 'published', 'needs_revision', 'qa_passed', 'drafted'])(
+    'ignores a transition to %s entirely',
+    (target) => {
+      const data = { status: target }
+      const result = gateVerifiedStatus({
+        data,
+        originalDoc: { status: 'qa_passed' },
+        req: { user: null },
+        context: {},
+      } as never) as Record<string, unknown>
+      expect(result).toBe(data)
+    },
+  )
+
+  it('ignores an edit that does not touch status', () => {
+    const data = { title: 'a retitled article' }
+    const result = gateVerifiedStatus({
+      data,
+      originalDoc: { status: 'qa_passed' },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result).toBe(data)
   })
 })

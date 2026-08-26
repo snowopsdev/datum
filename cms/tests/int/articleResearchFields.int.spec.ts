@@ -115,9 +115,18 @@ describe('articles informationGain summary group', () => {
     }
   })
 
-  it('describes the group as written by the informationGain stage', () => {
+  it('describes the group as written by the informationGain stage, and read-only', () => {
     expect(informationGain.admin?.description).toBe(
-      'Written by the informationGain stage; the linked run holds the full scorecard.',
+      'Written by the informationGain stage; the linked run holds the full scorecard. Read-only: a decision can only be earned by scoring.',
     )
+    expect(informationGain.admin?.readOnly).toBe(true)
+  })
+
+  it('refuses every field-access update, so only an overrideAccess write lands a decision', () => {
+    // Half of the anti-bypass: without this an editor could hand-set
+    // `decision: 'PASS'` and then move the status to verified in a second edit.
+    // `gateVerifiedStatus` owns the other half (the transition itself).
+    expect(informationGain.access?.update).toBeTypeOf('function')
+    expect(informationGain.access?.update?.({} as never)).toBe(false)
   })
 })
