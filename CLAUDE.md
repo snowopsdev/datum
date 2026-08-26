@@ -17,6 +17,10 @@ Install once from the repo root: `npm install` (npm workspaces; installs both `c
 
 Database: `docker-compose up -d` starts Postgres (`datum`/`datum`/`datum` on 5432). Copy `.env.example` to `.env` at the repo root (and `cms/.env.example` to `cms/.env`) before running anything — `pipeline/src/config.ts` loads `cms/.env` first, then root `.env`, and real environment variables always win over both files.
 
+Adding a Payload `select` field creates a new Postgres enum. On the next `npm run dev`, drizzle's dev push detects this and interactively asks "Is enum … created or renamed?" — run `dev` in a real terminal (not backgrounded/piped) and choose "create enum". Until that pending schema change is resolved, `npm run test:int`'s `api.int.spec.ts` doesn't fail, it hangs — `payload.config.ts` leaves dev push on for *every* process that calls `getPayload`, so the vitest worker runs drizzle's push itself and its prompt has no TTY to answer it. Resolve it by running `npm run dev` once in a real terminal first; don't go hunting for a dev server, there may not be one.
+
+Worktrees share the single `datum` dev database by default (same `DATABASE_URL` unless overridden), so a branch with schema changes can be asked to drop another branch's tables on push — decline that prompt. Instead, point that worktree's gitignored `.env`/`cms/.env` `DATABASE_URL` at a per-worktree database, e.g. `createdb -O datum datum_<branch>`, then `npm run seed`.
+
 **CMS** (`cms/`, or `npm run <script> --workspace cms` from root):
 - `npm run dev` — Next dev server at `http://localhost:3000`
 - `npm run seed` — upserts the three content templates (Listicle, How-To, Comparison) and a dev admin user (`admin@datum.local`, password from `SEED_ADMIN_PASSWORD` or `datum-dev-password`). Add `-- --with-brand-voice` to also upsert and activate the demo brand voice (`cms/src/lib/brandVoiceFixture.ts`); the default seed deliberately leaves no brand voice so the admin's onboarding empty state stays reachable.

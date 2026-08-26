@@ -30,6 +30,14 @@ describe('resolveModel precedence', () => {
     assert.equal(resolved.qualitativeReview.source, 'default')
   })
 
+  it('resolves claimExtraction from its env override', () => {
+    const resolved = resolveStageModels(null, {
+      PIPELINE_MODEL_CLAIM_EXTRACTION: 'claude-sonnet-5',
+    })
+    assert.equal(resolved.claimExtraction.model, 'claude-sonnet-5')
+    assert.equal(resolved.claimExtraction.source, 'env')
+  })
+
   it('resolves the brand-voice extraction model the same way', () => {
     assert.equal(resolveExtractionModel({ brandVoiceExtractModel: 'gpt-5.6-luna' }, {}).model, 'gpt-5.6-luna')
     assert.equal(resolveExtractionModel(null, { BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' }).model, 'gpt-5')

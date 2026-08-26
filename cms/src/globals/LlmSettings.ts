@@ -52,6 +52,24 @@ export const LlmSettings: GlobalConfig = {
       'Judges style guide, template rules, and brand voice fit during QA.',
     ),
     modelField(
+      'claimExtractionModel',
+      'Claim extraction',
+      STAGE_ENV_VAR.claimExtraction,
+      'Decomposes ranking pages, published articles, and drafts into atomic claims and clusters consensus facets.',
+    ),
+    modelField(
+      'informationGainJudgeModel',
+      'Information-gain judge',
+      STAGE_ENV_VAR.informationGainJudge,
+      'Scores draft claims for novelty, relevance, utility, and duplication against the baseline corpus.',
+    ),
+    modelField(
+      'evidenceVerificationModel',
+      'Evidence verification',
+      STAGE_ENV_VAR.evidenceVerification,
+      'Web-searches evidence for materially novel claims during information-gain review.',
+    ),
+    modelField(
       'brandVoiceExtractModel',
       'Brand voice extraction',
       EXTRACTION_ENV_VAR,

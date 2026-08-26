@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { CostLog } from '@/collections/CostLog'
 import { LlmSettings } from '@/globals/LlmSettings'
 import { LLM_MODEL_OPTIONS } from '@/lib/llmCatalog'
 import { PIPELINE_STAGES, STAGE_SETTING_FIELD } from '@/lib/llmSettings'
@@ -24,5 +25,16 @@ describe('Models global', () => {
     expect(await LlmSettings.access?.read?.({ req: { user: { id: 1 } } } as never)).toBe(true)
     expect(await LlmSettings.access?.update?.({ req: { user: null } } as never)).toBe(false)
     expect(await LlmSettings.access?.update?.({ req: { user: { id: 1 } } } as never)).toBe(true)
+  })
+})
+
+describe('CostLog stage options', () => {
+  it('includes every pipeline stage', () => {
+    const stageField = CostLog.fields.find((f) => 'name' in f && f.name === 'stage')
+    expect(stageField?.type).toBe('select')
+    if (stageField?.type === 'select') {
+      const options = stageField.options.map((o) => (typeof o === 'string' ? o : o.value))
+      for (const stage of PIPELINE_STAGES) expect(options).toContain(stage)
+    }
   })
 })

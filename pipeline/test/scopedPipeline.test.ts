@@ -99,6 +99,9 @@ it('advances only the article ids assigned to a scoped run', async () => {
       generate: 'claude-opus-5',
       factCheck: 'claude-opus-5',
       qualitativeReview: 'claude-opus-5',
+      claimExtraction: 'claude-opus-5',
+      informationGainJudge: 'claude-opus-5',
+      evidenceVerification: 'claude-opus-5',
     },
     brandVoice: null,
   }

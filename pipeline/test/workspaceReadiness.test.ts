@@ -12,6 +12,9 @@ const baseInput = (): WorkspaceReadinessInput => ({
     generateModel: null,
     factCheckModel: null,
     qualitativeReviewModel: null,
+    claimExtractionModel: null,
+    informationGainJudgeModel: null,
+    evidenceVerificationModel: null,
   },
   activeVoice: { id: 7, updatedAt: '2026-08-25T12:00:00.000Z' },
   templates: [{ id: 3, name: 'How-To', updatedAt: '2026-08-25T12:00:00.000Z' }],
@@ -62,6 +65,11 @@ describe('workspace readiness', () => {
         ['generate', 'gpt-5.6-terra', 'openai', true],
         ['factCheck', 'claude-sonnet-5', 'anthropic', false],
         ['qualitativeReview', 'gpt-5.6-luna', 'openai', true],
+        // The information-gain slots are unset here, so they fall back to the
+        // platform default (Claude) and report the missing Anthropic key too.
+        ['claimExtraction', 'claude-opus-5', 'anthropic', false],
+        ['informationGainJudge', 'claude-opus-5', 'anthropic', false],
+        ['evidenceVerification', 'claude-opus-5', 'anthropic', false],
       ],
     )
   })

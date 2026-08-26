@@ -14,7 +14,9 @@ import { ArticleAudit } from './collections/ArticleAudit'
 import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
+import { EvidenceSources } from './collections/EvidenceSources'
 import { PipelineRuns } from './collections/PipelineRuns'
+import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
 import { ContentRunTask } from './jobs/contentRun'
 
@@ -86,9 +88,10 @@ export default buildConfig({
     BrandVoices,
     BrandVoiceFiles,
     GovernanceAudit,
+    EvidenceSources,
     PipelineRuns,
   ],
-  globals: [LlmSettings],
+  globals: [LlmSettings, InformationGainPolicy],
   jobs: {
     tasks: [ContentRunTask],
     enableConcurrencyControl: true,

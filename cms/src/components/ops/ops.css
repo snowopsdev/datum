@@ -12,6 +12,7 @@
   --ops-orange: var(--theme-warning-600, #dd5b00);
   --ops-green: #1aae39;
   --ops-sky: #62aef0;
+  --ops-red: var(--theme-error-600, #c0332c);
   --ops-radius-xs: 4px;
   --ops-radius-md: 8px;
   --ops-radius-lg: 12px;
@@ -491,6 +492,21 @@
 .datum-ops__status--qa_passed {
   background: rgba(26, 174, 57, 0.12);
   color: var(--ops-green);
+}
+
+.datum-ops__status--verified {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-ops__status--needs_review {
+  background: rgba(221, 91, 0, 0.08);
+  color: var(--ops-orange);
+}
+
+.datum-ops__status--blocked {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
 }
 
 .datum-ops__status--published {

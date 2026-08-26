@@ -31,6 +31,26 @@ export async function loadStageModels(payload: Payload): Promise<StageModels> {
     }
     console.log(`[pipeline] ${stage}: ${model} (${source})`)
   }
+  // Only worth saying when the operator actually picked the model: every stage
+  // resolves to the same platform default out of the box, so an unconditional
+  // warning would fire on every run and carry no signal.
+  const generateModel = resolved.generate.model
+  if (
+    resolved.informationGainJudge.source !== 'default' &&
+    resolved.informationGainJudge.model === generateModel
+  ) {
+    console.warn(
+      '[pipeline] informationGainJudge uses the generate model; self-judging inflates novelty and utility scores',
+    )
+  }
+  if (
+    resolved.evidenceVerification.source !== 'default' &&
+    resolved.evidenceVerification.model === generateModel
+  ) {
+    console.warn(
+      '[pipeline] evidenceVerification uses the generate model; prefer an independent verifier',
+    )
+  }
   return Object.fromEntries(
     PIPELINE_STAGES.map((stage) => [stage, resolved[stage].model]),
   ) as StageModels

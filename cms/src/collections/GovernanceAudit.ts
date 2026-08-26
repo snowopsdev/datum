@@ -1,20 +1,25 @@
 import type { CollectionConfig } from 'payload'
 
+import type { GovernanceSubject } from '../lib/governanceAudit'
+
 const immutable = () => {
   throw new Error('Governance audit entries are append-only')
 }
 
 /**
- * Immutable audit trail for governance records (brand voices today; templates
- * can be added by extending `subject.relationTo`). Written only by the
- * `auditGovernanceChange` hook with `overrideAccess: true`.
+ * Immutable audit trail for governance records — brand voices and evidence
+ * sources today (add more by extending `subject.relationTo`), plus Globals such
+ * as the information-gain policy, which have no id and are identified by
+ * `subjectGlobal` instead. Written only by the `auditGovernanceChange` /
+ * `auditGlobalChange` hooks with `overrideAccess: true`; every entry carries
+ * exactly one of `subject` or `subjectGlobal`.
  */
 export const GovernanceAudit: CollectionConfig = {
   slug: 'governance-audit',
   admin: {
     group: false,
     useAsTitle: 'summary',
-    defaultColumns: ['createdAt', 'subject', 'event', 'actor'],
+    defaultColumns: ['createdAt', 'subject', 'subjectGlobal', 'event', 'actor'],
   },
   access: {
     read: ({ req }) => Boolean(req.user),
@@ -23,6 +28,17 @@ export const GovernanceAudit: CollectionConfig = {
     delete: () => false,
   },
   hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        const hasSubject = data?.subject != null
+        const hasGlobal =
+          typeof data?.subjectGlobal === 'string' && data.subjectGlobal.trim() !== ''
+        if (hasSubject === hasGlobal) {
+          throw new Error('Governance audit entries need exactly one of subject or subjectGlobal')
+        }
+        return data
+      },
+    ],
     beforeChange: [({ operation }) => (operation === 'update' ? immutable() : undefined)],
     beforeDelete: [immutable],
   },
@@ -31,9 +47,20 @@ export const GovernanceAudit: CollectionConfig = {
     {
       name: 'subject',
       type: 'relationship',
-      relationTo: ['brand-voices'],
-      required: true,
+      // `satisfies` ties this list to the GovernanceSubject union, so the two
+      // cannot drift when another collection becomes audited.
+      relationTo: ['brand-voices', 'evidence-sources'] satisfies readonly GovernanceSubject[],
+      required: false,
       index: true,
+    },
+    {
+      name: 'subjectGlobal',
+      type: 'text',
+      index: true,
+      admin: {
+        description:
+          'Slug of the audited Global, set instead of subject when the record has no id.',
+      },
     },
     {
       name: 'event',
