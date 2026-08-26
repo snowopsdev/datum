@@ -168,7 +168,8 @@ describe('evidence verification fixture', () => {
       const signal = signals.get(claimId)
       assert.ok(claim !== undefined && signal !== undefined, `missing ${claimId}`)
 
-      assert.equal(signal.support, 0.95)
+      // Verbatim value quotes are full entailment, so the fixture claims full support.
+      assert.equal(signal.support, 1)
       assert.equal(signal.contradiction, 0.05)
       assert.ok(signal.evidence.length >= 2, `${claimId} needs at least two citations`)
 

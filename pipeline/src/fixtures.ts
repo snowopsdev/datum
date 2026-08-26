@@ -604,24 +604,29 @@ const informationGainJudgeFixture = {
  * ones `pickForVerification` sends to a verifier call, since the rest are
  * duplicates of the baseline.
  *
+ * The domains cited are `sca.coffee`, `baristahustle.com`, and `homegrounds.co`
+ * — a mock run that must end in PASS has to seed an `evidence-sources` rule for
+ * each of those three at `primary`, and nothing else here works without them.
+ *
  * Each excerpt quotes the claim's values in the *same* form the claim states
  * them ("40 percent", "four to six weeks"), which is what makes `compareValues`
  * return an exactness of 1; paraphrasing "40 percent" as "two fifths" here would
- * fail the numeric gate and block the mock draft.
+ * fail the numeric gate and block the mock draft. Because the excerpts entail
+ * the claims that completely, `support` is 1.0 rather than a hedge.
  *
  * Both claims carry numbers, so their evidence integrity is measured against
  * `minNumericTemporalIntegrity` (0.95 by default) — and integrity is
- * `support x sourceQuality x exactness`. A rubric class alone is capped at
- * `UNKNOWN_DOMAIN_CAP` (0.75), so with support 0.95 these citations reach only
- * 0.71 until the `evidence-sources` table vouches for their domains. A mock run
- * that must end in PASS therefore has to seed rules for `sca.coffee`,
- * `baristahustle.com`, and `homegrounds.co`.
+ * `support x sourceQuality x exactness`, which here is `1.0 x 0.95 x 1.0 =
+ * 0.95`, exactly clearing the floor. The 0.95 in the middle is what a `primary`
+ * evidence-sources rule scores; a rubric class alone is capped at
+ * `UNKNOWN_DOMAIN_CAP` (0.75) and would leave these claims blocked, which is
+ * the intended posture — an unclassified domain cannot support a novel number.
  */
 const evidenceVerificationFixture = {
   claims: [
     {
       claimId: 'c004',
-      support: 0.95,
+      support: 1,
       contradiction: 0.05,
       evidence: [
         {
@@ -644,7 +649,7 @@ const evidenceVerificationFixture = {
     },
     {
       claimId: 'c013',
-      support: 0.95,
+      support: 1,
       contradiction: 0.05,
       evidence: [
         {
