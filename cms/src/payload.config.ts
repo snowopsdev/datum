@@ -16,6 +16,7 @@ import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
 import { EvidenceSources } from './collections/EvidenceSources'
 import { CorpusSnapshots } from './collections/CorpusSnapshots'
+import { InformationGainRuns } from './collections/InformationGainRuns'
 import { PipelineRuns } from './collections/PipelineRuns'
 import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
@@ -91,6 +92,7 @@ export default buildConfig({
     GovernanceAudit,
     EvidenceSources,
     CorpusSnapshots,
+    InformationGainRuns,
     PipelineRuns,
   ],
   globals: [LlmSettings, InformationGainPolicy],

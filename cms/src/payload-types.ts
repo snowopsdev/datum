@@ -78,6 +78,7 @@ export interface Config {
     'governance-audit': GovernanceAudit;
     'evidence-sources': EvidenceSource;
     'corpus-snapshots': CorpusSnapshot;
+    'information-gain-runs': InformationGainRun;
     'pipeline-runs': PipelineRun;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -98,6 +99,7 @@ export interface Config {
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
     'corpus-snapshots': CorpusSnapshotsSelect<false> | CorpusSnapshotsSelect<true>;
+    'information-gain-runs': InformationGainRunsSelect<false> | InformationGainRunsSelect<true>;
     'pipeline-runs': PipelineRunsSelect<false> | PipelineRunsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -419,6 +421,20 @@ export interface Article {
         | null;
     };
   };
+  /**
+   * Written by the informationGain stage; the linked run holds the full scorecard.
+   */
+  informationGain?: {
+    run?: (number | null) | InformationGainRun;
+    decision?: ('PASS' | 'REVISE' | 'HUMAN_REVIEW' | 'BLOCK') | null;
+    policyVersion?: string | null;
+    consensusCoverage?: number | null;
+    verifiedGainUnits?: number | null;
+    verificationRatio?: number | null;
+    internalDuplicationRate?: number | null;
+    verifiedNovelClaims?: number | null;
+    scoredAt?: string | null;
+  };
   generationModel?: string | null;
   qaModels?:
     | {
@@ -548,6 +564,90 @@ export interface CorpusSnapshot {
    * Pages that yielded no text: failed fetches and skipped ones (a PDF, a refused private address) both count. Zero next to status "empty" means the crawl was fine and claim extraction came back empty.
    */
   failedPageCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "information-gain-runs".
+ */
+export interface InformationGainRun {
+  id: number;
+  article: number | Article;
+  pipelineRunId: string;
+  snapshot?: (number | null) | CorpusSnapshot;
+  policyVersion: string;
+  /**
+   * Resolved thresholds this run judged against, with a source per key.
+   */
+  policy?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  models?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  decision: 'PASS' | 'REVISE' | 'HUMAN_REVIEW' | 'BLOCK';
+  /**
+   * PolicyReason[] — why the decision landed where it did.
+   */
+  reasons?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  baselineAvailable?: boolean | null;
+  /**
+   * Always false: every 0–1 signal in this record is an uncalibrated LLM estimate.
+   */
+  calibrated?: boolean | null;
+  scores?: {
+    consensusCoverage?: number | null;
+    potentialGainUnits?: number | null;
+    verifiedGainUnits?: number | null;
+    verificationRatio?: number | null;
+    verifiedGainDensity?: number | null;
+    facetGainCoverage?: number | null;
+    internalDuplicationRate?: number | null;
+  };
+  claimSummary?: {
+    totalClaims?: number | null;
+    materiallyNovelClaims?: number | null;
+    verifiedNovelClaims?: number | null;
+    unsupportedNovelClaims?: number | null;
+    contradictoryClaims?: number | null;
+    firstPartyClaims?: number | null;
+  };
+  /**
+   * ClaimRecord[] — full per-claim signals, evidence, and scores.
+   */
+  claims?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  tokenCount?: number | null;
+  costUsd?: number | null;
+  draftUpdatedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1062,6 +1162,10 @@ export interface PayloadLockedDocument {
         value: number | CorpusSnapshot;
       } | null)
     | ({
+        relationTo: 'information-gain-runs';
+        value: number | InformationGainRun;
+      } | null)
+    | ({
         relationTo: 'pipeline-runs';
         value: number | PipelineRun;
       } | null);
@@ -1256,6 +1360,19 @@ export interface ArticlesSelect<T extends boolean = true> {
               voiceNotes?: T;
               notTraitViolations?: T;
             };
+      };
+  informationGain?:
+    | T
+    | {
+        run?: T;
+        decision?: T;
+        policyVersion?: T;
+        consensusCoverage?: T;
+        verifiedGainUnits?: T;
+        verificationRatio?: T;
+        internalDuplicationRate?: T;
+        verifiedNovelClaims?: T;
+        scoredAt?: T;
       };
   generationModel?: T;
   qaModels?: T;
@@ -1489,6 +1606,49 @@ export interface CorpusSnapshotsSelect<T extends boolean = true> {
   gaps?: T;
   baselineDocCount?: T;
   failedPageCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "information-gain-runs_select".
+ */
+export interface InformationGainRunsSelect<T extends boolean = true> {
+  article?: T;
+  pipelineRunId?: T;
+  snapshot?: T;
+  policyVersion?: T;
+  policy?: T;
+  models?: T;
+  decision?: T;
+  reasons?: T;
+  baselineAvailable?: T;
+  calibrated?: T;
+  scores?:
+    | T
+    | {
+        consensusCoverage?: T;
+        potentialGainUnits?: T;
+        verifiedGainUnits?: T;
+        verificationRatio?: T;
+        verifiedGainDensity?: T;
+        facetGainCoverage?: T;
+        internalDuplicationRate?: T;
+      };
+  claimSummary?:
+    | T
+    | {
+        totalClaims?: T;
+        materiallyNovelClaims?: T;
+        verifiedNovelClaims?: T;
+        unsupportedNovelClaims?: T;
+        contradictoryClaims?: T;
+        firstPartyClaims?: T;
+      };
+  claims?: T;
+  tokenCount?: T;
+  costUsd?: T;
+  draftUpdatedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

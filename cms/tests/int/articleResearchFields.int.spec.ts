@@ -67,3 +67,57 @@ describe('articles research fields', () => {
     }
   })
 })
+
+describe('articles informationGain summary group', () => {
+  const informationGain = findField(Articles.fields, 'informationGain')
+  if (informationGain?.type !== 'group') {
+    throw new Error('expected articles.informationGain to be a group field')
+  }
+
+  it('adds the eight informationGain subfields with the right types', () => {
+    const expected: Array<{ name: string; type: string }> = [
+      { name: 'run', type: 'relationship' },
+      { name: 'decision', type: 'select' },
+      { name: 'policyVersion', type: 'text' },
+      { name: 'consensusCoverage', type: 'number' },
+      { name: 'verifiedGainUnits', type: 'number' },
+      { name: 'verificationRatio', type: 'number' },
+      { name: 'internalDuplicationRate', type: 'number' },
+      { name: 'verifiedNovelClaims', type: 'number' },
+      { name: 'scoredAt', type: 'date' },
+    ]
+
+    const names = informationGain.fields.map((f) => ('name' in f ? f.name : ''))
+    expect(names).toEqual(expected.map((f) => f.name))
+
+    for (const def of expected) {
+      const field = findField(informationGain.fields, def.name)
+      expect(field?.type).toBe(def.type)
+    }
+  })
+
+  it('points run at information-gain-runs with maxDepth 0, not required', () => {
+    const field = findField(informationGain.fields, 'run')
+    expect(field?.type).toBe('relationship')
+    if (field?.type === 'relationship') {
+      expect(field.relationTo).toBe('information-gain-runs')
+      expect(field.maxDepth).toBe(0)
+      expect(field.required).toBeFalsy()
+    }
+  })
+
+  it('offers the four decision options on the summary, not required', () => {
+    const field = findField(informationGain.fields, 'decision')
+    expect(field?.type).toBe('select')
+    if (field?.type === 'select') {
+      expect(field.options).toEqual(['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK'])
+      expect(field.required).toBeFalsy()
+    }
+  })
+
+  it('describes the group as written by the informationGain stage', () => {
+    expect(informationGain.admin?.description).toBe(
+      'Written by the informationGain stage; the linked run holds the full scorecard.',
+    )
+  })
+})

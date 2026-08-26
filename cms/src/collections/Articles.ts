@@ -232,6 +232,56 @@ export const Articles: CollectionConfig = {
       ],
     },
     {
+      name: 'informationGain',
+      type: 'group',
+      admin: {
+        description:
+          'Written by the informationGain stage; the linked run holds the full scorecard.',
+      },
+      fields: [
+        {
+          name: 'run',
+          type: 'relationship',
+          relationTo: 'information-gain-runs',
+          // Stays an id at any query depth — see the same field on research.snapshot.
+          maxDepth: 0,
+        },
+        {
+          name: 'decision',
+          type: 'select',
+          options: ['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK'],
+        },
+        {
+          name: 'policyVersion',
+          type: 'text',
+        },
+        {
+          name: 'consensusCoverage',
+          type: 'number',
+        },
+        {
+          name: 'verifiedGainUnits',
+          type: 'number',
+        },
+        {
+          name: 'verificationRatio',
+          type: 'number',
+        },
+        {
+          name: 'internalDuplicationRate',
+          type: 'number',
+        },
+        {
+          name: 'verifiedNovelClaims',
+          type: 'number',
+        },
+        {
+          name: 'scoredAt',
+          type: 'date',
+        },
+      ],
+    },
+    {
       name: 'generationModel',
       type: 'text',
     },
