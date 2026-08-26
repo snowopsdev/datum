@@ -39,7 +39,7 @@
       margin-bottom: 24px;
       font: 400 28px/1.1 var(--font-serif);
     }
-    svg { display: block; width: 100%; min-width: 844px; }
+    svg { display: block; width: 100%; min-width: 960px; }
     .note {
       max-width: 720px;
       margin-top: 20px;
@@ -55,9 +55,9 @@
     <h1>Datum pipeline and data integration seam</h1>
 
     <!-- Four-pixel-grid variant of the data-flow layout: 104px nodes preserve readable labels. -->
-    <svg width="844" height="456" viewBox="0 0 844 456" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pipeline-data-flow-title pipeline-data-flow-desc">
+    <svg width="960" height="536" viewBox="0 0 960 536" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pipeline-data-flow-title pipeline-data-flow-desc">
       <title id="pipeline-data-flow-title">Datum pipeline and data integration seam</title>
-      <desc id="pipeline-data-flow-desc">External SEO data enters through the highlighted AhrefsClient provider seam, then moves through topic discovery, research, generation, quality checks, editor review, and the public article reader.</desc>
+      <desc id="pipeline-data-flow-desc">External SEO data enters through the highlighted AhrefsClient provider seam, then moves through topic discovery, research, generation, quality checks, information-gain scoring, editor review and the public article reader, writing corpus snapshots, information-gain runs and cost-log rows as it goes.</desc>
       <defs>
         <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
         <marker id="pipeline-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -71,17 +71,19 @@
         </marker>
       </defs>
 
-      <rect width="844" height="456" fill="#f7f7f5"/>
-      <rect x="0" y="36" width="844" height="80" fill="#171717" opacity="0.018"/>
-      <rect x="0" y="196" width="844" height="80" fill="#171717" opacity="0.018"/>
+      <rect width="960" height="536" fill="#f7f7f5"/>
+      <rect x="0" y="36" width="960" height="80" fill="#171717" opacity="0.018"/>
+      <rect x="0" y="196" width="960" height="80" fill="#171717" opacity="0.018"/>
+      <rect x="0" y="356" width="960" height="80" fill="#171717" opacity="0.018"/>
 
       <!-- Lane and legend structure -->
-      <line x1="0" y1="36" x2="844" y2="36" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="0" y1="116" x2="844" y2="116" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="0" y1="196" x2="844" y2="196" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="0" y1="276" x2="844" y2="276" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="0" y1="356" x2="844" y2="356" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="144" y1="36" x2="144" y2="356" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="36" x2="960" y2="36" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="116" x2="960" y2="116" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="196" x2="960" y2="196" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="276" x2="960" y2="276" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="356" x2="960" y2="356" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="0" y1="436" x2="960" y2="436" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="144" y1="36" x2="144" y2="436" stroke="#c8c8c4" stroke-width="0.8"/>
 
       <!-- Flow connectors are drawn before nodes. -->
       <line x1="200" y1="108" x2="200" y2="124" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
@@ -89,8 +91,9 @@
       <line x1="252" y1="236" x2="260" y2="236" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
       <line x1="364" y1="236" x2="372" y2="236" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
       <line x1="476" y1="236" x2="484" y2="236" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
-      <path d="M 588 236 H 640 Q 648 236 648 244 V 284" fill="none" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
-      <line x1="700" y1="316" x2="708" y2="316" stroke="#444444" stroke-width="1.2" marker-end="url(#pipeline-arrow-link)"/>
+      <line x1="588" y1="236" x2="596" y2="236" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
+      <path d="M 700 236 H 752 Q 760 236 760 244 V 284" fill="none" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
+      <line x1="812" y1="316" x2="820" y2="316" stroke="#444444" stroke-width="1.2" marker-end="url(#pipeline-arrow-link)"/>
 
       <!-- The only flow label marks the cross-role integration handoff. -->
       <rect x="220" y="108" width="56" height="12" rx="2" fill="#f7f7f5"/>
@@ -101,26 +104,24 @@
         <rect x="184" y="4" width="32" height="16" rx="8" fill="#171717"/>
         <text x="200" y="16" fill="#ffffff">01</text>
         <text x="200" y="32" fill="#171717" font-weight="600">INTEGRATE</text>
-
         <rect x="296" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
         <text x="312" y="16" fill="#171717">02</text>
         <text x="312" y="32" fill="#666666">RESEARCH</text>
-
         <rect x="408" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
         <text x="424" y="16" fill="#171717">03</text>
         <text x="424" y="32" fill="#666666">DRAFT</text>
-
         <rect x="520" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
         <text x="536" y="16" fill="#171717">04</text>
         <text x="536" y="32" fill="#666666">QA</text>
-
         <rect x="632" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
         <text x="648" y="16" fill="#171717">05</text>
-        <text x="648" y="32" fill="#666666">REVIEW</text>
-
+        <text x="648" y="32" fill="#666666">SCORE</text>
         <rect x="744" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
         <text x="760" y="16" fill="#171717">06</text>
-        <text x="760" y="32" fill="#666666">PUBLISH</text>
+        <text x="760" y="32" fill="#666666">REVIEW</text>
+        <rect x="856" y="4" width="32" height="16" rx="8" fill="#171717" opacity="0.12"/>
+        <text x="872" y="16" fill="#171717">07</text>
+        <text x="872" y="32" fill="#666666">PUBLISH</text>
       </g>
 
       <!-- Lane labels -->
@@ -129,6 +130,7 @@
         <text x="72" y="152">INTEGRATION</text><text x="72" y="164">CONTRACT</text>
         <text x="72" y="232">AUTOMATED</text><text x="72" y="244">PIPELINE</text>
         <text x="72" y="312">EDITOR +</text><text x="72" y="324">READER</text>
+        <text x="72" y="392">DURABLE</text><text x="72" y="404">STATE</text>
       </g>
 
       <!-- Source node -->
@@ -143,76 +145,91 @@
       <!-- Focal integration node -->
       <rect x="148" y="124" width="104" height="64" rx="8" fill="#e4e4e0"/>
       <rect x="148" y="124" width="104" height="64" rx="8" fill="none" stroke="#171717" stroke-width="1.2"/>
-      <rect x="156" y="132" width="24" height="12" rx="2" fill="#171717"/>
+      <rect x="156" y="132" width="24" height="12" rx="2" fill="#171717" stroke="#171717" stroke-width="0.8"/>
       <text x="168" y="141" fill="#ffffff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">INT</text>
       <text x="200" y="156" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Provider seam</text>
       <text x="200" y="172" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">AhrefsClient</text>
-      <text x="200" y="184" fill="#171717" font-size="8" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">INSERT HERE</text>
+      <text x="200" y="184" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">INSERT HERE</text>
 
       <!-- Automated pipeline nodes -->
-      <g font-family="'Geist', sans-serif" text-anchor="middle">
-        <rect x="148" y="204" width="104" height="64" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-        <rect x="156" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
-        <text x="168" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIP</text>
-        <text x="200" y="236" fill="#171717" font-size="12" font-weight="600">Fetch topics</text>
-        <text x="200" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">topic_selected</text>
-        <text x="200" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">Payload write</text>
+      <rect x="148" y="204" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="148" y="204" width="104" height="64" rx="8" fill="none" stroke="#666666" stroke-width="1"/>
+      <rect x="156" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
+      <text x="168" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PIP</text>
+      <text x="200" y="236" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fetch topics</text>
+      <text x="200" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">topic_selected</text>
+      <text x="200" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">template set</text>
+      <rect x="260" y="204" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="260" y="204" width="104" height="64" rx="8" fill="none" stroke="#666666" stroke-width="1"/>
+      <rect x="268" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
+      <text x="280" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PIP</text>
+      <text x="312" y="236" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Research</text>
+      <text x="312" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">SERP + snapshot</text>
+      <text x="312" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">researched</text>
+      <rect x="372" y="204" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="372" y="204" width="104" height="64" rx="8" fill="none" stroke="#666666" stroke-width="1"/>
+      <rect x="380" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
+      <text x="392" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PIP</text>
+      <text x="424" y="236" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Generate</text>
+      <text x="424" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">draft + SEO</text>
+      <text x="424" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">gaps fed in</text>
+      <rect x="484" y="204" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="484" y="204" width="104" height="64" rx="8" fill="none" stroke="#666666" stroke-width="1"/>
+      <rect x="492" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
+      <text x="504" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PIP</text>
+      <text x="536" y="236" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">QA gates</text>
+      <text x="536" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">structure + 2 reviews</text>
+      <text x="536" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pass / revise</text>
 
-        <rect x="260" y="204" width="104" height="64" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-        <rect x="268" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
-        <text x="280" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIP</text>
-        <text x="312" y="236" fill="#171717" font-size="12" font-weight="600">Research</text>
-        <text x="312" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">SERP + questions</text>
-        <text x="312" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">researched</text>
-
-        <rect x="372" y="204" width="104" height="64" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-        <rect x="380" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
-        <text x="392" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIP</text>
-        <text x="424" y="236" fill="#171717" font-size="12" font-weight="600">Generate</text>
-        <text x="424" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">draft + SEO</text>
-        <text x="424" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">Anthropic / mock</text>
-
-        <rect x="484" y="204" width="104" height="64" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-        <rect x="492" y="212" width="24" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8"/>
-        <text x="504" y="221" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIP</text>
-        <text x="536" y="236" fill="#171717" font-size="12" font-weight="600">QA gates</text>
-        <text x="536" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">structure + 2 reviews</text>
-        <text x="536" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">pass / revise</text>
-      </g>
+      <!-- The information-gain gate: the second focal element -->
+      <rect x="596" y="204" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="596" y="204" width="104" height="64" rx="8" fill="none" stroke="#171717" stroke-width="1.2"/>
+      <rect x="604" y="212" width="24" height="12" rx="2" fill="none" stroke="#171717" stroke-width="0.8"/>
+      <text x="616" y="221" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">IG</text>
+      <text x="648" y="236" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Info gain</text>
+      <text x="648" y="252" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">claim scoring</text>
+      <text x="648" y="264" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PASS / held</text>
 
       <!-- Editor and reader nodes -->
-      <rect x="596" y="284" width="104" height="64" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
-      <rect x="604" y="292" width="24" height="12" rx="2" fill="none" stroke="#171717" stroke-width="0.8"/>
-      <text x="616" y="301" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">EDT</text>
-      <text x="648" y="316" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor review</text>
-      <text x="648" y="332" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">approve / revise</text>
-      <text x="648" y="344" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Payload admin</text>
+      <rect x="708" y="284" width="104" height="64" rx="8" fill="#ffffff"/>
+      <rect x="708" y="284" width="104" height="64" rx="8" fill="none" stroke="#171717" stroke-width="1"/>
+      <rect x="716" y="292" width="24" height="12" rx="2" fill="none" stroke="#171717" stroke-width="0.8"/>
+      <text x="728" y="301" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">EDT</text>
+      <text x="760" y="316" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor review</text>
+      <text x="760" y="332" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">override / send back</text>
+      <text x="760" y="344" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Payload admin</text>
+      <rect x="820" y="284" width="104" height="64" rx="8" fill="#171717"/>
+      <rect x="820" y="284" width="104" height="64" rx="8" fill="none" stroke="#171717" stroke-width="1.2"/>
+      <rect x="828" y="292" width="24" height="12" rx="2" fill="none" stroke="#171717" stroke-width="0.8"/>
+      <text x="840" y="301" fill="#ffffff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">WEB</text>
+      <text x="872" y="316" fill="#ffffff" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Public reader</text>
+      <text x="872" y="332" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">published article</text>
+      <text x="872" y="344" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">canonical page</text>
 
-      <rect x="708" y="284" width="104" height="64" rx="8" fill="#171717" stroke="#171717" stroke-width="1.2"/>
-      <rect x="716" y="292" width="24" height="12" rx="2" fill="none" stroke="#ffffff" stroke-width="0.8"/>
-      <text x="728" y="301" fill="#ffffff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">WEB</text>
-      <text x="760" y="316" fill="#ffffff" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Public reader</text>
-      <text x="760" y="332" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">published article</text>
-      <text x="760" y="344" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">canonical page</text>
+      <!-- Durable state: named under the step that writes it, not wired as nodes -->
+      <rect x="256" y="372" width="112" height="20" rx="4" fill="#ffffff" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="312" y="385" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">corpus-snapshots</text>
+      <rect x="584" y="372" width="128" height="20" rx="4" fill="#ffffff" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="648" y="385" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">information-gain-runs</text>
+      <rect x="256" y="404" width="448" height="20" rx="4" fill="#171717" opacity="0.03"/>
+      <text x="480" y="417" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">cost-log — one row per LLM call, keyed by run and article</text>
 
-      <!-- Legend and integration annotation -->
-      <text x="20" y="376" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">INTEGRATION</text>
-      <rect x="144" y="364" width="16" height="16" rx="4" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
-      <text x="172" y="376" fill="#171717" font-size="8" font-weight="600" font-family="'Geist Mono', monospace">IMPLEMENT AhrefsClient + INJECT THROUGH StageContext</text>
-
-      <text x="20" y="404" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">STATE</text>
-      <text x="144" y="404" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">EVERY STAGE READS / WRITES PAYLOAD + POSTGRES; AUDIT AND COST LOGS STAY DURABLE</text>
-
-      <text x="20" y="432" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">FLOW</text>
-      <line x1="144" y1="428" x2="176" y2="428" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
-      <text x="188" y="432" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">INTEGRATION SEAM</text>
-      <line x1="332" y1="428" x2="364" y2="428" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
-      <text x="376" y="432" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIPELINE</text>
-      <line x1="468" y1="428" x2="500" y2="428" stroke="#444444" stroke-width="1.2" marker-end="url(#pipeline-arrow-link)"/>
-      <text x="512" y="432" fill="#444444" font-size="8" font-family="'Geist Mono', monospace">PUBLICATION</text>
+      <!-- Legend and annotations -->
+      <text x="20" y="456" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">INTEGRATION</text>
+      <rect x="144" y="444" width="16" height="16" rx="4" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
+      <text x="172" y="456" fill="#171717" font-size="8" font-weight="600" font-family="'Geist Mono', monospace">IMPLEMENT AhrefsClient + INJECT THROUGH StageContext</text>
+      <text x="20" y="484" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">GATE</text>
+      <text x="144" y="484" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">SCORE DECIDES verified / needs_revision / needs_review / blocked — verified NEEDS A PASS OR A JUSTIFIED OVERRIDE</text>
+      <text x="20" y="512" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">FLOW</text>
+      <line x1="144" y1="508" x2="176" y2="508" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
+      <text x="188" y="512" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">INTEGRATION SEAM</text>
+      <line x1="332" y1="508" x2="364" y2="508" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
+      <text x="376" y="512" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIPELINE</text>
+      <line x1="468" y1="508" x2="500" y2="508" stroke="#444444" stroke-width="1.2" marker-end="url(#pipeline-arrow-link)"/>
+      <text x="512" y="512" fill="#444444" font-size="8" font-family="'Geist Mono', monospace">PUBLICATION</text>
     </svg>
 
-    <p class="note">The highlighted seam is the designed extension point: implement <code>AhrefsClient</code> for another provider and inject it through <code>StageContext</code>. Topic discovery and SERP research then consume the same normalized contract.</p>
+    <p class="note">The highlighted seam is the designed extension point: implement <code>AhrefsClient</code> for another provider and inject it through <code>StageContext</code>. Step 05 is the information-gain gate — it reads the corpus snapshot step 02 captured, and is the only step that can move an article to <code>verified</code>. The durable-state lane names what each step leaves behind; every LLM call in every step writes a <code>cost-log</code> row.</p>
   </main>
 </body>
 </html>
