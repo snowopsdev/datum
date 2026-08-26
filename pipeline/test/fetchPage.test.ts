@@ -5,6 +5,8 @@ import {
   extractReadableText,
   fetchPage,
   FETCH_MAX_BYTES,
+  type LookupFn,
+  MAX_REDIRECTS,
   PAGE_TEXT_CAP_CHARS,
   USER_AGENT,
 } from '../src/corpus/fetchPage'
@@ -40,6 +42,7 @@ const responseOf = (opts: {
   status?: number
   url?: string
   contentType?: string | null
+  location?: string
   chunks?: string[]
   state?: StreamState
 }): Response => {
@@ -47,6 +50,7 @@ const responseOf = (opts: {
   const headers = new Headers()
   if (opts.contentType !== null)
     headers.set('content-type', opts.contentType ?? 'text/html; charset=utf-8')
+  if (opts.location) headers.set('location', opts.location)
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -56,8 +60,32 @@ const responseOf = (opts: {
   } as unknown as Response
 }
 
+/** A 3xx pointing at `location`; `fetchPage` follows these itself. */
+const redirectTo = (location: string, status = 302): Response =>
+  responseOf({ status, location, contentType: null })
+
+/** Every host resolves to one public address unless a test says otherwise. */
+const publicLookup: LookupFn = async () => [{ address: '93.184.216.34', family: 4 }]
+
+/** Resolves the hosts a test names to the given address, every other host publicly. */
+const lookupWhere =
+  (addresses: Record<string, string>): LookupFn =>
+  async (hostname) => {
+    const address = addresses[hostname] ?? '93.184.216.34'
+    return [{ address, family: address.includes(':') ? 6 : 4 }]
+  }
+
 const stubFetch = (response: Response | (() => never)): typeof fetch =>
   (async () => (typeof response === 'function' ? response() : response)) as unknown as typeof fetch
+
+/** Replays a scripted chain of responses, one per request, and records the urls. */
+const scriptedFetch = (responses: Response[], seen: string[]): typeof fetch =>
+  (async (url: string) => {
+    seen.push(url)
+    const next = responses[seen.length - 1]
+    if (!next) throw new Error(`no scripted response for request ${seen.length}`)
+    return next
+  }) as unknown as typeof fetch
 
 const articleHtml = (body: string, title = 'Doc Title'): string =>
   `<!doctype html><html><head><title>${title}</title></head><body>` +
@@ -152,17 +180,21 @@ describe('fetchPage (mock branch)', () => {
 })
 
 describe('fetchPage (live branch)', () => {
-  it('reads a 200 html response and reports the final url', async () => {
+  it('reads a 200 html response and reports the url it read', async () => {
     let seen: { url: string; init: RequestInit } | null = null
     const fetchImpl = (async (url: string, init: RequestInit) => {
       seen = { url, init }
-      return responseOf({ url: 'https://example.com/final', chunks: [articleHtml(padding)] })
+      return responseOf({ chunks: [articleHtml(padding)] })
     }) as unknown as typeof fetch
 
-    const page = await fetchPage('https://example.com/start', { mock: false, fetchImpl })
+    const page = await fetchPage('https://example.com/start', {
+      mock: false,
+      fetchImpl,
+      lookupImpl: publicLookup,
+    })
     assert.equal(page.status, 'ok')
     assert.equal(page.url, 'https://example.com/start')
-    assert.equal(page.finalUrl, 'https://example.com/final')
+    assert.equal(page.finalUrl, 'https://example.com/start')
     assert.equal(page.title, 'Doc Title')
     assert.ok(page.chars > 0)
     assert.equal(page.chars, page.text.length)
@@ -171,7 +203,8 @@ describe('fetchPage (live branch)', () => {
 
     const request = seen as unknown as { url: string; init: RequestInit }
     assert.equal(request.url, 'https://example.com/start')
-    assert.equal(request.init.redirect, 'follow')
+    // Redirects are followed by hand so every hop can be guarded first.
+    assert.equal(request.init.redirect, 'manual')
     const headers = request.init.headers as Record<string, string>
     assert.equal(headers['User-Agent'], USER_AGENT)
     assert.equal(headers.Accept, 'text/html,application/xhtml+xml')
@@ -182,6 +215,7 @@ describe('fetchPage (live branch)', () => {
     const page = await fetchPage('https://example.com/missing', {
       mock: false,
       fetchImpl: stubFetch(responseOf({ status: 404 })),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'failed')
     assert.equal(page.reason, 'http 404')
@@ -193,6 +227,7 @@ describe('fetchPage (live branch)', () => {
     const page = await fetchPage('https://example.com/paper.pdf', {
       mock: false,
       fetchImpl: stubFetch(responseOf({ contentType: 'application/pdf' })),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'skipped')
     assert.equal(page.reason, 'content-type application/pdf')
@@ -205,6 +240,7 @@ describe('fetchPage (live branch)', () => {
       fetchImpl: stubFetch(
         responseOf({ contentType: 'application/xhtml+xml', chunks: [articleHtml(padding)] }),
       ),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'ok')
   })
@@ -223,6 +259,7 @@ describe('fetchPage (live branch)', () => {
     const page = await fetchPage('https://example.com/huge', {
       mock: false,
       fetchImpl: stubFetch(responseOf({ chunks, state })),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'ok')
     assert.ok(state.cancelled, 'the reader should be cancelled once the byte cap is reached')
@@ -238,6 +275,7 @@ describe('fetchPage (live branch)', () => {
   it('reports a timeout when the fetch aborts', async () => {
     const page = await fetchPage('https://example.com/slow', {
       mock: false,
+      lookupImpl: publicLookup,
       fetchImpl: stubFetch(() => {
         throw Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })
       }),
@@ -247,20 +285,36 @@ describe('fetchPage (live branch)', () => {
   })
 
   it('reports the error message for any other throw', async () => {
-    const page = await fetchPage('https://example.com/dns', {
+    const page = await fetchPage('https://example.com/boom', {
       mock: false,
+      lookupImpl: publicLookup,
       fetchImpl: stubFetch(() => {
-        throw new Error('getaddrinfo ENOTFOUND example.com')
+        throw new Error('socket hang up')
       }),
     })
     assert.equal(page.status, 'failed')
-    assert.equal(page.reason, 'getaddrinfo ENOTFOUND example.com')
+    assert.equal(page.reason, 'socket hang up')
+  })
+
+  it('fails a host that does not resolve', async () => {
+    const page = await fetchPage('https://nowhere.example.com/x', {
+      mock: false,
+      fetchImpl: (() => {
+        throw new Error('fetch should not have been called')
+      }) as unknown as typeof fetch,
+      lookupImpl: async () => {
+        throw new Error('getaddrinfo ENOTFOUND nowhere.example.com')
+      },
+    })
+    assert.equal(page.status, 'failed')
+    assert.equal(page.reason, 'dns lookup failed: getaddrinfo ENOTFOUND nowhere.example.com')
   })
 
   it('fails when the page has no readable text', async () => {
     const page = await fetchPage('https://example.com/blank', {
       mock: false,
       fetchImpl: stubFetch(responseOf({ chunks: ['<html><body></body></html>'] })),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'failed')
     assert.equal(page.reason, 'no readable text')
@@ -275,7 +329,11 @@ describe('fetchPage (protocol guard)', () => {
 
   for (const url of ['file:///etc/passwd', 'ftp://example.com/x', 'data:text/html,<p>hi</p>']) {
     it(`skips ${new URL(url).protocol} before fetching`, async () => {
-      const page = await fetchPage(url, { mock: false, fetchImpl: neverCalled })
+      const page = await fetchPage(url, {
+        mock: false,
+        fetchImpl: neverCalled,
+        lookupImpl: publicLookup,
+      })
       assert.equal(page.status, 'skipped')
       assert.equal(page.reason, 'unsupported protocol')
       assert.equal(page.text, '')
@@ -285,7 +343,11 @@ describe('fetchPage (protocol guard)', () => {
   }
 
   it('skips a url that does not parse at all', async () => {
-    const page = await fetchPage('not a url', { mock: false, fetchImpl: neverCalled })
+    const page = await fetchPage('not a url', {
+      mock: false,
+      fetchImpl: neverCalled,
+      lookupImpl: publicLookup,
+    })
     assert.equal(page.status, 'skipped')
     assert.equal(page.reason, 'unsupported protocol')
   })
@@ -294,37 +356,147 @@ describe('fetchPage (protocol guard)', () => {
     const page = await fetchPage('http://example.com/guide', {
       mock: false,
       fetchImpl: stubFetch(responseOf({ chunks: [articleHtml(padding)] })),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'ok')
   })
 
-  it('skips a response that redirected to an unsupported protocol', async () => {
+  it('skips a redirect to an unsupported protocol without fetching it', async () => {
+    const seen: string[] = []
     const page = await fetchPage('https://example.com/start', {
       mock: false,
-      fetchImpl: stubFetch(
-        responseOf({ url: 'file:///etc/passwd', chunks: [articleHtml(padding)] }),
-      ),
+      fetchImpl: scriptedFetch([redirectTo('file:///etc/passwd')], seen),
+      lookupImpl: publicLookup,
     })
     assert.equal(page.status, 'skipped')
     assert.equal(page.reason, 'redirected to unsupported protocol')
     assert.equal(page.finalUrl, 'file:///etc/passwd')
     assert.equal(page.text, '')
-  })
-
-  it('accepts a redirect that stays on http(s)', async () => {
-    const page = await fetchPage('http://example.com/start', {
-      mock: false,
-      fetchImpl: stubFetch(
-        responseOf({ url: 'https://example.com/final', chunks: [articleHtml(padding)] }),
-      ),
-    })
-    assert.equal(page.status, 'ok')
-    assert.equal(page.finalUrl, 'https://example.com/final')
+    assert.deepEqual(seen, ['https://example.com/start'], 'the file: hop must never be requested')
   })
 
   it('does not apply the guard in mock mode', async () => {
     const page = await fetchPage('https://competitor-one.com/blog/x', { mock: true })
     assert.equal(page.status, 'ok')
+  })
+
+  it('never resolves dns in mock mode', async () => {
+    const page = await fetchPage('http://169.254.169.254/latest/meta-data/', {
+      mock: true,
+      lookupImpl: async () => {
+        throw new Error('dns should not have been consulted in mock mode')
+      },
+    })
+    assert.equal(page.status, 'ok')
+  })
+})
+
+describe('fetchPage (address guard)', () => {
+  const neverCalled = (() => {
+    throw new Error('fetch should not have been called')
+  }) as unknown as typeof fetch
+
+  it('skips a direct link-local target before fetching it', async () => {
+    const page = await fetchPage('http://169.254.169.254/latest/meta-data/', {
+      mock: false,
+      fetchImpl: neverCalled,
+      lookupImpl: lookupWhere({ '169.254.169.254': '169.254.169.254' }),
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'private address')
+    assert.equal(page.finalUrl, null)
+    assert.equal(page.text, '')
+  })
+
+  it('skips a public hostname that resolves to a private address', async () => {
+    const page = await fetchPage('https://sneaky.example.com/x', {
+      mock: false,
+      fetchImpl: neverCalled,
+      lookupImpl: lookupWhere({ 'sneaky.example.com': '10.0.0.7' }),
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'private address')
+  })
+
+  it('skips a host whose address set mixes public and private answers', async () => {
+    const page = await fetchPage('https://mixed.example.com/x', {
+      mock: false,
+      fetchImpl: neverCalled,
+      lookupImpl: async () => [
+        { address: '93.184.216.34', family: 4 },
+        { address: '::1', family: 6 },
+      ],
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'private address')
+  })
+
+  it('skips localhost by name without consulting dns', async () => {
+    const page = await fetchPage('http://localhost:8080/admin', {
+      mock: false,
+      fetchImpl: neverCalled,
+      lookupImpl: async () => {
+        throw new Error('dns should not have been consulted for localhost')
+      },
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'private address')
+  })
+
+  it('skips a public page that redirects to a private one, before the second request', async () => {
+    const seen: string[] = []
+    const page = await fetchPage('https://ranking.example.com/post', {
+      mock: false,
+      fetchImpl: scriptedFetch([redirectTo('http://169.254.169.254/latest/meta-data/')], seen),
+      lookupImpl: lookupWhere({ '169.254.169.254': '169.254.169.254' }),
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'redirected to private address')
+    assert.equal(page.finalUrl, 'http://169.254.169.254/latest/meta-data/')
+    assert.deepEqual(
+      seen,
+      ['https://ranking.example.com/post'],
+      'only the first, public hop should have been requested',
+    )
+  })
+
+  it('follows a redirect chain within the cap and reads the final page', async () => {
+    const seen: string[] = []
+    const page = await fetchPage('https://example.com/1', {
+      mock: false,
+      fetchImpl: scriptedFetch(
+        [
+          redirectTo('https://example.com/2'),
+          redirectTo('/3'),
+          responseOf({ chunks: [articleHtml(padding)] }),
+        ],
+        seen,
+      ),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.status, 'ok')
+    assert.equal(page.finalUrl, 'https://example.com/3')
+    assert.deepEqual(seen, [
+      'https://example.com/1',
+      'https://example.com/2',
+      'https://example.com/3',
+    ])
+  })
+
+  it('gives up on a redirect chain longer than MAX_REDIRECTS', async () => {
+    const seen: string[] = []
+    const responses = Array.from({ length: MAX_REDIRECTS + 2 }, (_, index) =>
+      redirectTo(`https://example.com/hop-${index + 1}`),
+    )
+    const page = await fetchPage('https://example.com/hop-0', {
+      mock: false,
+      fetchImpl: scriptedFetch(responses, seen),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'too many redirects')
+    assert.equal(seen.length, MAX_REDIRECTS + 1, 'one request per hop, then it stops')
+    assert.equal(page.finalUrl, `https://example.com/hop-${MAX_REDIRECTS}`)
   })
 })
 
