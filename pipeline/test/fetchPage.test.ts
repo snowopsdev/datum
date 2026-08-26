@@ -8,6 +8,8 @@ import {
   type LookupFn,
   MAX_REDIRECTS,
   PAGE_TEXT_CAP_CHARS,
+  pinnedLookup,
+  type ResolvedAddress,
   USER_AGENT,
 } from '../src/corpus/fetchPage'
 import { mockPageText } from '../src/corpus/mockPages'
@@ -497,6 +499,91 @@ describe('fetchPage (address guard)', () => {
     assert.equal(page.reason, 'too many redirects')
     assert.equal(seen.length, MAX_REDIRECTS + 1, 'one request per hop, then it stops')
     assert.equal(page.finalUrl, `https://example.com/hop-${MAX_REDIRECTS}`)
+  })
+})
+
+describe('pinnedLookup', () => {
+  /** Calls the lookup and returns whatever it passed to its callback. */
+  const resolve = (
+    host: string,
+    addresses: ResolvedAddress[],
+    asked: string,
+    all: boolean,
+  ): { error: Error | null; address: string | ResolvedAddress[]; family?: number } => {
+    let seen: { error: Error | null; address: string | ResolvedAddress[]; family?: number } | null =
+      null
+    pinnedLookup(host, addresses)(asked, { all }, (error, address, family) => {
+      seen = { error, address, family }
+    })
+    assert.ok(seen, 'the lookup must answer synchronously')
+    return seen as unknown as {
+      error: Error | null
+      address: string | ResolvedAddress[]
+      family?: number
+    }
+  }
+
+  const publicV4: ResolvedAddress[] = [{ address: '93.184.216.34', family: 4 }]
+
+  it('hands back the validated address when asked for all', () => {
+    const { error, address } = resolve('example.com', publicV4, 'example.com', true)
+    assert.equal(error, null)
+    assert.deepEqual(address, [{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it('hands back a single validated address and family when all is not set', () => {
+    const { error, address, family } = resolve('example.com', publicV4, 'example.com', false)
+    assert.equal(error, null)
+    assert.equal(address, '93.184.216.34')
+    assert.equal(family, 4)
+  })
+
+  it('keeps every validated address, in order, so happy-eyeballs still works', () => {
+    const both: ResolvedAddress[] = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+    ]
+    const { address } = resolve('example.com', both, 'example.com', true)
+    assert.deepEqual(address, both)
+  })
+
+  it('refuses a blocked address even if the caller passed one in', () => {
+    for (const blocked of ['169.254.169.254', '10.0.0.7', '127.0.0.1', '::1', 'nonsense']) {
+      const { error } = resolve(
+        'sneaky.example.com',
+        [{ address: blocked, family: blocked.includes(':') ? 6 : 4 }],
+        'sneaky.example.com',
+        true,
+      )
+      assert.ok(error, `${blocked} should not survive pinning`)
+      assert.match(error.message, /no allowed address/)
+    }
+  })
+
+  it('drops a blocked address from a mixed set rather than serving it', () => {
+    const mixed: ResolvedAddress[] = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ]
+    const { error, address } = resolve('example.com', mixed, 'example.com', true)
+    assert.equal(error, null)
+    assert.deepEqual(address, [{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it('refuses any hostname other than the one that was validated', () => {
+    const { error } = resolve('example.com', publicV4, 'metadata.google.internal', true)
+    assert.ok(error)
+    assert.match(error.message, /is not the validated host example\.com/)
+  })
+
+  it('matches the validated host case- and trailing-dot-insensitively', () => {
+    assert.equal(resolve('example.com', publicV4, 'EXAMPLE.COM.', true).error, null)
+  })
+
+  it('never falls back to real dns: an empty address set is an error', () => {
+    const { error } = resolve('example.com', [], 'example.com', true)
+    assert.ok(error)
+    assert.match(error.message, /no allowed address/)
   })
 })
 

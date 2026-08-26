@@ -17,6 +17,16 @@
  * object, which is exactly how a ranking page becomes an SSRF vector against
  * cloud metadata at `169.254.169.254` or an internal HTTP service.
  *
+ * Checking is not enough on its own: `fetch` resolves the hostname a second
+ * time when it opens the socket, so a host that answers publicly for the guard
+ * and privately a moment later (DNS rebinding) would pass the check and still
+ * be connected to a private address. The addresses the guard cleared are
+ * therefore *pinned* to the connection — each hop gets its own undici `Agent`
+ * whose `connect.lookup` (`pinnedLookup`) hands back only those addresses, and
+ * refuses anything `isBlockedAddress` rejects, so no socket can reach an
+ * address the guard did not clear. Pinning replaces resolution only; the TLS
+ * server name is still the real hostname, so certificate checking is unchanged.
+ *
  * V1 still does not read robots.txt, has no per-host throttle, and does no
  * sanitisation beyond what Readability already strips; the text is only ever
  * fed to an LLM, never rendered.
@@ -78,40 +88,129 @@ const defaultLookup: LookupFn = (hostname) => dnsLookup(hostname, { all: true })
 /** Why a target was refused, and whether that counts as `skipped` or `failed`. */
 type Refusal = { status: 'skipped' | 'failed'; reason: string }
 
+/** A cleared target, carrying the exact addresses that cleared it. */
+type Cleared = { allowed: true; host: string; addresses: ResolvedAddress[] }
+
 /**
  * Whether one URL may be requested. Refuses a non-web scheme and any host that
  * resolves — wholly or partly — to an address the crawler must not reach; a
  * host that will not resolve at all is a dead host, which is a `failed` fetch
  * rather than a refused one.
+ *
+ * A cleared target comes back with the addresses it was cleared on, because
+ * those — and only those — are what the connection is allowed to use.
  */
-async function guardTarget(url: string, lookupImpl: LookupFn): Promise<Refusal | null> {
+async function guardTarget(
+  url: string,
+  lookupImpl: LookupFn,
+): Promise<Cleared | { allowed: false; refusal: Refusal }> {
+  const refuse = (status: 'skipped' | 'failed', reason: string) =>
+    ({ allowed: false, refusal: { status, reason } }) as const
+
   let parsed: URL
   try {
     parsed = new URL(url)
   } catch {
-    return { status: 'skipped', reason: 'unsupported protocol' }
+    return refuse('skipped', 'unsupported protocol')
   }
   if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
-    return { status: 'skipped', reason: 'unsupported protocol' }
+    return refuse('skipped', 'unsupported protocol')
   }
   const host = normaliseHostname(parsed.hostname)
-  if (isBlockedHostname(host)) return { status: 'skipped', reason: 'private address' }
+  if (isBlockedHostname(host)) return refuse('skipped', 'private address')
 
   let resolved: ResolvedAddress[]
   try {
     resolved = await lookupImpl(host)
   } catch (error) {
     const message = (error as { message?: string })?.message ?? 'lookup failed'
-    return { status: 'failed', reason: `dns lookup failed: ${message}` }
+    return refuse('failed', `dns lookup failed: ${message}`)
   }
-  if (resolved.length === 0) return { status: 'failed', reason: 'dns lookup failed: no addresses' }
+  if (resolved.length === 0) return refuse('failed', 'dns lookup failed: no addresses')
   // Any blocked address in the set is disqualifying: which one the runtime
   // would pick is not ours to predict.
   if (resolved.some((entry) => isBlockedAddress(entry.address))) {
-    return { status: 'skipped', reason: 'private address' }
+    return refuse('skipped', 'private address')
   }
-  return null
+  return { allowed: true, host, addresses: resolved }
 }
+
+/**
+ * The callback Node's `net.connect` hands a custom `lookup`: an array when it
+ * asked for `all` (which it does by default, for happy-eyeballs), otherwise a
+ * single address and family.
+ */
+type LookupCallback = (
+  error: NodeJS.ErrnoException | null,
+  address: string | ResolvedAddress[],
+  family?: number,
+) => void
+
+/** A `lookup` in the shape `net.connect` — and so undici's connector — expects. */
+export type PinnedLookup = (
+  hostname: string,
+  options: { all?: boolean },
+  callback: LookupCallback,
+) => void
+
+/**
+ * A `lookup` that resolves `host` to exactly the addresses the guard already
+ * cleared, and nothing else.
+ *
+ * This is what closes the gap between checking an address and connecting to
+ * one: the socket cannot re-resolve the name, so a second, private DNS answer
+ * has nowhere to arrive. `isBlockedAddress` is applied again here rather than
+ * trusted from the caller — the pinned set is the last thing between a URL and
+ * a socket, and it should be able to stand on its own. Any other hostname, or
+ * an empty allowed set, is an error: refusing to answer is the only safe
+ * failure mode, because falling back to real DNS is the very thing being
+ * prevented.
+ */
+export function pinnedLookup(host: string, addresses: ResolvedAddress[]): PinnedLookup {
+  const expected = normaliseHostname(host)
+  const allowed = addresses.filter((entry) => !isBlockedAddress(entry.address))
+  return (hostname, options, callback) => {
+    if (normaliseHostname(hostname) !== expected) {
+      callback(new Error(`pinned lookup: ${hostname} is not the validated host ${expected}`), '')
+      return
+    }
+    const first = allowed[0]
+    if (!first) {
+      callback(new Error(`pinned lookup: no allowed address for ${expected}`), '')
+      return
+    }
+    if (options?.all) {
+      callback(
+        null,
+        allowed.map((entry) => ({ address: entry.address, family: entry.family })),
+      )
+      return
+    }
+    callback(null, first.address, first.family)
+  }
+}
+
+/** As much of undici's `Agent` as this module uses. */
+interface PinnedDispatcher {
+  destroy(): Promise<void>
+}
+
+/**
+ * An undici dispatcher that will only ever connect to `addresses`.
+ *
+ * undici is imported dynamically so the module stays loadable — and the tests
+ * stay hermetic — without it: an injected `fetchImpl` never reaches this.
+ */
+async function pinnedDispatcher(
+  host: string,
+  addresses: ResolvedAddress[],
+): Promise<PinnedDispatcher> {
+  const { Agent } = await import('undici')
+  return new Agent({ connect: { lookup: pinnedLookup(host, addresses) } })
+}
+
+/** `fetch`'s init plus undici's `dispatcher`, which Node honours but does not type. */
+type CrawlRequestInit = RequestInit & { dispatcher?: PinnedDispatcher }
 
 /**
  * Readability's article text for `html`, whitespace-normalised and capped.
@@ -217,25 +316,38 @@ export async function fetchPage(
   const lookupImpl = opts.lookupImpl ?? defaultLookup
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  // One per hop; torn down together once the page is read or given up on.
+  const dispatchers: PinnedDispatcher[] = []
   try {
     let target = url
     for (let hop = 0; ; hop += 1) {
       // A refusal on a later hop reads differently from one on the URL we were
       // handed, so the reason says which it was and `finalUrl` names the hop.
-      const refused = await guardTarget(target, lookupImpl)
-      if (refused) {
+      const guard = await guardTarget(target, lookupImpl)
+      if (!guard.allowed) {
+        const { status, reason } = guard.refusal
         return failure(
-          refused.status,
-          hop === 0 ? refused.reason : `redirected to ${refused.reason}`,
+          status,
+          hop === 0 ? reason : `redirected to ${reason}`,
           hop === 0 ? null : target,
         )
       }
 
-      const response = await doFetch(target, {
+      // Pin this hop's connection to the addresses just cleared. Only the real
+      // `fetch` gets a dispatcher: an injected `fetchImpl` is a stub with no
+      // socket to pin, and giving it one would drag undici into the tests.
+      const init: CrawlRequestInit = {
         headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
         redirect: 'manual',
         signal: controller.signal,
-      })
+      }
+      if (!opts.fetchImpl) {
+        const dispatcher = await pinnedDispatcher(guard.host, guard.addresses)
+        dispatchers.push(dispatcher)
+        init.dispatcher = dispatcher
+      }
+
+      const response = await doFetch(target, init)
 
       const location = REDIRECT_STATUSES.has(response.status)
         ? response.headers.get('location')
@@ -283,5 +395,8 @@ export async function fetchPage(
     )
   } finally {
     clearTimeout(timer)
+    // By here every body is read, cancelled, or aborted, so nothing is in
+    // flight for `destroy` to cut short — it just returns the sockets.
+    for (const dispatcher of dispatchers) await dispatcher.destroy().catch(() => {})
   }
 }
