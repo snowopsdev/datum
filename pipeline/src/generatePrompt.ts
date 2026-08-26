@@ -50,7 +50,9 @@ export function gapsBlock(research: Article['research'], revisionNotes?: string 
       .map((facet) => {
         const coverage = facet.mustHave
           ? ' (required by template)'
-          : ` (covered by ${facet.docCount} ranking page${facet.docCount === 1 ? '' : 's'})`
+          : // "baseline sources", not "ranking pages": docCount counts every
+            // baseline document, our own published articles included.
+            ` (covered by ${facet.docCount} baseline source${facet.docCount === 1 ? '' : 's'})`
         return `- ${facet.label}${coverage}: ${facet.description}`
       })
       .join('\n')

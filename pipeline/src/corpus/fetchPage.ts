@@ -7,8 +7,12 @@
  * results should not fail because one of them is a PDF or a dead host, so every
  * outcome comes back as a `FetchedPage` with a `status` and a `reason`.
  *
- * V1 does not read robots.txt and does no sanitisation beyond what Readability
- * already strips; the text is only ever fed to an LLM, never rendered.
+ * The one outbound safety check is the scheme: only `http:`/`https:` are
+ * fetched, before the request and again on `response.url` after redirects.
+ * V1 does not read robots.txt, does not resolve hosts to reject private
+ * addresses, has no per-host throttle, and does no sanitisation beyond what
+ * Readability already strips; the text is only ever fed to an LLM, never
+ * rendered.
  */
 
 import { Readability } from '@mozilla/readability'
@@ -35,9 +39,29 @@ export interface FetchedPage {
 export const FETCH_TIMEOUT_MS = 15_000
 export const FETCH_MAX_BYTES = 200_000
 export const PAGE_TEXT_CAP_CHARS = 24_000
-export const USER_AGENT = `DatumBot/1.0 (+https://${config.targetDomain})`
+/** The identifier a site owner would use to contact us; never left half-formed. */
+export const USER_AGENT = config.targetDomain
+  ? `DatumBot/1.0 (+https://${config.targetDomain})`
+  : 'DatumBot/1.0'
 
 const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml']
+
+/** Only the web: never `file:`, `data:`, `ftp:`, or anything else a redirect might reach for. */
+const ALLOWED_PROTOCOLS = ['http:', 'https:']
+
+/** The URL's protocol, or null when it does not parse as a URL at all. */
+function protocolOf(url: string): string | null {
+  try {
+    return new URL(url).protocol
+  } catch {
+    return null
+  }
+}
+
+const isWebUrl = (url: string): boolean => {
+  const protocol = protocolOf(url)
+  return protocol !== null && ALLOWED_PROTOCOLS.includes(protocol)
+}
 
 /**
  * Readability's article text for `html`, whitespace-normalised and capped.
@@ -133,6 +157,11 @@ export async function fetchPage(
       fetchedAt,
     }) satisfies FetchedPage
 
+  // SERP URLs are low-trust input and the body ends up in Postgres and in an
+  // LLM prompt, so the scheme is checked before the request and again after
+  // redirects. This is a protocol guard only: no DNS or private-IP resolution.
+  if (!isWebUrl(url)) return failure('skipped', 'unsupported protocol')
+
   const doFetch = opts.fetchImpl ?? fetch
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -143,6 +172,9 @@ export async function fetchPage(
       signal: controller.signal,
     })
     const finalUrl = response.url || null
+    if (finalUrl !== null && !isWebUrl(finalUrl)) {
+      return failure('skipped', 'redirected to unsupported protocol', finalUrl)
+    }
     if (!response.ok) return failure('failed', `http ${response.status}`, finalUrl)
 
     const contentType = response.headers.get('content-type') ?? ''

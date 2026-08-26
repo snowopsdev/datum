@@ -76,7 +76,7 @@ test('gapsBlock renders facets, gaps, and the evidence rules', () => {
   )
   assert.ok(
     text.includes(
-      '- Pricing tiers (covered by 1 ranking page): What each tier costs and what it includes.',
+      '- Pricing tiers (covered by 1 baseline source): What each tier costs and what it includes.',
     ),
   )
   assert.ok(
@@ -88,10 +88,10 @@ test('gapsBlock renders facets, gaps, and the evidence rules', () => {
 
 test('gapsBlock pluralises docCount', () => {
   const many = gapsBlock({ ...baseResearch, facets: [{ ...facets[0], docCount: 3 }] }).join('\n\n')
-  assert.ok(many.includes('(covered by 3 ranking pages)'))
+  assert.ok(many.includes('(covered by 3 baseline sources)'))
   const one = gapsBlock({ ...baseResearch, facets: [{ ...facets[0], docCount: 1 }] }).join('\n\n')
-  assert.ok(one.includes('(covered by 1 ranking page)'))
-  assert.ok(!one.includes('1 ranking pages'))
+  assert.ok(one.includes('(covered by 1 baseline source)'))
+  assert.ok(!one.includes('1 baseline sources'))
 })
 
 test('gapsBlock reproduces the evidence rules verbatim', () => {

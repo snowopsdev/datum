@@ -267,3 +267,70 @@ describe('fetchPage (live branch)', () => {
     assert.equal(page.chars, 0)
   })
 })
+
+describe('fetchPage (protocol guard)', () => {
+  const neverCalled = (() => {
+    throw new Error('fetch should not have been called')
+  }) as unknown as typeof fetch
+
+  for (const url of ['file:///etc/passwd', 'ftp://example.com/x', 'data:text/html,<p>hi</p>']) {
+    it(`skips ${new URL(url).protocol} before fetching`, async () => {
+      const page = await fetchPage(url, { mock: false, fetchImpl: neverCalled })
+      assert.equal(page.status, 'skipped')
+      assert.equal(page.reason, 'unsupported protocol')
+      assert.equal(page.text, '')
+      assert.equal(page.chars, 0)
+      assert.equal(page.finalUrl, null)
+    })
+  }
+
+  it('skips a url that does not parse at all', async () => {
+    const page = await fetchPage('not a url', { mock: false, fetchImpl: neverCalled })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'unsupported protocol')
+  })
+
+  it('still fetches plain http', async () => {
+    const page = await fetchPage('http://example.com/guide', {
+      mock: false,
+      fetchImpl: stubFetch(responseOf({ chunks: [articleHtml(padding)] })),
+    })
+    assert.equal(page.status, 'ok')
+  })
+
+  it('skips a response that redirected to an unsupported protocol', async () => {
+    const page = await fetchPage('https://example.com/start', {
+      mock: false,
+      fetchImpl: stubFetch(
+        responseOf({ url: 'file:///etc/passwd', chunks: [articleHtml(padding)] }),
+      ),
+    })
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'redirected to unsupported protocol')
+    assert.equal(page.finalUrl, 'file:///etc/passwd')
+    assert.equal(page.text, '')
+  })
+
+  it('accepts a redirect that stays on http(s)', async () => {
+    const page = await fetchPage('http://example.com/start', {
+      mock: false,
+      fetchImpl: stubFetch(
+        responseOf({ url: 'https://example.com/final', chunks: [articleHtml(padding)] }),
+      ),
+    })
+    assert.equal(page.status, 'ok')
+    assert.equal(page.finalUrl, 'https://example.com/final')
+  })
+
+  it('does not apply the guard in mock mode', async () => {
+    const page = await fetchPage('https://competitor-one.com/blog/x', { mock: true })
+    assert.equal(page.status, 'ok')
+  })
+})
+
+describe('USER_AGENT', () => {
+  it('identifies the crawler and never dangles an empty url', () => {
+    assert.ok(USER_AGENT.startsWith('DatumBot/1.0'))
+    assert.ok(!USER_AGENT.includes('(+https://)'), 'an unset TARGET_DOMAIN must not leak through')
+  })
+})
