@@ -131,6 +131,77 @@ describe('extractValues — numbers, units, multipliers, ranges', () => {
   })
 })
 
+describe('extractValues — signs', () => {
+  it('keeps a leading minus on numbers, percents, and currency', () => {
+    assert.deepEqual(shape('growth was -10%'), ['percent:-10 %'])
+    assert.deepEqual(shape('a -3 point drop'), ['number:-3'])
+    assert.deepEqual(shape('a loss of -1.5m'), ['number:-1500000'])
+    assert.deepEqual(shape('costs -$1,500'), ['currency:-1500 USD'])
+    assert.deepEqual(shape('costs $-1,500'), ['currency:-1500 USD'])
+    assert.deepEqual(shape('usd -1500 written off'), ['currency:-1500 USD'])
+  })
+
+  it('reads the U+2212 minus sign as a minus, and keeps the sign in raw', () => {
+    assert.deepEqual(shape('growth was \u221210%'), ['percent:-10 %'])
+    assert.deepEqual(
+      extractValues('growth was -10%').values.map((v: ExtractedValue) => v.raw),
+      ['-10%'],
+    )
+    assert.deepEqual(
+      extractValues('growth was \u221210%').values.map((v: ExtractedValue) => v.raw),
+      ['\u221210%'],
+    )
+  })
+
+  it('keeps a leading plus in raw but reads it as the positive value', () => {
+    // `+10%` and `10%` are the same figure written two ways; only a minus flips
+    // the value, so a written-out plus must not become a separate value.
+    assert.deepEqual(shape('growth was +10%'), ['percent:10 %'])
+    assert.deepEqual(
+      extractValues('growth was +10%').values.map((v: ExtractedValue) => v.raw),
+      ['+10%'],
+    )
+    assert.equal(exactness('growth was +10%', ['growth was 10%']), 1)
+  })
+
+  it('signs both bounds of a negative range', () => {
+    assert.deepEqual(shape('-10 to -5 seconds'), ['number:-10 s', 'number:-5 s'])
+    assert.deepEqual(
+      extractValues('-10 to -5 seconds').values.map((v: ExtractedValue) => v.raw),
+      ['-10 s', '-5 s'],
+    )
+  })
+
+  it('treats a hyphen between two amounts as a range separator, never a sign', () => {
+    // The disambiguation rule: a sign has to *open* a token. In `5-10` the
+    // hyphen sits right after a digit, so both bounds stay positive.
+    assert.deepEqual(shape('5-10 seconds'), ['number:5 s', 'number:10 s'])
+    assert.deepEqual(shape('5-10'), ['number:5', 'number:10'])
+  })
+
+  it('does not sign a number that follows a word character', () => {
+    assert.deepEqual(shape('top-10 list'), ['number:10'])
+    assert.deepEqual(shape('Q3-2026 revenue'), ['number:3', 'year:2026'])
+  })
+
+  it('leaves dates and years unsigned, and demotes a signed four-digit token', () => {
+    assert.deepEqual(shape('shipped 2026-01-05'), ['date:202601'])
+    assert.deepEqual(shape('shipped in 2026'), ['year:2026'])
+    // A sign means it is an amount, not a year.
+    assert.deepEqual(shape('a -2026 adjustment'), ['number:-2026'])
+  })
+
+  it('does not let evidence of the opposite sign support a signed claim', () => {
+    // The reviewer's case: before signs were captured, `-10%` extracted as 10
+    // and `growth was 10%` scored exactness 1 against `growth was -10%`.
+    assert.ok(exactness('growth was -10%', ['growth was 10%']) < 1)
+    assert.deepEqual(mismatches('growth was -10%', ['growth was 10%']), [
+      '-10% (percent) not found in evidence',
+    ])
+    assert.equal(exactness('growth was -10%', ['growth was -10%']), 1)
+  })
+})
+
 describe('extractValues — negation, direction, comparative', () => {
   it('flags negation when a negator is present', () => {
     assert.equal(extractValues('this is not recommended').negated, true)

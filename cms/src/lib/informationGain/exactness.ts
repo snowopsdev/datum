@@ -162,7 +162,29 @@ const WORD_NUMBER_SRC = byLengthDesc(Object.keys(WORD_NUMBERS))
 /** `1.5`, `20,000`, `20K`, `1.5 million`. A bare `k`/`m`/`bn` must touch the digits. */
 const DIGIT_AMOUNT = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`
 const MULTIPLIER = String.raw`(?:(?:k|m|bn)\b|\s?(?:thousand|million|billion)\b)`
-const NUMERIC_AMOUNT = String.raw`(?:${DIGIT_AMOUNT})(?:${MULTIPLIER})?`
+/**
+ * A leading sign, and the one rule that keeps it from swallowing hyphens that
+ * are not signs: **`-`, `−` (U+2212) and `+` count as a sign only when they open
+ * a token** — that is, when the character before them is not a word character,
+ * `.`, `,`, or another dash. Nothing else disambiguates, and the consequences
+ * are:
+ *
+ * - `growth was -10%`, `(-10%)`, `-10 to -5 seconds` → signed (−10, −10, −5).
+ * - `5-10 seconds` → the hyphen sits directly after a digit, so it stays a range
+ *   separator: two *positive* bounds, never `5` and `-10`. Same for a bare
+ *   `5-10`, which reads as 5 and 10.
+ * - `top-10 list`, `Q3-2026` → the hyphen follows a word character, so these
+ *   stay 10 and 2026 rather than becoming negatives.
+ * - En and em dashes are never signs; they only ever separate ranges.
+ *
+ * Signs ride on the amount, so they reach percents, currency, range bounds and
+ * bare numbers alike. Dates and years never take one: their patterns match bare
+ * `\d{4}` digits, and a signed four-digit token (`-2026`) fails the year
+ * re-classification below and stays a plain number. `+10` parses to 10 — a
+ * written-out plus is emphasis, not a distinct value from `10`.
+ */
+const SIGN = String.raw`(?:(?<![\w.,\-–—])[-−+])`
+const NUMERIC_AMOUNT = String.raw`(?:${SIGN})?(?:${DIGIT_AMOUNT})(?:${MULTIPLIER})?`
 /**
  * Word numbers count only where a unit, range, percent, or currency marks the
  * token as a measurement. A bare "one of the best ways" is prose, and reading a
@@ -182,12 +204,12 @@ const VALUE_PATTERN = new RegExp(
     String.raw`\b(?<mdyM>${MONTH_SRC})\.?\s+(?<mdyD>\d{1,2})(?:st|nd|rd|th)?(?:,\s*|\s+)(?<mdyY>\d{4})\b`,
     String.raw`\b(?<myM>${MONTH_SRC})\.?,?\s+(?<myY>\d{4})\b`,
     String.raw`(?<pct>${AMOUNT})\s*(?:%|per\s?cent\b)`,
-    String.raw`(?<symbol>[$€£])\s*(?<symAmount>${AMOUNT})`,
+    String.raw`(?<symSign>${SIGN})?(?<symbol>[$€£])\s*(?<symAmount>${AMOUNT})`,
     String.raw`\b(?<codePre>usd|eur|gbp)\s*(?<codePreAmount>${AMOUNT})`,
     String.raw`(?<codeSufAmount>${AMOUNT})\s*(?<codeSuf>usd|eur|gbp)\b`,
     String.raw`(?<rangeLo>${AMOUNT})\s*(?:to|[-–—])\s*(?<rangeHi>${AMOUNT})\s*(?<rangeUnit>${UNIT_SRC})\b`,
     // Before the united-number rule, so `1.5m` is 1,500,000 rather than 1.5 metres.
-    String.raw`(?<multAmount>(?:${DIGIT_AMOUNT})${MULTIPLIER})`,
+    String.raw`(?<multAmount>(?:${SIGN})?(?:${DIGIT_AMOUNT})${MULTIPLIER})`,
     String.raw`(?<numAmount>${AMOUNT})\s*(?<numUnit>${UNIT_SRC})\b`,
     String.raw`(?<bare>${NUMERIC_AMOUNT})`,
   ].join('|'),
@@ -203,15 +225,17 @@ const DIRECTION_PATTERN =
 const COMPARATIVE_PATTERN =
   /\b(?:(more than|greater than|above|over|exceeds)|(less than|fewer than|below|under)|(equal to|same as|exactly))\b/i
 
-/** Turns one matched amount ("20,000", "1.5m", "four") into its numeric value. */
+/** Turns one matched amount ("20,000", "1.5m", "-10", "four") into its value. */
 function parseAmount(raw: string | undefined): number | null {
   if (raw === undefined) return null
   const text = raw.trim().toLowerCase()
-  const digits = /^([\d,]+(?:\.\d+)?)\s?(k|m|bn|thousand|million|billion)?$/.exec(text)
+  const digits = /^([-−+]?)\s?([\d,]+(?:\.\d+)?)\s?(k|m|bn|thousand|million|billion)?$/.exec(text)
   if (digits) {
-    const value = Number(digits[1].replace(/,/g, ''))
+    const value = Number(digits[2].replace(/,/g, ''))
     if (!Number.isFinite(value)) return null
-    return digits[2] ? value * MULTIPLIERS[digits[2]] : value
+    const scaled = digits[3] ? value * MULTIPLIERS[digits[3]] : value
+    // `+` is emphasis; only a minus (ASCII or U+2212) flips the value.
+    return digits[1] === '-' || digits[1] === '−' ? -scaled : scaled
   }
   return WORD_NUMBERS[text] ?? null
 }
@@ -248,7 +272,9 @@ function valueFromMatch(match: RegExpExecArray): ExtractedValue | ExtractedValue
     g.symbol !== undefined ? CURRENCY_BY_SYMBOL[g.symbol] : (g.codePre ?? g.codeSuf)?.toUpperCase()
   const currencyAmount = g.symAmount ?? g.codePreAmount ?? g.codeSufAmount
   if (currencyCode !== undefined && currencyAmount !== undefined) {
-    const value = parseAmount(currencyAmount)
+    // `-$1,500` carries its sign ahead of the symbol; `$-1,500` and `USD -1500`
+    // carry it on the amount, where parseAmount already sees it.
+    const value = parseAmount(`${g.symSign ?? ''}${currencyAmount}`)
     return value === null ? null : { kind: 'currency', value, unit: currencyCode, raw }
   }
 
@@ -279,8 +305,9 @@ function valueFromMatch(match: RegExpExecArray): ExtractedValue | ExtractedValue
   if (g.bare !== undefined) {
     const value = parseAmount(g.bare)
     if (value === null) return null
-    // A standalone four-digit 1900–2099 integer is a year; `12026` and `2026.5`
-    // matched as one longer token above, so they stay plain numbers.
+    // A standalone four-digit 1900–2099 integer is a year; `12026`, `2026.5` and
+    // signed `-2026` matched as one longer token above (or fail this test), so
+    // they stay plain numbers.
     const isYear = /^\d{4}$/.test(g.bare) && value >= 1900 && value <= 2099
     return { kind: isYear ? 'year' : 'number', value, unit: null, raw }
   }
@@ -333,7 +360,11 @@ export function hasNumericOrTemporal(v: TextValues): boolean {
   return v.values.length > 0
 }
 
-/** Same kind, same value, and — when both carry one — the same unit. No conversion. */
+/**
+ * Same kind, same value, and — when both carry one — the same unit. No
+ * conversion, and no absolute value either: `-10` and `10` are different values,
+ * so evidence reading `growth was 10%` cannot support `growth was -10%`.
+ */
 function sameValue(a: ExtractedValue, b: ExtractedValue): boolean {
   if (a.kind !== b.kind) return false
   if (Math.abs(a.value - b.value) > 1e-9) return false
