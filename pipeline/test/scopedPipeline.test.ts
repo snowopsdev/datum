@@ -91,13 +91,36 @@ it('advances only the article ids assigned to a scoped run', async () => {
       return { id: costRows.length, ...data }
     },
   } as unknown as Payload
+  // The hosts must be ones `corpus/mockPages.ts` has text for, exactly as
+  // `MockAhrefsClient` does: a SERP with no crawlable pages builds an empty
+  // corpus snapshot, which the research stage now refuses rather than passing
+  // an ungoverned article on to generation.
   const ahrefs: AhrefsClient = {
     contentGapKeywords: async () => [],
-    serpResearch: async () => ({
+    serpResearch: async (keyword) => ({
       rankingPagesSummary: 'Research summary',
       commonSubtopics: ['Equipment'],
       relatedQuestions: ['What does it cost?'],
-      pages: [],
+      pages: [
+        {
+          position: 1,
+          title: `The complete guide to ${keyword}`,
+          url: 'https://competitor-one.com/blog/guide',
+          domainRating: 78,
+        },
+        {
+          position: 2,
+          title: `${keyword}: what actually works`,
+          url: 'https://competitor-two.com/guide',
+          domainRating: 71,
+        },
+        {
+          position: 3,
+          title: `10 lessons from doing ${keyword} the hard way`,
+          url: 'https://industry-mag.example.com/lessons',
+          domainRating: 66,
+        },
+      ],
     }),
   }
   const ctx: StageContext = {
@@ -119,6 +142,9 @@ it('advances only the article ids assigned to a scoped run', async () => {
 
   const result = await runPipeline(ctx, { articleIds: [1] })
 
+  assert.equal(result.failed, 0, 'the scoped run should not have failed any article')
+  assert.equal(snapshotRows.length, 1, 'the scoped run should have built one corpus snapshot')
+  assert.notEqual(snapshotRows[0]?.status, 'empty')
   assert.equal(articles.get(1)?.status, 'qa_passed')
   assert.equal(articles.get(2)?.status, 'topic_selected')
   assert.deepEqual(result.articleIds, [1])
