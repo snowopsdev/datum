@@ -14,9 +14,10 @@
  *   4. hand the whole scorecard to `decidePolicy`, which is the only place a
  *      verdict is reached.
  *
- * Everything except the calls themselves lives in `./scorecard`, so the flow
- * below reads as the list of steps and every rule it applies is unit-testable
- * without Payload. Every 0–1 signal here is an uncalibrated LLM estimate.
+ * The two batched LLM passes live in `./passes` and every rule applied to what
+ * they return lives in `./scorecard`, so this file is the flow and the
+ * persistence, and every rule is unit-testable without Payload. Every 0–1
+ * signal here is an uncalibrated LLM estimate.
  */
 
 import type { Where } from 'payload'
@@ -26,21 +27,9 @@ import { completeJSONLogged } from '../llm'
 import { lexicalToPlainText, type RichText } from '../richtext'
 import type { Stage, StageContext } from '../stages'
 
-import {
-  intraDocumentNovelty,
-  judgeBatches,
-  pickForVerification,
-  selectBaselineContext,
-  verifierBatches,
-} from './batching'
-import {
-  DRAFT_CLAIM_EXTRACTION_SYSTEM,
-  draftClaimUser,
-  JUDGE_SYSTEM,
-  judgeUser,
-  VERIFIER_SYSTEM,
-  verifierUser,
-} from './prompts'
+import { intraDocumentNovelty } from './batching'
+import { runJudge, runVerifier } from './passes'
+import { DRAFT_CLAIM_EXTRACTION_SYSTEM, draftClaimUser } from './prompts'
 import {
   articleOutcome,
   buildClaimRecord,
@@ -58,14 +47,10 @@ import {
   decidePolicy,
   estimateTokens,
   parseDraftClaims,
-  parseJudgeReply,
-  parseVerifierReply,
   scoreDocument,
   type BaselineClaim,
-  type DraftClaim,
   type Facet,
   type QueryClusterEntry,
-  type VerifierSignals,
 } from './lib'
 
 /** The three stages whose cost belongs to this scoring run. */
@@ -230,84 +215,6 @@ export const informationGainStage: Stage = {
 }
 
 const fmt = (value: number | null): string => (value === null ? 'n/a' : value.toFixed(2))
-
-/**
- * One judge call per facet batch. Batching by facet is what keeps the baseline
- * context small enough to fit: every claim in a batch is weighed against the
- * same slice of the corpus.
- */
-async function runJudge(
-  ctx: StageContext,
-  articleId: number,
-  keyword: string,
-  queryCluster: QueryClusterEntry[],
-  facets: Facet[],
-  draftClaims: DraftClaim[],
-  baselineClaims: BaselineClaim[],
-): Promise<Map<string, JudgeDerived>> {
-  const queryIds = new Set(queryCluster.map((query) => query.id))
-  const baselineIds = new Set(baselineClaims.map((claim) => claim.id))
-  const derived = new Map<string, JudgeDerived>()
-
-  for (const batch of judgeBatches(draftClaims)) {
-    const context = selectBaselineContext(batch, baselineClaims)
-    const result = await completeJSONLogged(ctx, 'informationGainJudge', articleId, {
-      system: JUDGE_SYSTEM,
-      user: judgeUser({ keyword }, queryCluster, facets, batch, context),
-    })
-    const signals = parseJudgeReply(
-      result.json,
-      batch.map((claim) => claim.id),
-      queryIds,
-      baselineIds,
-    )
-    for (const [claimId, judge] of signals) {
-      derived.set(claimId, deriveJudgeSignals(judge, queryCluster))
-    }
-  }
-  return derived
-}
-
-/**
- * Web-search verification for the materially novel, checkable claims only.
- * Claims left out keep the neutral values `unverifiedOutcome` gives them —
- * absence of a check is not evidence of a problem, and only a `verified` claim
- * can be blocked.
- */
-async function runVerifier(
-  ctx: StageContext,
-  articleId: number,
-  keyword: string,
-  draftClaims: DraftClaim[],
-  judged: Map<string, JudgeDerived>,
-  policy: Parameters<typeof pickForVerification>[1],
-): Promise<Map<string, VerificationOutcome>> {
-  const candidates = draftClaims.map((claim) => ({
-    claim,
-    novelty: judged.get(claim.id)?.novelty ?? 0,
-  }))
-  const selected = pickForVerification(candidates, policy)
-  const byId = new Map(draftClaims.map((claim) => [claim.id, claim]))
-  const outcomes = new Map<string, VerificationOutcome>()
-
-  for (const batch of verifierBatches(selected)) {
-    const result = await completeJSONLogged(ctx, 'evidenceVerification', articleId, {
-      system: VERIFIER_SYSTEM,
-      user: verifierUser({ keyword }, batch),
-      needWebSearch: true,
-    })
-    const signals: Map<string, VerifierSignals> = parseVerifierReply(
-      result.json,
-      batch.map((claim) => claim.id),
-    )
-    for (const [claimId, verifier] of signals) {
-      const claim = byId.get(claimId)
-      if (claim === undefined) continue
-      outcomes.set(claimId, verifiedOutcome(claim, verifier, ctx.evidenceSources))
-    }
-  }
-  return outcomes
-}
 
 /**
  * This article's spend: the whole cost-log for `totalCostUsd`, or only this
