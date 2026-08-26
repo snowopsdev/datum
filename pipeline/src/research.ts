@@ -33,12 +33,13 @@ export const researchStage: Stage = {
     const queryCluster = buildQueryCluster(article.keyword, serp.relatedQuestions)
     const snapshot = await getOrBuildSnapshot(ctx, article, template, serp, queryCluster)
     // A reused snapshot carries the template hints of whichever article built
-    // it, so `mustHave` is re-derived against this article's own required
-    // sections before the facets are copied onto it. The snapshot row keeps the
-    // build-time flags as its audit record.
+    // it, so `mustHave` — and the `weight` its floor depends on — are re-derived
+    // against this article's own required sections before the facets are copied
+    // onto it. The snapshot row keeps the build-time flags as its audit record.
     const facets = applyTemplateHints(
       storedFacets(snapshot.facets),
       (template.requiredSections ?? []).map((section) => section.heading),
+      snapshot.baselineDocCount ?? 0,
     )
     return {
       status: 'researched',
