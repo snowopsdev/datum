@@ -256,3 +256,81 @@ describe('compareValues', () => {
     assert.equal(exactness('40% faster', ['unrelated text', '40% faster in tests']), 1)
   })
 })
+
+describe('compareValues — symmetric negation', () => {
+  it('flags an affirmative claim whose evidence is negated', () => {
+    // The reviewer's case: the numbers agree, the propositions are opposites.
+    // Before the symmetric check this scored 1 and satisfied requireExactValueMatch.
+    assert.deepEqual(mismatches('80% recommend it', ['80% do not recommend it']), [
+      'negation: claim is affirmative, evidence is negated',
+    ])
+    // One value (matched) + one negation (mismatched) → 1/2, and crucially < 1.
+    assert.equal(exactness('80% recommend it', ['80% do not recommend it']), 0.5)
+  })
+
+  it('flags the mirror case, a negated claim against affirmative evidence', () => {
+    assert.deepEqual(mismatches('80% do not recommend it', ['80% recommend it']), [
+      'negation: claim is negated, evidence is not',
+    ])
+    assert.equal(exactness('80% do not recommend it', ['80% recommend it']), 0.5)
+  })
+
+  it('accepts evidence whose negation matches the claim, either way round', () => {
+    assert.equal(exactness('80% recommend it', ['80% recommend it']), 1)
+    assert.equal(exactness('80% do not recommend it', ['80% do not recommend it']), 1)
+  })
+
+  it('accepts an affirmative claim when any one excerpt is affirmative too', () => {
+    assert.equal(
+      exactness('80% recommend it', ['80% do not recommend it', '80% recommend it']),
+      1,
+    )
+  })
+
+  it('does not open a negation comparable when neither side is negated', () => {
+    // Nothing comparable at all, so the claim still scores 1.
+    assert.equal(exactness('this is recommended', ['this is recommended']), 1)
+  })
+})
+
+describe('compareValues — comparative polarity', () => {
+  it('does not let a bare figure satisfy a "more than" threshold', () => {
+    // The reviewer's case: `more than 10%` was fully matched by evidence saying
+    // exactly `10%`, because the extracted comparative was never compared.
+    assert.ok(exactness('more than 10% of teams', ['10% of teams']) < 1)
+    assert.deepEqual(mismatches('more than 10% of teams', ['10% of teams']), [
+      'comparative: claim asserts more than the stated value, evidence does not',
+    ])
+  })
+
+  it('accepts evidence asserting the same threshold', () => {
+    assert.equal(exactness('more than 10% of teams', ['more than 10% of teams']), 1)
+    assert.equal(exactness('fewer than 10 items', ['fewer than 10 items']), 1)
+  })
+
+  it('flags an opposing threshold', () => {
+    // "less"/"more" are direction words too, so this excerpt trips both checks.
+    assert.deepEqual(mismatches('less than 10 items', ['more than 10 items']), [
+      'direction: claim says decrease, evidence says increase',
+      'comparative: claim asserts less than the stated value, evidence does not',
+    ])
+  })
+
+  it('lets a bare figure support an "exactly" claim', () => {
+    // `equal` is what a bare figure already asserts, so evidence with no
+    // comparative of its own supports it.
+    assert.equal(exactness('exactly 40 items', ['40 items']), 1)
+    assert.equal(exactness('exactly 40 items', ['exactly 40 items']), 1)
+  })
+
+  it('flags an "exactly" claim whose evidence states a threshold instead', () => {
+    assert.deepEqual(mismatches('exactly 40 items', ['more than 40 items']), [
+      'comparative: claim asserts exactly the stated value, evidence does not',
+    ])
+    assert.equal(exactness('exactly 40 items', ['more than 40 items']), 0.5)
+  })
+
+  it('leaves a claim with no comparative unaffected by one in the evidence', () => {
+    assert.equal(exactness('40 items', ['more than 40 items']), 1)
+  })
+})
