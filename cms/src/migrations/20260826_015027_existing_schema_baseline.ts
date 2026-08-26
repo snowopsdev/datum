@@ -1,6 +1,14 @@
-import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
+import { type MigrateDownArgs, type MigrateUpArgs, sql } from '@payloadcms/db-postgres'
 
-export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db }: MigrateUpArgs): Promise<void> {
+  const existing = (await db.execute(sql`SELECT to_regclass('public.users') AS users`)) as {
+    rows?: Array<{ users: null | string }>
+  }
+
+  // Datum installations predating migrations already have the baseline schema.
+  // Record this migration without attempting to recreate their tables or enums.
+  if (existing.rows?.[0]?.users) return
+
   await db.execute(sql`
    CREATE TYPE "public"."enum_articles_status" AS ENUM('topic_selected', 'researched', 'drafted', 'qa_passed', 'needs_revision', 'approved', 'published');
   CREATE TYPE "public"."enum_cost_log_stage" AS ENUM('generate', 'factCheck', 'qualitativeReview', 'brandVoiceExtract');
@@ -9,12 +17,6 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TYPE "public"."enum_brand_voices_source" AS ENUM('onboarding', 'upload');
   CREATE TYPE "public"."enum_brand_voices_audience_language_level" AS ENUM('plain', 'general', 'professional', 'expert');
   CREATE TYPE "public"."enum_governance_audit_actor_type" AS ENUM('pipeline', 'user', 'system');
-  CREATE TYPE "public"."enum_pipeline_runs_source" AS ENUM('onboarding', 'admin', 'cli');
-  CREATE TYPE "public"."enum_pipeline_runs_status" AS ENUM('queued', 'running', 'succeeded', 'failed');
-  CREATE TYPE "public"."enum_pipeline_runs_mode" AS ENUM('mock', 'live');
-  CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'content-run');
-  CREATE TYPE "public"."enum_payload_jobs_log_state" AS ENUM('failed', 'succeeded');
-  CREATE TYPE "public"."enum_payload_jobs_task_slug" AS ENUM('inline', 'content-run');
   CREATE TYPE "public"."enum_llm_settings_generate_model" AS ENUM('claude-fable-5', 'claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano');
   CREATE TYPE "public"."enum_llm_settings_fact_check_model" AS ENUM('claude-fable-5', 'claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano');
   CREATE TYPE "public"."enum_llm_settings_qualitative_review_model" AS ENUM('claude-fable-5', 'claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano');
@@ -299,68 +301,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
     "brand_voices_id" integer
   );
 
-  CREATE TABLE "pipeline_runs" (
-    "id" serial PRIMARY KEY NOT NULL,
-    "run_id" varchar NOT NULL,
-    "source" "enum_pipeline_runs_source" NOT NULL,
-    "status" "enum_pipeline_runs_status" NOT NULL,
-    "mode" "enum_pipeline_runs_mode" NOT NULL,
-    "template_id" integer NOT NULL,
-    "requested_count" numeric NOT NULL,
-    "config_fingerprint" varchar NOT NULL,
-    "config_snapshot" jsonb NOT NULL,
-    "final_statuses" jsonb,
-    "warnings" jsonb,
-    "error_summary" varchar,
-    "requested_by" varchar NOT NULL,
-    "started_at" timestamp(3) with time zone,
-    "completed_at" timestamp(3) with time zone,
-    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
-  );
-
-  CREATE TABLE "pipeline_runs_rels" (
-    "id" serial PRIMARY KEY NOT NULL,
-    "order" integer,
-    "parent_id" integer NOT NULL,
-    "path" varchar NOT NULL,
-    "articles_id" integer
-  );
-
   CREATE TABLE "payload_kv" (
     "id" serial PRIMARY KEY NOT NULL,
     "key" varchar NOT NULL,
     "data" jsonb NOT NULL
-  );
-
-  CREATE TABLE "payload_jobs_log" (
-    "_order" integer NOT NULL,
-    "_parent_id" integer NOT NULL,
-    "id" varchar PRIMARY KEY NOT NULL,
-    "executed_at" timestamp(3) with time zone NOT NULL,
-    "completed_at" timestamp(3) with time zone NOT NULL,
-    "task_slug" "enum_payload_jobs_log_task_slug" NOT NULL,
-    "task_i_d" varchar NOT NULL,
-    "input" jsonb,
-    "output" jsonb,
-    "state" "enum_payload_jobs_log_state" NOT NULL,
-    "error" jsonb
-  );
-
-  CREATE TABLE "payload_jobs" (
-    "id" serial PRIMARY KEY NOT NULL,
-    "input" jsonb,
-    "completed_at" timestamp(3) with time zone,
-    "total_tried" numeric DEFAULT 0,
-    "has_error" boolean DEFAULT false,
-    "error" jsonb,
-    "task_slug" "enum_payload_jobs_task_slug",
-    "queue" varchar DEFAULT 'default',
-    "wait_until" timestamp(3) with time zone,
-    "processing" boolean DEFAULT false,
-    "concurrency_key" varchar,
-    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
 
   CREATE TABLE "payload_locked_documents" (
@@ -383,8 +327,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
     "article_audit_id" integer,
     "brand_voices_id" integer,
     "brand_voice_files_id" integer,
-    "governance_audit_id" integer,
-    "pipeline_runs_id" integer
+    "governance_audit_id" integer
   );
 
   CREATE TABLE "payload_preferences" (
@@ -440,10 +383,6 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "brand_voices" ADD CONSTRAINT "brand_voices_source_file_id_brand_voice_files_id_fk" FOREIGN KEY ("source_file_id") REFERENCES "public"."brand_voice_files"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "governance_audit_rels" ADD CONSTRAINT "governance_audit_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."governance_audit"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "governance_audit_rels" ADD CONSTRAINT "governance_audit_rels_brand_voices_fk" FOREIGN KEY ("brand_voices_id") REFERENCES "public"."brand_voices"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "pipeline_runs" ADD CONSTRAINT "pipeline_runs_template_id_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."templates"("id") ON DELETE set null ON UPDATE no action;
-  ALTER TABLE "pipeline_runs_rels" ADD CONSTRAINT "pipeline_runs_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."pipeline_runs"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "pipeline_runs_rels" ADD CONSTRAINT "pipeline_runs_rels_articles_fk" FOREIGN KEY ("articles_id") REFERENCES "public"."articles"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "payload_jobs_log" ADD CONSTRAINT "payload_jobs_log_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."payload_jobs"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_locked_documents"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;
@@ -454,7 +393,6 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_brand_voices_fk" FOREIGN KEY ("brand_voices_id") REFERENCES "public"."brand_voices"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_brand_voice_files_fk" FOREIGN KEY ("brand_voice_files_id") REFERENCES "public"."brand_voice_files"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_governance_audit_fk" FOREIGN KEY ("governance_audit_id") REFERENCES "public"."governance_audit"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_pipeline_runs_fk" FOREIGN KEY ("pipeline_runs_id") REFERENCES "public"."pipeline_runs"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_preferences"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   CREATE INDEX "users_sessions_order_idx" ON "users_sessions" USING btree ("_order");
@@ -518,29 +456,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "governance_audit_rels_parent_idx" ON "governance_audit_rels" USING btree ("parent_id");
   CREATE INDEX "governance_audit_rels_path_idx" ON "governance_audit_rels" USING btree ("path");
   CREATE INDEX "governance_audit_rels_brand_voices_id_idx" ON "governance_audit_rels" USING btree ("brand_voices_id");
-  CREATE UNIQUE INDEX "pipeline_runs_run_id_idx" ON "pipeline_runs" USING btree ("run_id");
-  CREATE INDEX "pipeline_runs_status_idx" ON "pipeline_runs" USING btree ("status");
-  CREATE INDEX "pipeline_runs_template_idx" ON "pipeline_runs" USING btree ("template_id");
-  CREATE INDEX "pipeline_runs_config_fingerprint_idx" ON "pipeline_runs" USING btree ("config_fingerprint");
-  CREATE INDEX "pipeline_runs_updated_at_idx" ON "pipeline_runs" USING btree ("updated_at");
-  CREATE INDEX "pipeline_runs_created_at_idx" ON "pipeline_runs" USING btree ("created_at");
-  CREATE INDEX "pipeline_runs_rels_order_idx" ON "pipeline_runs_rels" USING btree ("order");
-  CREATE INDEX "pipeline_runs_rels_parent_idx" ON "pipeline_runs_rels" USING btree ("parent_id");
-  CREATE INDEX "pipeline_runs_rels_path_idx" ON "pipeline_runs_rels" USING btree ("path");
-  CREATE INDEX "pipeline_runs_rels_articles_id_idx" ON "pipeline_runs_rels" USING btree ("articles_id");
   CREATE UNIQUE INDEX "payload_kv_key_idx" ON "payload_kv" USING btree ("key");
-  CREATE INDEX "payload_jobs_log_order_idx" ON "payload_jobs_log" USING btree ("_order");
-  CREATE INDEX "payload_jobs_log_parent_id_idx" ON "payload_jobs_log" USING btree ("_parent_id");
-  CREATE INDEX "payload_jobs_completed_at_idx" ON "payload_jobs" USING btree ("completed_at");
-  CREATE INDEX "payload_jobs_total_tried_idx" ON "payload_jobs" USING btree ("total_tried");
-  CREATE INDEX "payload_jobs_has_error_idx" ON "payload_jobs" USING btree ("has_error");
-  CREATE INDEX "payload_jobs_task_slug_idx" ON "payload_jobs" USING btree ("task_slug");
-  CREATE INDEX "payload_jobs_queue_idx" ON "payload_jobs" USING btree ("queue");
-  CREATE INDEX "payload_jobs_wait_until_idx" ON "payload_jobs" USING btree ("wait_until");
-  CREATE INDEX "payload_jobs_processing_idx" ON "payload_jobs" USING btree ("processing");
-  CREATE INDEX "payload_jobs_concurrency_key_idx" ON "payload_jobs" USING btree ("concurrency_key");
-  CREATE INDEX "payload_jobs_updated_at_idx" ON "payload_jobs" USING btree ("updated_at");
-  CREATE INDEX "payload_jobs_created_at_idx" ON "payload_jobs" USING btree ("created_at");
   CREATE INDEX "payload_locked_documents_global_slug_idx" ON "payload_locked_documents" USING btree ("global_slug");
   CREATE INDEX "payload_locked_documents_updated_at_idx" ON "payload_locked_documents" USING btree ("updated_at");
   CREATE INDEX "payload_locked_documents_created_at_idx" ON "payload_locked_documents" USING btree ("created_at");
@@ -556,7 +472,6 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_brand_voices_id_idx" ON "payload_locked_documents_rels" USING btree ("brand_voices_id");
   CREATE INDEX "payload_locked_documents_rels_brand_voice_files_id_idx" ON "payload_locked_documents_rels" USING btree ("brand_voice_files_id");
   CREATE INDEX "payload_locked_documents_rels_governance_audit_id_idx" ON "payload_locked_documents_rels" USING btree ("governance_audit_id");
-  CREATE INDEX "payload_locked_documents_rels_pipeline_runs_id_idx" ON "payload_locked_documents_rels" USING btree ("pipeline_runs_id");
   CREATE INDEX "payload_preferences_key_idx" ON "payload_preferences" USING btree ("key");
   CREATE INDEX "payload_preferences_updated_at_idx" ON "payload_preferences" USING btree ("updated_at");
   CREATE INDEX "payload_preferences_created_at_idx" ON "payload_preferences" USING btree ("created_at");
@@ -568,57 +483,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_migrations_created_at_idx" ON "payload_migrations" USING btree ("created_at");`)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
-  await db.execute(sql`
-   DROP TABLE "users_sessions" CASCADE;
-  DROP TABLE "users" CASCADE;
-  DROP TABLE "media" CASCADE;
-  DROP TABLE "templates_dos" CASCADE;
-  DROP TABLE "templates_donts" CASCADE;
-  DROP TABLE "templates_required_sections" CASCADE;
-  DROP TABLE "templates" CASCADE;
-  DROP TABLE "articles_research_common_subtopics" CASCADE;
-  DROP TABLE "articles_research_related_questions" CASCADE;
-  DROP TABLE "articles_faq_items" CASCADE;
-  DROP TABLE "articles" CASCADE;
-  DROP TABLE "cost_log" CASCADE;
-  DROP TABLE "article_audit" CASCADE;
-  DROP TABLE "brand_voices_core_values" CASCADE;
-  DROP TABLE "brand_voices_voice_adjectives" CASCADE;
-  DROP TABLE "brand_voices_not_traits" CASCADE;
-  DROP TABLE "brand_voices_preferred_words" CASCADE;
-  DROP TABLE "brand_voices_banned_words" CASCADE;
-  DROP TABLE "brand_voices_samples" CASCADE;
-  DROP TABLE "brand_voices" CASCADE;
-  DROP TABLE "brand_voice_files" CASCADE;
-  DROP TABLE "governance_audit" CASCADE;
-  DROP TABLE "governance_audit_rels" CASCADE;
-  DROP TABLE "pipeline_runs" CASCADE;
-  DROP TABLE "pipeline_runs_rels" CASCADE;
-  DROP TABLE "payload_kv" CASCADE;
-  DROP TABLE "payload_jobs_log" CASCADE;
-  DROP TABLE "payload_jobs" CASCADE;
-  DROP TABLE "payload_locked_documents" CASCADE;
-  DROP TABLE "payload_locked_documents_rels" CASCADE;
-  DROP TABLE "payload_preferences" CASCADE;
-  DROP TABLE "payload_preferences_rels" CASCADE;
-  DROP TABLE "payload_migrations" CASCADE;
-  DROP TABLE "llm_settings" CASCADE;
-  DROP TYPE "public"."enum_articles_status";
-  DROP TYPE "public"."enum_cost_log_stage";
-  DROP TYPE "public"."enum_article_audit_actor_type";
-  DROP TYPE "public"."enum_brand_voices_status";
-  DROP TYPE "public"."enum_brand_voices_source";
-  DROP TYPE "public"."enum_brand_voices_audience_language_level";
-  DROP TYPE "public"."enum_governance_audit_actor_type";
-  DROP TYPE "public"."enum_pipeline_runs_source";
-  DROP TYPE "public"."enum_pipeline_runs_status";
-  DROP TYPE "public"."enum_pipeline_runs_mode";
-  DROP TYPE "public"."enum_payload_jobs_log_task_slug";
-  DROP TYPE "public"."enum_payload_jobs_log_state";
-  DROP TYPE "public"."enum_payload_jobs_task_slug";
-  DROP TYPE "public"."enum_llm_settings_generate_model";
-  DROP TYPE "public"."enum_llm_settings_fact_check_model";
-  DROP TYPE "public"."enum_llm_settings_qualitative_review_model";
-  DROP TYPE "public"."enum_llm_settings_brand_voice_extract_model";`)
+export function down(_args: MigrateDownArgs): Promise<void> {
+  // This baseline may represent a pre-migration installation. Never drop its
+  // existing application data during rollback; later incremental migrations
+  // remain fully reversible.
+  return Promise.resolve()
 }

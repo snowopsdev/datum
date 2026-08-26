@@ -94,9 +94,9 @@ export default buildConfig({
     enableConcurrencyControl: true,
     processingOrder: 'createdAt',
     autoRun:
-      process.env.NODE_ENV === 'production'
-        ? []
-        : [{ cron: '*/2 * * * * *', queue: 'content', limit: 1 }],
+      process.env.NODE_ENV === 'development'
+        ? [{ cron: '*/2 * * * * *', queue: 'content', limit: 1 }]
+        : [],
   },
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

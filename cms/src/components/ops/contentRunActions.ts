@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
+import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 export interface StartContentRunInput {
@@ -44,56 +45,21 @@ export async function startContentRunAction(
     return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
   }
 
-  const active = await payload.find({
-    collection: 'pipeline-runs',
-    where: { status: { in: ['queued', 'running'] } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  if (active.docs.length > 0) {
-    return { ok: false, error: `Run ${active.docs[0].runId} is already in progress.` }
-  }
-
   const runId = randomUUID()
-  const requestedCount = input.source === 'onboarding' ? 1 : Math.max(1, Math.min(5, input.count))
   const requestedBy = user.email || String(user.id)
-  await payload.create({
-    collection: 'pipeline-runs',
-    overrideAccess: true,
-    data: {
+  try {
+    await createPipelineRun(payload, user, {
       runId,
       source: input.source,
-      status: 'queued',
-      mode: readiness.mode,
-      template: input.templateId,
-      requestedCount,
-      configFingerprint: readiness.configFingerprint,
-      configSnapshot: {
-        mode: readiness.mode,
-        requiredEnvironment: readiness.runtime.missing,
-        activeVoiceId: readiness.governance.activeVoiceId,
-        templateId: input.templateId,
-        models: readiness.content.models.map(
-          ({ stage, model, source, provider, envVar, configured }) => ({
-            stage,
-            model,
-            source,
-            provider,
-            envVar,
-            configured,
-          }),
-        ),
-      },
+      templateId: input.templateId,
+      count: input.count,
       requestedBy,
-    },
-  })
-  await payload.jobs.queue({
-    task: 'content-run',
-    queue: 'content',
-    input: { runId },
-    overrideAccess: true,
-  })
+      readiness,
+    })
+  } catch (error) {
+    if (error instanceof ActivePipelineRunError) return { ok: false, error: error.message }
+    return { ok: false, error: 'Another content run started at the same time. Try again shortly.' }
+  }
 
   revalidatePath('/admin')
   revalidatePath('/admin/ops/articles')
