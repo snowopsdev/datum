@@ -162,7 +162,12 @@ assert_eq 'total cost after re-run' \
 step=$((step + 1)); log "$step. Report"
 REPORT_OUT="$(npm run pipeline:report -- --period week)"
 printf '%s\n' "$REPORT_OUT"
-if printf '%s\n' "$REPORT_OUT" | grep -q '== Information gain'; then
+# A native match, not `printf … | grep -q`: under `set -o pipefail` that idiom
+# reports failure precisely *when it works*. `grep -q` stops reading at the
+# first match, `printf` then dies of SIGPIPE (141), and pipefail hands the
+# pipeline that status — so a report containing the block looked like one that
+# did not.
+if [[ "$REPORT_OUT" == *'== Information gain'* ]]; then
   printf '   \033[32mPASS\033[0m report contains the information-gain block\n'
 else
   printf '   \033[31mFAIL\033[0m report is missing the information-gain block\n'
