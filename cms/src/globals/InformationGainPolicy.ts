@@ -3,16 +3,29 @@ import type { Field, GlobalConfig } from 'payload'
 import { POLICY_FIELDS, type PolicyFieldDef } from '../lib/informationGain'
 import { auditGlobalChange } from '../lib/governanceAudit'
 
-/** `minConsensusCoverage` → `Min consensus coverage`. */
+/** `minConsensusCoverage` → `Minimum consensus coverage`. */
+const ABBREVIATIONS: Record<string, string> = { min: 'minimum', max: 'maximum' }
 const humaniseKey = (key: string): string => {
-  const words = key.replace(/([A-Z])/g, ' $1').toLowerCase()
+  const words = key
+    .replace(/([A-Z])/g, ' $1')
+    .toLowerCase()
+    .split(' ')
+    .map((word) => ABBREVIATIONS[word] ?? word)
+    .join(' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** What happens to the draft when a gate is breached, in plain terms. */
+const OUTCOME_COPY: Record<PolicyFieldDef['outcome'], string> = {
+  REVISE: 'sent back for revision',
+  BLOCK: 'blocked from publishing',
+  HUMAN_REVIEW: 'flagged for a person to review',
 }
 
 const policyField = (f: PolicyFieldDef): Field => {
   const label = humaniseKey(f.key)
   const admin = {
-    description: `${f.description} Failing this gate → ${f.outcome}. Leave blank to use ${f.env} from the environment, or the default ${String(f.default)}.`,
+    description: `${f.description} If a draft fails this check, it gets ${OUTCOME_COPY[f.outcome]}. Leave this blank to fall back to the ${f.env} environment variable, or the built-in default of ${String(f.default)}.`,
   }
   if (f.kind === 'boolean') {
     // A select rather than a checkbox: an unchecked box is indistinguishable
@@ -56,7 +69,7 @@ export const InformationGainPolicy: GlobalConfig = {
   admin: {
     group: false,
     description:
-      'Deterministic publication gates applied by the informationGain pipeline stage. Every change is recorded in Governance audits and changes the policy version stamped on future runs.',
+      "Information gain is the pipeline's check that a draft actually adds something new and provable, not just a reworded version of what's already out there. These rules decide whether a draft publishes, goes back for another pass, or gets flagged for a person to review. Every change here is logged in Governance audits and changes the policy version stamped on future runs, so you can trace exactly which rules judged any given article.",
   },
   access: {
     read: ({ req }) => Boolean(req.user),
