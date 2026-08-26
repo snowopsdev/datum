@@ -114,6 +114,16 @@ async function main(): Promise<number> {
       evidenceSources: await loadEvidenceSources(payload),
     }
     const summary = await runPipeline(ctx)
+    const warned = summary.stages.reduce((sum, entry) => sum + entry.warned, 0)
+    if (warned > 0) {
+      // Not a failure: these articles advanced. Printed so a scheduled run's log
+      // shows bookkeeping that silently did not happen.
+      const detail = summary.stages
+        .filter((entry) => entry.warned > 0)
+        .map((entry) => `${entry.stage} ${entry.warned}/${entry.total}`)
+        .join(', ')
+      console.warn(`[pipeline] ${warned} article(s) advanced with warnings (${detail})`)
+    }
     if (summary.failed > 0) {
       // Exit non-zero so a scheduled run's alerting and retry policy see the
       // stuck articles; the batch itself already ran to completion.
@@ -129,11 +139,31 @@ async function main(): Promise<number> {
   return 0
 }
 
-main()
-  .then((code) => {
-    process.exit(code)
+/**
+ * Exit once stdout has actually gone out.
+ *
+ * Node writes to a pipe asynchronously, so `process.exit()` on its own discards
+ * whatever is still buffered — which silently truncated `pipeline:report` any
+ * time its output was piped (into `grep`, `tee`, a `$(…)` capture, a CI log
+ * collector) while the same command redirected to a file printed in full.
+ * Dropping the explicit exit is not an option either: Payload keeps its Postgres
+ * pool open, so the process would simply hang. Flush, then exit.
+ */
+async function exitAfterFlush(code: number): Promise<never> {
+  // The write callback fires once *this* chunk has been handed to the OS, and
+  // the queue is ordered, so everything logged before it is out too. Checking
+  // `write()`'s return value instead would not work: an empty chunk leaves the
+  // buffer under its high-water mark, so it answers `true` with data still
+  // pending and 'drain' never fires.
+  await new Promise<void>((resolve) => {
+    process.stdout.write('', () => resolve())
   })
+  process.exit(code)
+}
+
+main()
+  .then(exitAfterFlush)
   .catch((error) => {
     console.error(error)
-    process.exit(1)
+    return exitAfterFlush(1)
   })
