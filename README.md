@@ -34,13 +34,13 @@ External SEO data is isolated behind the `AhrefsClient` contract. To add another
 
 ![Article status flow showing the pipeline, QA branch, revision loop, and editor actions](docs/diagrams/article-status-flow.svg)
 
-Assign a template in the admin UI or with `pipeline/scripts/assign-template.ts`. The pipeline does not process `needs_revision` articles. Reset one to `drafted` to run QA again. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
+Choose a template when starting a run in the admin or when fetching topics from the CLI. The pipeline does not process `needs_revision` articles. Reset one to `drafted` to run QA again. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
 
 ## Governance: brand voice and model choice
 
 Editorial rules live in two places in the admin, both under the **Governance** nav group:
 
-- **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. A fresh install has none — the pipeline runs on the style guide alone until you activate one. Seed a demo voice with `npm run seed -- --with-brand-voice`.
+- **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. An active voice is required for content runs. Seed a demo voice with `npm run seed -- --with-brand-voice`.
 - **Models** (`/admin/globals/llm-settings`) — which model runs generate, fact-check, qualitative review, and brand-voice extraction. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`/`o3`/`o4-mini`) wherever that call runs — see the env var split below.
 
 ## Prerequisites
@@ -83,12 +83,24 @@ The seed creates this account for local development. Change its password before 
 Mock mode needs no API keys. Set `MOCK_MODE=true`, as shown in `.env.example`, and Datum uses fixtures instead of calling Ahrefs or Anthropic.
 
 ```bash
-npm run pipeline:fetch -- --count 3
-# Assign a template in admin or:
-#   npx tsx pipeline/scripts/assign-template.ts <articleId> Listicle
+npm run pipeline:fetch -- --template Listicle --count 3
 npm run pipeline:run
 npm run pipeline:report -- --period week
 ```
+
+### Admin onboarding and content runs
+
+The admin dashboard is a permanent readiness hub. It checks runtime configuration, an active brand voice, templates and stage models, and the latest end-to-end QA verification. Secrets stay in environment variables; the dashboard only reports whether each required variable is configured.
+
+After the first three areas are ready, choose a template and run the verification demo. Datum stores the run in `pipeline-runs`, queues a native Payload `content-run` task, generates a unique sample, and advances only that sample through research, generation, and QA. A current `qa_passed` or `needs_revision` result completes setup. The Article Board then exposes the same queued workflow for normal content-gap discovery in batches of one to five topics. Live mode requires an explicit paid-provider confirmation for every launch.
+
+Local development processes the `content` queue automatically every two seconds. Production intentionally disables in-process autorun; run this from a durable worker or scheduler instead:
+
+```bash
+npm run jobs:run --workspace cms
+```
+
+That command processes one queued content run. Schedule it repeatedly for continuous production processing.
 
 For live API calls, set `MOCK_MODE=false` and provide `ANTHROPIC_API_KEY`. Ahrefs also needs `AHREFS_API_KEY`, `TARGET_DOMAIN`, and `COMPETITOR_DOMAINS`. See [`.env.example`](.env.example).
 
@@ -119,7 +131,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) �
 | --- | --- |
 | `npm run dev` | CMS Next.js dev server |
 | `npm run seed` | Create or update templates and the admin user. Add `-- --with-brand-voice` to also seed and activate a demo brand voice. |
-| `npm run pipeline:fetch` | Create articles from content-gap keywords |
+| `npm run pipeline:fetch -- --template NAME_OR_ID` | Create templated articles from content-gap keywords |
 | `npm run pipeline:run` | Run research → generate → QA for eligible articles |
 | `npm run pipeline:report` | Print the QA and spending report |
 | `npm run typecheck` / `lint` / `test` | Workspace checks described in [CONTRIBUTING.md](CONTRIBUTING.md) |
