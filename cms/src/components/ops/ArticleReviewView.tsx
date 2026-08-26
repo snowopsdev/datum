@@ -4,11 +4,17 @@ import { Gutter } from '@payloadcms/ui'
 import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
-import type { Article, ArticleAudit, CostLog, Template } from '../../payload-types'
+import type {
+  Article,
+  ArticleAudit,
+  CostLog,
+  InformationGainRun,
+  Template,
+} from '../../payload-types'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { ArticleReview } from './ArticleReview'
 import type { AuditTimelineEntry } from './articleStatus'
-import { formatAuditTimestamp, toBoardArticle } from './articleStatus'
+import { formatAuditTimestamp, toBoardArticle, toRunView } from './articleStatus'
 
 export async function ArticleReviewView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -42,35 +48,52 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }] = await Promise.all([
-    req.payload.find({
-      collection: 'templates',
-      depth: 0,
-      limit: 50,
-      pagination: false,
-      sort: 'name',
-      user: req.user,
-      overrideAccess: false,
-    }),
-    req.payload.find({
-      collection: 'article-audit',
-      where: { article: { equals: article.id } },
-      depth: 0,
-      limit: 100,
-      sort: '-createdAt',
-      user: req.user,
-      overrideAccess: false,
-    }),
-    req.payload.find({
-      collection: 'cost-log',
-      where: { article: { equals: article.id } },
-      depth: 0,
-      limit: 100,
-      sort: '-createdAt',
-      user: req.user,
-      overrideAccess: false,
-    }),
-  ])
+  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }] =
+    await Promise.all([
+      req.payload.find({
+        collection: 'templates',
+        depth: 0,
+        limit: 50,
+        pagination: false,
+        sort: 'name',
+        user: req.user,
+        overrideAccess: false,
+      }),
+      req.payload.find({
+        collection: 'article-audit',
+        where: { article: { equals: article.id } },
+        depth: 0,
+        limit: 100,
+        sort: '-createdAt',
+        user: req.user,
+        overrideAccess: false,
+      }),
+      req.payload.find({
+        collection: 'cost-log',
+        where: { article: { equals: article.id } },
+        depth: 0,
+        limit: 100,
+        sort: '-createdAt',
+        user: req.user,
+        overrideAccess: false,
+      }),
+      // The latest scorecard for this article. `ArticleReview` cross-checks its
+      // id against `article.informationGain.run` before presenting the two as
+      // one state, so a run written after the article's summary was cleared (or
+      // an article re-scored since) is shown as stale rather than silently
+      // merged with the article's headline numbers.
+      req.payload.find({
+        collection: 'information-gain-runs',
+        where: { article: { equals: article.id } },
+        depth: 0,
+        limit: 1,
+        sort: '-createdAt',
+        user: req.user,
+        overrideAccess: false,
+      }),
+    ])
+
+  const latestRun = (runDocs as InformationGainRun[])[0] ?? null
 
   const templates = (templateDocs as Template[]).map((t) => ({ id: t.id, name: t.name }))
   const auditEntries: AuditTimelineEntry[] = [
@@ -129,6 +152,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
           editHref={`/admin/collections/articles/${article.id}`}
           bodyHtml={lexicalBodyToHtml(article.body)}
           auditEntries={auditEntries}
+          run={latestRun ? toRunView(latestRun) : null}
         />
       </Gutter>
     </DefaultTemplate>

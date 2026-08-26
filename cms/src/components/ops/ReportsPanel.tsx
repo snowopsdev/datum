@@ -51,10 +51,47 @@ function failureDetails(a: BoardArticle): { fails: string[]; details: string[] }
   return { fails, details }
 }
 
+type IgDecision = 'PASS' | 'REVISE' | 'HUMAN_REVIEW' | 'BLOCK'
+
+const IG_DECISIONS: IgDecision[] = ['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK']
+
+const IG_DECISION_LABEL: Record<IgDecision, string> = {
+  PASS: 'Pass',
+  REVISE: 'Revise',
+  HUMAN_REVIEW: 'Human review',
+  BLOCK: 'Block',
+}
+
+/**
+ * Rolls the articles' denormalised `informationGain` summaries up into the
+ * decision mix. Deliberately reads only the summary group and never mixes it
+ * with `status`: an article whose summary was cleared (reset, sent back,
+ * queued for regeneration) has no decision at all, and counting its status as
+ * one would report a verdict nobody scored. The review queue is the reverse —
+ * it is a *status* question ("who is waiting on a human"), so it comes from
+ * `status` alone.
+ */
+function informationGainMix(articles: BoardArticle[]) {
+  const counts = Object.fromEntries(IG_DECISIONS.map((d) => [d, 0])) as Record<IgDecision, number>
+  let scored = 0
+  for (const a of articles) {
+    const decision = a.informationGain?.decision
+    if (decision && IG_DECISIONS.includes(decision)) {
+      counts[decision] += 1
+      scored += 1
+    }
+  }
+  return { counts, scored }
+}
+
 function BarList({ rows }: { rows: SpendRow[] }) {
   const max = Math.max(...rows.map((r) => r.usd), 0.01)
   if (rows.length === 0) {
-    return <p className="datum-ops__sub" style={{ margin: 0 }}>(none in period)</p>
+    return (
+      <p className="datum-ops__sub" style={{ margin: 0 }}>
+        (none in period)
+      </p>
+    )
   }
   return (
     <div>
@@ -92,6 +129,11 @@ export function ReportsPanel({ articles, costs }: Props) {
   const fc = rate('factCheck')
   const qu = rate('qualitativeReview')
   const failures = articles.filter((a) => a.status === 'needs_revision')
+  const ig = informationGainMix(articles)
+  const igReviewQueue = articles.filter(
+    (a) => a.status === 'needs_review' || a.status === 'blocked',
+  )
+  const igAwaitingScore = articles.filter((a) => a.status === 'qa_passed')
   const published = articles.filter((a) => a.status === 'published')
   const publishedSpend = published.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
   const allSpend = articles.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
@@ -160,6 +202,22 @@ export function ReportsPanel({ articles, costs }: Props) {
           </div>
         </div>
         <div className="datum-ops__metric">
+          <div className="datum-ops__metric-label">Info-gain pass rate</div>
+          <div className="datum-ops__metric-value">
+            {ig.scored ? `${Math.round((ig.counts.PASS / ig.scored) * 100)}%` : 'n/a'}
+          </div>
+          <div className="datum-ops__sub" style={{ margin: 0 }}>
+            {ig.counts.PASS}/{ig.scored} scored articles
+          </div>
+        </div>
+        <div className="datum-ops__metric">
+          <div className="datum-ops__metric-label">Review queue</div>
+          <div className="datum-ops__metric-value">{igReviewQueue.length}</div>
+          <div className="datum-ops__sub" style={{ margin: 0 }}>
+            needs_review + blocked
+          </div>
+        </div>
+        <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Cost / published</div>
           <div className="datum-ops__metric-value">
             {published.length ? `$${(publishedSpend / published.length).toFixed(2)}` : 'n/a'}
@@ -215,6 +273,46 @@ export function ReportsPanel({ articles, costs }: Props) {
               )
             })
           )}
+        </div>
+      </div>
+
+      <div className="datum-ops__panel">
+        <h2>Information-gain decisions</h2>
+        <div className="datum-ops__panel-body">
+          {ig.scored === 0 ? (
+            <p className="datum-ops__sub" style={{ margin: 0 }}>
+              (nothing scored yet)
+            </p>
+          ) : (
+            <ul className="datum-ops__list">
+              {IG_DECISIONS.map((d) => (
+                <li key={d}>
+                  {IG_DECISION_LABEL[d]}: {ig.counts[d]}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="datum-ops__sub" style={{ marginTop: 10, marginBottom: 0 }}>
+            {igAwaitingScore.length} at <code>qa_passed</code> awaiting scoring. Decisions are
+            counted from each article&apos;s current <code>informationGain</code> summary; an
+            article reset or sent back since it was scored carries none and is not counted. The
+            scores behind them are uncalibrated model estimates.
+          </p>
+          {igReviewQueue.length > 0 ? (
+            <ul className="datum-ops__list" style={{ marginTop: 10 }}>
+              {igReviewQueue.map((a) => (
+                <li key={a.id}>
+                  <Link href={`/admin/ops/articles/${a.id}`} prefetch={false}>
+                    {a.title || a.keyword}
+                  </Link>{' '}
+                  — {a.status.replace(/_/g, ' ')}
+                  {a.informationGain?.decision
+                    ? ` · ${IG_DECISION_LABEL[a.informationGain.decision]}`
+                    : ' · no current decision'}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
 
