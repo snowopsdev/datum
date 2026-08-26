@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
+import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
+
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
 
 /**
@@ -22,18 +24,13 @@ import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatu
  * same fixed, all-null payload. `gateVerifiedStatus`/`gateReviewOverride` are
  * `beforeChange` hooks, not access checks, so they still run and still guard
  * `status` even with `overrideAccess: true`.
+ *
+ * The shape itself lives in `articleReviewGate.ts` because
+ * `invalidateStaleInformationGain` clears the group to exactly the same nulls
+ * when a content edit invalidates a decision; two hand-maintained copies would
+ * drift the first time the group gains a field.
  */
-const NULL_INFORMATION_GAIN = {
-  run: null,
-  decision: null,
-  policyVersion: null,
-  consensusCoverage: null,
-  verifiedGainUnits: null,
-  verificationRatio: null,
-  internalDuplicationRate: null,
-  verifiedNovelClaims: null,
-  scoredAt: null,
-} as const
+const NULL_INFORMATION_GAIN = CLEARED_INFORMATION_GAIN
 
 const NULL_QA_RESULTS = {
   structural: { passed: null, violations: null },

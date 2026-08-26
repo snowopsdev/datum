@@ -1,14 +1,22 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
-import { gateReviewOverride, gateVerifiedStatus } from '../lib/articleReviewGate'
+import {
+  gateReviewOverride,
+  gateVerifiedStatus,
+  invalidateStaleInformationGain,
+} from '../lib/articleReviewGate'
 
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
-    // Order is documentation, not dependency: `gateVerifiedStatus` re-derives
-    // the fresh-justification test rather than trusting the hook before it.
-    beforeChange: [gateReviewOverride, gateVerifiedStatus],
+    // `invalidateStaleInformationGain` is first because it is a *dependency*:
+    // it clears the decision an edited draft no longer deserves, and
+    // `gateVerifiedStatus` has to see that clearance rather than the PASS it
+    // replaced. The other two are ordered as documentation only —
+    // `gateVerifiedStatus` re-derives the fresh-justification test rather than
+    // trusting the hook before it.
+    beforeChange: [invalidateStaleInformationGain, gateReviewOverride, gateVerifiedStatus],
     afterChange: [auditArticleChange],
   },
   admin: {
