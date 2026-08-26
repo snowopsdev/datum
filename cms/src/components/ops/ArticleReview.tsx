@@ -107,10 +107,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
           <div className="datum-ops__prose">
             <h3>Article body</h3>
             {bodyHtml ? (
-              <div
-                className="datum-ops__body"
-                dangerouslySetInnerHTML={{ __html: bodyHtml }}
-              />
+              <div className="datum-ops__body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             ) : (
               <p>
                 {article.metaDescription ||
@@ -132,12 +129,16 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
             <div className="datum-ops__audit-head">
               <div>
                 <h2 id="audit-trail-heading">Audit trail</h2>
-                <p>Append-only article changes, pipeline stages, model calls, and review decisions.</p>
+                <p>
+                  Append-only article changes, pipeline stages, model calls, and review decisions.
+                </p>
               </div>
               <span>{auditEntries.length} events</span>
             </div>
             {auditEntries.length === 0 ? (
-              <p className="datum-ops__empty">No audit events yet. Existing articles begin tracking on their next change.</p>
+              <p className="datum-ops__empty">
+                No audit events yet. Existing articles begin tracking on their next change.
+              </p>
             ) : (
               <ol className="datum-ops__timeline">
                 {auditEntries.map((entry) => (
@@ -146,18 +147,20 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                     <div className="datum-ops__timeline-content">
                       <div className="datum-ops__timeline-title">
                         <strong>{entry.summary}</strong>
-                        <time dateTime={entry.createdAt}>
-                          {entry.createdAtLabel}
-                        </time>
+                        <time dateTime={entry.createdAt}>{entry.createdAtLabel}</time>
                       </div>
                       <div className="datum-ops__timeline-meta">
                         <span>{entry.actorType}</span>
                         <span>{entry.actor}</span>
                         {entry.stage ? <span>{entry.stage}</span> : null}
                         {entry.fromStatus || entry.toStatus ? (
-                          <span>{entry.fromStatus ?? 'new'} → {entry.toStatus ?? 'unchanged'}</span>
+                          <span>
+                            {entry.fromStatus ?? 'new'} → {entry.toStatus ?? 'unchanged'}
+                          </span>
                         ) : null}
-                        {entry.pipelineRunId ? <span>run {entry.pipelineRunId.slice(0, 8)}</span> : null}
+                        {entry.pipelineRunId ? (
+                          <span>run {entry.pipelineRunId.slice(0, 8)}</span>
+                        ) : null}
                       </div>
                       {entry.details != null ? (
                         <details className="datum-ops__audit-details">
@@ -203,9 +206,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending || !templateId}
-                  onClick={() =>
-                    run(() => assignTemplateAction(article.id, Number(templateId)))
-                  }
+                  onClick={() => run(() => assignTemplateAction(article.id, Number(templateId)))}
                 >
                   Assign & return
                 </button>
@@ -263,7 +264,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
             </>
           ) : null}
 
-          {article.status === 'qa_passed' ? (
+          {['qa_passed', 'verified'].includes(article.status) ? (
             <div className="datum-ops__block">
               <h3>Approve</h3>
               <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
@@ -331,9 +332,29 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
             </div>
           ) : null}
 
-          {!['topic_selected', 'needs_revision', 'qa_passed', 'approved'].includes(
-            article.status,
-          ) ? (
+          {article.status === 'needs_review' || article.status === 'blocked' ? (
+            <div className="datum-ops__block">
+              <h3>Reviewer decision</h3>
+              <p className="datum-ops__sub" style={{ margin: 0 }}>
+                Information-gain review actions arrive with the scoring stage.
+              </p>
+              <div className="datum-ops__actions" style={{ marginTop: 12 }}>
+                <a className="datum-ops__btn" href={editHref}>
+                  Open in admin
+                </a>
+              </div>
+            </div>
+          ) : null}
+
+          {![
+            'topic_selected',
+            'needs_revision',
+            'qa_passed',
+            'verified',
+            'needs_review',
+            'blocked',
+            'approved',
+          ].includes(article.status) ? (
             <div className="datum-ops__block">
               <h3>Status</h3>
               <p className="datum-ops__sub" style={{ margin: 0 }}>

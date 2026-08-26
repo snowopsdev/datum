@@ -23,6 +23,9 @@ export function ArticleBoard({ articles }: Props) {
   const triage = articles.filter((a) => a.status === 'needs_revision').length
   const assign = articles.filter((a) => a.status === 'topic_selected').length
   const approve = articles.filter((a) => a.status === 'qa_passed').length
+  const review = articles.filter(
+    (a) => a.status === 'needs_review' || a.status === 'blocked',
+  ).length
 
   return (
     <div className="datum-ops">
@@ -32,6 +35,7 @@ export function ArticleBoard({ articles }: Props) {
           <span className="datum-ops__pill">{triage} triage</span>
           <span className="datum-ops__pill">{assign} assign</span>
           <span className="datum-ops__pill">{approve} approve</span>
+          <span className="datum-ops__pill">{review} review</span>
         </div>
       </div>
       <p className="datum-ops__lede">

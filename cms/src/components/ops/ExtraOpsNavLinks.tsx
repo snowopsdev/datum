@@ -15,6 +15,8 @@ export function ExtraOpsNavLinks() {
         { label: 'Brand voice', href: '/admin/ops/governance/brand-voice' },
         { label: 'Templates', href: '/admin/ops/templates' },
         { label: 'Models', href: '/admin/globals/llm-settings' },
+        { label: 'Information-gain policy', href: '/admin/globals/information-gain-policy' },
+        { label: 'Evidence sources', href: '/admin/collections/evidence-sources' },
         { label: 'Users', href: '/admin/collections/users' },
       ],
     },
