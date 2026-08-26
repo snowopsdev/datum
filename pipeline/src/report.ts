@@ -245,9 +245,18 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     lines.push(`mean consensus coverage: ${meanOf(scored, (a) => a.informationGain?.consensusCoverage)}`)
     lines.push(`mean verification ratio: ${meanOf(scored, (a) => a.informationGain?.verificationRatio)}`)
 
+    // Status *and* decision, not decision alone. A reviewer override moves the
+    // article to `verified` but deliberately leaves the `HUMAN_REVIEW`/`BLOCK`
+    // decision on it as the record of what was overridden, so a decision-only
+    // filter would keep every resolved article queued forever and the queue
+    // would only ever grow. The status is what says whether a human still owes
+    // this article a decision; `ReportsPanel.tsx` reads the same queue off
+    // status for the same reason.
     const queue = scored.filter(
       (a) =>
-        a.informationGain?.decision === 'HUMAN_REVIEW' || a.informationGain?.decision === 'BLOCK',
+        (a.status === 'needs_review' || a.status === 'blocked') &&
+        (a.informationGain?.decision === 'HUMAN_REVIEW' ||
+          a.informationGain?.decision === 'BLOCK'),
     )
     lines.push('')
     lines.push(`-- Review queue (${queue.length} article(s) at needs_review/blocked) --`)

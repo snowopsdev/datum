@@ -74,7 +74,7 @@ A claim not selected for verification gets **neutral** evidence values — suppo
 
 One immutable `information-gain-runs` row per scoring — the full scorecard, every claim record, its evidence, the resolved policy and the models that judged it — plus a small denormalised summary on `Article.informationGain` pointing at it. A `needs_review` or `blocked` outcome also **clears `reviewJustification`**: the override gate demands a justification written for the article's current problem, and a stale one would let an earlier reviewer's reasoning approve a scorecard they never saw. (That gate is live — a `needs_review` article cannot be moved back by a plain status edit.)
 
-`pipeline:report` gains an information-gain block: decision counts, mean consensus coverage and verification ratio, and a review queue listing each `needs_review`/`blocked` article's top reasons, read from its linked run rather than recomputed.
+`pipeline:report` gains an information-gain block: decision counts, mean consensus coverage and verification ratio, and a review queue listing each `needs_review`/`blocked` article's top reasons, read from its linked run rather than recomputed. The queue is filtered on the article's **status** as well as its decision: an override leaves the original `HUMAN_REVIEW`/`BLOCK` decision in place as the record of what was waived, so a decision-only filter would never let a resolved article out of the queue.
 
 ## The claim model and its signals
 
