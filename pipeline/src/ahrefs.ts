@@ -7,8 +7,22 @@ export interface GapKeyword {
   bestCompetitorPosition: number
 }
 
+/** One organic SERP result, structured so the corpus builder can fetch it. */
+export interface SerpPage {
+  position: number
+  title: string | null
+  url: string
+  domainRating: number | null
+}
+
 export interface SerpResearch {
   rankingPagesSummary: string
+  /**
+   * The same organic results `rankingPagesSummary` renders, as data. The
+   * summary is prompt text; `pages` is what the information-gain corpus
+   * snapshot crawls, so the two must never drift apart.
+   */
+  pages: SerpPage[]
   commonSubtopics: string[]
   relatedQuestions: string[]
 }
@@ -121,6 +135,22 @@ class RealAhrefsClient implements AhrefsClient {
     const rankingPagesSummary = organic
       .map((p) => `#${p.position} ${p.title ?? '(untitled)'} — ${p.url ?? ''} (DR ${p.domain_rating ?? '?'})`)
       .join('\n')
+    // A result with no URL is not fetchable, so it cannot join the corpus.
+    const pages: SerpPage[] = organic
+      .flatMap((p) =>
+        p.url
+          ? [
+              {
+                position: p.position,
+                title: p.title?.trim() || null,
+                url: p.url,
+                domainRating: p.domain_rating ?? null,
+              },
+            ]
+          : [],
+      )
+      .sort((a, b) => a.position - b.position)
+      .slice(0, 10)
     // Titles of ranking pages double as the observable subtopic signal at this
     // boundary; "People also ask" rows arrive as positions of type "question".
     const commonSubtopics = [
@@ -134,7 +164,7 @@ class RealAhrefsClient implements AhrefsClient {
           .filter((t): t is string => Boolean(t)),
       ),
     ].slice(0, 8)
-    return { rankingPagesSummary, commonSubtopics, relatedQuestions }
+    return { rankingPagesSummary, pages, commonSubtopics, relatedQuestions }
   }
 }
 
@@ -149,12 +179,34 @@ class MockAhrefsClient implements AhrefsClient {
   }
 
   async serpResearch(keyword: string): Promise<SerpResearch> {
+    const slug = keyword.replace(/\s+/g, '-')
+    // Hosts here must match the ones `corpus/mockPages.ts` has text for,
+    // otherwise a mock snapshot crawls three copies of the generic page.
+    const pages: SerpPage[] = [
+      {
+        position: 1,
+        title: `The complete guide to ${keyword}`,
+        url: `https://competitor-one.com/blog/${slug}`,
+        domainRating: 78,
+      },
+      {
+        position: 2,
+        title: `${keyword}: what actually works in 2026`,
+        url: `https://competitor-two.com/${slug}`,
+        domainRating: 71,
+      },
+      {
+        position: 3,
+        title: `10 lessons from doing ${keyword} the hard way`,
+        url: 'https://industry-mag.example.com/lessons',
+        domainRating: 66,
+      },
+    ]
     return {
-      rankingPagesSummary: [
-        `#1 The complete guide to ${keyword} — https://competitor-one.com/blog/${keyword.replace(/\s+/g, '-')} (DR 78)`,
-        `#2 ${keyword}: what actually works in 2026 — https://competitor-two.com/${keyword.replace(/\s+/g, '-')} (DR 71)`,
-        `#3 10 lessons from doing ${keyword} the hard way — https://industry-mag.example.com/lessons (DR 66)`,
-      ].join('\n'),
+      rankingPagesSummary: pages
+        .map((p) => `#${p.position} ${p.title} — ${p.url} (DR ${p.domainRating})`)
+        .join('\n'),
+      pages,
       commonSubtopics: [
         `What ${keyword} means in practice`,
         'Costs and typical budgets',

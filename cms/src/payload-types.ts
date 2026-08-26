@@ -77,6 +77,7 @@ export interface Config {
     'brand-voice-files': BrandVoiceFile;
     'governance-audit': GovernanceAudit;
     'evidence-sources': EvidenceSource;
+    'corpus-snapshots': CorpusSnapshot;
     'pipeline-runs': PipelineRun;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -96,6 +97,7 @@ export interface Config {
     'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
+    'corpus-snapshots': CorpusSnapshotsSelect<false> | CorpusSnapshotsSelect<true>;
     'pipeline-runs': PipelineRunsSelect<false> | PipelineRunsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -287,6 +289,46 @@ export interface Article {
           id?: string | null;
         }[]
       | null;
+    /**
+     * Written by the research stage; see docs/information-gain.md.
+     */
+    snapshot?: (number | null) | CorpusSnapshot;
+    /**
+     * Written by the research stage; see docs/information-gain.md.
+     */
+    queryCluster?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Written by the research stage; see docs/information-gain.md.
+     */
+    facets?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Written by the research stage; see docs/information-gain.md.
+     */
+    gaps?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
   };
   body?: {
     root: {
@@ -394,7 +436,118 @@ export interface Article {
    * Required to move a needs_review or blocked article to verified. Recorded in the audit trail.
    */
   reviewJustification?: string | null;
+  /**
+   * Reasons from the last information-gain run or reviewer; injected into the next generate prompt.
+   */
+  revisionNotes?: string | null;
+  /**
+   * Times this article was sent back for regeneration. Informational.
+   */
+  revisionCount?: number | null;
   publishedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "corpus-snapshots".
+ */
+export interface CorpusSnapshot {
+  id: number;
+  keyword: string;
+  /**
+   * Lower-cased, trimmed keyword used for reuse lookups.
+   */
+  keywordKey: string;
+  country: string;
+  capturedAt: string;
+  /**
+   * empty = unusable, never reused: either no page yielded text (baselineDocCount 0) or pages were read but extraction produced no claims (baselineDocCount > 0).
+   */
+  status: 'complete' | 'partial' | 'empty';
+  pipelineRunId?: string | null;
+  snapshotHash?: string | null;
+  models?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  queryCluster?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  pages?:
+    | {
+        position?: number | null;
+        url: string;
+        title?: string | null;
+        domain?: string | null;
+        domainRating?: number | null;
+        fetchStatus: 'ok' | 'failed' | 'skipped';
+        failureReason?: string | null;
+        chars?: number | null;
+        textHash?: string | null;
+        /**
+         * Readable page text, capped at 24k chars (decision: stored for auditability).
+         */
+        text?: string | null;
+        claimCount?: number | null;
+        /**
+         * Claims whose excerpt was not found in this page text; counted, not dropped.
+         */
+        unverifiedExcerptCount?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  internalCorpus?:
+    | {
+        article: number | Article;
+        articleUpdatedAt: string;
+        claimCount?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  baselineClaims?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  facets?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  gaps?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  baselineDocCount?: number | null;
+  /**
+   * Pages that yielded no text: failed fetches and skipped ones (a PDF, a refused private address) both count. Zero next to status "empty" means the crawl was fine and claim extraction came back empty.
+   */
+  failedPageCount?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -905,6 +1058,10 @@ export interface PayloadLockedDocument {
         value: number | EvidenceSource;
       } | null)
     | ({
+        relationTo: 'corpus-snapshots';
+        value: number | CorpusSnapshot;
+      } | null)
+    | ({
         relationTo: 'pipeline-runs';
         value: number | PipelineRun;
       } | null);
@@ -1055,6 +1212,10 @@ export interface ArticlesSelect<T extends boolean = true> {
               text?: T;
               id?: T;
             };
+        snapshot?: T;
+        queryCluster?: T;
+        facets?: T;
+        gaps?: T;
       };
   body?: T;
   titleTag?: T;
@@ -1102,6 +1263,8 @@ export interface ArticlesSelect<T extends boolean = true> {
   reviewedBy?: T;
   reviewNotes?: T;
   reviewJustification?: T;
+  revisionNotes?: T;
+  revisionCount?: T;
   publishedAt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -1279,6 +1442,53 @@ export interface EvidenceSourcesSelect<T extends boolean = true> {
   qualityClass?: T;
   note?: T;
   active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "corpus-snapshots_select".
+ */
+export interface CorpusSnapshotsSelect<T extends boolean = true> {
+  keyword?: T;
+  keywordKey?: T;
+  country?: T;
+  capturedAt?: T;
+  status?: T;
+  pipelineRunId?: T;
+  snapshotHash?: T;
+  models?: T;
+  queryCluster?: T;
+  pages?:
+    | T
+    | {
+        position?: T;
+        url?: T;
+        title?: T;
+        domain?: T;
+        domainRating?: T;
+        fetchStatus?: T;
+        failureReason?: T;
+        chars?: T;
+        textHash?: T;
+        text?: T;
+        claimCount?: T;
+        unverifiedExcerptCount?: T;
+        id?: T;
+      };
+  internalCorpus?:
+    | T
+    | {
+        article?: T;
+        articleUpdatedAt?: T;
+        claimCount?: T;
+        id?: T;
+      };
+  baselineClaims?: T;
+  facets?: T;
+  gaps?: T;
+  baselineDocCount?: T;
+  failedPageCount?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -62,6 +62,40 @@ export const Articles: CollectionConfig = {
             },
           ],
         },
+        {
+          name: 'snapshot',
+          type: 'relationship',
+          relationTo: 'corpus-snapshots',
+          // Stays an id at any query depth: a snapshot carries every crawled
+          // page's text, and the pipeline's per-stage `find` would otherwise
+          // drag the whole corpus into memory for every article it loads.
+          // Load it explicitly when the baseline is actually needed.
+          maxDepth: 0,
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'queryCluster',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'facets',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
+        {
+          name: 'gaps',
+          type: 'json',
+          admin: {
+            description: 'Written by the research stage; see docs/information-gain.md.',
+          },
+        },
       ],
     },
     {
@@ -222,6 +256,23 @@ export const Articles: CollectionConfig = {
       type: 'textarea',
       admin: {
         description: 'Required to move a needs_review or blocked article to verified. Recorded in the audit trail.',
+      },
+    },
+    {
+      name: 'revisionNotes',
+      type: 'textarea',
+      admin: {
+        description:
+          'Reasons from the last information-gain run or reviewer; injected into the next generate prompt.',
+      },
+    },
+    {
+      name: 'revisionCount',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description: 'Times this article was sent back for regeneration. Informational.',
       },
     },
     {

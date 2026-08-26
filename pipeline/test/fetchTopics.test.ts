@@ -30,6 +30,7 @@ it('creates the requested number of unique topics with the selected template', a
       rankingPagesSummary: '',
       commonSubtopics: [],
       relatedQuestions: [],
+      pages: [],
     }),
   }
 

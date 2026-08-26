@@ -202,7 +202,10 @@ export async function completeJSON(
 export function createLlmClient(mode: 'mock' | 'live'): LlmClient {
   return {
     completeJSON(stage, request, model) {
-      if (mode === 'mock') return completeJSONMock(stage, model)
+      // `fixtureKey` must survive: a `claimExtraction` request without it gets
+      // the whole `{ page, facets }` fixture object instead of the one it asked
+      // for, and the parsers reject that.
+      if (mode === 'mock') return completeJSONMock(stage, model, request.fixtureKey)
       return providerForModel(model) === 'openai'
         ? completeJSONOpenAI(stage, request, model)
         : completeJSONAnthropic(stage, request, model)

@@ -40,12 +40,35 @@ export interface Stage {
 }
 
 export interface RunPipelineOptions {
+  /** Restrict the run to these articles (the jobs queue runs one content run). */
   articleIds?: number[]
+  /** Stages to walk; defaults to the real pipeline. Tests pass their own. */
+  stages?: Stage[]
+}
+
+/** What one stage did to its batch in a single run. */
+export interface StageRunSummary {
+  stage: Stage['name']
+  /** Articles found at the stage's `entryStatus` with a template assigned. */
+  total: number
+  failed: number
 }
 
 export interface RunPipelineResult {
   articleIds: number[]
   finalStatuses: Record<string, number>
+  /** Per-stage batch sizes and failure counts. */
+  stages: StageRunSummary[]
+  /** Articles that threw, across every stage; `0` means the run was clean. */
+  failed: number
+}
+
+/** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
+export function describeFailures(result: Pick<RunPipelineResult, 'stages'>): string {
+  return result.stages
+    .filter((entry) => entry.failed > 0)
+    .map((entry) => `${entry.stage} ${entry.failed}/${entry.total}`)
+    .join(', ')
 }
 
 /**
@@ -66,7 +89,9 @@ export async function runPipeline(
 ): Promise<RunPipelineResult> {
   const processed = new Set<number>()
   const finalStatusByArticle = new Map<number, ArticleStatus>()
-  for (const stage of stages) {
+  const stageSummaries: StageRunSummary[] = []
+  let totalFailed = 0
+  for (const stage of options.stages ?? stages) {
     const and: Where[] = [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }]
     if (options.articleIds?.length) and.push({ id: { in: options.articleIds } })
     const { docs } = await ctx.payload.find({
@@ -77,36 +102,64 @@ export async function runPipeline(
       sort: 'createdAt',
     })
     console.log(`[${stage.name}] ${docs.length} article(s) at status "${stage.entryStatus}"`)
+    let failed = 0
     for (const article of docs) {
-      const outcome = await stage.run(article, ctx)
-      processed.add(article.id)
-      finalStatusByArticle.set(article.id, outcome.status)
-      await ctx.payload.update({
-        collection: 'articles',
-        id: article.id,
-        data: { ...outcome.data, status: outcome.status },
-        context: {
-          articleAudit: {
-            actor: 'pipeline',
-            actorType: 'pipeline',
-            event: `${stage.name}_completed`,
-            pipelineRunId: ctx.runId,
-            stage: stage.name,
-            summary: `${stage.name} completed in ${ctx.mode} mode`,
-            details: {
-              mode: ctx.mode,
-              keyword: article.keyword,
-              output: outcome.data,
+      // One article's failure — a malformed LLM reply, a dead Payload write —
+      // must not take the rest of the batch, or the stages behind it, down with
+      // it. The article keeps its current status, so the next run retries it,
+      // which is the same convergent-rerun property the whole loop relies on.
+      // The counts still come back in the result, so `index.ts` exits non-zero
+      // and a scheduled run's alerting sees stuck articles.
+      try {
+        const outcome = await stage.run(article, ctx)
+        processed.add(article.id)
+        finalStatusByArticle.set(article.id, outcome.status)
+        await ctx.payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { ...outcome.data, status: outcome.status },
+          context: {
+            articleAudit: {
+              actor: 'pipeline',
+              actorType: 'pipeline',
+              event: `${stage.name}_completed`,
+              pipelineRunId: ctx.runId,
+              stage: stage.name,
+              summary: `${stage.name} completed in ${ctx.mode} mode`,
+              details: {
+                mode: ctx.mode,
+                keyword: article.keyword,
+                output: outcome.data,
+              },
             },
           },
-        },
-      })
-      console.log(`[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`)
+        })
+        console.log(
+          `[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`,
+        )
+      } catch (error) {
+        failed += 1
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`[${stage.name}] article ${article.id} failed: ${message}`, error)
+      }
     }
+    if (failed > 0) {
+      console.log(
+        `[${stage.name}] ${failed} of ${docs.length} article(s) failed and kept status ` +
+          `"${stage.entryStatus}"; the next run retries them`,
+      )
+    }
+    stageSummaries.push({ stage: stage.name, total: docs.length, failed })
+    totalFailed += failed
   }
   const finalStatuses: Record<string, number> = {}
   for (const status of finalStatusByArticle.values()) {
     finalStatuses[status] = (finalStatuses[status] ?? 0) + 1
   }
-  return { articleIds: [...processed], finalStatuses }
+  return {
+    articleIds: [...processed],
+    finalStatuses,
+    stages: stageSummaries,
+    failed: totalFailed,
+  }
 }

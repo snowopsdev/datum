@@ -1,0 +1,360 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+
+import { mockPageText } from '../src/corpus/mockPages'
+import {
+  countUnverifiedExcerpts,
+  emptySnapshotMessage,
+  FACET_CLAIM_CAP,
+  INTERNAL_CORPUS_CAP,
+  isSnapshotReusable,
+  keywordKey,
+  pickReusable,
+  REUSE_LOOKBACK,
+  SERP_PAGE_CAP,
+  SNAPSHOT_REUSE_DAYS,
+  snapshotAgeDays,
+  snapshotHash,
+  snapshotStatus,
+  textHash,
+} from '../src/corpus/snapshot'
+import { mockFixture } from '../src/fixtures'
+import {
+  excerptFoundIn,
+  parseFacetClustering,
+  parsePageClaims,
+  type BaselineClaim,
+} from '../src/informationGain/lib'
+
+const NOW = new Date('2026-08-25T12:00:00.000Z')
+
+const daysAgo = (days: number): string =>
+  new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000).toISOString()
+
+describe('keywordKey', () => {
+  it('trims, lower-cases, and collapses whitespace', () => {
+    assert.equal(keywordKey('  Home   Espresso\tSetup  '), 'home espresso setup')
+  })
+
+  it('maps casing and spacing variants of one keyword to the same key', () => {
+    assert.equal(keywordKey('Home Espresso Setup'), keywordKey('home  espresso setup'))
+  })
+
+  it('handles an empty keyword', () => {
+    assert.equal(keywordKey('   '), '')
+  })
+})
+
+describe('snapshot caps', () => {
+  it('holds the agreed corpus limits', () => {
+    assert.equal(SNAPSHOT_REUSE_DAYS, 14)
+    assert.equal(SERP_PAGE_CAP, 10)
+    assert.equal(INTERNAL_CORPUS_CAP, 5)
+    assert.equal(FACET_CLAIM_CAP, 400)
+  })
+})
+
+describe('snapshotAgeDays', () => {
+  it('measures age in fractional days', () => {
+    assert.equal(snapshotAgeDays(daysAgo(2), NOW), 2)
+    assert.equal(snapshotAgeDays(daysAgo(0.5), NOW), 0.5)
+  })
+
+  it('is null for a timestamp it cannot read', () => {
+    assert.equal(snapshotAgeDays('not a date', NOW), null)
+  })
+})
+
+describe('isSnapshotReusable', () => {
+  it('reuses a snapshot inside the reuse window', () => {
+    assert.equal(isSnapshotReusable({ capturedAt: daysAgo(13), status: 'complete' }, NOW), true)
+  })
+
+  it('reuses a partial snapshot inside the window', () => {
+    assert.equal(isSnapshotReusable({ capturedAt: daysAgo(1), status: 'partial' }, NOW), true)
+  })
+
+  it('rejects a snapshot older than the reuse window', () => {
+    assert.equal(isSnapshotReusable({ capturedAt: daysAgo(15), status: 'complete' }, NOW), false)
+  })
+
+  it('never reuses an empty snapshot, however fresh', () => {
+    assert.equal(isSnapshotReusable({ capturedAt: daysAgo(0), status: 'empty' }, NOW), false)
+  })
+
+  it('rejects an unparseable capturedAt', () => {
+    assert.equal(isSnapshotReusable({ capturedAt: 'not a date', status: 'complete' }, NOW), false)
+  })
+})
+
+describe('snapshotStatus', () => {
+  it('is complete when every page fetched and yielded claims', () => {
+    assert.equal(snapshotStatus(3, 0, 24), 'complete')
+  })
+
+  it('is partial when some pages failed', () => {
+    assert.equal(snapshotStatus(2, 1, 16), 'partial')
+  })
+
+  it('is empty when every page failed', () => {
+    assert.equal(snapshotStatus(0, 3, 0), 'empty')
+  })
+
+  it('is empty when there were no pages at all', () => {
+    assert.equal(snapshotStatus(0, 0, 0), 'empty')
+  })
+
+  // A claimless build is a different failure from a failed crawl, but it is
+  // just as unusable: reusing it would score every draft against nothing.
+  it('is empty when pages were read but extraction produced no claims', () => {
+    assert.equal(snapshotStatus(3, 0, 0), 'empty')
+  })
+
+  it('is empty when a partial crawl produced no claims', () => {
+    assert.equal(snapshotStatus(2, 1, 0), 'empty')
+  })
+
+  it('is complete on a single claim from a clean crawl', () => {
+    assert.equal(snapshotStatus(3, 0, 1), 'complete')
+  })
+
+  it('never reuses either kind of empty snapshot', () => {
+    const claimless = snapshotStatus(3, 0, 0)
+    const failedCrawl = snapshotStatus(0, 3, 0)
+    for (const status of [claimless, failedCrawl]) {
+      assert.equal(isSnapshotReusable({ capturedAt: daysAgo(0), status }, NOW), false)
+      assert.equal(pickReusable([{ id: 1, capturedAt: daysAgo(0), status }], NOW), null)
+    }
+  })
+})
+
+describe('emptySnapshotMessage', () => {
+  const failedCrawl = {
+    snapshotId: 42,
+    keyword: 'home espresso setup',
+    okPages: 0,
+    crawledPages: 10,
+    unusablePages: 10,
+    internalDocs: 0,
+    claims: 0,
+  }
+  const claimless = { ...failedCrawl, okPages: 8, unusablePages: 2, internalDocs: 3 }
+
+  it('names the keyword, the snapshot id, and the page and claim counts', () => {
+    const message = emptySnapshotMessage(claimless)
+    assert.ok(message.includes('home espresso setup'), 'the keyword should be in the message')
+    assert.ok(message.includes('42'), 'the snapshot id should be in the message')
+    assert.ok(message.includes('8/10'), 'pages read vs crawled should be in the message')
+    assert.ok(message.includes('2 failed or skipped'))
+    assert.ok(message.includes('3 internal'))
+    assert.ok(message.includes('0 claim(s)'))
+  })
+
+  it('distinguishes a failed crawl from a claimless one', () => {
+    assert.ok(emptySnapshotMessage(failedCrawl).includes('no page could be read'))
+    assert.ok(emptySnapshotMessage(claimless).includes('produced no claims'))
+    assert.notEqual(emptySnapshotMessage(failedCrawl), emptySnapshotMessage(claimless))
+  })
+
+  it('says the row is kept and the article is retryable', () => {
+    const message = emptySnapshotMessage(failedCrawl)
+    assert.ok(message.includes('audit record'))
+    assert.ok(message.includes('retries it'))
+  })
+
+  it('accepts a string snapshot id', () => {
+    assert.ok(emptySnapshotMessage({ ...claimless, snapshotId: 'abc-123' }).includes('abc-123'))
+  })
+})
+
+describe('snapshotHash', () => {
+  const pages = [
+    { url: 'https://a.example.com/one', textHash: 'aaa' },
+    { url: 'https://b.example.com/two', textHash: 'bbb' },
+    { url: 'https://c.example.com/three', textHash: 'ccc' },
+  ]
+
+  it('is stable under page order', () => {
+    assert.equal(snapshotHash(pages), snapshotHash([...pages].reverse()))
+  })
+
+  it('changes when a page body changes', () => {
+    const changed = [{ ...pages[0], textHash: 'zzz' }, pages[1], pages[2]]
+    assert.notEqual(snapshotHash(pages), snapshotHash(changed))
+  })
+
+  it('changes when a page is dropped', () => {
+    assert.notEqual(snapshotHash(pages), snapshotHash(pages.slice(0, 2)))
+  })
+
+  it('returns a hex sha256', () => {
+    assert.match(snapshotHash(pages), /^[0-9a-f]{64}$/)
+  })
+})
+
+describe('textHash', () => {
+  it('is deterministic', () => {
+    assert.equal(textHash('one two three'), textHash('one two three'))
+  })
+
+  it('distinguishes different text', () => {
+    assert.notEqual(textHash('one two three'), textHash('one two four'))
+  })
+
+  it('returns a hex sha256', () => {
+    assert.match(textHash(''), /^[0-9a-f]{64}$/)
+  })
+})
+
+describe('claimExtraction mock fixtures', () => {
+  const pageClaims = (prefix: string, position: number): BaselineClaim[] =>
+    parsePageClaims(mockFixture('claimExtraction', 'page'), {
+      docId: `serp:${position}`,
+      sourceKind: 'serp',
+      idPrefix: prefix,
+      url: `https://competitor-${position}.example.com/guide`,
+    })
+
+  it('parses the page fixture into eight baseline claims', () => {
+    const claims = pageClaims('b1', 1)
+    assert.equal(claims.length, 8)
+    assert.deepEqual(
+      claims.map((claim) => claim.id),
+      ['b1-1', 'b1-2', 'b1-3', 'b1-4', 'b1-5', 'b1-6', 'b1-7', 'b1-8'],
+    )
+    assert.ok(claims.every((claim) => claim.text.length > 0 && claim.excerpt.length > 0))
+    assert.ok(claims.every((claim) => claim.facetId === null))
+    assert.deepEqual(claims[0].values, ['$500', '$1,500'])
+  })
+
+  it('clusters three pages of fixture claims into five facets', () => {
+    const claims = [...pageClaims('b1', 1), ...pageClaims('b2', 2), ...pageClaims('b3', 3)]
+    assert.equal(claims.length, 24)
+
+    const hints = ['What you need', 'Step-by-step instructions', 'Common mistakes', 'FAQ']
+    const { facets, gaps, claimFacet } = parseFacetClustering(
+      mockFixture('claimExtraction', 'facets'),
+      claims,
+      hints,
+      3,
+    )
+
+    assert.equal(facets.length, 5)
+    assert.deepEqual(
+      facets.map((facet) => facet.id),
+      ['f1', 'f2', 'f3', 'f4', 'f5'],
+    )
+    assert.deepEqual(
+      facets.filter((facet) => facet.mustHave).map((facet) => facet.label),
+      ['What you need', 'Step-by-step instructions', 'Common mistakes'],
+    )
+    // Every fixture claim appears in exactly one facet, so each facet sees all
+    // three baseline documents.
+    assert.equal(claimFacet.size, claims.length)
+    assert.ok(claims.every((claim) => claimFacet.has(claim.id)))
+    assert.ok(facets.every((facet) => facet.docCount === 3))
+    assert.equal(
+      facets.reduce((sum, facet) => sum + facet.claimIds.length, 0),
+      claims.length,
+    )
+    assert.equal(gaps.length, 2)
+    assert.equal(gaps[0].facetId, 'f1')
+    assert.equal(gaps[1].facetId, null)
+  })
+
+  it('quotes every excerpt verbatim from every mock page host', () => {
+    const claims = pageClaims('b1', 1)
+    const hosts = [
+      'https://competitor-one.com/blog/guide',
+      'https://competitor-two.com/guide',
+      'https://industry-mag.example.com/lessons',
+      // Any other host falls back to the generic mock page.
+      'https://unknown-host.example.org/guide',
+    ]
+    for (const host of hosts) {
+      const { text } = mockPageText(host)
+      for (const claim of claims) {
+        assert.ok(
+          excerptFoundIn(claim.excerpt, text),
+          `${host} is missing excerpt "${claim.excerpt}"`,
+        )
+      }
+    }
+  })
+})
+
+describe('pickReusable', () => {
+  it('takes the newest row when it is reusable', () => {
+    const docs = [
+      { id: 3, capturedAt: daysAgo(1), status: 'complete' },
+      { id: 2, capturedAt: daysAgo(2), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW)?.id, 3)
+  })
+
+  it('looks past a fresh empty snapshot to an older usable one', () => {
+    const docs = [
+      { id: 3, capturedAt: daysAgo(0), status: 'empty' },
+      { id: 2, capturedAt: daysAgo(3), status: 'complete' },
+      { id: 1, capturedAt: daysAgo(20), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW)?.id, 2)
+  })
+
+  it('is null when every candidate is stale or empty', () => {
+    const docs = [
+      { id: 2, capturedAt: daysAgo(0), status: 'empty' },
+      { id: 1, capturedAt: daysAgo(15), status: 'complete' },
+    ]
+    assert.equal(pickReusable(docs, NOW), null)
+  })
+
+  it('is null for no candidates at all', () => {
+    assert.equal(pickReusable([], NOW), null)
+  })
+
+  it('holds the agreed lookback', () => {
+    assert.equal(REUSE_LOOKBACK, 3)
+  })
+})
+
+describe('countUnverifiedExcerpts', () => {
+  const claim = (excerpt: string): BaselineClaim => ({
+    id: 'b1-1',
+    text: 't',
+    type: 'factual',
+    excerpt,
+    entities: [],
+    values: [],
+    facetId: null,
+    source: { kind: 'serp', docId: 'serp:1' },
+  })
+
+  const text = 'The grinder matters more than the machine. Purge the steam wand after each use.'
+
+  it('counts nothing when every excerpt is in the text', () => {
+    const claims = [claim('The grinder matters more than the machine.'), claim('the steam wand')]
+    assert.equal(countUnverifiedExcerpts(claims, text), 0)
+  })
+
+  it('counts an excerpt the page never says', () => {
+    const claims = [claim('The grinder matters more than the machine.'), claim('Invented quote.')]
+    assert.equal(countUnverifiedExcerpts(claims, text), 1)
+  })
+
+  it('matches case- and whitespace-insensitively, like excerptFoundIn', () => {
+    assert.equal(countUnverifiedExcerpts([claim('  THE   GRINDER matters ')], text), 0)
+  })
+
+  it('counts a blank excerpt as unverified', () => {
+    assert.equal(countUnverifiedExcerpts([claim('   ')], text), 1)
+  })
+
+  it('counts every claim when the text is empty', () => {
+    assert.equal(countUnverifiedExcerpts([claim('anything'), claim('else')], ''), 2)
+  })
+
+  it('is zero for no claims', () => {
+    assert.equal(countUnverifiedExcerpts([], text), 0)
+  })
+})

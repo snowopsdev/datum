@@ -15,6 +15,23 @@ import type { Facet } from './types'
 /** Negative or non-finite weights are treated as zero rather than throwing. */
 const safeWeight = (w: number): number => (Number.isFinite(w) ? Math.max(0, w) : 0)
 
+/** A baseline-document total we can divide by, or 0 meaning "we cannot". */
+const usableTotalOf = (totalDocs: number): number =>
+  Number.isFinite(totalDocs) && totalDocs > 0 ? totalDocs : 0
+
+/**
+ * The weighting rule itself, in one place: `facetWeights` and
+ * `applyTemplateHints` both call it so the formula cannot fork. `usableTotal`
+ * is pre-validated by `usableTotalOf`; 0 means there is nothing to divide by,
+ * in which case every facet counts the same.
+ */
+function weightOf(facet: { docCount: number; mustHave: boolean }, usableTotal: number): number {
+  if (usableTotal === 0) return 1
+  const docCount = Number.isFinite(facet.docCount) ? Math.max(0, facet.docCount) : 0
+  const weight = docCount / usableTotal
+  return facet.mustHave ? Math.max(weight, 1) : weight
+}
+
 /**
  * How much each facet counts: the share of baseline documents covering it, so a
  * subtopic every competitor answers outweighs one only a single page mentions.
@@ -25,12 +42,50 @@ export function facetWeights(
   facets: { docCount: number; mustHave: boolean }[],
   totalDocs: number,
 ): number[] {
-  const usableTotal = Number.isFinite(totalDocs) && totalDocs > 0 ? totalDocs : 0
+  const usableTotal = usableTotalOf(totalDocs)
+  return facets.map((facet) => weightOf(facet, usableTotal))
+}
+
+/** The comparison `parseFacetClustering` uses to match a facet to a template heading. */
+const normaliseHint = (value: string): string => value.trim().toLowerCase()
+
+/**
+ * Re-derives `mustHave` — and the `weight` that depends on it — against one
+ * article's template headings.
+ *
+ * A snapshot is keyed by (keyword, country), not by template, so the flags
+ * baked in when it was built belong to whichever article triggered the build. A
+ * second article on the same keyword with a different template must be graded —
+ * and prompted — against its own required sections, so the consumer re-applies
+ * its own headings before using the facets.
+ *
+ * `weight` is recomputed rather than carried over, because `weightOf` floors a
+ * `mustHave` facet at 1: a stored weight of 1 next to a re-derived
+ * `mustHave: false` would keep a floor the consuming template never justified,
+ * and `consensusCoverage` reads `facet.weight` directly. Both flags come out of
+ * one pass so they cannot disagree. `docCount` is untouched — it is a property
+ * of the corpus, not of the template — and `totalDocs` is the snapshot's
+ * `baselineDocCount`.
+ */
+export function applyTemplateHints<
+  T extends {
+    label: string
+    mustHave: boolean
+    docCount: number
+    weight: number
+    matchesHint?: string | null
+  },
+>(facets: T[], headings: string[], totalDocs: number): T[] {
+  const wanted = new Set(headings.map(normaliseHint).filter((heading) => heading !== ''))
+  const usableTotal = usableTotalOf(totalDocs)
   return facets.map((facet) => {
-    if (usableTotal === 0) return 1
-    const docCount = Number.isFinite(facet.docCount) ? Math.max(0, facet.docCount) : 0
-    const weight = docCount / usableTotal
-    return facet.mustHave ? Math.max(weight, 1) : weight
+    const mustHave =
+      wanted.has(normaliseHint(facet.matchesHint ?? '')) || wanted.has(normaliseHint(facet.label))
+    return {
+      ...facet,
+      mustHave,
+      weight: weightOf({ docCount: facet.docCount, mustHave }, usableTotal),
+    }
   })
 }
 

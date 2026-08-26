@@ -47,6 +47,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
     [2, article(2)],
   ])
   const costRows: Array<Record<string, unknown>> = []
+  const snapshotRows: Array<Record<string, unknown>> = []
   const payload = {
     find: async ({
       collection,
@@ -59,6 +60,11 @@ it('advances only the article ids assigned to a scoped run', async () => {
         const articleId = (where?.article as { equals?: number } | undefined)?.equals
         return { docs: costRows.filter((row) => row.article === articleId) }
       }
+      // The research stage looks for a reusable corpus snapshot and for its own
+      // published articles; this scoped run has neither, so both come back empty
+      // and the stage builds a fresh snapshot from the mock pages.
+      if (collection === 'corpus-snapshots') return { docs: snapshotRows }
+      if (collection === 'articles' && !where?.and) return { docs: [] }
       const clauses =
         (where?.and as Array<Record<string, { equals?: unknown; exists?: boolean }>>) ?? []
       const status = clauses.find((clause) => clause.status)?.status.equals
@@ -76,17 +82,45 @@ it('advances only the article ids assigned to a scoped run', async () => {
       return updated
     },
     create: async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => {
+      if (collection === 'corpus-snapshots') {
+        snapshotRows.push({ id: snapshotRows.length + 1, ...data })
+        return snapshotRows[snapshotRows.length - 1]
+      }
       assert.equal(collection, 'cost-log')
       costRows.push(data)
       return { id: costRows.length, ...data }
     },
   } as unknown as Payload
+  // The hosts must be ones `corpus/mockPages.ts` has text for, exactly as
+  // `MockAhrefsClient` does: a SERP with no crawlable pages builds an empty
+  // corpus snapshot, which the research stage now refuses rather than passing
+  // an ungoverned article on to generation.
   const ahrefs: AhrefsClient = {
     contentGapKeywords: async () => [],
-    serpResearch: async () => ({
+    serpResearch: async (keyword) => ({
       rankingPagesSummary: 'Research summary',
       commonSubtopics: ['Equipment'],
       relatedQuestions: ['What does it cost?'],
+      pages: [
+        {
+          position: 1,
+          title: `The complete guide to ${keyword}`,
+          url: 'https://competitor-one.com/blog/guide',
+          domainRating: 78,
+        },
+        {
+          position: 2,
+          title: `${keyword}: what actually works`,
+          url: 'https://competitor-two.com/guide',
+          domainRating: 71,
+        },
+        {
+          position: 3,
+          title: `10 lessons from doing ${keyword} the hard way`,
+          url: 'https://industry-mag.example.com/lessons',
+          domainRating: 66,
+        },
+      ],
     }),
   }
   const ctx: StageContext = {
@@ -108,6 +142,9 @@ it('advances only the article ids assigned to a scoped run', async () => {
 
   const result = await runPipeline(ctx, { articleIds: [1] })
 
+  assert.equal(result.failed, 0, 'the scoped run should not have failed any article')
+  assert.equal(snapshotRows.length, 1, 'the scoped run should have built one corpus snapshot')
+  assert.notEqual(snapshotRows[0]?.status, 'empty')
   assert.equal(articles.get(1)?.status, 'qa_passed')
   assert.equal(articles.get(2)?.status, 'topic_selected')
   assert.deepEqual(result.articleIds, [1])

@@ -238,13 +238,16 @@ export function parseFacetClustering(
       docIds.add(docId)
     }
 
-    const hint = facet.matchesHint
+    const hint = typeof facet.matchesHint === 'string' ? facet.matchesHint : null
     return {
       id,
       label: asText(facet.label),
       description: asText(facet.description),
       docCount: docIds.size,
-      mustHave: typeof hint === 'string' && normalisedHints.has(hint.trim().toLowerCase()),
+      mustHave: hint !== null && normalisedHints.has(hint.trim().toLowerCase()),
+      // Kept verbatim so a reused snapshot's flags can be re-derived against a
+      // different article's template (`applyTemplateHints`).
+      matchesHint: hint,
       claimIds,
     }
   })
