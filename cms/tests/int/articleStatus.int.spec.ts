@@ -6,9 +6,9 @@ import { gateReviewOverride } from '@/lib/articleReviewGate'
 
 describe('article status configuration', () => {
   it('matches ARTICLE_STATUSES to the Articles status field options exactly', () => {
-    const statusField = Articles.fields.find((field) => 'name' in field && field.name === 'status') as
-      | { options?: unknown[] }
-      | undefined
+    const statusField = Articles.fields.find(
+      (field) => 'name' in field && field.name === 'status',
+    ) as { options?: unknown[] } | undefined
     expect(statusField).toBeDefined()
     expect(ARTICLE_STATUSES).toEqual(statusField?.options)
   })

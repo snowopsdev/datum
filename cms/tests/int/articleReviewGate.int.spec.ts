@@ -25,6 +25,29 @@ describe('article review-override gate', () => {
     ).toThrow('reviewJustification')
   })
 
+  it('throws when the justification is unchanged from the persisted one', () => {
+    // The admin UI submits the whole document, so a justification persisted by
+    // an earlier override would otherwise ride along and satisfy the gate.
+    expect(() =>
+      gateReviewOverride({
+        data: { status: 'verified', reviewJustification: '  same reason as last time  ' },
+        originalDoc: { status: 'blocked', reviewJustification: 'same reason as last time' },
+        req: { user: null },
+        context: {},
+      } as never),
+    ).toThrow('new reviewJustification')
+  })
+
+  it('accepts a justification that differs from the persisted one', () => {
+    const result = gateReviewOverride({
+      data: { status: 'verified', reviewJustification: 'a fresh reason' },
+      originalDoc: { status: 'blocked', reviewJustification: 'the previous reason' },
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
+    expect(result.reviewJustification).toBe('a fresh reason')
+  })
+
   it('passes and trims a valid justification, stamping reviewedBy from the user email', () => {
     const data: Record<string, unknown> = {
       status: 'verified',
