@@ -11,7 +11,7 @@ const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.co
 const findByIDMock = vi.fn(
   async () => ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0 }) as never,
 )
-const findMock = vi.fn(async () => ({ docs: [] }) as never)
+const findMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ docs: [] }) as never)
 const updateMock = vi.fn(async () => ({}) as never)
 
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
@@ -290,5 +290,113 @@ describe('the three send-back-for-rework actions null informationGain identicall
         overrideAccess: true,
       }),
     )
+  })
+})
+
+/**
+ * Which run's reasons the next generate prompt gets. `regenerateArticleAction`
+ * must read the article's *current* `informationGain.run` pointer, because the
+ * newest run row for an article outlives the decision it produced: every
+ * send-back nulls the summary, and `invalidateStaleInformationGain` nulls it
+ * again on a content edit, while the row stays. Preferring that orphaned row
+ * would aim the regeneration at a draft that no longer exists, in front of the
+ * QA failures the draft in hand actually has.
+ */
+describe('regenerateArticleAction resolves the run through the current pointer', () => {
+  const QA_FAILURE = {
+    structural: { passed: false, violations: [{ code: 'BANNED_PHRASE', message: 'found "game changer"' }] },
+  }
+
+  /** `find` dispatched per collection, so a run row exists but is not linked. */
+  const withRuns = (runs: { id: number; reasons: unknown }[]) => {
+    findMock.mockImplementation(async ({ where }) => {
+      const id = (where as { id?: { equals?: number } } | undefined)?.id?.equals
+      return { docs: runs.filter((run) => run.id === id) } as never
+    })
+  }
+
+  const revisionNotesSent = () => {
+    const [call] = updateMock.mock.calls as unknown as { data: { revisionNotes: string } }[][]
+    return call[0].data.revisionNotes
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+  })
+
+  it('uses the linked run when the article still carries a pointer', async () => {
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_review',
+      qaResults: QA_FAILURE,
+      revisionCount: 0,
+      informationGain: { run: 42, decision: 'HUMAN_REVIEW' },
+    } as never)
+    withRuns([
+      { id: 42, reasons: [{ policy: 'coverage', message: 'misses two consensus facets', severity: 'HUMAN_REVIEW' }] },
+      { id: 99, reasons: [{ policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' }] },
+    ])
+
+    await regenerateArticleAction(1)
+
+    expect(revisionNotesSent()).toBe('- [coverage] misses two consensus facets')
+    expect(findMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'information-gain-runs',
+        where: { id: { equals: 42 } },
+      }),
+    )
+  })
+
+  it('falls back to the QA failures when the pointer has been cleared', async () => {
+    // The run row from the previous regeneration is still there; it must lose
+    // to what is wrong with the draft actually being replaced.
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_revision',
+      qaResults: QA_FAILURE,
+      revisionCount: 1,
+      informationGain: { run: null, decision: null },
+    } as never)
+    withRuns([
+      { id: 99, reasons: [{ policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' }] },
+    ])
+
+    await regenerateArticleAction(1)
+
+    expect(revisionNotesSent()).toBe('- BANNED_PHRASE — found "game changer"')
+    expect(findMock).not.toHaveBeenCalled()
+  })
+
+  it('sends only the reviewer note when there is neither a pointer nor a QA failure', async () => {
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'researched',
+      qaResults: undefined,
+      revisionCount: 0,
+      informationGain: null,
+    } as never)
+    withRuns([])
+
+    await regenerateArticleAction(1, 'add a comparison table')
+
+    expect(revisionNotesSent()).toBe('Reviewer note: add a comparison table')
+    expect(findMock).not.toHaveBeenCalled()
+  })
+
+  it('treats a run row deleted since it was linked as no run at all', async () => {
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_review',
+      qaResults: QA_FAILURE,
+      revisionCount: 0,
+      informationGain: { run: 42, decision: 'BLOCK' },
+    } as never)
+    withRuns([])
+
+    await regenerateArticleAction(1)
+
+    expect(revisionNotesSent()).toBe('- BANNED_PHRASE — found "game changer"')
   })
 })

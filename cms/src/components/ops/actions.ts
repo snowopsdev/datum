@@ -79,6 +79,49 @@ function auditContext(
   }
 }
 
+/** A `maxDepth: 0` relationship is an id, but a populated row may still arrive. */
+function relationshipId(value: unknown): number | null {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'number') {
+    return (value as { id: number }).id
+  }
+  return null
+}
+
+/**
+ * The information-gain run the article's *current* decision came from, or null
+ * when it carries none.
+ *
+ * Resolved through `informationGain.run` rather than by taking the newest row
+ * for the article, because the two diverge exactly when it matters. Every
+ * send-back action nulls `informationGain`, and `invalidateStaleInformationGain`
+ * nulls it again whenever scored content is edited, so an article without a
+ * pointer has no live verdict — while its newest run row still sits there
+ * describing a draft that has since been thrown away. Reading that row would
+ * make the next regeneration chase a problem the current draft may not even
+ * have, in preference to the QA failures it actually does have.
+ *
+ * `find` rather than `findByID` so a run row deleted since it was linked is a
+ * missing verdict rather than a 404 in the reviewer's face.
+ */
+async function currentInformationGainRun(
+  payload: Awaited<ReturnType<typeof requireUser>>['payload'],
+  article: { informationGain?: { run?: unknown } | null },
+  user: Awaited<ReturnType<typeof requireUser>>['user'],
+) {
+  const runId = relationshipId(article.informationGain?.run)
+  if (runId === null) return null
+  const { docs } = await payload.find({
+    collection: 'information-gain-runs',
+    where: { id: { equals: runId } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+  return docs[0] ?? null
+}
+
 export async function assignTemplateAction(articleId: number, templateId: number) {
   const { payload, user } = await requireUser()
   await payload.update({
@@ -213,16 +256,7 @@ export async function overrideReviewAction(articleId: number, justification: str
     user,
   })
   const from = article.status
-  const latestRun = await payload.find({
-    collection: 'information-gain-runs',
-    where: { article: { equals: articleId } },
-    sort: '-createdAt',
-    limit: 1,
-    depth: 0,
-    overrideAccess: false,
-    user,
-  })
-  const runId = latestRun.docs[0]?.id ?? null
+  const runId = (await currentInformationGainRun(payload, article, user))?.id ?? null
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -247,7 +281,7 @@ export async function overrideReviewAction(articleId: number, justification: str
 
 /**
  * Sends an article back to `researched` to regenerate with the reasons the
- * last information-gain run (or, absent a run, QA) found — `revisionNotes` is
+ * article's current information-gain run (or, when it carries none, QA) found — `revisionNotes` is
  * injected into the next `generate` prompt verbatim (see
  * `docs/information-gain.md`'s gap-fed generation section). Nulls `qaResults`
  * and `informationGain` for the same reason `resetToDraftedAction` does: a
@@ -262,16 +296,7 @@ export async function regenerateArticleAction(articleId: number, note?: string) 
     overrideAccess: false,
     user,
   })
-  const latestRun = await payload.find({
-    collection: 'information-gain-runs',
-    where: { article: { equals: articleId } },
-    sort: '-createdAt',
-    limit: 1,
-    depth: 0,
-    overrideAccess: false,
-    user,
-  })
-  const run = latestRun.docs[0] ?? null
+  const run = await currentInformationGainRun(payload, article, user)
   const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
   await payload.update({
     collection: 'articles',
