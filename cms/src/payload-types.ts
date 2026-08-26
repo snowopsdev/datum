@@ -375,7 +375,17 @@ export interface CostLog {
   id: number;
   pipelineRunId: string;
   article?: (number | null) | Article;
-  stage?: ('generate' | 'factCheck' | 'qualitativeReview' | 'brandVoiceExtract') | null;
+  stage?:
+    | (
+        | 'generate'
+        | 'factCheck'
+        | 'qualitativeReview'
+        | 'claimExtraction'
+        | 'informationGainJudge'
+        | 'evidenceVerification'
+        | 'brandVoiceExtract'
+      )
+    | null;
   provider?: string | null;
   model?: string | null;
   inputTokens?: number | null;
@@ -1153,6 +1163,69 @@ export interface LlmSetting {
       )
     | null;
   /**
+   * Decomposes ranking pages, published articles, and drafts into atomic claims and clusters consensus facets. Leave blank to use PIPELINE_MODEL_CLAIM_EXTRACTION from the environment, or the platform default (Claude Opus 5).
+   */
+  claimExtractionModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Scores draft claims for novelty, relevance, utility, and duplication against the baseline corpus. Leave blank to use PIPELINE_MODEL_INFORMATION_GAIN_JUDGE from the environment, or the platform default (Claude Opus 5).
+   */
+  informationGainJudgeModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Web-searches evidence for materially novel claims during information-gain review. Leave blank to use PIPELINE_MODEL_EVIDENCE_VERIFICATION from the environment, or the platform default (Claude Opus 5).
+   */
+  evidenceVerificationModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
    * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the platform default (Claude Opus 5).
    */
   brandVoiceExtractModel?:
@@ -1184,6 +1257,9 @@ export interface LlmSettingsSelect<T extends boolean = true> {
   generateModel?: T;
   factCheckModel?: T;
   qualitativeReviewModel?: T;
+  claimExtractionModel?: T;
+  informationGainJudgeModel?: T;
+  evidenceVerificationModel?: T;
   brandVoiceExtractModel?: T;
   updatedAt?: T;
   createdAt?: T;

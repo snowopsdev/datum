@@ -13,6 +13,8 @@ export interface LlmRequest {
   system: string
   user: string
   needWebSearch?: boolean
+  /** Mock mode only: selects a sub-fixture when one LlmStage serves several call shapes. */
+  fixtureKey?: string
 }
 
 export interface LlmResult {
@@ -157,9 +159,9 @@ async function completeJSONOpenAI(
   }
 }
 
-async function completeJSONMock(stage: LlmStage, model: string): Promise<LlmResult> {
+async function completeJSONMock(stage: LlmStage, model: string, fixtureKey?: string): Promise<LlmResult> {
   return {
-    json: mockFixture(stage),
+    json: mockFixture(stage, fixtureKey),
     usage: { ...mockUsage[stage] },
     provider: 'mock',
     model,
@@ -176,7 +178,7 @@ export async function completeJSON(
   request: LlmRequest,
   model: string,
 ): Promise<LlmResult> {
-  if (config.mockMode) return completeJSONMock(stage, model)
+  if (config.mockMode) return completeJSONMock(stage, model, request.fixtureKey)
   return providerForModel(model) === 'openai'
     ? completeJSONOpenAI(stage, request, model)
     : completeJSONAnthropic(stage, request, model)

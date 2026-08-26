@@ -5,19 +5,32 @@ import { DEFAULT_MODEL } from './llmCatalog'
  * CMS: the Models global (admin-configurable) wins, then the env override, then
  * the platform default.
  */
-export const PIPELINE_STAGES = ['generate', 'factCheck', 'qualitativeReview'] as const
+export const PIPELINE_STAGES = [
+  'generate',
+  'factCheck',
+  'qualitativeReview',
+  'claimExtraction',
+  'informationGainJudge',
+  'evidenceVerification',
+] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
 export const STAGE_ENV_VAR: Record<PipelineStage, string> = {
   generate: 'PIPELINE_MODEL_GENERATE',
   factCheck: 'PIPELINE_MODEL_FACT_CHECK',
   qualitativeReview: 'PIPELINE_MODEL_QUALITATIVE_REVIEW',
+  claimExtraction: 'PIPELINE_MODEL_CLAIM_EXTRACTION',
+  informationGainJudge: 'PIPELINE_MODEL_INFORMATION_GAIN_JUDGE',
+  evidenceVerification: 'PIPELINE_MODEL_EVIDENCE_VERIFICATION',
 }
 
 export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = {
   generate: 'generateModel',
   factCheck: 'factCheckModel',
   qualitativeReview: 'qualitativeReviewModel',
+  claimExtraction: 'claimExtractionModel',
+  informationGainJudge: 'informationGainJudgeModel',
+  evidenceVerification: 'evidenceVerificationModel',
 }
 
 export const EXTRACTION_ENV_VAR = 'BRAND_VOICE_EXTRACT_MODEL'
@@ -27,6 +40,9 @@ export interface LlmSettingsDoc {
   generateModel?: string | null
   factCheckModel?: string | null
   qualitativeReviewModel?: string | null
+  claimExtractionModel?: string | null
+  informationGainJudgeModel?: string | null
+  evidenceVerificationModel?: string | null
   brandVoiceExtractModel?: string | null
 }
 

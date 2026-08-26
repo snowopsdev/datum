@@ -77,15 +77,39 @@ const qualitativeReviewFixture = {
   notTraitViolations: [],
 }
 
-const fixtures: Record<LlmStage, unknown> = {
+// PR3 fills in real content for the information-gain fixtures below; these are
+// placeholders so the new stages have a valid mock-mode shape to call today.
+type FixtureTable = Record<LlmStage, unknown | Record<string, unknown>>
+
+const fixtures: FixtureTable = {
   generate: generateFixture,
   factCheck: factCheckFixture,
   qualitativeReview: qualitativeReviewFixture,
+  claimExtraction: {
+    page: { claims: [] },
+    draft: { claims: [] },
+    facets: { facets: [], gaps: [] },
+  },
+  informationGainJudge: { claims: [] },
+  evidenceVerification: { claims: [] },
 }
 
-export function mockFixture(stage: LlmStage): unknown {
-  // Deep-copy so callers can't mutate the canned fixture between runs.
-  return JSON.parse(JSON.stringify(fixtures[stage]))
+/**
+ * Mock-mode fixture for one LLM stage. Some stages serve several call shapes
+ * (e.g. claim extraction runs against a ranking page, a published article, and
+ * a draft) — pass `fixtureKey` to select a sub-fixture from that stage's entry.
+ * Deep-copies so callers can't mutate the canned fixture between runs.
+ */
+export function mockFixture(stage: LlmStage, fixtureKey?: string): unknown {
+  const entry = fixtures[stage]
+  const isPlainObject = typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+  if (fixtureKey !== undefined) {
+    if (isPlainObject && fixtureKey in (entry as Record<string, unknown>)) {
+      return JSON.parse(JSON.stringify((entry as Record<string, unknown>)[fixtureKey]))
+    }
+    throw new Error(`no mock fixture for ${stage}/${fixtureKey}`)
+  }
+  return JSON.parse(JSON.stringify(entry))
 }
 
 export const mockUsage: Record<
@@ -95,4 +119,7 @@ export const mockUsage: Record<
   generate: { inputTokens: 1240, outputTokens: 860, webSearchRequests: 0 },
   factCheck: { inputTokens: 1180, outputTokens: 790, webSearchRequests: 2 },
   qualitativeReview: { inputTokens: 1210, outputTokens: 805, webSearchRequests: 0 },
+  claimExtraction: { inputTokens: 5200, outputTokens: 1400, webSearchRequests: 0 },
+  informationGainJudge: { inputTokens: 3600, outputTokens: 1200, webSearchRequests: 0 },
+  evidenceVerification: { inputTokens: 2900, outputTokens: 900, webSearchRequests: 3 },
 }

@@ -31,6 +31,16 @@ export async function loadStageModels(payload: Payload): Promise<StageModels> {
     }
     console.log(`[pipeline] ${stage}: ${model} (${source})`)
   }
+  if (resolved.informationGainJudge.model === resolved.generate.model) {
+    console.warn(
+      '[pipeline] informationGainJudge uses the generate model; self-judging inflates novelty and utility scores',
+    )
+  }
+  if (resolved.evidenceVerification.model === resolved.generate.model) {
+    console.warn(
+      '[pipeline] evidenceVerification uses the generate model; prefer an independent verifier',
+    )
+  }
   return Object.fromEntries(
     PIPELINE_STAGES.map((stage) => [stage, resolved[stage].model]),
   ) as StageModels
