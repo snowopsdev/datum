@@ -177,6 +177,12 @@ if (command === 'candidates') {
     console.log(`candidateSerpCount.${domain}=${row.serpCount ?? 0}`)
     console.log(`candidateCitationCount.${domain}=${row.citationCount ?? 0}`)
   }
+  // Whether each domain is actually *awaiting review*, which is the property
+  // worth asserting on: a rated domain keeps its row once it has been seen, so
+  // "no row exists" is only true until someone deactivates a rule for a moment.
+  for (const domain of wanted) {
+    console.log(`candidatePending.${domain}=${byDomain.get(domain)?.status === 'pending'}`)
+  }
   console.log(`candidates.total=${docs.length}`)
   console.log(`candidates.pending=${docs.filter((doc) => doc.status === 'pending').length}`)
   process.exit(0)

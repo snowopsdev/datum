@@ -157,10 +157,15 @@ CAND_OUT="$(probe candidates competitor-one.com competitor-two.com industry-mag.
 printf '%s\n' "$CAND_OUT"
 for domain in competitor-one.com competitor-two.com industry-mag.example.com; do
   assert_eq "candidate $domain" "$(value_of "$CAND_OUT" "candidate.$domain")" 'pending:serp:secondary'
+  assert_eq "candidate $domain awaits review" \
+    "$(value_of "$CAND_OUT" "candidatePending.$domain")" 'true'
 done
+# Not "no row exists": a rated domain keeps whatever row it picked up while its
+# rule was inactive. What must hold is that an active rule leaves nothing
+# awaiting review.
 for domain in sca.coffee baristahustle.com homegrounds.co; do
-  assert_eq "rated domain $domain stays out of the queue" \
-    "$(value_of "$CAND_OUT" "candidate.$domain")" 'none'
+  assert_eq "rated domain $domain is not awaiting review" \
+    "$(value_of "$CAND_OUT" "candidatePending.$domain")" 'false'
 done
 SERP_COUNT_AFTER_FIRST="$(value_of "$CAND_OUT" candidateSerpCount.competitor-one.com)"
 
