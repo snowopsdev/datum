@@ -21,6 +21,10 @@ const exactness = (claim: string, evidence: string[]): number =>
 const mismatches = (claim: string, evidence: string[]): string[] =>
   compareValues(extractValues(claim), evidence.map(extractValues)).mismatches
 
+/** The message for a figure that only ever appears in a contradicting excerpt. */
+const contradicted = (raw: string, kind: string): string =>
+  `${raw} (${kind}) appears only in evidence that contradicts the claim's negation, direction, or comparative`
+
 describe('extractValues — percent', () => {
   it('reads %, "percent", and "per cent" as the same percent value', () => {
     assert.deepEqual(shape('40%'), ['percent:40 %'])
@@ -313,12 +317,14 @@ describe('compareValues', () => {
     assert.deepEqual(mismatches('this is not recommended', ['this is not recommended']), [])
   })
 
-  it('averages the value, direction, and negation checks', () => {
-    // One value (matched), one direction (mismatched) → 1/2.
+  it('costs a contradicting excerpt both the value and the qualifier point', () => {
+    // The only excerpt quoting 40% states the opposite direction, so it anchors
+    // nothing: the value and the direction both count as unmatched → 0/2.
     const claim: TextValues = extractValues('latency decreased by 40%')
     const result = compareValues(claim, [extractValues('latency increased by 40%')])
-    assert.equal(result.exactness, 0.5)
+    assert.equal(result.exactness, 0)
     assert.deepEqual(result.mismatches, [
+      contradicted('40%', 'percent'),
       'direction: claim says decrease, evidence says increase',
     ])
   })
@@ -333,17 +339,20 @@ describe('compareValues — symmetric negation', () => {
     // The reviewer's case: the numbers agree, the propositions are opposites.
     // Before the symmetric check this scored 1 and satisfied requireExactValueMatch.
     assert.deepEqual(mismatches('80% recommend it', ['80% do not recommend it']), [
+      contradicted('80%', 'percent'),
       'negation: claim is affirmative, evidence is negated',
     ])
-    // One value (matched) + one negation (mismatched) → 1/2, and crucially < 1.
-    assert.equal(exactness('80% recommend it', ['80% do not recommend it']), 0.5)
+    // The negated excerpt is the only one quoting 80%, so it anchors neither the
+    // value nor the negation → 0/2, and crucially < 1.
+    assert.equal(exactness('80% recommend it', ['80% do not recommend it']), 0)
   })
 
   it('flags the mirror case, a negated claim against affirmative evidence', () => {
     assert.deepEqual(mismatches('80% do not recommend it', ['80% recommend it']), [
+      contradicted('80%', 'percent'),
       'negation: claim is negated, evidence is not',
     ])
-    assert.equal(exactness('80% do not recommend it', ['80% recommend it']), 0.5)
+    assert.equal(exactness('80% do not recommend it', ['80% recommend it']), 0)
   })
 
   it('accepts evidence whose negation matches the claim, either way round', () => {
@@ -370,6 +379,7 @@ describe('compareValues — comparative polarity', () => {
     // exactly `10%`, because the extracted comparative was never compared.
     assert.ok(exactness('more than 10% of teams', ['10% of teams']) < 1)
     assert.deepEqual(mismatches('more than 10% of teams', ['10% of teams']), [
+      contradicted('10%', 'percent'),
       'comparative: claim asserts more than the stated value, evidence does not',
     ])
   })
@@ -382,6 +392,7 @@ describe('compareValues — comparative polarity', () => {
   it('flags an opposing threshold', () => {
     // "less"/"more" are direction words too, so this excerpt trips both checks.
     assert.deepEqual(mismatches('less than 10 items', ['more than 10 items']), [
+      contradicted('10', 'number'),
       'direction: claim says decrease, evidence says increase',
       'comparative: claim asserts less than the stated value, evidence does not',
     ])
@@ -396,12 +407,60 @@ describe('compareValues — comparative polarity', () => {
 
   it('flags an "exactly" claim whose evidence states a threshold instead', () => {
     assert.deepEqual(mismatches('exactly 40 items', ['more than 40 items']), [
+      contradicted('40', 'number'),
       'comparative: claim asserts exactly the stated value, evidence does not',
     ])
-    assert.equal(exactness('exactly 40 items', ['more than 40 items']), 0.5)
+    assert.equal(exactness('exactly 40 items', ['more than 40 items']), 0)
   })
 
   it('leaves a claim with no comparative unaffected by one in the evidence', () => {
     assert.equal(exactness('40 items', ['more than 40 items']), 1)
+  })
+})
+
+describe('compareValues — one excerpt must carry both value and polarity', () => {
+  it("does not let a second excerpt lend its polarity to another excerpt's figure", () => {
+    // The reviewer's case: the negated excerpt supplies the number and the
+    // value-less one supplies the affirmative polarity. Pooled, that scored 1.
+    const evidence = ['80% do not recommend it', 'Experts recommend it']
+    assert.equal(exactness('80% recommend it', evidence), 0)
+    assert.deepEqual(mismatches('80% recommend it', evidence), [
+      contradicted('80%', 'percent'),
+      'negation: claim is affirmative, evidence is negated',
+    ])
+  })
+
+  it('accepts one excerpt that legitimately carries the figure and the polarity', () => {
+    const evidence = ['80% do not recommend it', '80% of respondents recommend it']
+    assert.equal(exactness('80% recommend it', evidence), 1)
+    assert.deepEqual(mismatches('80% recommend it', evidence), [])
+  })
+
+  it('does not let a value-less excerpt satisfy the direction check either', () => {
+    // `latency dropped` agrees with the claim's direction but never mentions
+    // 40%, so it cannot anchor anything the claim asserts about that figure.
+    const evidence = ['latency increased by 40%', 'latency dropped']
+    assert.equal(exactness('latency decreased by 40%', evidence), 0)
+    assert.deepEqual(mismatches('latency decreased by 40%', evidence), [
+      contradicted('40%', 'percent'),
+      'direction: claim says decrease, evidence says increase',
+    ])
+  })
+
+  it('reports the qualifier as unanchored when no excerpt carries the figure', () => {
+    assert.equal(exactness('latency decreased by 40%', ['latency dropped']), 0)
+    assert.deepEqual(mismatches('latency decreased by 40%', ['latency dropped']), [
+      '40% (percent) not found in evidence',
+      "direction: claim says decrease, no evidence excerpt carries the claim's values",
+    ])
+  })
+
+  it('leaves a claim with qualifiers but no values judged against every excerpt', () => {
+    // Nothing to anchor to — and nothing to assemble either, since the attack
+    // needs a figure to borrow — so these read exactly as they did before.
+    assert.equal(exactness('latency decreased', ['latency was measured']), 1)
+    assert.equal(exactness('latency decreased', ['latency dropped', 'unrelated']), 1)
+    assert.equal(exactness('latency decreased', ['latency increased']), 0)
+    assert.equal(exactness('this is not recommended', ['this is not recommended']), 1)
   })
 })

@@ -384,6 +384,41 @@ const COMPARATIVE_LABEL: Record<'more' | 'less' | 'equal', string> = {
   equal: 'exactly',
 }
 
+/** Does one excerpt's polarity agree with the claim's? Negation is symmetric. */
+function negationCompatible(claim: TextValues, e: TextValues): boolean {
+  return e.negated === claim.negated
+}
+
+/** An excerpt with no direction of its own does not contradict the claim's. */
+function directionCompatible(claim: TextValues, e: TextValues): boolean {
+  return claim.direction === null || e.direction === null || e.direction === claim.direction
+}
+
+/**
+ * `more`/`less` are thresholds: only an excerpt asserting the same threshold
+ * carries them, so a bare `10%` does not support `more than 10%`. `equal` is
+ * what a bare figure already asserts, so an excerpt with no comparative of its
+ * own supports it.
+ */
+function comparativeCompatible(claim: TextValues, e: TextValues): boolean {
+  if (claim.comparative === null) return true
+  if (e.comparative === claim.comparative) return true
+  return claim.comparative === 'equal' && e.comparative === null
+}
+
+/** Every qualifier at once — what it takes for one excerpt to back a value. */
+function qualifiersCompatible(claim: TextValues, e: TextValues): boolean {
+  return (
+    negationCompatible(claim, e) && directionCompatible(claim, e) && comparativeCompatible(claim, e)
+  )
+}
+
+const attests = (e: TextValues, value: ExtractedValue): boolean =>
+  e.values.some((candidate) => sameValue(value, candidate))
+
+/** Said in place of a qualifier verdict when no excerpt carries the claim's values. */
+const UNANCHORED = "no evidence excerpt carries the claim's values"
+
 /**
  * How much of the claim the evidence literally supports: the share of its
  * values, its direction, its negation, and its comparative that the evidence
@@ -391,39 +426,64 @@ const COMPARATIVE_LABEL: Record<'more' | 'less' | 'equal', string> = {
  * comparable scores 1 — it is the policy gate's job, not this function's, to
  * decide whether an unfalsifiable claim may pass.
  *
- * The four checks each contribute at most one comparable:
+ * Everything is judged **per excerpt**, never over the pooled excerpts. Pooling
+ * let support be assembled out of two unrelated sentences: `80% recommend it`
+ * came out fully supported by `80% do not recommend it` (which supplied the
+ * number) plus `Experts recommend it` (which supplied the affirmative polarity).
+ * The accounting that replaces it:
  *
- * - **values** — one comparable per claim value; matched when any evidence
- *   excerpt carries the same kind, value, and unit. No conversion.
+ * - **values** — one comparable per claim value, matched only when a *single*
+ *   excerpt both carries the same kind, value, and unit (no conversion) and is
+ *   compatible with every qualifier the claim states. An excerpt that quotes the
+ *   figure while contradicting a qualifier does not support it, and gets its own
+ *   mismatch message saying which of the two it failed on.
+ * - **anchors** — the excerpts that carry at least one of the claim's values.
+ *   The three qualifier checks are answered only by anchors, so an excerpt that
+ *   never mentions the figure can no longer vouch for its polarity.
  * - **direction** — one comparable when the claim states one; matched unless the
- *   evidence states the opposite direction and never the claim's.
+ *   anchors state the opposite direction and never the claim's.
  * - **negation** — compared *symmetrically*: the check runs whenever the claim
- *   or any evidence excerpt is negated, and is matched only when some excerpt's
- *   negation equals the claim's. So an affirmative "80% recommend it" against
- *   "80% do not recommend it" is a mismatch, not a silent pass — the numbers
- *   agree while the propositions are opposites.
- * - **comparative** — one comparable when the claim states one. `more`/`less`
- *   are thresholds: only evidence asserting the same threshold supports them, so
- *   a bare "10%" does not support "more than 10%". `equal` is what a bare figure
- *   already asserts, so evidence with `equal` or with no comparative at all
- *   supports it; only opposing threshold evidence fails it.
+ *   or any anchor is negated, and is matched only when some anchor's negation
+ *   equals the claim's.
+ * - **comparative** — one comparable when the claim states one, matched when
+ *   some anchor is comparative-compatible (see `comparativeCompatible`).
  *
- * As with negation, an empty evidence list supports nothing: it can satisfy
- * neither the negation nor the comparative check.
+ * A claim that states qualifiers but carries no values has nothing to anchor to.
+ * There is also nothing to assemble — the attack needs a number to borrow — so
+ * for those claims every excerpt counts as an anchor and the qualifier checks
+ * read exactly as they did before. Conversely, when the claim does carry values
+ * and no excerpt carries any of them, there are no anchors at all: every value
+ * counts as not found and every qualifier check as unmatched, which is why an
+ * empty evidence list scores 0 for any claim with a value.
+ *
+ * One contradicting excerpt therefore costs a claim twice — the value point and
+ * the qualifier point — so exactness now falls faster than under the pooled
+ * accounting. That is deliberate: the gate only asks whether exactness is `< 1`,
+ * and the score itself is an uncalibrated signal, not a calibrated probability.
  */
 export function compareValues(
   claim: TextValues,
   evidence: TextValues[],
 ): { exactness: number; mismatches: string[] } {
   const mismatches: string[] = []
-  const evidenceValues = evidence.flatMap((e) => e.values)
   let comparable = 0
   let matched = 0
 
+  const anchors =
+    claim.values.length === 0
+      ? evidence
+      : evidence.filter((e) => claim.values.some((value) => attests(e, value)))
+  const anchored = claim.values.length === 0 || anchors.length > 0
+
   for (const value of claim.values) {
     comparable += 1
-    if (evidenceValues.some((candidate) => sameValue(value, candidate))) {
+    const attesting = evidence.filter((e) => attests(e, value))
+    if (attesting.some((e) => qualifiersCompatible(claim, e))) {
       matched += 1
+    } else if (attesting.length > 0) {
+      mismatches.push(
+        `${value.raw} (${value.kind}) appears only in evidence that contradicts the claim's negation, direction, or comparative`,
+      )
     } else {
       mismatches.push(`${value.raw} (${value.kind}) not found in evidence`)
     }
@@ -432,21 +492,24 @@ export function compareValues(
   if (claim.direction !== null) {
     comparable += 1
     const opposite = OPPOSITE[claim.direction]
-    const contradicted =
-      evidence.some((e) => e.direction === opposite) &&
-      !evidence.some((e) => e.direction === claim.direction)
-    if (contradicted) {
+    if (!anchored) {
+      mismatches.push(`direction: claim says ${claim.direction}, ${UNANCHORED}`)
+    } else if (
+      anchors.some((e) => e.direction === opposite) &&
+      !anchors.some((e) => e.direction === claim.direction)
+    ) {
       mismatches.push(`direction: claim says ${claim.direction}, evidence says ${opposite}`)
     } else {
       matched += 1
     }
   }
 
-  // Symmetric: opposite negation is a mismatch whichever side carries it.
-  if (claim.negated || evidence.some((e) => e.negated)) {
+  if (claim.negated || anchors.some((e) => e.negated)) {
     comparable += 1
-    if (evidence.some((e) => e.negated === claim.negated)) {
+    if (anchors.some((e) => negationCompatible(claim, e))) {
       matched += 1
+    } else if (!anchored) {
+      mismatches.push(`negation: claim is negated, ${UNANCHORED}`)
     } else if (claim.negated) {
       mismatches.push('negation: claim is negated, evidence is not')
     } else {
@@ -456,24 +519,18 @@ export function compareValues(
 
   if (claim.comparative !== null) {
     comparable += 1
-    const supported = evidence.some(
-      (e) =>
-        e.comparative === claim.comparative ||
-        (claim.comparative === 'equal' && e.comparative === null),
-    )
-    if (supported) {
+    if (anchors.some((e) => comparativeCompatible(claim, e))) {
       matched += 1
+    } else if (!anchored) {
+      mismatches.push(
+        `comparative: claim asserts ${COMPARATIVE_LABEL[claim.comparative]} the stated value, ${UNANCHORED}`,
+      )
     } else {
       mismatches.push(
         `comparative: claim asserts ${COMPARATIVE_LABEL[claim.comparative]} the stated value, evidence does not`,
       )
     }
   }
-
-  // With no evidence excerpts at all, a claim that asserts a value is
-  // unsupported outright: the direction and negation checks pass vacuously
-  // (nothing contradicts them) and must not be allowed to inflate the score.
-  if (evidence.length === 0 && claim.values.length > 0) return { exactness: 0, mismatches }
 
   return { exactness: comparable === 0 ? 1 : matched / comparable, mismatches }
 }
