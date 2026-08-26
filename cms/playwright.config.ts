@@ -6,6 +6,9 @@ import { defineConfig, devices } from '@playwright/test'
  */
 import 'dotenv/config'
 
+const testPort = process.env.TEST_PORT || '3101'
+const testBaseURL = process.env.TEST_BASE_URL || `http://127.0.0.1:${testPort}`
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -22,7 +25,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    // baseURL: 'http://localhost:3000',
+    baseURL: testBaseURL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -33,9 +36,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], channel: 'chromium' },
     },
   ],
-  webServer: {
-    command: 'pnpm dev',
-    reuseExistingServer: true,
-    url: 'http://localhost:3000',
-  },
+  webServer: process.env.TEST_BASE_URL
+    ? undefined
+    : {
+        command: `pnpm dev --hostname 127.0.0.1 --port ${testPort}`,
+        reuseExistingServer: false,
+        url: testBaseURL,
+      },
 })

@@ -77,7 +77,9 @@ export interface Config {
     'brand-voice-files': BrandVoiceFile;
     'governance-audit': GovernanceAudit;
     'evidence-sources': EvidenceSource;
+    'pipeline-runs': PipelineRun;
     'payload-kv': PayloadKv;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -94,7 +96,9 @@ export interface Config {
     'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
+    'pipeline-runs': PipelineRunsSelect<false> | PipelineRunsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -117,7 +121,13 @@ export interface Config {
   };
   user: User;
   jobs: {
-    tasks: unknown;
+    tasks: {
+      'content-run': TaskContentRun;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -688,6 +698,54 @@ export interface EvidenceSource {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pipeline-runs".
+ */
+export interface PipelineRun {
+  id: number;
+  runId: string;
+  source: 'onboarding' | 'admin' | 'cli';
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  mode: 'mock' | 'live';
+  template: number | Template;
+  requestedCount: number;
+  articles?: (number | Article)[] | null;
+  configFingerprint: string;
+  configSnapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  finalStatuses?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  warnings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  errorSummary?: string | null;
+  requestedBy: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -702,6 +760,102 @@ export interface PayloadKv {
     | number
     | boolean
     | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'content-run';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'content-run') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  /**
+   * Used for concurrency control. Jobs with the same key are subject to exclusive/supersedes rules.
+   */
+  concurrencyKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -749,6 +903,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'evidence-sources';
         value: number | EvidenceSource;
+      } | null)
+    | ({
+        relationTo: 'pipeline-runs';
+        value: number | PipelineRun;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1126,11 +1284,66 @@ export interface EvidenceSourcesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pipeline-runs_select".
+ */
+export interface PipelineRunsSelect<T extends boolean = true> {
+  runId?: T;
+  source?: T;
+  status?: T;
+  mode?: T;
+  template?: T;
+  requestedCount?: T;
+  articles?: T;
+  configFingerprint?: T;
+  configSnapshot?: T;
+  finalStatuses?: T;
+  warnings?: T;
+  errorSummary?: T;
+  requestedBy?: T;
+  startedAt?: T;
+  completedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
   key?: T;
   data?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  concurrencyKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1422,6 +1635,35 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskContent-run".
+ */
+export interface TaskContentRun {
+  input: {
+    runId: string;
+  };
+  output: {
+    articleIds:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    finalStatuses:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

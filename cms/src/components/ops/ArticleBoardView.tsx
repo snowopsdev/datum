@@ -7,6 +7,7 @@ import React from 'react'
 import type { Article } from '../../payload-types'
 import { ArticleBoard } from './ArticleBoard'
 import { toBoardArticle } from './articleStatus'
+import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 export async function ArticleBoardView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -16,15 +17,18 @@ export async function ArticleBoardView(props: AdminViewServerProps) {
     redirect('/admin/login')
   }
 
-  const { docs } = await req.payload.find({
-    collection: 'articles',
-    depth: 1,
-    limit: 500,
-    pagination: false,
-    sort: '-updatedAt',
-    user: req.user,
-    overrideAccess: false,
-  })
+  const [{ docs }, setup] = await Promise.all([
+    req.payload.find({
+      collection: 'articles',
+      depth: 1,
+      limit: 500,
+      pagination: false,
+      sort: '-updatedAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    loadWorkspaceSetup(req.payload),
+  ])
 
   const articles = (docs as Article[]).map(toBoardArticle)
 
@@ -40,7 +44,13 @@ export async function ArticleBoardView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <ArticleBoard articles={articles} />
+        <ArticleBoard
+          articles={articles}
+          mode={setup.readiness.mode}
+          pipelineReady={setup.readiness.ready}
+          runActive={setup.latestRun?.status === 'queued' || setup.latestRun?.status === 'running'}
+          templates={setup.templates as Array<{ id: number; name: string }>}
+        />
       </Gutter>
     </DefaultTemplate>
   )
