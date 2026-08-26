@@ -236,6 +236,24 @@ export function extractReadableText(
   return { title, text: normaliseWhitespace(raw).slice(0, PAGE_TEXT_CAP_CHARS) }
 }
 
+/**
+ * Releases a response body we are not going to read.
+ *
+ * Every early return owes this: a `fetch` response whose body is neither
+ * consumed nor cancelled keeps its connection open, so a server that dribbles
+ * an error page or a non-HTML body indefinitely would park a socket per page
+ * and accumulate them across snapshots — long after `fetchPage` has reported.
+ * Never throws: a body already cancelled, already read, or absent (a stub, a
+ * 204) is exactly the state we wanted.
+ */
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel()
+  } catch {
+    // Already cancelled, already read, or locked: nothing left to release.
+  }
+}
+
 /** Reads at most `FETCH_MAX_BYTES` of a response body, then cancels the stream. */
 async function readCapped(body: ReadableStream<Uint8Array> | null): Promise<string> {
   if (!body) return ''
@@ -354,7 +372,7 @@ export async function fetchPage(
         : null
       if (location) {
         // Nothing on a redirect's body is evidence; let the socket go.
-        await response.body?.cancel().catch(() => {})
+        await cancelBody(response)
         if (hop >= MAX_REDIRECTS) return failure('skipped', 'too many redirects', target)
         try {
           target = new URL(location, target).toString()
@@ -365,11 +383,16 @@ export async function fetchPage(
       }
 
       const finalUrl = target
-      if (!response.ok) return failure('failed', `http ${response.status}`, finalUrl)
+      // Neither branch below reads the body, so release it before reporting.
+      if (!response.ok) {
+        await cancelBody(response)
+        return failure('failed', `http ${response.status}`, finalUrl)
+      }
 
       const contentType = response.headers.get('content-type') ?? ''
       const type = contentType.toLowerCase()
       if (!HTML_CONTENT_TYPES.some((allowed) => type.includes(allowed))) {
+        await cancelBody(response)
         return failure('skipped', `content-type ${contentType || 'unknown'}`, finalUrl)
       }
 

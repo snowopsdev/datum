@@ -502,6 +502,128 @@ describe('fetchPage (address guard)', () => {
   })
 })
 
+describe('fetchPage (response bodies)', () => {
+  /** Fetches `url` with the given response and reports whether its body was released. */
+  const cancelledFor = async (
+    url: string,
+    make: (state: StreamState) => Response,
+  ): Promise<{ page: Awaited<ReturnType<typeof fetchPage>>; state: StreamState }> => {
+    const state: StreamState = { pulled: 0, cancelled: false }
+    const page = await fetchPage(url, {
+      mock: false,
+      fetchImpl: stubFetch(make(state)),
+      lookupImpl: publicLookup,
+    })
+    return { page, state }
+  }
+
+  it('cancels the body of an http-error response', async () => {
+    const { page, state } = await cancelledFor('https://example.com/missing', (state) =>
+      responseOf({ status: 500, chunks: ['<html><body>error page</body></html>'], state }),
+    )
+    assert.equal(page.status, 'failed')
+    assert.equal(page.reason, 'http 500')
+    assert.ok(state.cancelled, 'an error response body must not be left holding the socket')
+  })
+
+  it('cancels the body of a non-html response', async () => {
+    const { page, state } = await cancelledFor('https://example.com/paper.pdf', (state) =>
+      responseOf({ contentType: 'application/pdf', chunks: ['%PDF-1.7 ...'], state }),
+    )
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'content-type application/pdf')
+    assert.ok(state.cancelled, 'a non-html body must not be left holding the socket')
+  })
+
+  it('cancels the body of a response with no content-type at all', async () => {
+    const { page, state } = await cancelledFor('https://example.com/mystery', (state) =>
+      responseOf({ contentType: null, chunks: ['something'], state }),
+    )
+    assert.equal(page.status, 'skipped')
+    assert.equal(page.reason, 'content-type unknown')
+    assert.ok(state.cancelled)
+  })
+
+  it('cancels a redirect body before following the hop', async () => {
+    const state: StreamState = { pulled: 0, cancelled: false }
+    const seen: string[] = []
+    const page = await fetchPage('https://example.com/1', {
+      mock: false,
+      fetchImpl: scriptedFetch(
+        [
+          responseOf({
+            status: 302,
+            location: 'https://example.com/2',
+            contentType: null,
+            chunks: ['<html>moved</html>'],
+            state,
+          }),
+          responseOf({ chunks: [articleHtml(padding)] }),
+        ],
+        seen,
+      ),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.status, 'ok')
+    assert.ok(state.cancelled, 'a redirect body carries no evidence and must be released')
+  })
+
+  it('cancels the body when the redirect cap is reached', async () => {
+    const state: StreamState = { pulled: 0, cancelled: false }
+    const seen: string[] = []
+    const responses = Array.from({ length: MAX_REDIRECTS + 1 }, (_, index) =>
+      index === MAX_REDIRECTS
+        ? responseOf({
+            status: 302,
+            location: `https://example.com/hop-${index + 1}`,
+            contentType: null,
+            chunks: ['<html>moved</html>'],
+            state,
+          })
+        : redirectTo(`https://example.com/hop-${index + 1}`),
+    )
+    const page = await fetchPage('https://example.com/hop-0', {
+      mock: false,
+      fetchImpl: scriptedFetch(responses, seen),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.reason, 'too many redirects')
+    assert.ok(state.cancelled, 'the last hop we refuse to follow still owes its body')
+  })
+
+  it('survives a response that has no body at all', async () => {
+    const page = await fetchPage('https://example.com/empty', {
+      mock: false,
+      fetchImpl: stubFetch({
+        ok: false,
+        status: 204,
+        url: '',
+        headers: new Headers(),
+        body: null,
+      } as unknown as Response),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.status, 'failed')
+    assert.equal(page.reason, 'http 204')
+  })
+
+  it('survives a body whose cancel() rejects', async () => {
+    const page = await fetchPage('https://example.com/stubborn', {
+      mock: false,
+      fetchImpl: stubFetch({
+        ok: false,
+        status: 503,
+        url: '',
+        headers: new Headers(),
+        body: { cancel: async () => Promise.reject(new Error('already locked')) },
+      } as unknown as Response),
+      lookupImpl: publicLookup,
+    })
+    assert.equal(page.status, 'failed')
+    assert.equal(page.reason, 'http 503', 'a failed cancel must not become the reported reason')
+  })
+})
+
 describe('pinnedLookup', () => {
   /** Calls the lookup and returns whatever it passed to its callback. */
   const resolve = (
