@@ -206,8 +206,468 @@ const facetClusteringFixture = {
   ],
 }
 
-// PR3 fills in the draft-side claim fixture; the rest of the information-gain
-// fixtures below are placeholders with a valid mock-mode shape.
+/**
+ * Claims a mock-mode run "extracts" from the draft in `generateFixture`. Every
+ * excerpt is quoted verbatim from that draft's `bodyMarkdown` or one of its
+ * `faqItems`, so `excerptFoundIn` finds all of them — edit the draft and you
+ * must edit these too (`pipeline/test/igFixtures.test.ts` fails when they
+ * drift). Facet ids point at `facetClusteringFixture`, and all five facets are
+ * covered so a mock run clears `minConsensusCoverage`.
+ *
+ * The shape is what a mock run needs to reach a PASS: eleven claims the ranking
+ * pages already make, plus two the mock judge rates as materially novel — the
+ * grinder budget share and the bean freshness window — which are the two the
+ * verifier fixture then backs with evidence. Index 11 restates index 0, so the
+ * intra-document novelty discount has something to bite on.
+ */
+const draftClaimsFixture = {
+  claims: [
+    {
+      text: 'A beginner home espresso setup fits a budget of $500 to $1,500.',
+      type: 'factual',
+      excerpt: 'It is written for beginners with a budget of $500 to $1,500.',
+      section: 'Introduction',
+      facetId: 'f1',
+      entities: ['home espresso setup'],
+      values: ['$500', '$1,500'],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'An espresso machine for home use needs a stable brew temperature.',
+      type: 'recommendation',
+      excerpt: 'An espresso machine with a stable brew temperature.',
+      section: 'What you need',
+      facetId: 'f2',
+      entities: ['espresso machine'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A burr grinder for espresso must adjust in small steps.',
+      type: 'recommendation',
+      excerpt: 'A burr grinder that can adjust in small steps.',
+      section: 'What you need',
+      facetId: 'f2',
+      entities: ['burr grinder'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'At least 40 percent of a first espresso budget goes to the grinder.',
+      type: 'factual',
+      excerpt: 'Spend at least 40 percent of your budget on the grinder.',
+      section: 'Step-by-step instructions',
+      facetId: 'f1',
+      entities: ['grinder', 'espresso budget'],
+      values: ['40 percent'],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A $300 grinder paired with a $700 machine beats the opposite split.',
+      type: 'comparison',
+      excerpt: 'A $300 grinder with a $700 machine beats the reverse.',
+      section: 'Step-by-step instructions',
+      facetId: 'f1',
+      entities: ['grinder', 'espresso machine'],
+      values: ['$300', '$700'],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A first espresso recipe is 18 grams in and 36 grams out in 25 to 30 seconds.',
+      type: 'factual',
+      excerpt:
+        'Start with 18 grams of coffee in and aim for 36 grams of espresso out in 25 to 30 seconds.',
+      section: 'Step-by-step instructions',
+      facetId: 'f3',
+      entities: ['espresso recipe'],
+      values: ['18 grams', '36 grams', '25 to 30 seconds'],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A shot that runs faster than the target time needs a finer grind.',
+      type: 'recommendation',
+      excerpt: 'If the shot runs faster, grind finer.',
+      section: 'Step-by-step instructions',
+      facetId: 'f3',
+      entities: ['espresso shot'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A shot that drips slowly or chokes needs a coarser grind.',
+      type: 'recommendation',
+      excerpt: 'If it drips slowly or chokes, grind coarser.',
+      section: 'Step-by-step instructions',
+      facetId: 'f3',
+      entities: ['espresso shot'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'The steam wand is purged before and after every use.',
+      type: 'recommendation',
+      excerpt: 'Purge the steam wand before and after each use.',
+      section: 'Step-by-step instructions',
+      facetId: 'f5',
+      entities: ['steam wand'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'The espresso machine is backflushed once a week with plain water.',
+      type: 'recommendation',
+      excerpt: 'Backflush the machine once a week with plain water.',
+      section: 'Step-by-step instructions',
+      facetId: 'f5',
+      entities: ['espresso machine'],
+      values: ['once a week'],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'Buying stale beans is the most common beginner espresso mistake.',
+      type: 'factual',
+      excerpt: 'Buying stale beans is the top mistake; check the roast date, not the best-by date.',
+      section: 'Common mistakes',
+      facetId: 'f4',
+      entities: ['coffee beans'],
+      values: [],
+      restatesClaimIndex: null,
+    },
+    {
+      text: 'A first espresso setup costs $500 to $1,500 in total.',
+      type: 'factual',
+      excerpt: 'Plan on $500 to $1,500 total.',
+      section: 'FAQ',
+      facetId: 'f1',
+      entities: ['home espresso setup'],
+      values: ['$500', '$1,500'],
+      restatesClaimIndex: 0,
+    },
+    {
+      text: 'Roasted coffee beans stay at their best for four to six weeks after the roast date.',
+      type: 'factual',
+      excerpt: 'Use beans within four to six weeks of the roast date.',
+      section: 'FAQ',
+      facetId: 'f4',
+      entities: ['coffee beans', 'roast date'],
+      values: ['four to six weeks'],
+      restatesClaimIndex: null,
+    },
+  ],
+}
+
+/**
+ * The mock judge's verdict on `draftClaimsFixture`, one entry per claim id in
+ * the same order `parseDraftClaims` assigns them (`c001`…`c013`) — the parser
+ * throws on a missing id, so the two must stay in step.
+ *
+ * Eleven claims come back as near-duplicates of the baseline (0.85–0.95), which
+ * is what the espresso draft honestly is: a competent restatement of what the
+ * ranking pages already say. The two exceptions are `c004` (the 40 percent
+ * grinder split) and `c013` (the four-to-six-week freshness window), which the
+ * verifier fixture then backs. `relevanceByQuery` covers the mock SERP's
+ * cluster (`q0` keyword plus three related questions); ids outside the cluster
+ * are dropped by the parser, so listing four here is safe either way. Nothing
+ * looks internally duplicated — a mock run has no published corpus to duplicate.
+ */
+const informationGainJudgeFixture = {
+  claims: [
+    {
+      claimId: 'c001',
+      duplicateProbability: 0.93,
+      closestBaselineClaimId: 'b1-1',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.8, q1: 0.35, q2: 0.9, q3: 0.3 },
+      utility: {
+        specificity: 0.7,
+        actionability: 0.5,
+        explanatoryPower: 0.45,
+        audienceFit: 0.8,
+      },
+      importance: 1.1,
+      containsNumericOrTemporalClaim: true,
+      rationale: 'Every ranking page opens with the same $500-$1,500 starter budget.',
+    },
+    {
+      claimId: 'c002',
+      duplicateProbability: 0.86,
+      closestBaselineClaimId: null,
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.7, q1: 0.2, q2: 0.35, q3: 0.4 },
+      utility: {
+        specificity: 0.45,
+        actionability: 0.4,
+        explanatoryPower: 0.5,
+        audienceFit: 0.7,
+      },
+      importance: 0.9,
+      containsNumericOrTemporalClaim: false,
+      rationale:
+        'Temperature stability is standard buying advice, though no baseline claim states it outright.',
+    },
+    {
+      claimId: 'c003',
+      duplicateProbability: 0.9,
+      closestBaselineClaimId: 'b1-2',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.7, q1: 0.2, q2: 0.4, q3: 0.4 },
+      utility: {
+        specificity: 0.5,
+        actionability: 0.45,
+        explanatoryPower: 0.5,
+        audienceFit: 0.7,
+      },
+      importance: 0.9,
+      containsNumericOrTemporalClaim: false,
+      rationale: 'The baseline already argues the grinder is the part that has to adjust finely.',
+    },
+    {
+      claimId: 'c004',
+      duplicateProbability: 0.12,
+      closestBaselineClaimId: 'b1-2',
+      internalDuplicateProbability: 0.08,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.95, q1: 0.55, q2: 0.95, q3: 0.6 },
+      utility: {
+        specificity: 0.95,
+        actionability: 0.9,
+        explanatoryPower: 0.75,
+        audienceFit: 0.9,
+      },
+      importance: 1.6,
+      containsNumericOrTemporalClaim: true,
+      rationale:
+        'The baseline says the grinder matters more; none of it puts a share of the budget on that advice.',
+    },
+    {
+      claimId: 'c005',
+      duplicateProbability: 0.88,
+      closestBaselineClaimId: 'b1-2',
+      internalDuplicateProbability: 0.08,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.8, q1: 0.3, q2: 0.85, q3: 0.4 },
+      utility: {
+        specificity: 0.7,
+        actionability: 0.6,
+        explanatoryPower: 0.6,
+        audienceFit: 0.8,
+      },
+      importance: 1.1,
+      containsNumericOrTemporalClaim: true,
+      rationale: 'A worked example of the grinder-first advice the baseline already gives.',
+    },
+    {
+      claimId: 'c006',
+      duplicateProbability: 0.94,
+      closestBaselineClaimId: 'b1-3',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.85, q1: 0.45, q2: 0.3, q3: 0.5 },
+      utility: {
+        specificity: 0.8,
+        actionability: 0.8,
+        explanatoryPower: 0.5,
+        audienceFit: 0.8,
+      },
+      importance: 1.2,
+      containsNumericOrTemporalClaim: true,
+      rationale: 'The 18-in/36-out recipe is stated verbatim by every ranking page.',
+    },
+    {
+      claimId: 'c007',
+      duplicateProbability: 0.92,
+      closestBaselineClaimId: 'b1-5',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.75, q1: 0.4, q2: 0.25, q3: 0.45 },
+      utility: {
+        specificity: 0.6,
+        actionability: 0.8,
+        explanatoryPower: 0.5,
+        audienceFit: 0.75,
+      },
+      importance: 1,
+      containsNumericOrTemporalClaim: false,
+      rationale: 'The grind-finer correction is baseline advice.',
+    },
+    {
+      claimId: 'c008',
+      duplicateProbability: 0.87,
+      closestBaselineClaimId: 'b1-5',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.75, q1: 0.4, q2: 0.25, q3: 0.45 },
+      utility: {
+        specificity: 0.6,
+        actionability: 0.8,
+        explanatoryPower: 0.5,
+        audienceFit: 0.75,
+      },
+      importance: 1,
+      containsNumericOrTemporalClaim: false,
+      rationale: 'The mirror image of the baseline grind-finer advice; implied rather than stated.',
+    },
+    {
+      claimId: 'c009',
+      duplicateProbability: 0.95,
+      closestBaselineClaimId: 'b1-7',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.6, q1: 0.2, q2: 0.2, q3: 0.35 },
+      utility: {
+        specificity: 0.55,
+        actionability: 0.75,
+        explanatoryPower: 0.35,
+        audienceFit: 0.65,
+      },
+      importance: 0.8,
+      containsNumericOrTemporalClaim: false,
+      rationale: 'Word-for-word the same steam wand instruction as the baseline.',
+    },
+    {
+      claimId: 'c010',
+      duplicateProbability: 0.93,
+      closestBaselineClaimId: 'b1-8',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.6, q1: 0.25, q2: 0.2, q3: 0.35 },
+      utility: {
+        specificity: 0.6,
+        actionability: 0.75,
+        explanatoryPower: 0.35,
+        audienceFit: 0.65,
+      },
+      importance: 0.8,
+      containsNumericOrTemporalClaim: true,
+      rationale: 'Weekly backflushing is the baseline cadence.',
+    },
+    {
+      claimId: 'c011',
+      duplicateProbability: 0.9,
+      closestBaselineClaimId: 'b1-6',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.7, q1: 0.3, q2: 0.25, q3: 0.55 },
+      utility: {
+        specificity: 0.55,
+        actionability: 0.65,
+        explanatoryPower: 0.55,
+        audienceFit: 0.75,
+      },
+      importance: 1,
+      containsNumericOrTemporalClaim: false,
+      rationale: 'Bean freshness leads the baseline mistake lists too.',
+    },
+    {
+      claimId: 'c012',
+      duplicateProbability: 0.93,
+      closestBaselineClaimId: 'b1-1',
+      internalDuplicateProbability: 0.05,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.8, q1: 0.35, q2: 0.9, q3: 0.3 },
+      utility: {
+        specificity: 0.7,
+        actionability: 0.5,
+        explanatoryPower: 0.4,
+        audienceFit: 0.8,
+      },
+      importance: 1.1,
+      containsNumericOrTemporalClaim: true,
+      rationale: 'The FAQ repeats the intro budget, which the baseline also states.',
+    },
+    {
+      claimId: 'c013',
+      duplicateProbability: 0.15,
+      closestBaselineClaimId: 'b1-6',
+      internalDuplicateProbability: 0.1,
+      closestInternalClaimId: null,
+      relevanceByQuery: { q0: 0.9, q1: 0.75, q2: 0.5, q3: 0.5 },
+      utility: {
+        specificity: 0.9,
+        actionability: 0.85,
+        explanatoryPower: 0.8,
+        audienceFit: 0.9,
+      },
+      importance: 1.5,
+      containsNumericOrTemporalClaim: true,
+      rationale:
+        'The baseline says "within a month"; a four-to-six-week window is a different and more precise figure.',
+    },
+  ],
+}
+
+/**
+ * The mock verifier's evidence for the two materially novel claims — the only
+ * ones `pickForVerification` sends to a verifier call, since the rest are
+ * duplicates of the baseline.
+ *
+ * Each excerpt quotes the claim's values in the *same* form the claim states
+ * them ("40 percent", "four to six weeks"), which is what makes `compareValues`
+ * return an exactness of 1; paraphrasing "40 percent" as "two fifths" here would
+ * fail the numeric gate and block the mock draft.
+ *
+ * Both claims carry numbers, so their evidence integrity is measured against
+ * `minNumericTemporalIntegrity` (0.95 by default) — and integrity is
+ * `support x sourceQuality x exactness`. A rubric class alone is capped at
+ * `UNKNOWN_DOMAIN_CAP` (0.75), so with support 0.95 these citations reach only
+ * 0.71 until the `evidence-sources` table vouches for their domains. A mock run
+ * that must end in PASS therefore has to seed rules for `sca.coffee`,
+ * `baristahustle.com`, and `homegrounds.co`.
+ */
+const evidenceVerificationFixture = {
+  claims: [
+    {
+      claimId: 'c004',
+      support: 0.95,
+      contradiction: 0.05,
+      evidence: [
+        {
+          url: 'https://sca.coffee/research/grinder-share-of-budget',
+          excerpt:
+            'Our buyers guide recommends allocating at least 40 percent of an espresso budget to the grinder.',
+          publisher: 'Specialty Coffee Association',
+          sourceKind: 'official_docs',
+        },
+        {
+          url: 'https://www.baristahustle.com/blog/grinder-budget/',
+          excerpt:
+            'Put at least 40 percent of your total espresso budget into the grinder before you upgrade the machine.',
+          publisher: 'Barista Hustle',
+          sourceKind: 'secondary',
+        },
+      ],
+      notes:
+        'Two independent buying guides state the same 40 percent share; neither disputes the figure.',
+    },
+    {
+      claimId: 'c013',
+      support: 0.95,
+      contradiction: 0.05,
+      evidence: [
+        {
+          url: 'https://sca.coffee/research/coffee-freshness',
+          excerpt:
+            'Espresso roasts are at their best four to six weeks past the roast date, after which aromatics fade.',
+          publisher: 'Specialty Coffee Association',
+          sourceKind: 'official_docs',
+        },
+        {
+          url: 'https://www.homegrounds.co/how-long-does-coffee-stay-fresh/',
+          excerpt:
+            'Roasted coffee holds its peak flavour for four to six weeks after the roast date.',
+          publisher: 'Home Grounds',
+          sourceKind: 'secondary',
+        },
+      ],
+      notes:
+        'Both sources give the same four-to-six-week window; retailer "best by" dates are longer but measure staleness, not peak flavour.',
+    },
+  ],
+}
+
 type FixtureTable = Record<LlmStage, unknown | Record<string, unknown>>
 
 const fixtures: FixtureTable = {
@@ -216,11 +676,11 @@ const fixtures: FixtureTable = {
   qualitativeReview: qualitativeReviewFixture,
   claimExtraction: {
     page: pageClaimsFixture,
-    draft: { claims: [] },
+    draft: draftClaimsFixture,
     facets: facetClusteringFixture,
   },
-  informationGainJudge: { claims: [] },
-  evidenceVerification: { claims: [] },
+  informationGainJudge: informationGainJudgeFixture,
+  evidenceVerification: evidenceVerificationFixture,
 }
 
 /**
