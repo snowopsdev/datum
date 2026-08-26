@@ -5,10 +5,13 @@ import type { Article, Template } from '../../cms/src/payload-types'
 import type { AhrefsClient } from './ahrefs'
 import type { BrandVoiceContent } from './brandVoice'
 import { generateStage } from './generate'
+import { informationGainStage } from './informationGain/index'
+import type { RunPolicy } from './informationGain/policy'
 import { qaStage } from './qa/index'
 import { researchStage } from './research'
 import type { StageModels } from './models'
 import type { StyleGuide } from './styleGuide'
+import type { EvidenceSourceRule } from './informationGain/lib'
 import type { LlmClient } from './llm'
 
 export type ArticleStatus = Article['status']
@@ -23,6 +26,10 @@ export interface StageContext {
   models: StageModels
   /** The tenant's active brand voice; null when none has been activated. */
   brandVoice: BrandVoiceContent | null
+  /** Information-gain thresholds for this run (admin global → env → default), plus their version stamp. */
+  policy: RunPolicy
+  /** The admin's active evidence-domain rules, used to score cited sources. */
+  evidenceSources: EvidenceSourceRule[]
   /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
   llm?: LlmClient
 }
@@ -33,7 +40,7 @@ export interface StageOutcome {
 }
 
 export interface Stage {
-  name: 'research' | 'generate' | 'qa'
+  name: 'research' | 'generate' | 'qa' | 'informationGain'
   entryStatus: ArticleStatus
   exitStatus: ArticleStatus
   run(article: Article, ctx: StageContext): Promise<StageOutcome>
@@ -76,7 +83,7 @@ export function describeFailures(result: Pick<RunPipelineResult, 'stages'>): str
  * selected purely by current status, so re-running converges instead of
  * duplicating work.
  */
-export const stages: Stage[] = [researchStage, generateStage, qaStage]
+export const stages: Stage[] = [researchStage, generateStage, qaStage, informationGainStage]
 
 export function resolveTemplate(article: Article): Template {
   if (article.template && typeof article.template === 'object') return article.template

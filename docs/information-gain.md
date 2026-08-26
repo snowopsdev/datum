@@ -4,7 +4,7 @@
 
 An article can be highly novel relative to Google's organic results and still duplicate content already published elsewhere on the site — or read as fresh purely because its wording is unusual, not because it says anything new. Datum measures information gain instead as the incremental semantic value contributed by verified claims, relative to a versioned reference corpus: for a given query and a given snapshot of the competitive baseline, does this article assert something the baseline doesn't, is that assertion actually supported by a source a fact-checker could find, and does it matter to the reader's intent? A single blended score is useful for prioritization, but it cannot be what blocks or approves an article — that decision has to be traceable to individual claims, evaluated against explicit, deterministic rules, not to an opaque number a model produced. This is why the pipeline decomposes drafts into atomic claims and governs at that level: `BLOCK`/`HUMAN_REVIEW`/`REVISE`/`PASS` decisions are rule-based and attach to specific claims, not to the document as a whole.
 
-This document covers the PR2 half of the feature — building the baseline corpus a claim is judged against. PR3 covers scoring drafts against it, the policy gates, and the review UI.
+This document covers building the baseline corpus a claim is judged against (PR2) and scoring drafts against it through the policy gates (PR3). The admin review UI is still to come.
 
 ## Corpus snapshots
 
@@ -51,9 +51,36 @@ The evidence rules exist because "add more unique insights" without a boundary r
 
 An article generated before this feature has no `facets`/`gaps` and so gets none of these sections — generation behaves exactly as it did before corpus snapshots existed. A *new* article can no longer reach generation that way: a build that yields zero claims throws in the research stage, so the article never leaves `topic_selected`.
 
+## Scoring a draft
+
+The `informationGain` stage (`pipeline/src/informationGain/`) runs after QA, on `qa_passed`, and is the only stage that can move an article to `verified`, `needs_review`, or `blocked`. It runs after QA rather than instead of it because judge and web-search calls are the expensive part of the pipeline, and a draft that failed its structural or style checks is not worth spending them on.
+
+Three LLM passes and one pure gate:
+
+1. **Draft claim extraction** — one `claimExtraction` call (`fixtureKey: 'draft'`) decomposes the draft into atomic claims, each assigned to one of the article's own facets or to none.
+2. **Judging** — one `informationGainJudge` call per facet batch (`judgeBatches`, up to 12 claims), each carrying only that facet's slice of the baseline corpus (`selectBaselineContext`). The judge estimates how likely the baseline already states each claim, how much it answers the query cluster, and how useful it is. `novelty` is the duplicate probability inverted; `relevance` and `utility` collapse the per-query and per-rubric scores through the shared weightings in `scoring.ts`.
+3. **Verification** — `pickForVerification` selects the materially novel claims whose *kind* outside evidence could settle, and one `evidenceVerification` call per batch of five hunts citations with web search on. Each cited URL is scored by `resolveSourceQuality` against the `evidence-sources` table, and the claim's own numbers are compared with the quoted excerpts by `compareValues` — deterministically, never by asking the model. A verifier that reports full support over evidence stating a different figure still fails the exactness check.
+4. **The gate** — `scoreDocument` + `consensusCoverage` + `internalDuplicationRate` build a `Scorecard`, and `decidePolicy` (the only place a verdict is reached) turns it into `PASS` / `REVISE` / `HUMAN_REVIEW` / `BLOCK`, mapped to `verified` / `needs_revision` / `needs_review` / `blocked`.
+
+### Claims nobody checked
+
+A claim not selected for verification gets **neutral** evidence values — support, source quality, and exactness all 1, contradiction 0 — under the mode `baseline_corroborated` (a verifiable claim the baseline already makes) or `not_applicable` (an opinion or recommendation no citation settles). These are absences of evidence, not findings: evidence integrity multiplies into the document's verification ratio, and scoring unchecked claims at 0 would fail a BLOCK gate that exists to catch unsupported *novel* claims. Only a claim whose mode is `verified` can be blocked, so the neutrals cannot launder anything past the gates. A draft scored with no usable snapshot gets `skipped_no_baseline` on every claim and goes straight to `HUMAN_REVIEW` under `BASELINE_UNAVAILABLE`.
+
+### Policy and evidence sources are run-scoped
+
+`loadInformationGainPolicy` and `loadEvidenceSources` resolve once per run, like models: every article in one run must be judged by the same thresholds, and a mid-run admin edit must not produce a split batch. The resolved policy is hashed into a `policyVersion` stamped onto every stored result.
+
+### What is written
+
+One immutable `information-gain-runs` row per scoring — the full scorecard, every claim record, its evidence, the resolved policy and the models that judged it — plus a small denormalised summary on `Article.informationGain` pointing at it. A `needs_review` or `blocked` outcome also **clears `reviewJustification`**: the override gate demands a justification written for the article's current problem, and a stale one would let an earlier reviewer's reasoning approve a scorecard they never saw. (That gate is live — a `needs_review` article cannot be moved back by a plain status edit.)
+
+`pipeline:report` gains an information-gain block: decision counts, mean consensus coverage and verification ratio, and a review queue listing each `needs_review`/`blocked` article's top reasons, read from its linked run rather than recomputed.
+
 ## Cost
 
 Every `claimExtraction` call is logged through `completeJSONLogged` like any other LLM call (see `CLAUDE.md`'s Cost tracking section). Building a new snapshot costs roughly one `claimExtraction` call per fetched page (up to 10 SERP pages, plus up to 5 internal articles not already covered by another snapshot's cache) plus one more for facet clustering — around 10-16 calls total for a full snapshot, most of them short (a single page's claims). Reusing an existing snapshot costs $0: no crawl, no LLM call, just a Payload query.
+
+Scoring one draft costs three kinds of call: one `claimExtraction`, one `informationGainJudge` per facet batch, and one `evidenceVerification` per batch of five verifiable novel claims (each with web search, so the most expensive per call). All three are logged through `completeJSONLogged` and show up in `pipeline:report`'s spend-by-stage automatically. The run row's own `costUsd` sums only this run's three information-gain stages for that article; the article's `totalCostUsd` is re-summed across its whole cost log afterwards.
 
 The Models global (`llm-settings`) has a `claimExtractionModel` dropdown alongside the other stage models. `claude-sonnet-5` is the recommended default for this stage — claim extraction and facet clustering are structured, moderate-length JSON tasks, not long-form writing, so Sonnet's lower per-token price (see `cms/src/lib/llmCatalog.ts`) is the better trade than defaulting to Opus.
 
@@ -71,4 +98,6 @@ Diagrams are updated in PR3.
 
 ## What's next
 
-PR3 completes this feature: scoring a draft's own claims against the snapshot (novelty, relevance, utility, evidence integrity), the policy gates that turn those scores into `verified` / `needs_review` / `blocked` decisions (see the `information-gain-policy` global and `evidence-sources` collection, both already in place from PR1), and the admin review UI for claims a gate sends to human review.
+The admin review UI for claims a gate sends to human review. The scoring stage, the policy gates, and the reporting are in place.
+
+A mock run reaching `PASS` depends on the seeded `evidence-sources` rules: integrity is `support x sourceQuality x exactness`, an unclassified domain is capped at 0.75, and the numeric floor is 0.95 — so the three domains the verifier fixture cites (`sca.coffee`, `baristahustle.com`, `homegrounds.co`) are seeded unconditionally at `primary` (0.95) by `cms/src/seed.ts`. With an empty table every materially novel number in the demo draft is blocked, which is the intended posture rather than a bug.

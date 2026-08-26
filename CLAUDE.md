@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Datum is an SEO content pipeline built on Payload CMS. It has two npm workspaces:
 
 - **`cms/`** — Payload CMS 3 app (Next.js 16 + Postgres) that stores `templates` and `articles` and serves the admin panel.
-- **`pipeline/`** — a standalone Node/TypeScript CLI that drives articles through the content pipeline (research → generate → QA) by calling Payload's local API directly against `cms/src/payload.config.ts`. It is not an HTTP client of the CMS; it imports Payload in-process (see `pipeline/src/payloadClient.ts`), so `cms` and `pipeline` share one Postgres database and one set of generated types (`cms/src/payload-types.ts`).
+- **`pipeline/`** — a standalone Node/TypeScript CLI that drives articles through the content pipeline (research → generate → QA → information gain) by calling Payload's local API directly against `cms/src/payload.config.ts`. It is not an HTTP client of the CMS; it imports Payload in-process (see `pipeline/src/payloadClient.ts`), so `cms` and `pipeline` share one Postgres database and one set of generated types (`cms/src/payload-types.ts`).
 
 Root `package.json` scripts just delegate into the workspaces (`npm run dev`, `npm run seed`, `npm run pipeline:fetch|run|report`).
 
@@ -32,7 +32,7 @@ Worktrees share the single `datum` dev database by default (same `DATABASE_URL` 
 
 **Pipeline** (`pipeline/`, or `npm run pipeline:<cmd>` from root):
 - `npm run fetch -- --count N` (or `npm run pipeline:fetch -- --count N`) — pull content-gap keywords from Ahrefs and create up to N new `topic_selected` articles
-- `npm run run` (`pipeline:run`) — advance every article that has a `template` assigned through research → generate → QA, one stage at a time across all eligible articles
+- `npm run run` (`pipeline:run`) — advance every article that has a `template` assigned through research → generate → QA → informationGain, one stage at a time across all eligible articles
 - `npm run report -- --period week|month` (`pipeline:report`) — print QA pass rates, spend, and a failure digest
 - `npx tsx scripts/assign-template.ts <articleId> <templateName>` — stands in for the human step of tagging a `topic_selected` article with a template (there is no admin UI action for this yet)
 - `npm run typecheck`
@@ -55,12 +55,14 @@ Which model runs each LLM call is an admin setting: the **Models** global (`llm-
 An article moves through a fixed status state machine, driven entirely by `status` — not by any queue or scheduler:
 
 ```
-topic_selected → researched → drafted → qa_passed → approved → published
-                                   ↓
-                            needs_revision
+topic_selected → researched → drafted → qa_passed → verified → approved → published
+                                   ↓          ↓
+                            needs_revision   needs_review / blocked
 ```
 
-`pipeline/src/stages.ts` defines `stages: Stage[] = [researchStage, generateStage, qaStage]`. `runPipeline()` walks that array in order; for each stage it queries Payload for every article whose `status` equals the stage's `entryStatus` and has a `template` assigned, runs the stage, and writes back `status` + the stage's output data. This makes reruns idempotent/convergent for the statuses that have a stage: an article only advances once per run through each stage it's currently eligible for, and a fresh `pipeline:run` naturally picks up wherever those articles are stuck. A throw inside one article's stage run is caught, logged as `[<stage>] article <id> failed: <message>`, and counted in a per-stage summary line; that article keeps its status (so the next run retries it) and the rest of the batch — and every later stage — still runs. Caught is not swallowed: `runPipeline` returns a `PipelineRunSummary` (`{ stages: [{ stage, total, failed }], failed }`) and `pipeline/src/index.ts` prints the per-stage counts and exits **non-zero** when anything failed, so a scheduled run's alerting and retry policy still see stuck articles.
+`pipeline/src/stages.ts` defines `stages: Stage[] = [researchStage, generateStage, qaStage, informationGainStage]`. `runPipeline()` walks that array in order; for each stage it queries Payload for every article whose `status` equals the stage's `entryStatus` and has a `template` assigned, runs the stage, and writes back `status` + the stage's output data. This makes reruns idempotent/convergent for the statuses that have a stage: an article only advances once per run through each stage it's currently eligible for, and a fresh `pipeline:run` naturally picks up wherever those articles are stuck. A throw inside one article's stage run is caught, logged as `[<stage>] article <id> failed: <message>`, and counted in a per-stage summary line; that article keeps its status (so the next run retries it) and the rest of the batch — and every later stage — still runs. Caught is not swallowed: `runPipeline` returns a `PipelineRunSummary` (`{ stages: [{ stage, total, failed }], failed }`) and `pipeline/src/index.ts` prints the per-stage counts and exits **non-zero** when anything failed, so a scheduled run's alerting and retry policy still see stuck articles.
+
+`needs_review` and `blocked` are likewise dead ends for the pipeline: a reviewer clears them by hand, and PR1's gate refuses to move such an article without a *new* `reviewJustification` — which is why the informationGain stage writes `reviewJustification: null` whenever it lands on one of them.
 
 **`needs_revision` is a dead end, not a retry state**: no stage's `entryStatus` is `needs_revision`, so `pipeline:run` never picks those articles back up on its own. Getting one unstuck requires manually resetting its `status` back to `drafted` (there's no script for this yet — it's a direct data edit) so it re-enters the `qa` stage.
 
@@ -70,6 +72,8 @@ topic_selected → researched → drafted → qa_passed → approved → publish
   1. `runStructuralChecks` (`pipeline/src/qa/structuralChecks.ts`) — pure, deterministic, zero-LLM: title/meta length limits from the template's `seoSpec`, heading structure (exactly one H1 via the title, no skipped levels, required H2 sections present), FAQ count range, OG tag presence, Flesch-Kincaid reading grade ≤ 11, and banned-phrase scanning of body/title/titleTag/metaDescription/ogTitle/ogDescription/faqItems against `docs/style-guide.md` (`source: 'platform'`) plus the active brand voice's `bannedWords` (`source: 'brand'`).
   2. `factCheck` — LLM call with the web-search tool enabled (`needWebSearch: true` in `llm.ts`).
   3. `qualitativeReview` — LLM call judging style-guide and template dos/don'ts adherence. With an active brand voice it also returns `voiceScore` (1–5, informational only), `voiceNotes`, and `notTraitViolations` (clear breaches of a "what we are NOT" trait, each with a verbatim excerpt); `decideQualitative()` in `pipeline/src/qa/verdicts.ts` fails the check only on `passed: false` or a non-empty `notTraitViolations`.
+
+- **informationGain** (`pipeline/src/informationGain/index.ts`) — `qa_passed` → `verified` / `needs_revision` / `needs_review` / `blocked`. Extracts the draft's own claims (`claimExtraction`, `fixtureKey: 'draft'`), judges each against the research stage's corpus snapshot in per-facet batches (`informationGainJudge`), hunts web-search evidence for the materially novel checkable ones (`evidenceVerification`), and hands the resulting `Scorecard` to `decidePolicy` — the only place the verdict is made. Thresholds (the `information-gain-policy` global → `INFORMATION_GAIN_*` env → default) and the `evidence-sources` domain table are resolved **once per run** into `StageContext.policy`/`evidenceSources`, so every article in a run is judged identically; the resolved policy is hashed into a `policyVersion` stamped on every result. Writes one immutable `information-gain-runs` row (full scorecard, every claim, its evidence) plus a summary on `Article.informationGain`. Orchestration only — every pure rule lives in `pipeline/src/informationGain/scorecard.ts`. See `docs/information-gain.md`.
 
 **Brand voice** (`cms/src/lib/brandVoice.ts`) is the tenant-level governance layer on top of the style guide. `pipeline/src/brandVoice.ts` loads the single `active` `brand-voices` record into `StageContext.brandVoice` (normalised to `BrandVoiceContent`, or `null`); every consumer must handle `null` — with no active voice the pipeline behaves exactly as before. The helpers in `cms/src/lib/brandVoice.ts` (`brandVoiceToPrompt`, `brandVoiceSamplesToPrompt`, `bannedWordsOf`, `brandVoiceToGuideMarkdown`, `brandVoiceActivationProblems`, `parseBrandVoiceContent`) are pure and imported by both workspaces, so keep that file free of `next`/`react`/`payload` runtime imports and `@/` aliases.
 
