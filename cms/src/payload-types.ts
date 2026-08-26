@@ -76,6 +76,7 @@ export interface Config {
     'brand-voices': BrandVoice;
     'brand-voice-files': BrandVoiceFile;
     'governance-audit': GovernanceAudit;
+    'evidence-sources': EvidenceSource;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +93,7 @@ export interface Config {
     'brand-voices': BrandVoicesSelect<false> | BrandVoicesSelect<true>;
     'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
+    'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -103,9 +105,11 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     'llm-settings': LlmSetting;
+    'information-gain-policy': InformationGainPolicy;
   };
   globalsSelect: {
     'llm-settings': LlmSettingsSelect<false> | LlmSettingsSelect<true>;
+    'information-gain-policy': InformationGainPolicySelect<false> | InformationGainPolicySelect<true>;
   };
   locale: null;
   widgets: {
@@ -609,10 +613,19 @@ export interface BrandVoiceFile {
  */
 export interface GovernanceAudit {
   id: number;
-  subject: {
-    relationTo: 'brand-voices';
-    value: number | BrandVoice;
-  };
+  subject?:
+    | ({
+        relationTo: 'brand-voices';
+        value: number | BrandVoice;
+      } | null)
+    | ({
+        relationTo: 'evidence-sources';
+        value: number | EvidenceSource;
+      } | null);
+  /**
+   * Slug of the audited Global, set instead of subject when the record has no id.
+   */
+  subjectGlobal?: string | null;
   event: string;
   summary: string;
   actorType: 'pipeline' | 'user' | 'system';
@@ -628,6 +641,31 @@ export interface GovernanceAudit {
     | number
     | boolean
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-sources".
+ */
+export interface EvidenceSource {
+  id: number;
+  /**
+   * Hostname without scheme or path, e.g. docs.example.com. Matches that host and its subdomains.
+   */
+  domain: string;
+  /**
+   * Source-quality weight used in evidence integrity: first_party_dataset 1.0 · primary 0.95 · official_docs 0.90 · secondary 0.75 · unverified 0.40 · blocked 0. Unlisted domains are capped at secondary.
+   */
+  qualityClass: 'first_party_dataset' | 'primary' | 'official_docs' | 'secondary' | 'unverified' | 'blocked';
+  /**
+   * Why this domain carries this weight.
+   */
+  note?: string | null;
+  /**
+   * Inactive rows are ignored; the domain falls back to the rubric.
+   */
+  active?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -690,6 +728,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'governance-audit';
         value: number | GovernanceAudit;
+      } | null)
+    | ({
+        relationTo: 'evidence-sources';
+        value: number | EvidenceSource;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1041,6 +1083,7 @@ export interface BrandVoiceFilesSelect<T extends boolean = true> {
  */
 export interface GovernanceAuditSelect<T extends boolean = true> {
   subject?: T;
+  subjectGlobal?: T;
   event?: T;
   summary?: T;
   actorType?: T;
@@ -1048,6 +1091,18 @@ export interface GovernanceAuditSelect<T extends boolean = true> {
   fromStatus?: T;
   toStatus?: T;
   details?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-sources_select".
+ */
+export interface EvidenceSourcesSelect<T extends boolean = true> {
+  domain?: T;
+  qualityClass?: T;
+  note?: T;
+  active?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1250,6 +1305,61 @@ export interface LlmSetting {
   createdAt?: string | null;
 }
 /**
+ * Deterministic publication gates applied by the informationGain pipeline stage. Every change is recorded in Governance audits and changes the policy version stamped on future runs.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "information-gain-policy".
+ */
+export interface InformationGainPolicy {
+  id: number;
+  /**
+   * Weighted share of consensus facets the draft must cover. Failing this gate → REVISE. Leave blank to use INFORMATION_GAIN_MIN_CONSENSUS_COVERAGE from the environment, or the default 0.75.
+   */
+  minConsensusCoverage?: number | null;
+  /**
+   * Verified gain units ÷ potential gain units; low values mean the draft's novelty rests on unsupported claims. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_VERIFICATION_RATIO from the environment, or the default 0.9.
+   */
+  minVerificationRatio?: number | null;
+  /**
+   * Evidence integrity (support × source quality × exactness) required for a materially novel factual or inference claim. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_NOVEL_FACTUAL_INTEGRITY from the environment, or the default 0.9.
+   */
+  minNovelFactualIntegrity?: number | null;
+  /**
+   * Evidence integrity required for materially novel claims containing numbers, dates, or units. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_NUMERIC_TEMPORAL_INTEGRITY from the environment, or the default 0.95.
+   */
+  minNumericTemporalIntegrity?: number | null;
+  /**
+   * Numeric or temporal values in a materially novel claim must match the cited evidence exactly. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH from the environment, or the default true.
+   */
+  requireExactValueMatch?: boolean | null;
+  /**
+   * Every materially novel verifiable claim must cite at least one evidence excerpt. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EVIDENCE_LINEAGE from the environment, or the default true.
+   */
+  requireEvidenceLineage?: boolean | null;
+  /**
+   * Drafts are model-generated, so any claimed first-party test, survey, or dataset is fabricated. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS from the environment, or the default true.
+   */
+  blockFirstPartyMeasurements?: boolean | null;
+  /**
+   * A claim contradicting reliable evidence at or above this probability needs a human decision (it may be legitimately new). Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MAX_CONTRADICTION_PROBABILITY from the environment, or the default 0.25.
+   */
+  maxContradictionProbability?: number | null;
+  /**
+   * Novelty at or above this makes a claim "materially novel"; a materially novel inference needs human review. Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MATERIAL_NOVELTY_THRESHOLD from the environment, or the default 0.55.
+   */
+  materialNoveltyThreshold?: number | null;
+  /**
+   * Share of draft claims already published on this site at or above this triggers a consolidation review. Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MAX_INTERNAL_DUPLICATION_RATE from the environment, or the default 0.35.
+   */
+  maxInternalDuplicationRate?: number | null;
+  /**
+   * Minimum number of materially novel claims with verified evidence. Failing this gate → REVISE. Leave blank to use INFORMATION_GAIN_MIN_VERIFIED_NOVEL_CLAIMS from the environment, or the default 1.
+   */
+  minVerifiedNovelClaims?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings_select".
  */
@@ -1261,6 +1371,26 @@ export interface LlmSettingsSelect<T extends boolean = true> {
   informationGainJudgeModel?: T;
   evidenceVerificationModel?: T;
   brandVoiceExtractModel?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "information-gain-policy_select".
+ */
+export interface InformationGainPolicySelect<T extends boolean = true> {
+  minConsensusCoverage?: T;
+  minVerificationRatio?: T;
+  minNovelFactualIntegrity?: T;
+  minNumericTemporalIntegrity?: T;
+  requireExactValueMatch?: T;
+  requireEvidenceLineage?: T;
+  blockFirstPartyMeasurements?: T;
+  maxContradictionProbability?: T;
+  materialNoveltyThreshold?: T;
+  maxInternalDuplicationRate?: T;
+  minVerifiedNovelClaims?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

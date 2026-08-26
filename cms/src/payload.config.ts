@@ -14,6 +14,8 @@ import { ArticleAudit } from './collections/ArticleAudit'
 import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
+import { EvidenceSources } from './collections/EvidenceSources'
+import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
 
 const filename = fileURLToPath(import.meta.url)
@@ -78,8 +80,9 @@ export default buildConfig({
     BrandVoices,
     BrandVoiceFiles,
     GovernanceAudit,
+    EvidenceSources,
   ],
-  globals: [LlmSettings],
+  globals: [LlmSettings, InformationGainPolicy],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
