@@ -140,6 +140,18 @@ describe('resolveSourceQuality — rubric fallback', () => {
     })
   })
 
+  it('scores an out-of-enum quality class at 0 rather than NaN', () => {
+    // The collection's select prevents this, but a hand-written or imported row
+    // could carry one; undefined here would become NaN evidence integrity,
+    // which compares false against every floor and would silently pass.
+    const bogus = rule({ qualityClass: 'made_up' as EvidenceSourceRule['qualityClass'] })
+    assert.deepEqual(resolveSourceQuality('https://example.com/a', [bogus], 'primary'), {
+      score: 0,
+      source: 'evidence-sources',
+      matchedRule: 'example.com',
+    })
+  })
+
   it('scores an unparseable URL at 0', () => {
     assert.deepEqual(resolveSourceQuality('not a url', [rule()], 'primary'), {
       score: 0,

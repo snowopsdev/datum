@@ -144,17 +144,26 @@ export interface InformationGainPolicy {
   minVerifiedNovelClaims: number
 }
 
+/**
+ * The table's defaults, keyed by field with each default's own type preserved.
+ * Typing it this way rather than casting is what makes `DEFAULT_POLICY` below
+ * a structural check: adding a POLICY_FIELDS entry without extending
+ * `InformationGainPolicy` (or giving it a default of the wrong kind) becomes a
+ * compile error instead of a value silently missing from the typed shape.
+ */
+type PolicyDefaults = {
+  [F in (typeof POLICY_FIELDS)[number] as F['key']]: F['default']
+}
+
 const DEFAULTS_BY_KEY = Object.fromEntries(
   POLICY_FIELDS.map((field) => [field.key, field.default]),
-) as Record<PolicyKey, number | boolean>
+) as PolicyDefaults
 
 /**
  * Derived from POLICY_FIELDS so the table stays the one place a default lives.
  * Frozen because it is a shared module-level constant: callers spread it.
  */
-export const DEFAULT_POLICY: InformationGainPolicy = Object.freeze(
-  DEFAULTS_BY_KEY as InformationGainPolicy,
-)
+export const DEFAULT_POLICY: InformationGainPolicy = Object.freeze(DEFAULTS_BY_KEY)
 
 export type PolicySource = 'admin' | 'env' | 'default'
 

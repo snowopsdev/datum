@@ -87,7 +87,10 @@ export function resolveSourceQuality(
 
   if (best !== null) {
     return {
-      score: SOURCE_QUALITY_SCORE[best.rule.qualityClass],
+      // ?? 0 because a hand-written or imported row can carry a class outside
+      // the enum; undefined here would become NaN evidence integrity, which
+      // compares false against every floor and would silently pass the gates.
+      score: SOURCE_QUALITY_SCORE[best.rule.qualityClass] ?? 0,
       source: 'evidence-sources',
       matchedRule: best.rule.domain,
     }

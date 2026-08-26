@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import type { GovernanceSubject } from '../lib/governanceAudit'
+
 const immutable = () => {
   throw new Error('Governance audit entries are append-only')
 }
@@ -17,7 +19,7 @@ export const GovernanceAudit: CollectionConfig = {
   admin: {
     group: false,
     useAsTitle: 'summary',
-    defaultColumns: ['createdAt', 'subject', 'event', 'actor'],
+    defaultColumns: ['createdAt', 'subject', 'subjectGlobal', 'event', 'actor'],
   },
   access: {
     read: ({ req }) => Boolean(req.user),
@@ -45,7 +47,9 @@ export const GovernanceAudit: CollectionConfig = {
     {
       name: 'subject',
       type: 'relationship',
-      relationTo: ['brand-voices', 'evidence-sources'],
+      // `satisfies` ties this list to the GovernanceSubject union, so the two
+      // cannot drift when another collection becomes audited.
+      relationTo: ['brand-voices', 'evidence-sources'] satisfies readonly GovernanceSubject[],
       required: false,
       index: true,
     },

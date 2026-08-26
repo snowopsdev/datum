@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 
 import { normaliseDomain, SOURCE_QUALITY_CLASSES } from '../lib/informationGain'
 import { auditGovernanceChange } from '../lib/governanceAudit'
@@ -28,7 +29,9 @@ export const EvidenceSources: CollectionConfig = {
       ({ data }) => {
         if (typeof data?.domain === 'string') {
           const d = normaliseDomain(data.domain)
-          if (!d) throw new Error('domain is required')
+          // APIError, not Error: this hook runs on a hand-edited admin form, and
+          // a plain Error surfaces as a 500 instead of a field validation message.
+          if (!d) throw new APIError('domain is required', 400)
           data.domain = d
         }
         return data
