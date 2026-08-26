@@ -60,29 +60,48 @@ export async function runPipeline(ctx: StageContext): Promise<void> {
       sort: 'createdAt',
     })
     console.log(`[${stage.name}] ${docs.length} article(s) at status "${stage.entryStatus}"`)
+    let failed = 0
     for (const article of docs) {
-      const outcome = await stage.run(article, ctx)
-      await ctx.payload.update({
-        collection: 'articles',
-        id: article.id,
-        data: { ...outcome.data, status: outcome.status },
-        context: {
-          articleAudit: {
-            actor: 'pipeline',
-            actorType: 'pipeline',
-            event: `${stage.name}_completed`,
-            pipelineRunId: ctx.runId,
-            stage: stage.name,
-            summary: `${stage.name} completed in ${ctx.mode} mode`,
-            details: {
-              mode: ctx.mode,
-              keyword: article.keyword,
-              output: outcome.data,
+      // One article's failure — a malformed LLM reply, a dead Payload write —
+      // must not take the rest of the batch, or the stages behind it, down with
+      // it. The article keeps its current status, so the next run retries it,
+      // which is the same convergent-rerun property the whole loop relies on.
+      try {
+        const outcome = await stage.run(article, ctx)
+        await ctx.payload.update({
+          collection: 'articles',
+          id: article.id,
+          data: { ...outcome.data, status: outcome.status },
+          context: {
+            articleAudit: {
+              actor: 'pipeline',
+              actorType: 'pipeline',
+              event: `${stage.name}_completed`,
+              pipelineRunId: ctx.runId,
+              stage: stage.name,
+              summary: `${stage.name} completed in ${ctx.mode} mode`,
+              details: {
+                mode: ctx.mode,
+                keyword: article.keyword,
+                output: outcome.data,
+              },
             },
           },
-        },
-      })
-      console.log(`[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`)
+        })
+        console.log(
+          `[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`,
+        )
+      } catch (error) {
+        failed += 1
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`[${stage.name}] article ${article.id} failed: ${message}`, error)
+      }
+    }
+    if (failed > 0) {
+      console.log(
+        `[${stage.name}] ${failed} of ${docs.length} article(s) failed and kept status ` +
+          `"${stage.entryStatus}"; the next run retries them`,
+      )
     }
   }
 }
