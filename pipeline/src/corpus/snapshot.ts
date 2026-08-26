@@ -19,6 +19,13 @@
  * ends up with no claims is recorded as `empty` for the same reason: a baseline
  * of nothing is not a baseline, and reusing it for a fortnight would let every
  * draft on that keyword score as wholly novel.
+ *
+ * An `empty` build is persisted and then **thrown**, not returned. The row is
+ * the audit record of the attempt; the throw is what stops the article that
+ * paid for it from advancing to `researched` with no facets and no baseline and
+ * then being generated ungoverned. `runPipeline` catches it per article, so the
+ * article keeps `topic_selected` and the next run retries it while the rest of
+ * the batch carries on.
  */
 
 import { createHash } from 'node:crypto'
@@ -117,11 +124,12 @@ export function pickReusable<T extends { capturedAt: string; status: string }>(
 /**
  * `empty` means there is no baseline to score against, for either of two
  * reasons: no page yielded text at all, or pages were read but extraction
- * produced no claims. Both are unusable — an `empty` snapshot is never reused —
- * and the stored row still tells them apart: a claimless build has
+ * produced no claims. Both are unusable — an `empty` snapshot is never reused,
+ * and the build that produced it throws rather than handing it back — and the
+ * stored row still tells them apart: a claimless build has
  * `baselineDocCount > 0` with `failedPageCount` counting only the pages that
  * genuinely failed, where a failed crawl has `baselineDocCount` at zero and
- * every page in `failedPageCount`. The builder also logs which one happened.
+ * every page in `failedPageCount`. `emptySnapshotMessage` names which one it was.
  */
 export function snapshotStatus(
   okPages: number,
@@ -130,6 +138,37 @@ export function snapshotStatus(
 ): 'complete' | 'partial' | 'empty' {
   if (okPages <= 0 || claimCount <= 0) return 'empty'
   return failedPages > 0 ? 'partial' : 'complete'
+}
+
+/**
+ * The diagnostic an `empty` build throws with, kept pure so it can be read at a
+ * glance and asserted on in tests.
+ *
+ * It names both numbers that decide which kind of empty this was — a crawl that
+ * brought back nothing (`okPages` at zero) versus pages that read fine but
+ * yielded no claims (`okPages` above zero, `claims` at zero) — plus the id of
+ * the row that was still written, so the failed attempt can be looked up.
+ */
+export function emptySnapshotMessage(details: {
+  snapshotId: string | number
+  keyword: string
+  okPages: number
+  crawledPages: number
+  unusablePages: number
+  internalDocs: number
+  claims: number
+}): string {
+  const cause =
+    details.okPages === 0
+      ? 'no page could be read'
+      : 'claim extraction produced no claims from the pages that were read'
+  return (
+    `corpus snapshot ${details.snapshotId} for "${details.keyword}" is empty: ${cause}. ` +
+    `${details.okPages}/${details.crawledPages} ranking page(s) read ` +
+    `(${details.unusablePages} failed or skipped), ${details.internalDocs} internal ` +
+    `article(s), ${details.claims} claim(s). The row is kept as the audit record of the ` +
+    'failed attempt; this article keeps its status so the next run retries it.'
+  )
 }
 
 export function textHash(text: string): string {
@@ -173,6 +212,10 @@ export function countUnverifiedExcerpts(claims: BaselineClaim[], text: string): 
  * `queryCluster` is passed in rather than derived here because the research
  * stage builds it from the same SERP response and stores it on the article too;
  * deriving it twice is how the two copies drift.
+ *
+ * Every snapshot this resolves to is usable: a build that comes out `empty` is
+ * written for the audit trail and then thrown (`emptySnapshotMessage`), never
+ * returned, so no caller has to defend against a baseline of nothing.
  */
 export async function getOrBuildSnapshot(
   ctx: StageContext,
@@ -305,12 +348,7 @@ export async function getOrBuildSnapshot(
     unverifiedExcerptCount: unverifiedByPosition.get(page.position) ?? null,
   }))
 
-  if (okPages.length > 0 && claims.length === 0) {
-    console.warn(
-      `[research] corpus snapshot for "${article.keyword}": ${okPages.length} page(s) read but ` +
-        'claim extraction produced no claims; storing it as empty so it is not reused',
-    )
-  }
+  const status = snapshotStatus(okPages.length, unusablePages, claims.length)
 
   const created = await ctx.payload.create({
     collection: 'corpus-snapshots',
@@ -320,7 +358,7 @@ export async function getOrBuildSnapshot(
       keywordKey: key,
       country,
       capturedAt: now.toISOString(),
-      status: snapshotStatus(okPages.length, unusablePages, claims.length),
+      status,
       pipelineRunId: ctx.runId,
       snapshotHash: snapshotHash(
         pageRows.flatMap((row) => (row.textHash ? [{ url: row.url, textHash: row.textHash }] : [])),
@@ -346,5 +384,22 @@ export async function getOrBuildSnapshot(
       `(${internalEntries.filter((entry) => entry.cached).length} from cache), ` +
       `${claims.length} claims, ${facets.length} facets, ${gaps.length} gaps`,
   )
+  // The row above is the audit record of the failed attempt and is kept; what
+  // must not happen is this article carrying on with it. Throwing leaves the
+  // article at `topic_selected` for the next run to retry, and `runPipeline`'s
+  // per-article catch turns it into a logged failure and a non-zero exit.
+  if (status === 'empty') {
+    throw new Error(
+      emptySnapshotMessage({
+        snapshotId: created.id,
+        keyword: article.keyword,
+        okPages: okPages.length,
+        crawledPages: crawled.length,
+        unusablePages,
+        internalDocs: internalEntries.length,
+        claims: claims.length,
+      }),
+    )
+  }
   return created
 }

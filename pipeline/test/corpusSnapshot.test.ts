@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { mockPageText } from '../src/corpus/mockPages'
 import {
   countUnverifiedExcerpts,
+  emptySnapshotMessage,
   FACET_CLAIM_CAP,
   INTERNAL_CORPUS_CAP,
   isSnapshotReusable,
@@ -124,6 +125,45 @@ describe('snapshotStatus', () => {
       assert.equal(isSnapshotReusable({ capturedAt: daysAgo(0), status }, NOW), false)
       assert.equal(pickReusable([{ id: 1, capturedAt: daysAgo(0), status }], NOW), null)
     }
+  })
+})
+
+describe('emptySnapshotMessage', () => {
+  const failedCrawl = {
+    snapshotId: 42,
+    keyword: 'home espresso setup',
+    okPages: 0,
+    crawledPages: 10,
+    unusablePages: 10,
+    internalDocs: 0,
+    claims: 0,
+  }
+  const claimless = { ...failedCrawl, okPages: 8, unusablePages: 2, internalDocs: 3 }
+
+  it('names the keyword, the snapshot id, and the page and claim counts', () => {
+    const message = emptySnapshotMessage(claimless)
+    assert.ok(message.includes('home espresso setup'), 'the keyword should be in the message')
+    assert.ok(message.includes('42'), 'the snapshot id should be in the message')
+    assert.ok(message.includes('8/10'), 'pages read vs crawled should be in the message')
+    assert.ok(message.includes('2 failed or skipped'))
+    assert.ok(message.includes('3 internal'))
+    assert.ok(message.includes('0 claim(s)'))
+  })
+
+  it('distinguishes a failed crawl from a claimless one', () => {
+    assert.ok(emptySnapshotMessage(failedCrawl).includes('no page could be read'))
+    assert.ok(emptySnapshotMessage(claimless).includes('produced no claims'))
+    assert.notEqual(emptySnapshotMessage(failedCrawl), emptySnapshotMessage(claimless))
+  })
+
+  it('says the row is kept and the article is retryable', () => {
+    const message = emptySnapshotMessage(failedCrawl)
+    assert.ok(message.includes('audit record'))
+    assert.ok(message.includes('retries it'))
+  })
+
+  it('accepts a string snapshot id', () => {
+    assert.ok(emptySnapshotMessage({ ...claimless, snapshotId: 'abc-123' }).includes('abc-123'))
   })
 })
 
