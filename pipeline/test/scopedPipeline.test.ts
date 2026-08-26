@@ -6,6 +6,7 @@ import type { Payload } from 'payload'
 import type { Article, Template } from '../../cms/src/payload-types'
 import type { AhrefsClient } from '../src/ahrefs'
 import { loadStyleGuide } from '../src/styleGuide'
+import { resolvePolicy } from '../src/informationGain/lib'
 import { runPipeline, type StageContext } from '../src/stages'
 
 const template: Template = {
@@ -48,6 +49,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
   ])
   const costRows: Array<Record<string, unknown>> = []
   const snapshotRows: Array<Record<string, unknown>> = []
+  const igRunRows: Array<Record<string, unknown>> = []
   const payload = {
     find: async ({
       collection,
@@ -57,8 +59,20 @@ it('advances only the article ids assigned to a scoped run', async () => {
       where?: Record<string, unknown>
     }) => {
       if (collection === 'cost-log') {
-        const articleId = (where?.article as { equals?: number } | undefined)?.equals
-        return { docs: costRows.filter((row) => row.article === articleId) }
+        // Two shapes reach this collection: qa's `{ article: { equals } }` and
+        // the informationGain stage's `{ and: [...] }`, which additionally
+        // scopes by run id and stage.
+        const and =
+          (where?.and as Array<Record<string, { equals?: unknown; in?: unknown[] }>>) ?? []
+        const articleId =
+          (where?.article as { equals?: number } | undefined)?.equals ??
+          (and.find((clause) => clause.article)?.article.equals as number | undefined)
+        const stages = and.find((clause) => clause.stage)?.stage.in as string[] | undefined
+        return {
+          docs: costRows.filter(
+            (row) => row.article === articleId && (!stages || stages.includes(row.stage as string)),
+          ),
+        }
       }
       // The research stage looks for a reusable corpus snapshot and for its own
       // published articles; this scoped run has neither, so both come back empty
@@ -85,6 +99,10 @@ it('advances only the article ids assigned to a scoped run', async () => {
       if (collection === 'corpus-snapshots') {
         snapshotRows.push({ id: snapshotRows.length + 1, ...data })
         return snapshotRows[snapshotRows.length - 1]
+      }
+      if (collection === 'information-gain-runs') {
+        igRunRows.push({ id: igRunRows.length + 1, ...data })
+        return igRunRows[igRunRows.length - 1]
       }
       assert.equal(collection, 'cost-log')
       costRows.push(data)
@@ -138,6 +156,15 @@ it('advances only the article ids assigned to a scoped run', async () => {
       evidenceVerification: 'claude-opus-5',
     },
     brandVoice: null,
+    // The mock verifier fixture cites these three domains; without the rules
+    // their evidence is capped below the numeric integrity floor and the draft
+    // is blocked rather than verified (see `cms/src/seed.ts`).
+    evidenceSources: [
+      { domain: 'sca.coffee', qualityClass: 'primary', active: true },
+      { domain: 'baristahustle.com', qualityClass: 'primary', active: true },
+      { domain: 'homegrounds.co', qualityClass: 'primary', active: true },
+    ],
+    policy: { ...resolvePolicy(null, {}), version: 'ig-test' },
   }
 
   const result = await runPipeline(ctx, { articleIds: [1] })
@@ -145,8 +172,10 @@ it('advances only the article ids assigned to a scoped run', async () => {
   assert.equal(result.failed, 0, 'the scoped run should not have failed any article')
   assert.equal(snapshotRows.length, 1, 'the scoped run should have built one corpus snapshot')
   assert.notEqual(snapshotRows[0]?.status, 'empty')
-  assert.equal(articles.get(1)?.status, 'qa_passed')
+  assert.equal(articles.get(1)?.status, 'verified')
+  assert.equal(igRunRows.length, 1, 'the scoped run should have written one information-gain run')
+  assert.equal(igRunRows[0]?.decision, 'PASS')
   assert.equal(articles.get(2)?.status, 'topic_selected')
   assert.deepEqual(result.articleIds, [1])
-  assert.deepEqual(result.finalStatuses, { qa_passed: 1 })
+  assert.deepEqual(result.finalStatuses, { verified: 1 })
 })

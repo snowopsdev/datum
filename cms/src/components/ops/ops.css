@@ -1624,3 +1624,347 @@
   font-size: 12px;
   color: var(--ops-ink-faint);
 }
+
+/* Information-gain scorecard — tokens from the .datum-ops scope above. */
+.datum-ops__ig {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+}
+
+.datum-ops__ig-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.datum-ops__ig-head h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+  line-height: 1.27;
+}
+
+.datum-ops__ig-head-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.datum-ops__ig-decision {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__ig-decision--PASS {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-ops__ig-decision--REVISE {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+}
+
+.datum-ops__ig-decision--HUMAN_REVIEW {
+  background: rgba(98, 174, 240, 0.18);
+  color: var(--ops-primary);
+}
+
+.datum-ops__ig-decision--BLOCK {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
+}
+
+.datum-ops__ig-uncal {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  padding: 4px 10px;
+  border: 1px dashed var(--ops-ink-faint);
+  border-radius: var(--ops-radius-full);
+  color: var(--ops-ink-muted);
+  cursor: help;
+}
+
+.datum-ops__ig-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.datum-ops__ig-metric {
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas-soft);
+  padding: 12px;
+}
+
+.datum-ops__ig-metric--gated {
+  background: var(--ops-canvas);
+  border-color: var(--ops-primary);
+  box-shadow: inset 3px 0 0 var(--ops-primary);
+}
+
+.datum-ops__ig-metric-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__ig-gate {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-faint);
+  white-space: nowrap;
+}
+
+.datum-ops__ig-gate--on {
+  background: rgba(0, 117, 222, 0.1);
+  color: var(--ops-primary);
+}
+
+.datum-ops__ig-metric-value {
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.625px;
+  line-height: 1.23;
+}
+
+.datum-ops__ig-metric-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.43;
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__ig-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-secondary);
+  font-size: 14px;
+  line-height: 1.43;
+}
+
+.datum-ops__ig-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.datum-ops__ig-summary span {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__ig-subhead {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.datum-ops__ig-reasons {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.datum-ops__ig-reasons > li {
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.43;
+}
+
+.datum-ops__ig-reason-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.datum-ops__ig-reason-claim {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--ops-ink-muted);
+  font-size: 13px;
+}
+
+.datum-ops__ig-sev {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+  white-space: nowrap;
+}
+
+.datum-ops__ig-sev--REVISE {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+}
+
+.datum-ops__ig-sev--HUMAN_REVIEW {
+  background: rgba(98, 174, 240, 0.18);
+  color: var(--ops-primary);
+}
+
+.datum-ops__ig-sev--BLOCK {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
+}
+
+.datum-ops__ig-code {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ops-ink-secondary);
+}
+
+.datum-ops__ig-table-wrap {
+  overflow-x: auto;
+}
+
+.datum-ops__ig-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.datum-ops__ig-table th,
+.datum-ops__ig-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__ig-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ops-ink-muted);
+  white-space: nowrap;
+}
+
+.datum-ops__ig-table tr:target td {
+  background: rgba(0, 117, 222, 0.06);
+}
+
+.datum-ops__ig-claim-text {
+  max-width: 40ch;
+  color: var(--ops-ink);
+  line-height: 1.43;
+}
+
+.datum-ops__ig-claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-ops__ig-nruh {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.datum-ops__ig-evidence {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-width: 28ch;
+}
+
+.datum-ops__ig-evidence-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-ops__ig-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.datum-ops__ig-flag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__ig-flag--bad {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
+}
+
+.datum-ops__ig-flag--warn {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+}
+
+.datum-ops__ig-flag--info {
+  background: rgba(98, 174, 240, 0.18);
+  color: var(--ops-primary);
+}
+
+.datum-ops__ig-flag--good {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-ops__ig-flag--none {
+  background: transparent;
+  color: var(--ops-ink-faint);
+}
+
+.datum-ops__ig-summary .datum-ops__ig-summary-gated {
+  background: rgba(0, 117, 222, 0.1);
+  color: var(--ops-primary);
+  cursor: help;
+}

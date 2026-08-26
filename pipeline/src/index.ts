@@ -4,6 +4,7 @@ import { createAhrefsClient } from './ahrefs'
 import { loadActiveBrandVoice } from './brandVoice'
 import { config } from './config'
 import { type FetchContext, fetchTopics } from './fetchTopics'
+import { loadEvidenceSources, loadInformationGainPolicy } from './informationGain/policy'
 import { loadStageModels } from './models'
 import { initPayload } from './payloadClient'
 import { printReport, type ReportPeriod } from './report'
@@ -21,7 +22,7 @@ function usage(): never {
   console.error(
     'Usage: pipeline <fetch|run|report> [--count N] [--template NAME_OR_ID] [--period week|month]\n' +
       '  fetch --template NAME_OR_ID --count N  create up to N templated topics (default 5)\n' +
-      '  run                       advance all articles with a template through research -> generate -> qa\n' +
+      '  run                       advance all articles with a template through research -> generate -> qa -> informationGain\n' +
       '  report --period week|month  print pass rates, spend, and failure digest (default week)',
   )
   process.exit(1)
@@ -109,6 +110,8 @@ async function main(): Promise<number> {
       styleGuide: loadStyleGuide(),
       models: await loadStageModels(payload),
       brandVoice,
+      policy: await loadInformationGainPolicy(payload),
+      evidenceSources: await loadEvidenceSources(payload),
     }
     const summary = await runPipeline(ctx)
     if (summary.failed > 0) {

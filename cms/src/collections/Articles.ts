@@ -1,12 +1,22 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
-import { gateReviewOverride } from '../lib/articleReviewGate'
+import {
+  gateReviewOverride,
+  gateVerifiedStatus,
+  invalidateStaleInformationGain,
+} from '../lib/articleReviewGate'
 
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
-    beforeChange: [gateReviewOverride],
+    // `invalidateStaleInformationGain` is first because it is a *dependency*:
+    // it clears the decision an edited draft no longer deserves, and
+    // `gateVerifiedStatus` has to see that clearance rather than the PASS it
+    // replaced. The other two are ordered as documentation only —
+    // `gateVerifiedStatus` re-derives the fresh-justification test rather than
+    // trusting the hook before it.
+    beforeChange: [invalidateStaleInformationGain, gateReviewOverride, gateVerifiedStatus],
     afterChange: [auditArticleChange],
   },
   admin: {
@@ -228,6 +238,67 @@ export const Articles: CollectionConfig = {
               },
             },
           ],
+        },
+      ],
+    },
+    {
+      name: 'informationGain',
+      type: 'group',
+      access: {
+        // The scoring stage writes this with the Local API's default
+        // `overrideAccess: true`, which skips field access entirely; every
+        // other caller — the admin panel, REST, the ops server actions, which
+        // all pass `overrideAccess: false` — is refused. Without this an editor
+        // could hand-set `decision: 'PASS'` and then `status: 'verified'` in
+        // two ordinary edits and skip scoring; `gateVerifiedStatus` owns the
+        // other half of that, the status transition itself.
+        update: () => false,
+      },
+      admin: {
+        readOnly: true,
+        description:
+          'Written by the informationGain stage; the linked run holds the full scorecard. Read-only: a decision can only be earned by scoring.',
+      },
+      fields: [
+        {
+          name: 'run',
+          type: 'relationship',
+          relationTo: 'information-gain-runs',
+          // Stays an id at any query depth — see the same field on research.snapshot.
+          maxDepth: 0,
+        },
+        {
+          name: 'decision',
+          type: 'select',
+          options: ['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK'],
+        },
+        {
+          name: 'policyVersion',
+          type: 'text',
+        },
+        {
+          name: 'consensusCoverage',
+          type: 'number',
+        },
+        {
+          name: 'verifiedGainUnits',
+          type: 'number',
+        },
+        {
+          name: 'verificationRatio',
+          type: 'number',
+        },
+        {
+          name: 'internalDuplicationRate',
+          type: 'number',
+        },
+        {
+          name: 'verifiedNovelClaims',
+          type: 'number',
+        },
+        {
+          name: 'scoredAt',
+          type: 'date',
         },
       ],
     },

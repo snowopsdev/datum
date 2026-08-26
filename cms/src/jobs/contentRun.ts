@@ -3,6 +3,10 @@ import type { Payload, TaskConfig } from 'payload'
 import { createAhrefsClient } from '../../../pipeline/src/ahrefs'
 import { loadActiveBrandVoice } from '../../../pipeline/src/brandVoice'
 import { type FetchContext, fetchTopics } from '../../../pipeline/src/fetchTopics'
+import {
+  loadEvidenceSources,
+  loadInformationGainPolicy,
+} from '../../../pipeline/src/informationGain/policy'
 import { createLlmClient } from '../../../pipeline/src/llm'
 import { loadStageModels } from '../../../pipeline/src/models'
 import { runPipeline, type StageContext } from '../../../pipeline/src/stages'
@@ -87,6 +91,8 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       styleGuide: loadStyleGuide(),
       models: await loadStageModels(payload),
       brandVoice,
+      policy: await loadInformationGainPolicy(payload),
+      evidenceSources: await loadEvidenceSources(payload),
       llm: createLlmClient(run.mode),
     }
     const result = await runPipeline(stageContext, { articleIds })

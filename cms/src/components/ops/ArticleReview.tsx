@@ -4,14 +4,24 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
+import { FACET_GAIN_THRESHOLD } from '../../lib/informationGain/scoring'
 import {
   approveArticleAction,
   assignTemplateAction,
+  overrideReviewAction,
   publishArticleAction,
+  regenerateArticleAction,
   resetToDraftedAction,
   sendBackAction,
 } from './actions'
-import type { AuditTimelineEntry, BoardArticle, TemplateOption } from './articleStatus'
+import {
+  qaFailureLines,
+  type AuditTimelineEntry,
+  type BoardArticle,
+  type InformationGainRunView,
+  type ScorecardClaim,
+  type TemplateOption,
+} from './articleStatus'
 import './ops.css'
 
 type Props = {
@@ -20,6 +30,29 @@ type Props = {
   editHref: string
   bodyHtml: string
   auditEntries: AuditTimelineEntry[]
+  run: InformationGainRunView | null
+}
+
+const DECISION_LABEL: Record<InformationGainRunView['decision'], string> = {
+  PASS: 'Pass',
+  REVISE: 'Revise',
+  HUMAN_REVIEW: 'Human review',
+  BLOCK: 'Block',
+}
+
+/** How a source's quality score was arrived at — see `Evidence.qualitySource`. */
+const QUALITY_SOURCE_LABEL: Record<string, string> = {
+  'evidence-sources': 'evidence-sources table',
+  rubric: 'rubric',
+  rubric_capped: 'rubric (capped)',
+}
+
+function pct(value: number | null): string {
+  return value == null ? '—' : `${Math.round(value * 100)}%`
+}
+
+function dec(value: number | null, digits = 2): string {
+  return value == null ? '—' : value.toFixed(digits)
 }
 
 function CheckRow({ label, passed }: { label: string; passed: boolean | null | undefined }) {
@@ -34,33 +67,333 @@ function CheckRow({ label, passed }: { label: string; passed: boolean | null | u
   )
 }
 
-function violationLines(article: BoardArticle): string[] {
-  const lines: string[] = []
-  const qa = article.qaResults
-  const raw = qa?.structural?.violations
-  if (Array.isArray(raw)) {
-    for (const v of raw) {
-      if (typeof v === 'string') lines.push(v)
-      else if (v && typeof v === 'object' && 'code' in v) {
-        const code = String((v as { code: unknown }).code)
-        const detail =
-          'message' in v && (v as { message?: unknown }).message != null
-            ? ` — ${String((v as { message: unknown }).message)}`
-            : ''
-        lines.push(`${code}${detail}`)
-      }
-    }
-  }
-  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
-    lines.push(`Fact: ${qa.factCheck.notes}`)
-  }
-  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
-    lines.push(`Style: ${qa.qualitativeReview.notes}`)
-  }
-  return lines
+/**
+ * One headline number. `gated` marks the metrics a policy threshold actually
+ * judged this run against, so a reviewer can see at a glance which figure
+ * produced the decision and which is context — `consensusCoverage` and
+ * `facetGainCoverage` in particular are both "coverage" but measure different
+ * things and only the first is gated.
+ */
+function IgMetric({
+  label,
+  value,
+  hint,
+  gated,
+}: {
+  label: string
+  value: string
+  hint: string
+  gated?: boolean
+}) {
+  return (
+    <div className={`datum-ops__ig-metric${gated ? ' datum-ops__ig-metric--gated' : ''}`}>
+      <div className="datum-ops__ig-metric-label">
+        <span>{label}</span>
+        <span className={`datum-ops__ig-gate${gated ? ' datum-ops__ig-gate--on' : ''}`}>
+          {gated ? 'gated' : 'not gated'}
+        </span>
+      </div>
+      <div className="datum-ops__ig-metric-value">{value}</div>
+      <p className="datum-ops__ig-metric-hint">{hint}</p>
+    </div>
+  )
 }
 
-export function ArticleReview({ article, templates, editHref, bodyHtml, auditEntries }: Props) {
+/**
+ * The reasons a decision landed where it did. Reason messages are written from
+ * the threshold that tripped and do **not** name their claim — two claims
+ * failing the same gate produce byte-identical strings — so each row carries
+ * its own claim excerpt (or, failing that, the claim id) and links to that
+ * claim's row in the table below.
+ */
+function IgReasons({
+  reasons,
+  claimById,
+}: {
+  reasons: InformationGainRunView['reasons']
+  claimById: Map<string, ScorecardClaim>
+}) {
+  if (reasons.length === 0) {
+    return (
+      <p className="datum-ops__sub" style={{ margin: 0 }}>
+        No policy reasons — nothing tripped a gate.
+      </p>
+    )
+  }
+  return (
+    <ul className="datum-ops__ig-reasons">
+      {reasons.map((reason, index) => {
+        const claim = reason.claimId ? claimById.get(reason.claimId) : undefined
+        return (
+          <li key={`${reason.policy}-${reason.claimId ?? 'doc'}-${index}`}>
+            <div className="datum-ops__ig-reason-head">
+              <span
+                className={`datum-ops__ig-sev datum-ops__ig-sev--${reason.severity}`}
+                title={`Severity ${reason.severity}`}
+              >
+                {reason.severity.replace(/_/g, ' ')}
+              </span>
+              <code className="datum-ops__ig-code">{reason.policy}</code>
+              <span>{reason.message}</span>
+            </div>
+            {reason.claimId ? (
+              <div className="datum-ops__ig-reason-claim">
+                <a href={`#ig-claim-${encodeURIComponent(reason.claimId)}`}>{reason.claimId}</a>
+                <span>{claim?.excerpt || claim?.text || '(claim not in this run)'}</span>
+              </div>
+            ) : (
+              <div className="datum-ops__ig-reason-claim">
+                <span>Document-level — not tied to one claim.</span>
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function ClaimFlags({ claim }: { claim: ScorecardClaim }) {
+  const flags: { key: string; label: string; tone: string }[] = []
+  if (claim.blocked) flags.push({ key: 'blocked', label: 'blocked', tone: 'bad' })
+  if (claim.requiresHumanReview) flags.push({ key: 'review', label: 'review', tone: 'warn' })
+  if (claim.materiallyNovel) flags.push({ key: 'novel', label: 'novel', tone: 'info' })
+  if (claim.verifiedNovel) flags.push({ key: 'verified', label: 'verified', tone: 'good' })
+  if (flags.length === 0) {
+    return <span className="datum-ops__ig-flag datum-ops__ig-flag--none">—</span>
+  }
+  return (
+    <span className="datum-ops__ig-flags">
+      {flags.map((f) => (
+        <span key={f.key} className={`datum-ops__ig-flag datum-ops__ig-flag--${f.tone}`}>
+          {f.label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function ClaimEvidence({ claim }: { claim: ScorecardClaim }) {
+  if (claim.evidence.length === 0) {
+    return (
+      <span className="datum-ops__sub" style={{ margin: 0 }}>
+        none
+      </span>
+    )
+  }
+  return (
+    <ul className="datum-ops__ig-evidence">
+      {claim.evidence.map((e, index) => (
+        <li key={`${claim.id}-ev-${index}`}>
+          {/* `href` is null unless the model-authored URL was http/https — see
+              `ScorecardEvidence.href`; anything else renders as bare text. */}
+          {e.href ? (
+            <a href={e.href} rel="noreferrer noopener" target="_blank">
+              {e.domain}
+            </a>
+          ) : (
+            <span title="No usable http(s) URL on this evidence">{e.domain}</span>
+          )}
+          <span className="datum-ops__ig-evidence-meta">
+            {e.sourceKind} · q {dec(e.qualityScore)} ·{' '}
+            {e.qualitySource
+              ? (QUALITY_SOURCE_LABEL[e.qualitySource] ?? e.qualitySource)
+              : 'source unknown'}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * The full scorecard for one run. Everything here is read from the
+ * `information-gain-runs` row itself; `isCurrent` says whether the article's
+ * own `informationGain` summary still points at this run, because a reviewer
+ * reading a decision assembled from two different scoring passes is exactly
+ * the failure this banner exists to prevent.
+ */
+function ScorecardSection({
+  run,
+  isCurrent,
+  summaryRunId,
+}: {
+  run: InformationGainRunView
+  isCurrent: boolean
+  summaryRunId: number | null
+}) {
+  const claimById = new Map(run.claims.map((c) => [c.id, c]))
+  return (
+    <section className="datum-ops__ig" aria-labelledby="ig-scorecard-heading">
+      <div className="datum-ops__ig-head">
+        <div>
+          <h2 id="ig-scorecard-heading">Information gain</h2>
+          <p className="datum-ops__sub" style={{ margin: 0 }}>
+            run #{run.id} · policy <code>{run.policyVersion}</code> · scored {run.createdAtLabel}
+            {run.baselineAvailable ? '' : ' · no baseline corpus was available'}
+          </p>
+        </div>
+        <div className="datum-ops__ig-head-marks">
+          <span className={`datum-ops__ig-decision datum-ops__ig-decision--${run.decision}`}>
+            {DECISION_LABEL[run.decision]}
+          </span>
+          {run.calibrated ? null : (
+            <span
+              className="datum-ops__ig-uncal"
+              title="No calibration pass exists yet: these are the scoring model's own estimates, not measurements."
+            >
+              uncalibrated
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isCurrent ? null : (
+        <p className="datum-ops__warn">
+          {summaryRunId == null
+            ? 'This scorecard is from an earlier scoring pass. The article carries no current information-gain decision — it was reset, sent back, or queued for regeneration since — so nothing below reflects the draft as it stands now.'
+            : `The article's summary points at run #${summaryRunId}, but this is the latest scorecard (run #${run.id}). Treat the two as separate scoring passes rather than one decision.`}
+        </p>
+      )}
+
+      <div className="datum-ops__ig-metrics">
+        <IgMetric
+          label="Consensus coverage"
+          value={pct(run.scores.consensusCoverage)}
+          hint="Weighted share of consensus facets the draft addresses at all. This is the coverage the decision was gated on."
+          gated
+        />
+        <IgMetric
+          label="Verification ratio"
+          value={dec(run.scores.verificationRatio)}
+          hint="Verified gain units as a share of potential gain units."
+          gated
+        />
+        <IgMetric
+          label="Verified gain units"
+          value={dec(run.scores.verifiedGainUnits)}
+          hint={`Of ${dec(run.scores.potentialGainUnits)} potential — the gain that survived evidence integrity. The units themselves are not gated; the *count* of verified novel claims below is.`}
+        />
+        <IgMetric
+          label="Verified gain density"
+          value={dec(run.scores.verifiedGainDensity, 3)}
+          hint="Verified gain units per 1,000 draft tokens."
+        />
+        <IgMetric
+          label="Facet gain coverage"
+          value={pct(run.scores.facetGainCoverage)}
+          hint={`A different measure from consensus coverage: the share of facets where some single claim delivers at least ${FACET_GAIN_THRESHOLD} verified gain. A draft can address every facet (coverage 100%) while adding little to most of them.`}
+        />
+        <IgMetric
+          label="Internal duplication"
+          value={pct(run.scores.internalDuplicationRate)}
+          hint="Share of draft claims likely already published on our own site. Gated: at or above the policy maximum this alone sends the draft to review."
+          gated
+        />
+      </div>
+
+      <p className="datum-ops__ig-note">
+        Every 0–1 signal on this page — coverage, novelty, evidence integrity, source quality — is
+        an <strong>uncalibrated estimate produced by the scoring model</strong>. No calibration pass
+        exists yet, so read 0.96 as “the model was confident”, not as a measured 96%.
+      </p>
+
+      <div className="datum-ops__ig-summary">
+        <span>{run.claimSummary.totalClaims ?? 0} claims</span>
+        <span>{run.claimSummary.materiallyNovelClaims ?? 0} materially novel</span>
+        <span
+          className="datum-ops__ig-summary-gated"
+          title="Gated: the policy sets a minimum number of verified materially-novel claims."
+        >
+          {run.claimSummary.verifiedNovelClaims ?? 0} verified novel · gated
+        </span>
+        <span>{run.claimSummary.unsupportedNovelClaims ?? 0} unsupported novel</span>
+        <span>{run.claimSummary.contradictoryClaims ?? 0} contradictory</span>
+        <span>{run.claimSummary.firstPartyClaims ?? 0} first-party</span>
+      </div>
+
+      <h3 className="datum-ops__ig-subhead">Why this decision</h3>
+      <IgReasons claimById={claimById} reasons={run.reasons} />
+
+      <h3 className="datum-ops__ig-subhead">Claims</h3>
+      {run.claimsTruncated ? (
+        <p className="datum-ops__warn">
+          Showing {run.claims.length} of {run.claimCount} claims. Claims a policy reason cites are
+          always shown, then blocked and review-flagged claims, then materially novel ones. Open the
+          run in admin to read the rest.
+        </p>
+      ) : null}
+      {run.claims.length === 0 ? (
+        <p className="datum-ops__sub" style={{ margin: 0 }}>
+          This run recorded no claims.
+        </p>
+      ) : (
+        <div className="datum-ops__ig-table-wrap">
+          <table className="datum-ops__ig-table">
+            <thead>
+              <tr>
+                <th scope="col">Claim</th>
+                <th scope="col">Type</th>
+                <th scope="col" title="novelty · relevance · utility · intra-document novelty">
+                  N·R·U·H
+                </th>
+                <th scope="col">Evidence integrity</th>
+                <th scope="col">Evidence</th>
+                <th scope="col">Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {run.claims.map((claim) => (
+                <tr id={`ig-claim-${claim.id}`} key={claim.id}>
+                  <td>
+                    <div className="datum-ops__ig-claim-text">{claim.excerpt || claim.text}</div>
+                    <div className="datum-ops__ig-claim-meta">
+                      <code>{claim.id}</code>
+                      <span>{claim.section ?? 'no section'}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div>{claim.kind.replace(/_/g, ' ')}</div>
+                    <div className="datum-ops__ig-claim-meta">
+                      <span>{claim.verificationMode.replace(/_/g, ' ')}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="datum-ops__ig-nruh">
+                      {dec(claim.novelty)} · {dec(claim.relevance)} · {dec(claim.utility)} ·{' '}
+                      {dec(claim.intraDocumentNovelty)}
+                    </div>
+                    <div className="datum-ops__ig-claim-meta">
+                      <span>
+                        gain {dec(claim.verifiedGain, 3)} of {dec(claim.potentialGain, 3)}
+                      </span>
+                    </div>
+                  </td>
+                  <td>{dec(claim.evidenceIntegrity)}</td>
+                  <td>
+                    <ClaimEvidence claim={claim} />
+                  </td>
+                  <td>
+                    <ClaimFlags claim={claim} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function ArticleReview({
+  article,
+  templates,
+  editHref,
+  bodyHtml,
+  auditEntries,
+  run,
+}: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -68,8 +401,17 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
     article.templateId != null ? String(article.templateId) : '',
   )
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
+  /**
+   * Deliberately *not* seeded from the article's persisted
+   * `reviewJustification`: `gateReviewOverride` requires the submitted
+   * justification to differ from the stored one, so a pre-filled box would
+   * either silently re-satisfy the gate or hand the reviewer a value that is
+   * guaranteed to be refused. The reviewer types a fresh one, every time.
+   */
+  const [justification, setJustification] = useState('')
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
 
-  const run = (fn: () => Promise<void>, thenBoard = true) => {
+  const runAction = (fn: () => Promise<void>, thenBoard = true) => {
     setError(null)
     startTransition(async () => {
       try {
@@ -83,7 +425,11 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
   }
 
   const qa = article.qaResults
-  const details = violationLines(article)
+  const details = qaFailureLines(article)
+  const summaryRun = article.informationGain?.run
+  const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
+  const runIsCurrent = run != null && summaryRunId === run.id
+  const revisionCount = article.revisionCount ?? 0
 
   return (
     <div className="datum-ops">
@@ -125,6 +471,11 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
               ) : null}
             </div>
           ) : null}
+
+          {run ? (
+            <ScorecardSection isCurrent={runIsCurrent} run={run} summaryRunId={summaryRunId} />
+          ) : null}
+
           <section className="datum-ops__audit" aria-labelledby="audit-trail-heading">
             <div className="datum-ops__audit-head">
               <div>
@@ -206,7 +557,9 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending || !templateId}
-                  onClick={() => run(() => assignTemplateAction(article.id, Number(templateId)))}
+                  onClick={() =>
+                    runAction(() => assignTemplateAction(article.id, Number(templateId)))
+                  }
                 >
                   Assign & return
                 </button>
@@ -232,11 +585,40 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   </ul>
                 </div>
               ) : null}
+              {run && run.reasons.length > 0 ? (
+                <div className="datum-ops__block">
+                  <h3>Information-gain reasons</h3>
+                  <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                    From run #{run.id}
+                    {runIsCurrent ? '' : ' — an earlier scoring pass, not the current decision'}.
+                    Regenerating feeds these to the next draft verbatim.
+                  </p>
+                  <ul className="datum-ops__list">
+                    {run.reasons.map((reason, index) => (
+                      <li key={`aside-${reason.policy}-${index}`}>
+                        <code>{reason.policy}</code> {reason.message}
+                        {reason.claimId ? ` (claim ${reason.claimId})` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div className="datum-ops__block">
                 <h3>Resolve</h3>
                 <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
                   Reset to <code>drafted</code> re-enters QA on next <code>pipeline:run</code>.
+                  Regenerating goes further back, to <code>researched</code>, and rewrites the
+                  draft.
+                  {revisionCount > 0
+                    ? ` Regenerated ${revisionCount} time${revisionCount === 1 ? '' : 's'} already.`
+                    : ''}
                 </p>
+                {article.revisionNotes ? (
+                  <details className="datum-ops__audit-details" style={{ marginBottom: 10 }}>
+                    <summary>Notes fed to the last regeneration</summary>
+                    <pre>{article.revisionNotes}</pre>
+                  </details>
+                ) : null}
                 <div className="datum-ops__field">
                   <label htmlFor="note">Review note</label>
                   <textarea
@@ -252,23 +634,77 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                     type="button"
                     className="datum-ops__btn datum-ops__btn--primary"
                     disabled={pending}
-                    onClick={() => run(() => resetToDraftedAction(article.id, notes))}
+                    onClick={() => runAction(() => resetToDraftedAction(article.id, notes))}
                   >
                     Reset to drafted
                   </button>
+                  {confirmRegenerate ? (
+                    <>
+                      <button
+                        type="button"
+                        className="datum-ops__btn datum-ops__btn--danger"
+                        disabled={pending}
+                        onClick={() => runAction(() => regenerateArticleAction(article.id, notes))}
+                      >
+                        Confirm: discard draft & regenerate
+                      </button>
+                      <button
+                        type="button"
+                        className="datum-ops__btn"
+                        disabled={pending}
+                        onClick={() => setConfirmRegenerate(false)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="datum-ops__btn"
+                      disabled={pending}
+                      onClick={() => setConfirmRegenerate(true)}
+                    >
+                      Regenerate from gaps
+                    </button>
+                  )}
                   <a className="datum-ops__btn" href={editHref}>
                     Open in admin
                   </a>
                 </div>
+                {confirmRegenerate ? (
+                  <p className="datum-ops__warn" style={{ marginTop: 10 }}>
+                    This throws away the current body and sends the article back to{' '}
+                    <code>researched</code> so the next pipeline run writes a new one, with the
+                    reasons above (plus your note) in the prompt.
+                  </p>
+                ) : null}
               </div>
             </>
           ) : null}
 
-          {['qa_passed', 'verified'].includes(article.status) ? (
+          {article.status === 'qa_passed' ? (
+            <div className="datum-ops__block">
+              <h3>Awaiting information gain</h3>
+              <p className="datum-ops__sub" style={{ margin: 0 }}>
+                QA passed, but nothing has scored this draft yet. The <code>informationGain</code>{' '}
+                stage runs on the next <code>pipeline:run</code> and decides between{' '}
+                <code>verified</code>, <code>needs_review</code>, <code>blocked</code>, and{' '}
+                <code>needs_revision</code>. There is nothing to approve until it has.
+              </p>
+              <div className="datum-ops__actions" style={{ marginTop: 12 }}>
+                <a className="datum-ops__btn" href={editHref}>
+                  Open in admin
+                </a>
+              </div>
+            </div>
+          ) : null}
+
+          {article.status === 'verified' ? (
             <div className="datum-ops__block">
               <h3>Approve</h3>
               <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-                All QA checks passed.
+                QA and information gain both cleared this draft
+                {run && runIsCurrent ? ` (run #${run.id}, ${DECISION_LABEL[run.decision]})` : ''}.
               </p>
               <div className="datum-ops__field">
                 <label htmlFor="note">Review notes</label>
@@ -284,7 +720,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending}
-                  onClick={() => run(() => approveArticleAction(article.id, notes))}
+                  onClick={() => runAction(() => approveArticleAction(article.id, notes))}
                 >
                   Approve
                 </button>
@@ -292,7 +728,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   type="button"
                   className="datum-ops__btn"
                   disabled={pending}
-                  onClick={() => run(() => publishArticleAction(article.id, notes))}
+                  onClick={() => runAction(() => publishArticleAction(article.id, notes))}
                 >
                   Approve & publish
                 </button>
@@ -301,7 +737,10 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   className="datum-ops__btn"
                   disabled={pending}
                   onClick={() =>
-                    run(() => sendBackAction(article.id, notes || 'Sent back for revision.'), false)
+                    runAction(
+                      () => sendBackAction(article.id, notes || 'Sent back for revision.'),
+                      false,
+                    )
                   }
                 >
                   Send back
@@ -321,7 +760,7 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending}
-                  onClick={() => run(() => publishArticleAction(article.id, notes))}
+                  onClick={() => runAction(() => publishArticleAction(article.id, notes))}
                 >
                   Publish
                 </button>
@@ -335,10 +774,57 @@ export function ArticleReview({ article, templates, editHref, bodyHtml, auditEnt
           {article.status === 'needs_review' || article.status === 'blocked' ? (
             <div className="datum-ops__block">
               <h3>Reviewer decision</h3>
-              <p className="datum-ops__sub" style={{ margin: 0 }}>
-                Information-gain review actions arrive with the scoring stage.
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                {article.status === 'blocked'
+                  ? 'Scoring blocked this draft.'
+                  : 'Scoring asked for a human.'}{' '}
+                {run
+                  ? `Run #${run.id} recorded ${run.reasons.length} reason${
+                      run.reasons.length === 1 ? '' : 's'
+                    } — read them on the scorecard before deciding.`
+                  : 'No scorecard is attached to this article.'}
               </p>
-              <div className="datum-ops__actions" style={{ marginTop: 12 }}>
+              <div className="datum-ops__field">
+                <label htmlFor="justification">Justification (required to override)</label>
+                <textarea
+                  id="justification"
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                  disabled={pending}
+                  placeholder="Why this draft is safe to verify despite the decision…"
+                />
+              </div>
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                Overriding records your justification on the article and in the audit trail, and
+                must be new text each time — a justification written for an earlier review will be
+                refused.
+              </p>
+              <div className="datum-ops__actions">
+                <button
+                  type="button"
+                  className="datum-ops__btn datum-ops__btn--primary"
+                  disabled={pending || justification.trim().length === 0}
+                  onClick={() => runAction(() => overrideReviewAction(article.id, justification))}
+                >
+                  Override to verified
+                </button>
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  disabled={pending}
+                  onClick={() =>
+                    runAction(
+                      () =>
+                        sendBackAction(
+                          article.id,
+                          justification.trim() || 'Sent back after information-gain review.',
+                        ),
+                      false,
+                    )
+                  }
+                >
+                  Send back
+                </button>
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>

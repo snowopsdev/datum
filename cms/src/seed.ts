@@ -200,6 +200,53 @@ const upsertTemplates = async (payload: Payload): Promise<void> => {
   }
 }
 
+/**
+ * The evidence domains the information-gain stage trusts out of the box.
+ *
+ * Seeded unconditionally, unlike the brand voice: the stage's numeric integrity
+ * floor is 0.95 and an unclassified domain is capped at 0.75, so with an empty
+ * table every materially novel number in a draft is blocked — including the
+ * demo pipeline's. These three are the sources the mock verifier fixture cites.
+ */
+const evidenceSources: { domain: string; qualityClass: 'primary'; note: string }[] = [
+  {
+    domain: 'sca.coffee',
+    qualityClass: 'primary',
+    note: 'Specialty Coffee Association — publishes its own research and standards.',
+  },
+  {
+    domain: 'baristahustle.com',
+    qualityClass: 'primary',
+    note: 'Barista Hustle — original coffee-extraction testing and course material.',
+  },
+  {
+    domain: 'homegrounds.co',
+    qualityClass: 'primary',
+    note: 'Home Grounds — hands-on equipment and freshness testing.',
+  },
+]
+
+const upsertEvidenceSources = async (payload: Payload): Promise<void> => {
+  for (const data of evidenceSources) {
+    const existing = await payload.find({
+      collection: 'evidence-sources',
+      where: { domain: { equals: data.domain } },
+      limit: 1,
+    })
+    if (existing.docs.length > 0) {
+      await payload.update({
+        collection: 'evidence-sources',
+        id: existing.docs[0].id,
+        data: { ...data, active: true },
+      })
+      payload.logger.info(`Updated evidence source "${data.domain}"`)
+    } else {
+      await payload.create({ collection: 'evidence-sources', data: { ...data, active: true } })
+      payload.logger.info(`Created evidence source "${data.domain}"`)
+    }
+  }
+}
+
 const upsertAdminUser = async (payload: Payload): Promise<void> => {
   const email = 'admin@datum.local'
   const password = process.env.SEED_ADMIN_PASSWORD || 'datum-dev-password'
@@ -247,6 +294,7 @@ const upsertBrandVoice = async (payload: Payload): Promise<void> => {
 const seed = async (): Promise<void> => {
   const payload = await getPayload({ config })
   await upsertTemplates(payload)
+  await upsertEvidenceSources(payload)
   await upsertAdminUser(payload)
   if (process.argv.includes('--with-brand-voice')) {
     await upsertBrandVoice(payload)
