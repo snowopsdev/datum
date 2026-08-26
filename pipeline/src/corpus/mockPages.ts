@@ -8,7 +8,7 @@
  * every coverage and exactness signal meaningless in mock runs.
  *
  * All four bodies share the same five facets — budget, equipment, recipe,
- * mistakes, cleaning — with one sentence per facet repeated verbatim across
+ * mistakes, cleaning — plus a dial-in sentence, each repeated verbatim across
  * every host. The information-gain fixtures quote those sentences as excerpts,
  * so editing their wording here breaks excerpt verification in the fixtures.
  */
@@ -20,6 +20,7 @@ const EQUIPMENT = 'The grinder matters more than the machine.'
 const RECIPE = 'Start with 18 grams in and 36 grams out in 25 to 30 seconds.'
 const MISTAKES =
   'Stale beans are the most common cause of bad espresso; use beans within a month of roasting.'
+const DIALLING = 'If the shot runs fast, grind finer.'
 const CLEANING = 'Purge the steam wand before and after each use and backflush weekly.'
 
 interface MockPage {
@@ -47,7 +48,8 @@ const competitorOne: MockPage = {
     RECIPE,
     'Time the shot from the moment you press the button, not from first drip, and taste it',
     'before you change anything.',
-    'If it runs fast and tastes sour, grind finer by one or two marks and pull again.',
+    DIALLING,
+    'Sour and thin usually means it ran too fast, so move one or two marks.',
     'If it chokes and tastes bitter, go coarser and check that your dose still fits the basket.',
     'Change one variable at a time, write down what you did, and expect a week of practice',
     'before the routine feels automatic.',
@@ -94,6 +96,8 @@ const competitorTwo: MockPage = {
     RECIPE,
     'That ratio works for the overwhelming majority of modern light-to-medium roasts, and it',
     'gives you a fixed point to move away from once you know what you like.',
+    DIALLING,
+    'Go coarser when it stalls, and change one setting at a time.',
     'For darker roasts, pull the yield back toward 30 grams and expect a shorter time.',
     'For anything roasted very light, extend to 40 grams out and accept a 35 second shot.',
     'Log the dose, the yield, the time, and one word about taste; three days of that beats a',
@@ -136,6 +140,7 @@ const industryMag: MockPage = {
     'group head undoes everything else you got right.',
     'Lesson five is the recipe, and it is the shortest lesson here.',
     RECIPE,
+    DIALLING,
     'Write it on a sticky note and put it on the machine until you no longer need it.',
     'Lesson six: change one thing per shot, or you learn nothing from either change.',
     'Lesson seven: milk is a separate skill, and it deserves its own week of practice with cheap',
@@ -177,8 +182,9 @@ const genericPage: MockPage = {
     'Set the whole thing up near a sink if you can, because every step involves water.',
     'With the gear in place, work to a fixed recipe rather than by feel.',
     RECIPE,
-    'Grind finer when the shot runs too fast and coarser when it stalls, and adjust one setting',
-    'at a time so you can tell what actually changed.',
+    DIALLING,
+    'Go coarser when it stalls, and adjust one setting at a time so you can tell what actually',
+    'changed.',
     'Taste every shot before you decide what to fix, since the numbers only describe the shot',
     'and your palate decides whether it was good.',
     'Most early disappointment comes from the beans rather than the technique.',

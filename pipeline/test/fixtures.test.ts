@@ -5,13 +5,16 @@ import { mockFixture } from '../src/fixtures'
 
 describe('mockFixture', () => {
   it('returns the claimExtraction sub-fixture for a given fixtureKey', () => {
-    assert.deepEqual(mockFixture('claimExtraction', 'page'), { claims: [] })
+    const page = mockFixture('claimExtraction', 'page') as { claims: unknown[] }
+    assert.equal(page.claims.length, 8)
+    // PR3 fills this one in; until then it is the empty placeholder.
+    assert.deepEqual(mockFixture('claimExtraction', 'draft'), { claims: [] })
   })
 
   it('returns a fresh object each call', () => {
-    const first = mockFixture('claimExtraction', 'page') as { claims: unknown[] }
+    const first = mockFixture('claimExtraction', 'draft') as { claims: unknown[] }
     first.claims.push('mutated')
-    const second = mockFixture('claimExtraction', 'page') as { claims: unknown[] }
+    const second = mockFixture('claimExtraction', 'draft') as { claims: unknown[] }
     assert.deepEqual(second, { claims: [] })
   })
 
