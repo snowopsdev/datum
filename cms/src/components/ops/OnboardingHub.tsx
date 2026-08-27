@@ -125,8 +125,8 @@ export function OnboardingHub({ setup }: Props) {
           ) : null}
         </div>
         {readiness.ready ? (
-          <Link className="datum-ops__primary-action" href="/admin/ops/articles">
-            Open article board
+          <Link className="datum-ops__primary-action" href="/admin/ops/content">
+            Open content
           </Link>
         ) : (
           <ContentRunForm

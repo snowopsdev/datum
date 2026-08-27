@@ -28,6 +28,8 @@ export type RunArticleDTO = {
  */
 export const STAGE_PROGRESS: Record<string, { step: number; label: string }> = {
   topic_selected: { step: 0, label: 'Researching' },
+  // The run ends here on purpose; the bar should say it is waiting on a person.
+  brief_review: { step: 1, label: 'Waiting for your brief' },
   researched: { step: 1, label: 'Writing the draft' },
   drafted: { step: 2, label: 'Running QA checks' },
   qa_passed: { step: 3, label: 'Scoring information gain' },

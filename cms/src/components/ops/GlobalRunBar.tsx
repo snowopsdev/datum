@@ -91,7 +91,7 @@ export function GlobalRunBar() {
   }
 
   const progress = active ? runProgress(run.articles) : 1
-  const onBoard = pathname === '/admin/ops/articles'
+  const onBoard = pathname === '/admin/ops/content'
   const moved = Object.entries(run.finalStatuses)
   const total = moved.reduce((sum, [, n]) => sum + n, 0)
 
@@ -205,8 +205,8 @@ export function GlobalRunBar() {
             </button>
           ) : null}
           {!onBoard ? (
-            <Link className="datum-runbar__link" href="/admin/ops/articles">
-              Open board
+            <Link className="datum-runbar__link" href="/admin/ops/content">
+              Open content
             </Link>
           ) : null}
           {!active ? (

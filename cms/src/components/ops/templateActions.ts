@@ -130,7 +130,7 @@ export async function createTemplateAction(
     })
 
     revalidatePath('/admin/ops/templates')
-    revalidatePath('/admin/ops/articles')
+    revalidatePath('/admin/ops/content')
     revalidatePath('/admin/ops/topics')
     return { ok: true, template: toTemplateDTO(created) }
   } catch (error) {

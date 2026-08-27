@@ -59,11 +59,18 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Find topics' },
         },
+        content: {
+          Component: '/components/ops/ContentListView#ContentListView',
+          path: '/ops/content',
+          exact: true,
+          meta: { title: 'Content' },
+        },
+        // The kanban board this replaced. Kept as a redirect so bookmarks work.
         articleBoard: {
           Component: '/components/ops/ArticleBoardView#ArticleBoardView',
           path: '/ops/articles',
           exact: true,
-          meta: { title: 'Article board' },
+          meta: { title: 'Content' },
         },
         articleReview: {
           Component: '/components/ops/ArticleReviewView#ArticleReviewView',

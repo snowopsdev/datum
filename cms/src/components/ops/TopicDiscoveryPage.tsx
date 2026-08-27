@@ -36,7 +36,7 @@ export function TopicDiscoveryPage({
       </div>
       <p className="datum-ops__lede">
         Pick what to write about. Nothing is researched, written, or paid for here — topics you add
-        land on the article board, and you start the pipeline from there when you are ready.
+        appear under Content, and research starts on its own; you approve a brief before anything is written.
       </p>
 
       <TopicDiscovery mode={mode} templates={templates} />
@@ -73,12 +73,12 @@ export function TopicDiscoveryPage({
         <div className="datum-ops__panel-body">
           <p className="datum-ops__sub">
             {waitingCount > 0
-              ? `You have ${waitingCount} topic${waitingCount === 1 ? '' : 's'} chosen and waiting. Go to the article board, tick the ones you want, and start a run — you do not have to run them all.`
-              : 'Once you add a topic it appears on the article board under Topic selected. Tick the ones you want and start a run from there.'}
+              ? `You have ${waitingCount} topic${waitingCount === 1 ? '' : 's'} waiting for research. They are under Content.`
+              : 'Once you add a topic it appears under Content, and Datum researches it. You approve a brief before anything is written.'}
           </p>
           <p>
-            <Link className="datum-ops__btn datum-ops__btn--primary" href="/admin/ops/articles">
-              Go to the article board
+            <Link className="datum-ops__btn datum-ops__btn--primary" href="/admin/ops/content">
+              Go to content
             </Link>
           </p>
         </div>

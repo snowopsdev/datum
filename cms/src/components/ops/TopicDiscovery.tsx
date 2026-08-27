@@ -295,7 +295,7 @@ export function TopicDiscovery({ templates, mode }: Props) {
               Nothing has been written or spent yet.
             </li>
             <li>
-              <strong>You start a run</strong> from the article board: tick the topics you want and
+              <strong>Datum researches it</strong> and writes you a brief. Under Content, tick the topics you want and
               press Start. Datum researches what already ranks, writes a draft in your brand voice,
               and checks it. You choose which topics run and when.
             </li>

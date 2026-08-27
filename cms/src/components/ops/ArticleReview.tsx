@@ -14,8 +14,14 @@ import {
   resetToDraftedAction,
   sendBackAction,
 } from './actions'
+import { BriefEditor } from './BriefEditor'
+import { revisitBriefAction } from './briefActions'
+import { Stepper } from './Stepper'
 import {
+  OWNER_LABEL,
   qaFailures,
+  STAGE_LABEL,
+  stageOf,
   type AuditTimelineEntry,
   type BoardArticle,
   type InformationGainRunView,
@@ -26,6 +32,7 @@ import './ops.css'
 
 type Props = {
   article: BoardArticle
+  mode: 'mock' | 'live'
   templates: TemplateOption[]
   editHref: string
   bodyHtml: string
@@ -45,6 +52,30 @@ const QUALITY_SOURCE_LABEL: Record<string, string> = {
   'evidence-sources': 'evidence-sources table',
   rubric: 'rubric',
   rubric_capped: 'rubric (capped)',
+}
+
+/** The stored brief, in the shape the editor edits. Rows without a heading are dropped. */
+function briefInitial(raw: BoardArticle['brief']) {
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
+  return {
+    angle: raw?.angle ?? '',
+    audience: raw?.audience ?? '',
+    sections: (raw?.sections ?? []).flatMap((s) =>
+      s?.heading
+        ? [
+            {
+              heading: s.heading,
+              notes: s.notes ?? '',
+              source: (s.source ?? 'editor') as 'template' | 'research' | 'editor',
+            },
+          ]
+        : [],
+    ),
+    mustCover: strings(raw?.mustCover),
+    opportunities: strings(raw?.opportunities),
+    notes: raw?.notes ?? '',
+  }
 }
 
 function pct(value: number | null): string {
@@ -388,6 +419,7 @@ function ScorecardSection({
 
 export function ArticleReview({
   article,
+  mode,
   templates,
   editHref,
   bodyHtml,
@@ -416,7 +448,7 @@ export function ArticleReview({
     startTransition(async () => {
       try {
         await fn()
-        if (thenBoard) router.push('/admin/ops/articles')
+        if (thenBoard) router.push('/admin/ops/content')
         else router.refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Action failed')
@@ -434,12 +466,16 @@ export function ArticleReview({
   return (
     <div className="datum-ops">
       <div className="datum-ops__header">
-        <Link className="datum-ops__btn" href="/admin/ops/articles" prefetch={false}>
-          ← Board
+        <Link className="datum-ops__btn" href="/admin/ops/content" prefetch={false}>
+          ← Content
         </Link>
-        <span className={`datum-ops__status datum-ops__status--${article.status}`}>
-          {article.status.replace(/_/g, ' ')}
-        </span>
+        <div className="datum-ops__stage-header">
+          <Stepper current={stageOf(article.status)} size="full" />
+          <span className={`datum-content__owner datum-content__owner--${stageOf(article.status).owner}`}>
+            {OWNER_LABEL[stageOf(article.status).owner]} · {STAGE_LABEL[stageOf(article.status).stage]}:{' '}
+            {stageOf(article.status).label}
+          </span>
+        </div>
       </div>
 
       <div className="datum-ops__review">
@@ -450,7 +486,16 @@ export function ArticleReview({
             {article.templateName ? ` · ${article.templateName}` : ''}
             {article.totalCostUsd != null ? ` · $${article.totalCostUsd.toFixed(2)}` : ''}
           </p>
-          <div className="datum-ops__prose">
+          {article.status === 'brief_review' ? (
+            <BriefEditor
+              articleId={article.id}
+              initial={briefInitial(article.brief)}
+              keyword={article.keyword}
+              mode={mode}
+              templateName={article.templateName}
+            />
+          ) : null}
+          <div className="datum-ops__prose" hidden={article.status === 'brief_review'}>
             <h3>Article body</h3>
             {bodyHtml ? (
               <div className="datum-ops__body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
@@ -458,7 +503,9 @@ export function ArticleReview({
               <p>
                 {article.metaDescription ||
                   article.researchHint ||
-                  'No body yet — assign a template and run the pipeline.'}
+                  (article.status === 'topic_selected'
+                    ? 'Nothing written yet. Research runs first, then you approve a brief.'
+                    : 'No body yet.')}
               </p>
             )}
           </div>
@@ -668,6 +715,20 @@ export function ArticleReview({
                   >
                     Reset to drafted
                   </button>
+                  <button
+                    className="datum-ops__btn"
+                    disabled={pending}
+                    onClick={() =>
+                      runAction(async () => {
+                        const result = await revisitBriefAction(article.id)
+                        if (!result.ok) throw new Error(result.error)
+                      }, false)
+                    }
+                    title="Go back to the brief and change the angle or sections before rewriting"
+                    type="button"
+                  >
+                    Revisit brief
+                  </button>
                   {confirmRegenerate ? (
                     <>
                       <button
@@ -854,6 +915,20 @@ export function ArticleReview({
                   }
                 >
                   Send back
+                </button>
+                <button
+                  className="datum-ops__btn"
+                  disabled={pending}
+                  onClick={() =>
+                    runAction(async () => {
+                      const result = await revisitBriefAction(article.id)
+                      if (!result.ok) throw new Error(result.error)
+                    }, false)
+                  }
+                  title="Go back to the brief and change the angle or sections before rewriting"
+                  type="button"
+                >
+                  Revisit brief
                 </button>
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin

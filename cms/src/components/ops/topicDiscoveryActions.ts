@@ -12,7 +12,7 @@ import type {
   RecentSearch,
 } from './topicDiscoveryTypes'
 
-const BOARD_PATH = '/admin/ops/articles'
+const BOARD_PATH = '/admin/ops/content'
 
 /**
  * How long a cached lookup is served before it is refetched.

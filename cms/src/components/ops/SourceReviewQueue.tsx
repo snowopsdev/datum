@@ -254,8 +254,8 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
       <p className="datum-ops__hint">
         Ratings apply to articles scored from now on. One that is already blocked or waiting for
         review keeps its result until it is scored again — open it from the{' '}
-        <Link href="/admin/ops/articles" prefetch={false}>
-          article board
+        <Link href="/admin/ops/content" prefetch={false}>
+          content list
         </Link>{' '}
         and use Reset to drafted to re-check the same draft, or Send back and then Regenerate to
         rewrite it first.

@@ -18,7 +18,7 @@ import {
   toRunFailures,
 } from './boardTypes'
 
-const BOARD_PATH = '/admin/ops/articles'
+const BOARD_PATH = '/admin/ops/content'
 
 export type BoardActionResult = { ok: true; message: string } | { ok: false; error: string }
 

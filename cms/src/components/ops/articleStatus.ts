@@ -55,85 +55,70 @@ export function isRunnableStatus(status: string): status is RunnableStatus {
  */
 export type ColumnOwner = 'run' | 'you' | 'done'
 
-export const STATUS_COLUMNS: {
-  id: ArticleStatus
-  label: string
-  blurb: string
+/**
+ * The five stages a person thinks in. Every internal status maps to exactly
+ * one, with who has to act and the verb that moves it. This is what the list
+ * rows, the stepper and the piece page all read from, so a status can never
+ * mean one thing on one screen and another elsewhere.
+ */
+export const CONTENT_STAGES = ['research', 'brief', 'writing', 'review', 'publish'] as const
+export type ContentStage = (typeof CONTENT_STAGES)[number]
+
+export const STAGE_LABEL: Record<ContentStage, string> = {
+  research: 'Research',
+  brief: 'Brief',
+  writing: 'Writing',
+  review: 'Review',
+  publish: 'Publish',
+}
+
+export const OWNER_LABEL: Record<ColumnOwner, string> = {
+  run: 'Datum is working',
+  you: 'Needs you',
+  done: 'Done',
+}
+
+export type StageInfo = {
+  stage: ContentStage
+  /** 1-based, for the stepper. */
+  step: number
   owner: ColumnOwner
-  actionable: boolean
-}[] = [
-  {
-    id: 'topic_selected',
-    label: 'Topic selected',
-    blurb: 'Chosen but not started. Tick some and start a run.',
-    owner: 'run',
-    actionable: true,
-  },
-  {
-    id: 'brief_review',
-    label: 'Brief',
-    blurb: 'Research is done. Read the brief and approve it to start writing.',
-    owner: 'you',
-    actionable: true,
-  },
-  {
-    id: 'researched',
-    label: 'Researched',
-    blurb: 'A run stopped after research. Start another to carry on.',
-    owner: 'run',
-    actionable: true,
-  },
-  {
-    id: 'drafted',
-    label: 'Drafted',
-    blurb: 'Written but not checked. Start a run to QA it.',
-    owner: 'run',
-    actionable: true,
-  },
-  {
-    id: 'needs_revision',
-    label: 'Needs revision',
-    blurb: 'QA found problems. Open it to read them, then rewrite.',
-    owner: 'you',
-    actionable: true,
-  },
-  {
-    id: 'qa_passed',
-    label: 'QA passed',
-    blurb: 'Checks passed, not scored yet. Start a run to finish.',
-    owner: 'run',
-    actionable: true,
-  },
-  {
-    id: 'verified',
-    label: 'Verified',
-    blurb: 'Cleared scoring. Approve it when you are happy.',
-    owner: 'you',
-    actionable: true,
-  },
-  {
-    id: 'needs_review',
-    label: 'Needs review',
-    blurb: 'Scoring wants your call. Override or send it back.',
-    owner: 'you',
-    actionable: true,
-  },
-  {
-    id: 'blocked',
-    label: 'Blocked',
-    blurb: 'Scoring blocked it. Override or send it back.',
-    owner: 'you',
-    actionable: true,
-  },
-  {
-    id: 'approved',
-    label: 'Approved',
-    blurb: 'Signed off. Publish when you are ready.',
-    owner: 'you',
-    actionable: true,
-  },
-  { id: 'published', label: 'Published', blurb: 'Live. Nothing left to do.', owner: 'done', actionable: false },
-]
+  /** Short state within the stage, e.g. "checks failed". */
+  label: string
+  /** The verb on the row's button when a person has to act; null otherwise. */
+  action: string | null
+}
+
+const stage = (
+  s: ContentStage,
+  owner: ColumnOwner,
+  label: string,
+  action: string | null = null,
+): StageInfo => ({
+  stage: s,
+  step: CONTENT_STAGES.indexOf(s) + 1,
+  owner,
+  label,
+  action,
+})
+
+export const STATUS_STAGE: Record<ArticleStatus, StageInfo> = {
+  topic_selected: stage('research', 'run', 'researching what already ranks'),
+  brief_review: stage('brief', 'you', 'brief ready to approve', 'Review brief'),
+  researched: stage('writing', 'run', 'about to write'),
+  drafted: stage('writing', 'run', 'running checks'),
+  needs_revision: stage('review', 'you', 'checks failed', 'See what failed'),
+  qa_passed: stage('review', 'run', 'scoring information gain'),
+  needs_review: stage('review', 'you', 'scoring wants your call', 'Decide'),
+  blocked: stage('review', 'you', 'scoring blocked it', 'Decide'),
+  verified: stage('review', 'you', 'passed every check', 'Approve'),
+  approved: stage('publish', 'you', 'signed off', 'Publish'),
+  published: stage('publish', 'done', 'live'),
+}
+
+export function stageOf(status: string): StageInfo {
+  return STATUS_STAGE[status as ArticleStatus] ?? stage('research', 'run', status.replace(/_/g, ' '))
+}
 
 export type BoardArticle = {
   id: number
@@ -158,6 +143,8 @@ export type BoardArticle = {
   informationGain: Article['informationGain']
   revisionNotes: string | null
   revisionCount: number | null
+  /** The brief as stored; `parseBrief` (pipeline) / the editor normalise it. */
+  brief: Article['brief'] | null
 }
 
 export function toBoardArticle(doc: Article): BoardArticle {
@@ -178,6 +165,7 @@ export function toBoardArticle(doc: Article): BoardArticle {
     informationGain: doc.informationGain,
     revisionNotes: doc.revisionNotes ?? null,
     revisionCount: doc.revisionCount ?? null,
+    brief: doc.brief ?? null,
   }
 }
 

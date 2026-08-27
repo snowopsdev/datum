@@ -25,6 +25,7 @@ import { ExtraOpsNavLinks as ExtraOpsNavLinks_6a698a6d8cb64ff28348b17241eda09c }
 import { RunBarProvider as RunBarProvider_65dbfc4d9ba575980d591cce5e79f86c } from '../../../components/ops/RunBarProvider'
 import { OnboardingDashboardView as OnboardingDashboardView_193fb9a425f42d7da706038f4b7f586e } from '../../../components/ops/OnboardingDashboardView'
 import { TopicDiscoveryView as TopicDiscoveryView_0cb01f41c0ead97b37e859b19722e5c4 } from '../../../components/ops/TopicDiscoveryView'
+import { ContentListView as ContentListView_ad18b54a3c0991c8d342cc56e03557e0 } from '../../../components/ops/ContentListView'
 import { ArticleBoardView as ArticleBoardView_3e471ab06f5e89b1354bf6b4c3e56d5d } from '../../../components/ops/ArticleBoardView'
 import { ArticleReviewView as ArticleReviewView_0b183b90e21e51193906e378b3fedb91 } from '../../../components/ops/ArticleReviewView'
 import { ReportsView as ReportsView_4e12243a45054e6b16c5796533624330 } from '../../../components/ops/ReportsView'
@@ -62,6 +63,7 @@ export const importMap = {
   "/components/ops/RunBarProvider#RunBarProvider": RunBarProvider_65dbfc4d9ba575980d591cce5e79f86c,
   "/components/ops/OnboardingDashboardView#OnboardingDashboardView": OnboardingDashboardView_193fb9a425f42d7da706038f4b7f586e,
   "/components/ops/TopicDiscoveryView#TopicDiscoveryView": TopicDiscoveryView_0cb01f41c0ead97b37e859b19722e5c4,
+  "/components/ops/ContentListView#ContentListView": ContentListView_ad18b54a3c0991c8d342cc56e03557e0,
   "/components/ops/ArticleBoardView#ArticleBoardView": ArticleBoardView_3e471ab06f5e89b1354bf6b4c3e56d5d,
   "/components/ops/ArticleReviewView#ArticleReviewView": ArticleReviewView_0b183b90e21e51193906e378b3fedb91,
   "/components/ops/ReportsView#ReportsView": ReportsView_4e12243a45054e6b16c5796533624330,

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import React from 'react'
 
 import type { BoardArticle } from './articleStatus'
-import { STATUS_COLUMNS } from './articleStatus'
+import { ARTICLE_STATUSES } from './articleStatus'
 import './ops.css'
 
 export type SpendRow = { label: string; usd: number }
@@ -110,10 +110,7 @@ function BarList({ rows }: { rows: SpendRow[] }) {
 
 export function ReportsPanel({ articles, costs }: Props) {
   const router = useRouter()
-  const byStatus = Object.fromEntries(STATUS_COLUMNS.map((c) => [c.id, 0])) as Record<
-    string,
-    number
-  >
+  const byStatus = Object.fromEntries(ARTICLE_STATUSES.map((s) => [s, 0])) as Record<string, number>
   for (const a of articles) byStatus[a.status] = (byStatus[a.status] ?? 0) + 1
 
   const withQa = articles.filter((a) => a.qaResults?.structural?.passed != null)
@@ -147,8 +144,8 @@ export function ReportsPanel({ articles, costs }: Props) {
     <div className="datum-ops">
       <div className="datum-ops__header">
         <h1>Reports</h1>
-        <Link className="datum-ops__btn" href="/admin/ops/articles" prefetch={false}>
-          Article board
+        <Link className="datum-ops__btn" href="/admin/ops/content" prefetch={false}>
+          Content
         </Link>
       </div>
       <p className="datum-ops__lede">
@@ -271,8 +268,8 @@ export function ReportsPanel({ articles, costs }: Props) {
                     >
                       Open review
                     </Link>
-                    <Link className="datum-ops__btn" href="/admin/ops/articles" prefetch={false}>
-                      Show on board
+                    <Link className="datum-ops__btn" href="/admin/ops/content" prefetch={false}>
+                      Show in content
                     </Link>
                   </div>
                 </div>
@@ -340,7 +337,7 @@ export function ReportsPanel({ articles, costs }: Props) {
         <h2>Status mix</h2>
         <div className="datum-ops__panel-body">
           <ul className="datum-ops__list">
-            {STATUS_COLUMNS.map((c) => (
+            {ARTICLE_STATUSES.map((id) => ({ id, label: id.replace(/_/g, ' ') })).map((c) => (
               <li key={c.id}>
                 {c.label}: {byStatus[c.id] ?? 0}
               </li>

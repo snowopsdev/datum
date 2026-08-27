@@ -25,7 +25,7 @@ export function ExtraOpsNavLinks() {
       label: 'Operations',
       links: [
         { label: 'Find topics', href: '/admin/ops/topics' },
-        { label: 'Article board', href: '/admin/ops/articles' },
+        { label: 'Content', href: '/admin/ops/content' },
         { label: 'Article records', href: '/admin/collections/articles' },
         { label: 'Media library', href: '/admin/collections/media' },
         { label: 'Reports', href: '/admin/ops/reports' },
