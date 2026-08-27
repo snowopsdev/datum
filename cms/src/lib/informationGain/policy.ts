@@ -36,7 +36,7 @@ export const POLICY_FIELDS = [
     default: 0.75,
     kind: 'ratio',
     outcome: 'REVISE',
-    description: 'Weighted share of consensus facets the draft must cover.',
+    description: 'How much of what other sites already agree on the draft has to cover.',
   },
   {
     key: 'minVerificationRatio',
@@ -45,7 +45,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'BLOCK',
     description:
-      "Verified gain units ÷ potential gain units; low values mean the draft's novelty rests on unsupported claims.",
+      "How much of the draft's new material is actually backed by evidence. A low score means most of what looks new isn't proven.",
   },
   {
     key: 'minNovelFactualIntegrity',
@@ -54,7 +54,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'BLOCK',
     description:
-      'Evidence integrity (support × source quality × exactness) required for a materially novel factual or inference claim.',
+      'How solid the evidence has to be for a new fact or conclusion, based on how well it is supported, how trustworthy the source is, and how closely it matches.',
   },
   {
     key: 'minNumericTemporalIntegrity',
@@ -63,7 +63,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'BLOCK',
     description:
-      'Evidence integrity required for materially novel claims containing numbers, dates, or units.',
+      'Same as the factual-evidence floor above, but for a new claim that includes a number, date, or unit, held to a higher bar because a wrong number is worse than a wrong fact.',
   },
   {
     key: 'requireExactValueMatch',
@@ -71,8 +71,7 @@ export const POLICY_FIELDS = [
     default: true,
     kind: 'boolean',
     outcome: 'BLOCK',
-    description:
-      'Numeric or temporal values in a materially novel claim must match the cited evidence exactly.',
+    description: "A new claim's numbers or dates must match its source exactly, not just roughly.",
   },
   {
     key: 'requireEvidenceLineage',
@@ -80,7 +79,7 @@ export const POLICY_FIELDS = [
     default: true,
     kind: 'boolean',
     outcome: 'BLOCK',
-    description: 'Every materially novel verifiable claim must cite at least one evidence excerpt.',
+    description: 'Every new, checkable claim must point to at least one source.',
   },
   {
     key: 'blockFirstPartyMeasurements',
@@ -89,7 +88,7 @@ export const POLICY_FIELDS = [
     kind: 'boolean',
     outcome: 'BLOCK',
     description:
-      'Drafts are model-generated, so any claimed first-party test, survey, or dataset is fabricated.',
+      'Drafts are written by a model, so any claim that we ran our own test, survey, or study is fabricated. Block it.',
   },
   {
     key: 'maxContradictionProbability',
@@ -98,7 +97,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'HUMAN_REVIEW',
     description:
-      'A claim contradicting reliable evidence at or above this probability needs a human decision (it may be legitimately new).',
+      'If a claim looks like it contradicts a reliable source, at or above this likelihood send it to a person instead of blocking it automatically. It might just be genuinely new information.',
   },
   {
     key: 'materialNoveltyThreshold',
@@ -107,7 +106,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'HUMAN_REVIEW',
     description:
-      'Novelty at or above this makes a claim "materially novel"; a materially novel inference needs human review.',
+      'How new a claim has to be before we count it as genuinely new. Past this line, a new conclusion (not just a fact) gets a human look.',
   },
   {
     key: 'maxInternalDuplicationRate',
@@ -116,7 +115,7 @@ export const POLICY_FIELDS = [
     kind: 'ratio',
     outcome: 'HUMAN_REVIEW',
     description:
-      'Share of draft claims already published on this site at or above this triggers a consolidation review.',
+      "If too much of the draft repeats what's already on the site, flag it so a person can check whether it should be merged into an existing article instead.",
   },
   {
     key: 'minVerifiedNovelClaims',
@@ -124,7 +123,8 @@ export const POLICY_FIELDS = [
     default: 1,
     kind: 'count',
     outcome: 'REVISE',
-    description: 'Minimum number of materially novel claims with verified evidence.',
+    description:
+      'The draft needs at least this many genuinely new claims backed by evidence, or there is no real reason to publish it.',
   },
 ] as const satisfies readonly PolicyFieldDef[]
 

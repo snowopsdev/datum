@@ -355,6 +355,7 @@ describe('article review-override gate', () => {
       'needs_revision',
       'drafted',
       'researched',
+      'brief_review',
       'topic_selected',
       'needs_review',
       'blocked',

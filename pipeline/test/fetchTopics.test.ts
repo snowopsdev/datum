@@ -26,6 +26,7 @@ it('creates the requested number of unique topics with the selected template', a
         difficulty: 10,
         bestCompetitorPosition: index + 1,
       })),
+    discoverKeywords: async () => [],
     serpResearch: async () => ({
       rankingPagesSummary: '',
       commonSubtopics: [],

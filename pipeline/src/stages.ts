@@ -32,11 +32,24 @@ export interface StageContext {
   evidenceSources: EvidenceSourceRule[]
   /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
   llm?: LlmClient
+  /**
+   * Stop at `brief_review` after research so a person approves the brief
+   * before writing is paid for. Defaults to on; only the onboarding smoke test
+   * turns it off, because nobody is there to approve.
+   */
+  pauseForBrief?: boolean
 }
 
 export interface StageOutcome {
   data: Partial<Article>
   status: ArticleStatus
+  /**
+   * Work that failed without changing the outcome — bookkeeping a stage does
+   * alongside its real job. Throwing would cost the article its progress and
+   * re-buy every LLM call behind it, but staying silent would hide the failure,
+   * so these are logged, counted in the run summary, and stored on the audit row.
+   */
+  warnings?: string[]
 }
 
 export interface Stage {
@@ -59,6 +72,16 @@ export interface StageRunSummary {
   /** Articles found at the stage's `entryStatus` with a template assigned. */
   total: number
   failed: number
+  /** Articles that advanced but reported a `StageOutcome.warning`. */
+  warned: number
+}
+
+/** Why one article did not advance, kept so a caller can say so out loud. */
+export interface StageFailure {
+  articleId: number
+  keyword: string
+  stage: Stage['name']
+  message: string
 }
 
 export interface RunPipelineResult {
@@ -68,6 +91,8 @@ export interface RunPipelineResult {
   stages: StageRunSummary[]
   /** Articles that threw, across every stage; `0` means the run was clean. */
   failed: number
+  /** One entry per failure, in the order they happened. */
+  failures: StageFailure[]
 }
 
 /** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
@@ -97,9 +122,17 @@ export async function runPipeline(
   const processed = new Set<number>()
   const finalStatusByArticle = new Map<number, ArticleStatus>()
   const stageSummaries: StageRunSummary[] = []
+  const failures: StageFailure[] = []
   let totalFailed = 0
   for (const stage of options.stages ?? stages) {
-    const and: Where[] = [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }]
+    // `archived` is deliberately part of the entry query rather than a board-only
+    // filter: an archived topic still holds a pipeline status, so leaving it out
+    // here would let a run pick up work somebody explicitly took off the board.
+    const and: Where[] = [
+      { status: { equals: stage.entryStatus } },
+      { template: { exists: true } },
+      { archived: { not_equals: true } },
+    ]
     if (options.articleIds?.length) and.push({ id: { in: options.articleIds } })
     const { docs } = await ctx.payload.find({
       collection: 'articles',
@@ -110,6 +143,7 @@ export async function runPipeline(
     })
     console.log(`[${stage.name}] ${docs.length} article(s) at status "${stage.entryStatus}"`)
     let failed = 0
+    let warned = 0
     for (const article of docs) {
       // One article's failure — a malformed LLM reply, a dead Payload write —
       // must not take the rest of the batch, or the stages behind it, down with
@@ -121,6 +155,13 @@ export async function runPipeline(
         const outcome = await stage.run(article, ctx)
         processed.add(article.id)
         finalStatusByArticle.set(article.id, outcome.status)
+        const warnings = outcome.warnings ?? []
+        if (warnings.length > 0) {
+          warned += 1
+          for (const warning of warnings) {
+            console.warn(`[${stage.name}] article ${article.id} warning: ${warning}`)
+          }
+        }
         await ctx.payload.update({
           collection: 'articles',
           id: article.id,
@@ -137,6 +178,7 @@ export async function runPipeline(
                 mode: ctx.mode,
                 keyword: article.keyword,
                 output: outcome.data,
+                ...(warnings.length > 0 ? { warnings } : {}),
               },
             },
           },
@@ -147,6 +189,12 @@ export async function runPipeline(
       } catch (error) {
         failed += 1
         const message = error instanceof Error ? error.message : String(error)
+        failures.push({
+          articleId: article.id,
+          keyword: article.keyword,
+          stage: stage.name,
+          message,
+        })
         console.error(`[${stage.name}] article ${article.id} failed: ${message}`, error)
       }
     }
@@ -156,7 +204,7 @@ export async function runPipeline(
           `"${stage.entryStatus}"; the next run retries them`,
       )
     }
-    stageSummaries.push({ stage: stage.name, total: docs.length, failed })
+    stageSummaries.push({ stage: stage.name, total: docs.length, failed, warned })
     totalFailed += failed
   }
   const finalStatuses: Record<string, number> = {}
@@ -168,5 +216,6 @@ export async function runPipeline(
     finalStatuses,
     stages: stageSummaries,
     failed: totalFailed,
+    failures,
   }
 }

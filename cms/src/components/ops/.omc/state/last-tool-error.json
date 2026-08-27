@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"/usr/bin/grep -n \\\"className=\\\\\\\"datum-ops\\\\\\\"\\\" *.tsx; echo \\\"---\\\"; /usr/bin/grep -n \\\"^export function\\\\|return (\\\" BrandVoiceEditor.tsx | head -5; sed -n '1,30p' ArticleBoard.tsx | /us...",
+  "error": "Exit code 1\nArticleBoard.tsx:36:    <div className=\"datum-ops\">\nArticleReview.tsx:435:    <div className=\"datum-ops\">\nBrandVoiceEditor.tsx:265:      <div className=\"datum-ops\">\nBrandVoiceEditor.tsx:309:      <div className=\"datum-ops\">\nBrandVoiceEditor.tsx:407:      <div className=\"datum-ops\">\nBrandVoiceEditor.tsx:453:    <div className=\"datum-ops\">\nReportsPanel.tsx:147:    <div className=\"datum-ops\">\nTemplateConfigEditor.tsx:94:      <div className=\"datum-ops\">\nTemplateConfigEditor.tsx:102:    ...",
+  "timestamp": "2026-08-27T12:27:48.800Z",
+  "retry_count": 1
+}

@@ -14,8 +14,15 @@ import {
   resetToDraftedAction,
   sendBackAction,
 } from './actions'
+import { BriefEditor } from './BriefEditor'
+import { revisitBriefAction } from './briefActions'
+import { runSelectedArticlesAction } from './boardActions'
+import { Stepper } from './Stepper'
 import {
-  qaFailureLines,
+  OWNER_LABEL,
+  qaFailures,
+  STAGE_LABEL,
+  stageOf,
   type AuditTimelineEntry,
   type BoardArticle,
   type InformationGainRunView,
@@ -26,6 +33,7 @@ import './ops.css'
 
 type Props = {
   article: BoardArticle
+  mode: 'mock' | 'live'
   templates: TemplateOption[]
   editHref: string
   bodyHtml: string
@@ -45,6 +53,30 @@ const QUALITY_SOURCE_LABEL: Record<string, string> = {
   'evidence-sources': 'evidence-sources table',
   rubric: 'rubric',
   rubric_capped: 'rubric (capped)',
+}
+
+/** The stored brief, in the shape the editor edits. Rows without a heading are dropped. */
+function briefInitial(raw: BoardArticle['brief']) {
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
+  return {
+    angle: raw?.angle ?? '',
+    audience: raw?.audience ?? '',
+    sections: (raw?.sections ?? []).flatMap((s) =>
+      s?.heading
+        ? [
+            {
+              heading: s.heading,
+              notes: s.notes ?? '',
+              source: (s.source ?? 'editor') as 'template' | 'research' | 'editor',
+            },
+          ]
+        : [],
+    ),
+    mustCover: strings(raw?.mustCover),
+    opportunities: strings(raw?.opportunities),
+    notes: raw?.notes ?? '',
+  }
 }
 
 function pct(value: number | null): string {
@@ -388,6 +420,7 @@ function ScorecardSection({
 
 export function ArticleReview({
   article,
+  mode,
   templates,
   editHref,
   bodyHtml,
@@ -400,6 +433,7 @@ export function ArticleReview({
   const [templateId, setTemplateId] = useState(
     article.templateId != null ? String(article.templateId) : '',
   )
+  const [confirmLiveCost, setConfirmLiveCost] = useState(false)
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   /**
    * Deliberately *not* seeded from the article's persisted
@@ -416,7 +450,7 @@ export function ArticleReview({
     startTransition(async () => {
       try {
         await fn()
-        if (thenBoard) router.push('/admin/ops/articles')
+        if (thenBoard) router.push('/admin/ops/content')
         else router.refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Action failed')
@@ -425,7 +459,7 @@ export function ArticleReview({
   }
 
   const qa = article.qaResults
-  const details = qaFailureLines(article)
+  const failures = qaFailures(article)
   const summaryRun = article.informationGain?.run
   const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
   const runIsCurrent = run != null && summaryRunId === run.id
@@ -434,12 +468,16 @@ export function ArticleReview({
   return (
     <div className="datum-ops">
       <div className="datum-ops__header">
-        <Link className="datum-ops__btn" href="/admin/ops/articles" prefetch={false}>
-          ← Board
+        <Link className="datum-ops__btn" href="/admin/ops/content" prefetch={false}>
+          ← Content
         </Link>
-        <span className={`datum-ops__status datum-ops__status--${article.status}`}>
-          {article.status.replace(/_/g, ' ')}
-        </span>
+        <div className="datum-ops__stage-header">
+          <Stepper current={stageOf(article.status)} size="full" />
+          <span className={`datum-content__owner datum-content__owner--${stageOf(article.status).owner}`}>
+            {OWNER_LABEL[stageOf(article.status).owner]} · {STAGE_LABEL[stageOf(article.status).stage]}:{' '}
+            {stageOf(article.status).label}
+          </span>
+        </div>
       </div>
 
       <div className="datum-ops__review">
@@ -450,7 +488,16 @@ export function ArticleReview({
             {article.templateName ? ` · ${article.templateName}` : ''}
             {article.totalCostUsd != null ? ` · $${article.totalCostUsd.toFixed(2)}` : ''}
           </p>
-          <div className="datum-ops__prose">
+          {article.status === 'brief_review' ? (
+            <BriefEditor
+              articleId={article.id}
+              initial={briefInitial(article.brief)}
+              keyword={article.keyword}
+              mode={mode}
+              templateName={article.templateName}
+            />
+          ) : null}
+          <div className="datum-ops__prose" hidden={article.status === 'brief_review'}>
             <h3>Article body</h3>
             {bodyHtml ? (
               <div className="datum-ops__body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
@@ -458,7 +505,9 @@ export function ArticleReview({
               <p>
                 {article.metaDescription ||
                   article.researchHint ||
-                  'No body yet — assign a template and run the pipeline.'}
+                  (article.status === 'topic_selected'
+                    ? 'Nothing written yet. Research runs first, then you approve a brief.'
+                    : 'No body yet.')}
               </p>
             )}
           </div>
@@ -567,6 +616,51 @@ export function ArticleReview({
             </div>
           ) : null}
 
+          {article.status === 'topic_selected' && article.templateId != null ? (
+            <div className="datum-ops__block">
+              <h3>Start research</h3>
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                {/*
+                  This exists because a piece created while the workspace was
+                  not ready (no brand voice, missing live keys) is created
+                  anyway and left here — nothing queues research for it on its
+                  own once the workspace becomes ready, and until now there was
+                  no way to start it from the admin.
+                */}
+                Research has not started yet. This runs it for this piece alone.
+              </p>
+              {mode === 'live' ? (
+                <label className="datum-ops__cost-confirm">
+                  <input
+                    checked={confirmLiveCost}
+                    disabled={pending}
+                    onChange={(e) => setConfirmLiveCost(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>This run uses paid live providers.</span>
+                </label>
+              ) : null}
+              <div className="datum-ops__actions">
+                <button
+                  type="button"
+                  className="datum-ops__btn datum-ops__btn--primary"
+                  disabled={pending || (mode === 'live' && !confirmLiveCost)}
+                  onClick={() =>
+                    runAction(async () => {
+                      const result = await runSelectedArticlesAction({
+                        articleIds: [article.id],
+                        confirmLiveCost,
+                      })
+                      if (!result.ok) throw new Error(result.error)
+                    }, false)
+                  }
+                >
+                  Start research
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {article.status === 'needs_revision' ? (
             <>
               <div className="datum-ops__block">
@@ -575,14 +669,44 @@ export function ArticleReview({
                 <CheckRow label="Fact check" passed={qa?.factCheck?.passed} />
                 <CheckRow label="Qualitative" passed={qa?.qualitativeReview?.passed} />
               </div>
-              {details.length > 0 ? (
+              {failures.length > 0 ? (
                 <div className="datum-ops__block">
-                  <h3>Failure detail</h3>
-                  <ul className="datum-ops__list">
-                    {details.map((d, index) => (
-                      <li key={`${d}-${index}`}>{d}</li>
+                  <h3>What failed</h3>
+                  <ul className="datum-ops__qa-fails">
+                    {failures.map((f, index) => (
+                      <li key={`${f.code ?? f.check}-${index}`}>
+                        <p className="datum-ops__qa-what">{f.what}</p>
+                        <p className="datum-ops__qa-fix">
+                          <strong>To fix:</strong> {f.fix}
+                        </p>
+                        {f.sources && f.sources.length > 0 ? (
+                          <p className="datum-ops__qa-sources">
+                            Checked against:{' '}
+                            {f.sources.map((url, i) => (
+                              <React.Fragment key={url}>
+                                {i > 0 ? ', ' : ''}
+                                <a href={url} rel="noreferrer noopener" target="_blank">
+                                  {(() => {
+                                    try {
+                                      return new URL(url).hostname.replace(/^www\./, '')
+                                    } catch {
+                                      return url
+                                    }
+                                  })()}
+                                </a>
+                              </React.Fragment>
+                            ))}
+                          </p>
+                        ) : null}
+                        {f.code ? <code className="datum-ops__qa-code">{f.code}</code> : null}
+                      </li>
                     ))}
                   </ul>
+                  <p className="datum-ops__hint">
+                    Regenerating sends every &ldquo;to fix&rdquo; line above to the writer verbatim,
+                    along with the original brief. It rewrites against the same research, so the new
+                    draft is comparable to this one.
+                  </p>
                 </div>
               ) : null}
               {run && run.reasons.length > 0 ? (
@@ -637,6 +761,20 @@ export function ArticleReview({
                     onClick={() => runAction(() => resetToDraftedAction(article.id, notes))}
                   >
                     Reset to drafted
+                  </button>
+                  <button
+                    className="datum-ops__btn"
+                    disabled={pending}
+                    onClick={() =>
+                      runAction(async () => {
+                        const result = await revisitBriefAction(article.id)
+                        if (!result.ok) throw new Error(result.error)
+                      }, false)
+                    }
+                    title="Go back to the brief and change the angle or sections before rewriting"
+                    type="button"
+                  >
+                    Revisit brief
                   </button>
                   {confirmRegenerate ? (
                     <>
@@ -824,6 +962,20 @@ export function ArticleReview({
                   }
                 >
                   Send back
+                </button>
+                <button
+                  className="datum-ops__btn"
+                  disabled={pending}
+                  onClick={() =>
+                    runAction(async () => {
+                      const result = await revisitBriefAction(article.id)
+                      if (!result.ok) throw new Error(result.error)
+                    }, false)
+                  }
+                  title="Go back to the brief and change the angle or sections before rewriting"
+                  type="button"
+                >
+                  Revisit brief
                 </button>
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin

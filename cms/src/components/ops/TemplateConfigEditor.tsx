@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useMemo, useState, useTransition } from 'react'
 
-import { saveTemplateConfigAction } from './templateActions'
+import { createTemplateAction, saveTemplateConfigAction } from './templateActions'
 import type { TemplateConfigDTO } from './templateTypes'
 import './ops.css'
 
@@ -49,6 +49,8 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [outlineDirty, setOutlineDirty] = useState(false)
   const [exampleDirty, setExampleDirty] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const loadTemplate = (t: TemplateConfigDTO) => {
     setSelectedId(t.id)
@@ -89,11 +91,85 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
     })
   }
 
+  const create = (event: React.FormEvent) => {
+    event.preventDefault()
+    setMessage(null)
+    setError(null)
+    startTransition(async () => {
+      const result = await createTemplateAction(newName)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      const created = result.template
+      setNewName('')
+      setAdding(false)
+      // `loadTemplate` is what moves both the selection *and* every editor field.
+      // Pushing the URL alone would not: this component does not remount, so
+      // `initialId` is only read once and the panel would keep showing whichever
+      // template was open when the form was submitted.
+      loadTemplate(created)
+      setMessage(`Created ${created.name}. Fill in its outline, rules and required H2s below.`)
+      router.refresh()
+    })
+  }
+
+  const newTemplateForm = (
+    <form className="datum-ops__tpl-new" onSubmit={create}>
+      <label className="datum-ops__field">
+        <span>Template name</span>
+        <input
+          autoFocus
+          disabled={pending}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="e.g. Product review"
+          type="text"
+          value={newName}
+        />
+      </label>
+      <div className="datum-ops__row">
+        <button
+          className="datum-ops__btn datum-ops__btn--primary"
+          disabled={pending || !newName.trim()}
+          type="submit"
+        >
+          {pending ? 'Creating…' : 'Create template'}
+        </button>
+        <button
+          className="datum-ops__link-btn"
+          disabled={pending}
+          onClick={() => {
+            setAdding(false)
+            setNewName('')
+          }}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
+      <p className="datum-ops__hint">
+        It starts empty. Add the outline, the dos and don&rsquo;ts, and the H2s QA should enforce —
+        nothing is required before you can assign it to a topic.
+      </p>
+    </form>
+  )
+
   if (!selected) {
     return (
       <div className="datum-ops">
-        <h1>Templates</h1>
-        <p className="datum-ops__lede">No templates seeded yet. Run the CMS seed script.</p>
+        <div className="datum-ops__header">
+          <h1>Templates</h1>
+        </div>
+        <p className="datum-ops__lede">
+          A template decides the shape of an article — a how-to, a comparison, a ranked list — and
+          QA checks every draft against it. You need at least one before the pipeline will touch a
+          topic. <code>npm run seed</code> installs three worked examples, or start your own here.
+        </p>
+        {error ? <p className="datum-ops__error">{error}</p> : null}
+        <section className="datum-ops__panel">
+          <h2>New template</h2>
+          <div className="datum-ops__panel-body">{newTemplateForm}</div>
+        </section>
       </div>
     )
   }
@@ -105,8 +181,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
         <span className="datum-ops__pill">config</span>
       </div>
       <p className="datum-ops__lede">
-        Rarer config work — tabs for outline, rules, SEO, and examples. Required H2s and seoSpec
-        feed structural QA.
+        A template decides the shape of an article and QA checks every draft against it. Edit one
+        below, or add your own. <strong>Required H2s</strong> and the <strong>SEO</strong> limits
+        are enforced on every draft; the outline and dos/don&rsquo;ts are guidance for the writer.
       </p>
 
       <div className="datum-ops__tpl">
@@ -125,6 +202,22 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
               </span>
             </button>
           ))}
+          {adding ? (
+            newTemplateForm
+          ) : (
+            <button
+              className="datum-ops__tpl-add"
+              disabled={pending}
+              onClick={() => {
+                setAdding(true)
+                setMessage(null)
+                setError(null)
+              }}
+              type="button"
+            >
+              + New template
+            </button>
+          )}
         </aside>
 
         <div className="datum-ops__tpl-editor">
@@ -297,8 +390,13 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                       onChange={(e) => setSeo({ ...seo, ogTagsRequired: e.target.checked })}
                       disabled={pending}
                     />{' '}
-                    OG tags required
+                    Social sharing text required
                   </label>
+                  <p className="datum-ops__hint">
+                    Checks that the draft has a social title and description — the text shown when
+                    someone shares the page. The social <em>image</em> is not checked: the writer
+                    has no image to point at, so requiring one would fail every draft.
+                  </p>
                 </div>
                 <div className="datum-ops__field">
                   <label htmlFor="headingRules">Heading structure rules</label>

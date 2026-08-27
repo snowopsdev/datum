@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { InformationGainPolicy } from '@/globals/InformationGainPolicy'
+import { InformationGainPolicy, OUTCOME_COPY } from '@/globals/InformationGainPolicy'
 import { POLICY_FIELDS } from '@/lib/informationGain'
 
 import type { Field } from 'payload'
@@ -22,7 +22,9 @@ describe('Information-gain policy global', () => {
       expect('defaultValue' in field).toBe(false)
       expect('required' in field).toBe(false)
       expect(descriptionOf(field)).toContain(def.env)
-      expect(descriptionOf(field)).toContain(def.outcome)
+      // The plain-language consequence, not the raw code: the description is
+      // read by whoever sets the dial, and REVISE/BLOCK mean nothing to them.
+      expect(descriptionOf(field)).toContain(OUTCOME_COPY[def.outcome])
       expect(descriptionOf(field)).toContain(String(def.default))
     }
   })
@@ -60,12 +62,12 @@ describe('Information-gain policy global', () => {
     }
   })
 
-  it('humanises the field label', () => {
+  it('spells the field label out in full', () => {
     const coverage = InformationGainPolicy.fields.find(
       (f) => 'name' in f && f.name === 'minConsensusCoverage',
     )
     expect(coverage && 'label' in coverage ? coverage.label : undefined).toBe(
-      'Min consensus coverage',
+      'Minimum consensus coverage',
     )
   })
 

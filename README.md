@@ -34,14 +34,15 @@ External SEO data is isolated behind the `AhrefsClient` contract. To add another
 
 ![Article status flow showing the pipeline, QA branch, revision loop, and editor actions](docs/diagrams/article-status-flow.svg)
 
-Choose a template when starting a run in the admin or when fetching topics from the CLI. The pipeline does not process `needs_revision` articles. Reset one to `drafted` to run QA again. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
+Research ends at **`brief_review`**: Datum writes a brief from the template, the research gaps and your brand voice, and waits. Approving the brief is what starts writing, checks and scoring — the first human decision comes before anything is paid for, not after. The pipeline never picks up `brief_review`, `needs_revision`, `needs_review` or `blocked` on its own; those are yours. The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
 
 ## Governance: brand voice and model choice
 
-Editorial rules live in two places in the admin, both under the **Governance** nav group:
+Editorial rules live in three places in the admin, all under the **Governance** nav group:
 
 - **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. An active voice is required for content runs. Seed a demo voice with `npm run seed -- --with-brand-voice`.
 - **Models** (`/admin/globals/llm-settings`) — which model runs generate, fact-check, qualitative review, and brand-voice extraction. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`/`o3`/`o4-mini`) wherever that call runs — see the env var split below.
+- **Source review** (`/admin/ops/governance/source-review`) — the domains the pipeline cited or saw ranking that nobody has rated yet. An unrated domain can't back a claim nobody else is making, so an article resting on one gets blocked; rate the ones you trust here and the next run counts them. See [`docs/information-gain.md`](docs/information-gain.md).
 
 ## Prerequisites
 
@@ -88,11 +89,11 @@ npm run pipeline:run
 npm run pipeline:report -- --period week
 ```
 
-### Admin onboarding and content runs
+### First run and making content
 
-The admin dashboard is a permanent readiness hub. It checks runtime configuration, an active brand voice, templates and stage models, and the latest end-to-end QA verification. Secrets stay in environment variables; the dashboard only reports whether each required variable is configured.
+Onboarding is one decision. `/admin` asks how Datum should sound: set up a brand voice, or start with the default and replace it later. Templates are seeded. Missing live-provider keys show as a banner for whoever deploys — they never block an editor.
 
-After the first three areas are ready, choose a template and run the verification demo. Datum stores the run in `pipeline-runs`, queues a native Payload `content-run` task, generates a unique sample, and advances only that sample through research, generation, and QA. A current `qa_passed` or `needs_revision` result completes setup. The Article Board then exposes the same queued workflow for normal content-gap discovery in batches of one to five topics. Live mode requires an explicit paid-provider confirmation for every launch.
+Then **New content** (`/admin/ops/new`): pick the kind of piece (a template card), say what it is about — suggested topics from Ahrefs, or a keyword you already know — and create it. Research starts on its own; the piece opens; when research is done a **brief** appears with the angle, audience and sections. Edit it, approve it, and Datum writes the draft, runs the checks and scores it. **Content** (`/admin/ops/content`) is the one list: every piece on a five-step stepper (Research → Brief → Writing → Review → Publish), who it is waiting on, and the one thing to do next. Every run is stored in `pipeline-runs` and executed as a native Payload `content-run` task; a bar at the bottom of every admin page shows what the model is doing while a run is in flight. Live mode asks for a paid-provider confirmation before the expensive half starts.
 
 Local development processes the `content` queue automatically every two seconds. Production intentionally disables in-process autorun; run this from a durable worker or scheduler instead:
 
@@ -132,7 +133,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) �
 | `npm run dev` | CMS Next.js dev server |
 | `npm run seed` | Create or update templates and the admin user. Add `-- --with-brand-voice` to also seed and activate a demo brand voice. |
 | `npm run pipeline:fetch -- --template NAME_OR_ID` | Create templated articles from content-gap keywords |
-| `npm run pipeline:run` | Run research → generate → QA for eligible articles |
+| `npm run pipeline:run` | Advance every eligible article one stage set: research (stops at the brief), then generate → QA → scoring for approved briefs |
 | `npm run pipeline:report` | Print the QA and spending report |
 | `npm run typecheck` / `lint` / `test` | Workspace checks described in [CONTRIBUTING.md](CONTRIBUTING.md) |
 

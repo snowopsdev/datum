@@ -10,6 +10,7 @@ import type { Article, InformationGainRun } from '../../payload-types'
 
 export const ARTICLE_STATUSES = [
   'topic_selected',
+  'brief_review',
   'researched',
   'drafted',
   'qa_passed',
@@ -23,23 +24,101 @@ export const ARTICLE_STATUSES = [
 
 export type ArticleStatus = (typeof ARTICLE_STATUSES)[number]
 
-export const STATUS_COLUMNS: {
-  id: ArticleStatus
+/**
+ * The four statuses a pipeline stage waits on, and the stage that picks each up.
+ *
+ * A single run walks all four stages in order, so an article that starts at
+ * `topic_selected` normally comes out the far end scored. The middle three only
+ * persist when a run stopped part-way — which is exactly why the board has to
+ * name them rather than leave a card sitting in a column with no explanation.
+ */
+export const NEXT_STAGE_FOR_STATUS = {
+  topic_selected: 'Research',
+  researched: 'Writing the draft',
+  drafted: 'QA checks',
+  qa_passed: 'Information-gain scoring',
+} as const
+
+export type RunnableStatus = keyof typeof NEXT_STAGE_FOR_STATUS
+
+/** Whether starting a run would actually move this article. */
+export function isRunnableStatus(status: string): status is RunnableStatus {
+  return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
+}
+
+/**
+ * Who has to do something for a card to move.
+ *
+ * `run` — a pipeline run advances it; nobody needs to read it first.
+ * `you`  — it is waiting on a human decision and a run will not touch it.
+ * `done` — terminal.
+ */
+export type ColumnOwner = 'run' | 'you' | 'done'
+
+/**
+ * The five stages a person thinks in. Every internal status maps to exactly
+ * one, with who has to act and the verb that moves it. This is what the list
+ * rows, the stepper and the piece page all read from, so a status can never
+ * mean one thing on one screen and another elsewhere.
+ */
+export const CONTENT_STAGES = ['research', 'brief', 'writing', 'review', 'publish'] as const
+export type ContentStage = (typeof CONTENT_STAGES)[number]
+
+export const STAGE_LABEL: Record<ContentStage, string> = {
+  research: 'Research',
+  brief: 'Brief',
+  writing: 'Writing',
+  review: 'Review',
+  publish: 'Publish',
+}
+
+export const OWNER_LABEL: Record<ColumnOwner, string> = {
+  run: 'Datum is working',
+  you: 'Needs you',
+  done: 'Done',
+}
+
+export type StageInfo = {
+  stage: ContentStage
+  /** 1-based, for the stepper. */
+  step: number
+  owner: ColumnOwner
+  /** Short state within the stage, e.g. "checks failed". */
   label: string
-  blurb: string
-  actionable: boolean
-}[] = [
-  { id: 'topic_selected', label: 'Topic selected', blurb: 'Assign a template', actionable: true },
-  { id: 'researched', label: 'Researched', blurb: 'Pipeline', actionable: false },
-  { id: 'drafted', label: 'Drafted', blurb: 'Awaiting QA', actionable: false },
-  { id: 'needs_revision', label: 'Needs revision', blurb: 'Triage failures', actionable: true },
-  { id: 'qa_passed', label: 'QA passed', blurb: 'Awaiting information gain', actionable: false },
-  { id: 'verified', label: 'Verified', blurb: 'Approve or publish', actionable: true },
-  { id: 'needs_review', label: 'Needs review', blurb: 'Reviewer decision', actionable: true },
-  { id: 'blocked', label: 'Blocked', blurb: 'Override or send back', actionable: true },
-  { id: 'approved', label: 'Approved', blurb: 'Ready to publish', actionable: false },
-  { id: 'published', label: 'Published', blurb: 'Live', actionable: false },
-]
+  /** The verb on the row's button when a person has to act; null otherwise. */
+  action: string | null
+}
+
+const stage = (
+  s: ContentStage,
+  owner: ColumnOwner,
+  label: string,
+  action: string | null = null,
+): StageInfo => ({
+  stage: s,
+  step: CONTENT_STAGES.indexOf(s) + 1,
+  owner,
+  label,
+  action,
+})
+
+export const STATUS_STAGE: Record<ArticleStatus, StageInfo> = {
+  topic_selected: stage('research', 'run', 'researching what already ranks'),
+  brief_review: stage('brief', 'you', 'brief ready to approve', 'Review brief'),
+  researched: stage('writing', 'run', 'about to write'),
+  drafted: stage('writing', 'run', 'running checks'),
+  needs_revision: stage('review', 'you', 'checks failed', 'See what failed'),
+  qa_passed: stage('review', 'run', 'scoring information gain'),
+  needs_review: stage('review', 'you', 'scoring wants your call', 'Decide'),
+  blocked: stage('review', 'you', 'scoring blocked it', 'Decide'),
+  verified: stage('review', 'you', 'passed every check', 'Approve'),
+  approved: stage('publish', 'you', 'signed off', 'Publish'),
+  published: stage('publish', 'done', 'live'),
+}
+
+export function stageOf(status: string): StageInfo {
+  return STATUS_STAGE[status as ArticleStatus] ?? stage('research', 'run', status.replace(/_/g, ' '))
+}
 
 export type BoardArticle = {
   id: number
@@ -64,6 +143,8 @@ export type BoardArticle = {
   informationGain: Article['informationGain']
   revisionNotes: string | null
   revisionCount: number | null
+  /** The brief as stored; `parseBrief` (pipeline) / the editor normalise it. */
+  brief: Article['brief'] | null
 }
 
 export function toBoardArticle(doc: Article): BoardArticle {
@@ -84,6 +165,7 @@ export function toBoardArticle(doc: Article): BoardArticle {
     informationGain: doc.informationGain,
     revisionNotes: doc.revisionNotes ?? null,
     revisionCount: doc.revisionCount ?? null,
+    brief: doc.brief ?? null,
   }
 }
 
@@ -121,6 +203,218 @@ export function formatAuditTimestamp(iso: string): string {
  * `actions.ts` (the `regenerateArticleAction` fallback when there is no
  * information-gain run to explain the send-back instead).
  */
+
+/** One QA failure, said in words, with the instruction that would fix it. */
+export type QaFailure = {
+  /** Which check produced it, for grouping in the UI. */
+  check: 'structural' | 'factCheck' | 'qualitativeReview'
+  /** Plain-language statement of what is wrong, with the real numbers in it. */
+  what: string
+  /** What the next draft must do differently. This is what regeneration sends. */
+  fix: string
+  /** The machine code, kept for operators who want to grep for it. */
+  code: string | null
+  /** Pages the fact checker verified against, for the rewrite to work from. */
+  sources?: string[]
+}
+
+const OG_FIELD_LABEL: Record<string, string> = {
+  ogTitle: 'social title',
+  ogDescription: 'social description',
+  ogImage: 'social image',
+}
+
+const HEADING_FIX: Record<string, string> = {
+  multiple_h1:
+    'Use exactly one H1 — the article title. Demote every other top-level heading to an H2.',
+  skipped_level:
+    'Do not skip heading levels. An H2 may only be followed by another H2 or an H3, never an H4.',
+  missing_section:
+    'Add the missing H2 section. The template requires it and QA checks for it by name.',
+}
+
+const vNum = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null
+const vStr = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim() : null
+
+/**
+ * Turn one structural violation into something a person can act on.
+ *
+ * The violations carry everything needed for this — the limit that was
+ * exceeded, the actual value, which tags are missing, the offending phrase —
+ * and the UI previously rendered only `code`, so `OG_TAGS_MISSING` was the
+ * entire message. Worse, `buildRegenerateRevisionNotes` fed that same bare code
+ * into the next generate prompt, which is close to no instruction at all.
+ *
+ * Defensive about its input on purpose: `qaResults.structural.violations` is a
+ * JSON column, so an older row may hold a shape this does not know. Unknown
+ * codes fall through to the code itself rather than being dropped, because a
+ * failure nobody can see is worse than one that is tersely described.
+ */
+export function describeViolation(raw: unknown): QaFailure | null {
+  if (typeof raw === 'string') {
+    return { check: 'structural', what: raw, fix: raw, code: null }
+  }
+  if (!raw || typeof raw !== 'object' || !('code' in raw)) return null
+  const v = raw as Record<string, unknown>
+  const code = String(v.code)
+  // Rows persisted before the structured shapes existed carry a free-text
+  // `message` instead of the typed fields. Dropping it would turn a described
+  // failure back into a bare code, so it is the fallback everywhere below.
+  const message = vStr(v.message)
+
+  switch (code) {
+    case 'TITLE_TAG_TOO_LONG': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The SEO title tag is ${actual ?? '?'} characters; the limit is ${limit ?? '?'}.`,
+        fix: `Rewrite the title tag to ${limit ?? 'the limit'} characters or fewer, keeping the main keyword near the front.`,
+      }
+    }
+    case 'META_DESCRIPTION_TOO_LONG': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The meta description is ${actual ?? '?'} characters; the limit is ${limit ?? '?'}.`,
+        fix: `Rewrite the meta description to ${limit ?? 'the limit'} characters or fewer.`,
+      }
+    }
+    case 'HEADING_STRUCTURE': {
+      const problem = vStr(v.problem) ?? ''
+      const heading = vStr(v.heading)
+      const detail = vStr(v.detail)
+      return {
+        check: 'structural',
+        code,
+        what: detail ?? `Heading problem${heading ? ` at "${heading}"` : ''}.`,
+        fix:
+          (HEADING_FIX[problem] ?? 'Fix the heading structure.') +
+          (problem === 'missing_section' && heading ? ` Missing section: "${heading}".` : ''),
+      }
+    }
+    case 'FAQ_COUNT_OUT_OF_RANGE': {
+      const min = vNum(v.min)
+      const max = vNum(v.max)
+      const actual = vNum(v.actual)
+      const range = max != null ? `${min ?? 0}–${max}` : `at least ${min ?? 0}`
+      return {
+        check: 'structural',
+        code,
+        what: `The article has ${actual ?? 0} FAQ question${actual === 1 ? '' : 's'}; the template asks for ${range}.`,
+        fix: `Write ${range} FAQ questions, each a real question a reader would ask, with a direct answer.`,
+      }
+    }
+    case 'OG_TAGS_MISSING': {
+      const missing = Array.isArray(v.missing) ? v.missing.map((m) => String(m)) : []
+      const labels = missing.map((m) => OG_FIELD_LABEL[m] ?? m)
+      return {
+        check: 'structural',
+        code,
+        what: `Missing social sharing ${labels.length === 1 ? 'tag' : 'tags'}: ${labels.join(', ') || 'unknown'}. These are what appears when the page is shared.`,
+        fix: `Add the missing ${labels.length === 1 ? 'tag' : 'tags'}: ${labels.join(' and ') || 'social tags'}.${missing.includes('ogImage') ? ' The social image must be a direct URL to an image file, not a link to a web page.' : ''}`,
+      }
+    }
+    case 'READING_LEVEL_TOO_HIGH': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The writing reads at US grade ${actual?.toFixed(1) ?? '?'}; the limit is grade ${limit ?? '?'}.`,
+        fix: `Simplify the language to grade ${limit ?? 'the limit'} or below: shorter sentences, fewer clauses, plainer words.`,
+      }
+    }
+    case 'BANNED_PHRASE': {
+      const phrase = vStr(v.phrase)
+      const field = vStr(v.field)
+      const source = vStr(v.source)
+      const origin = source === 'brand' ? 'your brand voice' : 'the platform style guide'
+      return {
+        check: 'structural',
+        code,
+        what: phrase
+          ? `"${phrase}" appears in the ${field ?? 'article'}, and ${origin} bans it.`
+          : (message ?? 'A banned phrase appears in the article.'),
+        fix: phrase
+          ? `Remove "${phrase}" and say the same thing in plain words.`
+          : 'Remove the banned phrase and say the same thing in plain words.',
+      }
+    }
+    default:
+      return {
+        check: 'structural',
+        code,
+        what: message ?? code,
+        fix: message ? `Fix this: ${message}` : `Fix: ${code}.`,
+      }
+  }
+}
+
+/**
+ * Every QA failure on an article, described rather than coded.
+ *
+ * The fact-check and qualitative checks already return prose from the model, so
+ * their note *is* the description; the instruction asks the next draft to
+ * address it directly.
+ */
+export const QA_CHECK_LABEL: Record<QaFailure['check'], string> = {
+  structural: 'Structure',
+  factCheck: 'Fact check',
+  qualitativeReview: 'Style',
+}
+
+export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFailure[] {
+  const out: QaFailure[] = []
+  const qa = article.qaResults
+  const raw = qa?.structural?.violations
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      const described = describeViolation(v)
+      if (described) out.push(described)
+    }
+  }
+  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
+    // The checker verified against real pages and recorded them. Handing those
+    // URLs to the rewrite is the difference between "this claim is wrong" and
+    // "this claim is wrong, and here is where the right answer lives" — without
+    // them the next draft has to re-derive the correction from nothing, which
+    // is how the same error survives a regeneration.
+    const sources = Array.isArray(qa.factCheck.sources)
+      ? qa.factCheck.sources
+          .map((entry) =>
+            typeof entry === 'string' ? entry : ((entry as { url?: unknown } | null)?.url ?? null),
+          )
+          .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+      : []
+    out.push({
+      check: 'factCheck',
+      code: null,
+      sources,
+      what: qa.factCheck.notes,
+      fix:
+        'Correct each of these, and keep every other fact as it stands.' +
+        (sources.length > 0
+          ? ` The checker verified against these pages — use them for the corrected values: ${sources.join(', ')}`
+          : ' Cite a source for anything you change.'),
+    })
+  }
+  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
+    out.push({
+      check: 'qualitativeReview',
+      code: null,
+      what: qa.qualitativeReview.notes,
+      fix: 'Rewrite to address this, keeping everything the review did not object to.',
+    })
+  }
+  return out
+}
+
 export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): string[] {
   const lines: string[] = []
   const qa = article.qaResults
@@ -152,7 +446,10 @@ export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): s
  * sends an article back for regeneration: one bullet per reason from the
  * latest `information-gain-runs` row, or — when no run exists yet, e.g. an
  * article a reviewer sends back before information-gain ever scored it — one
- * bullet per `qaFailureLines`. The reviewer's own note, when given, is
+ * bullet per `qaFailures` — each one the plain-language problem *and* the
+ * instruction that fixes it, because the prompt renders these verbatim and
+ * `- OG_TAGS_MISSING`, which is what this used to send, tells a writer nothing.
+ * The reviewer's own note, when given, is
  * appended last so `generate`'s prompt sees both the machine-found gaps and
  * whatever the human added.
  */
@@ -167,7 +464,7 @@ export function buildRegenerateRevisionNotes(
   const lines =
     reasons && reasons.length > 0
       ? reasons.map((r) => `- [${String(r.policy ?? 'unknown')}] ${String(r.message ?? '')}`)
-      : qaFailureLines(article).map((line) => `- ${line}`)
+      : qaFailures(article).map((f) => `- [${QA_CHECK_LABEL[f.check]}] ${f.what} ${f.fix}`)
   const trimmedNote = note?.trim()
   const sections = [lines.join('\n'), trimmedNote ? `Reviewer note: ${trimmedNote}` : ''].filter(
     Boolean,

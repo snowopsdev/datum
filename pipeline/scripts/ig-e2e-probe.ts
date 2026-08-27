@@ -6,8 +6,10 @@
  * with `grep`/`sed` and needs no `jq`.
  *
  * Usage:
- *   tsx scripts/ig-e2e-probe.ts reset <keyword>   ensure a templateless topic_selected article
- *   tsx scripts/ig-e2e-probe.ts state <articleId> the article's status, decision, run and cost rows
+ *   tsx scripts/ig-e2e-probe.ts reset <keyword>       ensure a templateless topic_selected article
+ *   tsx scripts/ig-e2e-probe.ts approve-brief <id>    approve the brief so the next run writes
+ *   tsx scripts/ig-e2e-probe.ts state <articleId>     the article's status, decision, run and cost rows
+ *   tsx scripts/ig-e2e-probe.ts candidates <domain…>  each domain's review-queue row, or `none`
  */
 import { initPayload } from '../src/payloadClient'
 
@@ -40,6 +42,16 @@ const CLEARED = {
       voiceNotes: null,
       notTraitViolations: null,
     },
+  },
+  brief: {
+    angle: null,
+    audience: null,
+    sections: [],
+    mustCover: null,
+    opportunities: null,
+    notes: null,
+    approvedAt: null,
+    approvedBy: null,
   },
   qaModels: null,
   generationModel: null,
@@ -101,6 +113,47 @@ if (command === 'reset') {
   process.exit(0)
 }
 
+if (command === 'approve-brief') {
+  const articleId = Number.parseInt(rest[0] ?? '', 10)
+  if (Number.isNaN(articleId)) {
+    console.error('Usage: tsx scripts/ig-e2e-probe.ts approve-brief <articleId>')
+    process.exit(1)
+  }
+  const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
+  if (article.status !== 'brief_review') {
+    console.log('approved=false')
+    console.log(`status=${article.status}`)
+    process.exit(1)
+  }
+  // The same write `approveBriefAction` makes, minus the run it queues: the
+  // walkthrough runs the pipeline itself on the next step.
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    overrideAccess: true,
+    data: {
+      status: 'researched',
+      brief: {
+        ...(article.brief ?? {}),
+        approvedAt: new Date().toISOString(),
+        approvedBy: 'ig-e2e',
+      },
+    },
+    context: {
+      articleAudit: {
+        actor: 'ig-e2e',
+        actorType: 'system',
+        event: 'brief_approved',
+        summary: 'Brief approved by the e2e walkthrough',
+      },
+    },
+  })
+  console.log('approved=true')
+  console.log('status=researched')
+  console.log(`briefSections=${article.brief?.sections?.length ?? 0}`)
+  process.exit(0)
+}
+
 if (command === 'state') {
   const articleId = Number.parseInt(rest[0] ?? '', 10)
   if (Number.isNaN(articleId)) {
@@ -152,5 +205,40 @@ if (command === 'state') {
   process.exit(0)
 }
 
-console.error(`Unknown command "${command ?? ''}". Expected "reset" or "state".`)
+if (command === 'candidates') {
+  // One line per domain named on the command line, so the script can assert on
+  // domains that should be queued *and* on ones that should not be — a seeded
+  // evidence-sources domain must never become a candidate.
+  const wanted = rest.length > 0 ? rest : []
+  const { docs } = await payload.find({
+    collection: 'evidence-source-candidates',
+    pagination: false,
+    depth: 0,
+  })
+  const byDomain = new Map(docs.map((doc) => [doc.domain, doc]))
+  for (const domain of wanted) {
+    const row = byDomain.get(domain)
+    if (!row) {
+      console.log(`candidate.${domain}=none`)
+      continue
+    }
+    const kinds = Array.isArray(row.sightings)
+      ? [...new Set(row.sightings.map((s) => (s as { kind?: string })?.kind ?? '?'))].sort().join('+')
+      : 'none'
+    console.log(`candidate.${domain}=${row.status}:${kinds}:${row.suggestedClass}`)
+    console.log(`candidateSerpCount.${domain}=${row.serpCount ?? 0}`)
+    console.log(`candidateCitationCount.${domain}=${row.citationCount ?? 0}`)
+  }
+  // Whether each domain is actually *awaiting review*, which is the property
+  // worth asserting on: a rated domain keeps its row once it has been seen, so
+  // "no row exists" is only true until someone deactivates a rule for a moment.
+  for (const domain of wanted) {
+    console.log(`candidatePending.${domain}=${byDomain.get(domain)?.status === 'pending'}`)
+  }
+  console.log(`candidates.total=${docs.length}`)
+  console.log(`candidates.pending=${docs.filter((doc) => doc.status === 'pending').length}`)
+  process.exit(0)
+}
+
+console.error(`Unknown command "${command ?? ''}". Expected "reset", "state" or "candidates".`)
 process.exit(1)

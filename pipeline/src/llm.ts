@@ -57,6 +57,19 @@ function parseJsonReply(text: string, stage: LlmStage): unknown {
   try {
     return JSON.parse(stripped)
   } catch {
+    // The web-search stages cannot use JSON mode (see `completeJSONOpenAI`), so
+    // the prompt is the only thing holding the model to a bare object and it
+    // sometimes adds a sentence either side. Fall back to the outermost braces
+    // before giving up.
+    const start = stripped.indexOf('{')
+    const end = stripped.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(stripped.slice(start, end + 1))
+      } catch {
+        // fall through to the error below
+      }
+    }
     throw new Error(`[llm:${stage}] model reply was not valid JSON: ${stripped.slice(0, 200)}`)
   }
 }
@@ -133,12 +146,37 @@ async function completeJSONOpenAI(
     const response = await getOpenAI().responses.create({
       model,
       instructions: `${request.system}\n\n${JSON_ONLY}`,
-      input: request.user,
-      max_output_tokens: 16000,
-      text: { format: { type: 'json_object' } },
-      ...(request.needWebSearch ? { tools: [{ type: 'web_search' as const }] } : {}),
+      // `JSON_ONLY` is repeated on the input, not just the instructions:
+      // `text.format: json_object` is rejected outright unless the word "json"
+      // appears in the *input messages*, and `instructions` does not count.
+      // Without this the call fails with a 400 for every prompt whose user text
+      // does not happen to mention JSON — which is most of them.
+      input: `${request.user}\n\n${JSON_ONLY}`,
+      // The web-search stages answer for a whole batch of claims and cite full
+      // URLs per claim, which runs far longer than the non-search stages; at
+      // 16k they get cut off mid-object and the truncated text then fails to
+      // parse. Give them room rather than losing the whole (paid) call.
+      max_output_tokens: request.needWebSearch ? 32000 : 16000,
+      // JSON mode and the web-search tool are mutually exclusive — the API
+      // rejects the pair with "Web Search cannot be used with JSON mode". The
+      // search stages therefore fall back to the same contract the Anthropic
+      // path uses everywhere: ask for JSON in the prompt and parse defensively.
+      ...(request.needWebSearch
+        ? { tools: [{ type: 'web_search' as const }] }
+        : { text: { format: { type: 'json_object' as const } } }),
     })
     const finalText = response.output_text
+    // A reply cut off at the token cap is still *text*, and valid JSON right up
+    // to the point it stops — so it slips past the empty check below and dies in
+    // the parser as "not valid JSON", which sends whoever reads the log hunting
+    // for a prompt bug that isn't there. Name the real cause.
+    if (response.status === 'incomplete') {
+      throw new Error(
+        `[llm:${stage}] reply truncated before it was complete ` +
+          `(reason: ${response.incomplete_details?.reason ?? 'unknown'}, ` +
+          `max_output_tokens: ${response.max_output_tokens ?? 'n/a'})`,
+      )
+    }
     if (!finalText) {
       throw new Error(
         `[llm:${stage}] response contained no text (status: ${response.status}, reason: ${response.incomplete_details?.reason ?? 'n/a'})`,

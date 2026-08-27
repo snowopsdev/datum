@@ -56,6 +56,7 @@ async function requireUser() {
 
 function revalidateOps(articleId?: number | string) {
   revalidatePath('/admin/ops/articles')
+  revalidatePath('/admin/ops/content')
   revalidatePath('/admin/ops/reports')
   if (articleId != null) {
     revalidatePath(`/admin/ops/articles/${articleId}`)

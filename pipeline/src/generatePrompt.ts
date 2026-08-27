@@ -12,6 +12,7 @@
 import type { Article, Template } from '../../cms/src/payload-types'
 
 import { brandVoiceSamplesToPrompt, brandVoiceToPrompt, type BrandVoiceContent } from './brandVoice'
+import { parseBrief } from './brief'
 import type { Facet, InformationGap } from './informationGain/lib'
 import { lexicalToMarkdown, type RichText } from './richtext'
 
@@ -27,6 +28,39 @@ export const EVIDENCE_RULES =
   'Never present first-party measurements, tests, surveys, or datasets — Datum has none. ' +
   'Prefer covering every consensus facet over adding novelty. Every number, date, and ' +
   'percentage must be one you can attribute.'
+
+/**
+ * The approved brief, as instructions.
+ *
+ * This is the editor's voice in the prompt. Their notes outrank the template
+ * outline where the two disagree, because the outline is generic guidance and
+ * the notes are about *this* piece. Template sections stay listed even if the
+ * editor cut them — structural QA enforces them regardless, and a draft that
+ * omits one fails, so the writer had better know.
+ */
+export function briefBlock(raw: unknown): string[] {
+  const brief = parseBrief(raw)
+  if (!brief) return []
+  const lines: string[] = []
+  if (brief.angle) lines.push(`Angle: ${brief.angle}`)
+  if (brief.audience) lines.push(`Audience: ${brief.audience}`)
+  if (brief.sections.length > 0) {
+    const rows = brief.sections
+      .map((s) => {
+        const tag = s.source === 'template' ? ' (required section)' : ''
+        return `- ${s.heading}${tag}${s.notes ? `: ${s.notes}` : ''}`
+      })
+      .join('\n')
+    lines.push(`Sections to cover, in this order:\n${rows}`)
+  }
+  if (brief.mustCover.length > 0) lines.push(`Must cover: ${brief.mustCover.join('; ')}`)
+  if (brief.notes) {
+    lines.push(
+      `Direction from the editor — follow this over the template outline where they conflict:\n${brief.notes}`,
+    )
+  }
+  return lines.length > 0 ? [`# Brief (approved by the editor)\n${lines.join('\n\n')}`] : []
+}
 
 /** `research.facets` / `research.gaps` are JSON columns, so trust nothing about their shape. */
 function jsonArray<T>(value: unknown): T[] {
@@ -82,6 +116,13 @@ export function gapsBlock(research: Article['research'], revisionNotes?: string 
   return sections
 }
 
+/** Non-blank secondary keywords the operator grouped into this article. */
+export function secondaryKeywordsOf(article: { secondaryKeywords?: { keyword?: string | null }[] | null }): string[] {
+  return (article.secondaryKeywords ?? [])
+    .map((row) => row.keyword?.trim())
+    .filter((k): k is string => Boolean(k))
+}
+
 export function buildPrompt(
   article: Article,
   template: Template,
@@ -96,6 +137,16 @@ export function buildPrompt(
   const samples = brandVoice ? brandVoiceSamplesToPrompt(brandVoice) : null
   return [
     `Write a complete article targeting the keyword: "${article.keyword}".`,
+    // One article is expected to cover the whole group the operator picked, so
+    // the secondaries have to reach the writer — otherwise they only ever
+    // affect scoring, and the draft never earns the coverage they represent.
+    ...(secondaryKeywordsOf(article).length > 0
+      ? [
+          `It must also cover these related searches, each with its own section or clearly addressed passage: ${secondaryKeywordsOf(article)
+            .map((k) => `"${k}"`)
+            .join(', ')}.`,
+        ]
+      : []),
     `# Template: ${template.name}`,
     `## Outline\n${outline}`,
     `## Dos\n${dos}`,
@@ -106,6 +157,7 @@ export function buildPrompt(
     `## Ranking pages\n${research?.rankingPagesSummary || '(none)'}`,
     `## Common subtopics\n${subtopics}`,
     `## Related questions\n${questions}`,
+    ...briefBlock(article.brief),
     ...gapsBlock(research, article.revisionNotes),
     `# Output`,
     `Return a JSON object with exactly these keys: title, slug, titleTag, metaDescription, ogTitle, ogDescription, ogImage, faqItems (array of {question, answer}), bodyMarkdown.`,

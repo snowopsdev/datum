@@ -74,6 +74,8 @@ A claim not selected for verification gets **neutral** evidence values — suppo
 
 One immutable `information-gain-runs` row per scoring — the full scorecard, every claim record, its evidence, the resolved policy and the models that judged it — plus a small denormalised summary on `Article.informationGain` pointing at it. A `needs_review` or `blocked` outcome also **clears `reviewJustification`**: the override gate demands a justification written for the article's current problem, and a stale one would let an earlier reviewer's reasoning approve a scorecard they never saw. (That gate is live — a `needs_review` article cannot be moved back by a plain status edit.)
 
+Alongside those, one `evidence-source-candidates` row per unrated domain the run touched — see [The source review queue](#the-source-review-queue). It is written after the run row, never blocks a decision, and reports a failure as a stage warning rather than a throw.
+
 `pipeline:report` gains an information-gain block: decision counts, mean consensus coverage and verification ratio, and a review queue listing each `needs_review`/`blocked` article's top reasons, read from its linked run rather than recomputed. The queue is filtered on the article's **status** as well as its decision: an override leaves the original `HUMAN_REVIEW`/`BLOCK` decision in place as the record of what was waived, so a decision-only filter would never let a resolved article out of the queue.
 
 ## The claim model and its signals
@@ -157,9 +159,26 @@ This is not a bug and not a threshold that wants loosening. An unvetted source c
 - A novel **non-numeric factual or inference** claim can additionally be cleared by `official_docs` (0.90), again only at full support and exactness.
 - `secondary` (0.75) and `unverified` (0.40) rows exist to record a judgement, and to be *worse* than the cap where the model was being generous. They cannot clear a novel-claim floor.
 
-So: before a real run, classify the domains your drafts actually cite. Add them under **Governance → Evidence sources** (`/admin/collections/evidence-sources`) with the class you are prepared to defend, and a `note` saying why. A row can be deactivated (`active: false`) rather than deleted, which returns the domain to the capped rubric path. `npm run seed` seeds three `primary` rows unconditionally (`sca.coffee`, `baristahustle.com`, `homegrounds.co`) purely so the mock walkthrough can reach `PASS` — they are the domains the mock verifier fixture cites, and they are not a starter list for a real tenant.
+So: before a real run, classify the domains your drafts actually cite. Add them under **Governance → Evidence sources** (`/admin/collections/evidence-sources`) with the class you are prepared to defend, and a `note` saying why — or let the pipeline tell you which domains it actually reached for and work through **Source review** (below) instead of guessing up front. A row can be deactivated (`active: false`) rather than deleted, which returns the domain to the capped rubric path. `npm run seed` seeds three `primary` rows unconditionally (`sca.coffee`, `baristahustle.com`, `homegrounds.co`) purely so the mock walkthrough can reach `PASS` — they are the domains the mock verifier fixture cites, and they are not a starter list for a real tenant.
 
 If you leave the table empty, the pipeline still runs and still produces a full scorecard. It will simply block every draft whose value rests on a novel number, and the run row will say exactly which claim and which floor.
+
+### The source review queue
+
+Classifying domains ahead of a run means guessing which ones the verifier will reach for. The queue removes the guess: the scoring stage records every domain it ran into that no active rule covers, and **Governance → Source review** (`/admin/ops/governance/source-review`) is where someone rates them. Nothing is auto-trusted — a candidate is a note that a decision is owed, never a decision.
+
+Two things become candidates, both filtered through `matchEvidenceRule` so a rated domain never accumulates one:
+
+- **Citations** — any `Evidence` whose `qualitySource` is `rubric` or `rubric_capped`, i.e. the verifier cited it and no rule matched. These are the domains actually costing drafts their integrity floors.
+- **Ranking pages** — every domain on the article's corpus snapshot (`pages[].domain`), which the research stage already captured and nothing read back. Failed and skipped pages count: a page that ranks is a competitor whether or not the crawler could read it.
+
+`collectCandidateSightings` (`cms/src/lib/informationGain/candidates.ts`) builds one sighting per domain per kind, `recordCandidateSightings` (`pipeline/src/informationGain/candidates.ts`) upserts one row per domain, and both run after the run row is created so each sighting carries a real `runId`. The write cannot change a decision — it happens after `decidePolicy` — and it cannot cost one either: a failure is caught and reported through `StageOutcome.warnings`, which `runPipeline` logs, counts as `warned` beside `failed`, and stores on the article's audit row. Throwing instead would strand the article at `qa_passed` and re-buy all three LLM passes on the next run over a queue row.
+
+**The suggestion is a default, not a verdict.** `suggestClass` uses the verifier's own rubric class where there is one — modally across sightings, `unknown` ignored, `blocked` read as `unverified`, ties resolving to the weaker class — and falls back to `secondary` above `SERP_SECONDARY_MIN_DR` (40) or `unverified` below it for a domain only ever seen ranking. It can never return `first_party_dataset` (only a human certifies a source as ours) or `blocked`, and both classes it can return sit at or below `UNKNOWN_DOMAIN_CAP` — so accepting a suggestion unchanged records a judgement without clearing any floor. Only a deliberate choice of `primary`, `official_docs` or `first_party_dataset` does that.
+
+**`evidence-sources` stays the authority on what is rated.** A candidate's `status` is never consulted for that: the page re-checks every pending row against the live rules on each render, so a rule added by hand takes its domain off the queue and deactivating one puts it back, with no write on either side. The pipeline applies the same rule from the other end — a sighting on an `approved` row means its rule is no longer active, so the row returns to `pending`. A dismissal is a standing answer and is never reopened automatically, though counts and `lastSeenAt` keep moving so a domain that keeps recurring stays visible.
+
+**Approvals apply to future runs.** Rating a domain does not re-score anything: an article already `blocked` or `needs_review` keeps its result until it goes through the stage again (Reset to drafted to re-check the same draft, or Send back then Regenerate to rewrite it first). The audit row comes from the `evidence-sources` `afterChange` hook under the event `evidence_source_approved`, carrying the candidate id — dismissals write none, because they change no scoring input, and `resolvedBy` records who did it.
 
 ## The policy gates
 
@@ -295,7 +314,9 @@ A mock run reaching `PASS` depends on the seeded `evidence-sources` rules, for e
 
 ## Running the whole thing
 
-`pipeline/scripts/ig-e2e.sh` is the documented walkthrough and the fastest way to see the feature work: it seeds, fetches topics, assigns a template, runs all four stages, asserts on the article's status, its `information-gain-runs` row and its cost rows, re-runs the pipeline to prove a settled article does not move, and prints the report. It exits non-zero on any failed assertion, makes no network calls, and spends nothing. It refuses to start under `MOCK_MODE=false`.
+`pipeline/scripts/ig-e2e.sh` is the documented walkthrough and the fastest way to see the feature work: it seeds, fetches topics, assigns a template, runs research (which stops at the brief checkpoint), approves the brief through the probe, runs the remaining three stages, asserts on the article's status, its `information-gain-runs` row and its cost rows, re-runs the pipeline to prove a settled article does not move, and prints the report. It exits non-zero on any failed assertion, makes no network calls, and spends nothing. It refuses to start under `MOCK_MODE=false`. Run it against a migration-built database — dev push is off under vitest and the script boots Payload the same way the tests do — e.g. `createdb -O datum datum_e2e`, `DATABASE_URL=… npm run payload --workspace cms -- migrate`, then `DATABASE_URL=… MOCK_MODE=true ./pipeline/scripts/ig-e2e.sh`.
+
+It also asserts the review queue in both directions: the three mock SERP hosts appear as `pending` candidates suggested `secondary`, and the three seeded domains stay out of it because an active rule already covers them. The probe's `candidates <domain…>` command prints a row per domain (or `none`), so the script can check for absence as easily as presence.
 
 It is repeatable against a database that has already been walked through. `pipeline:fetch` skips a keyword that already has an article and the mock Ahrefs client offers only four content-gap keywords, so the script owns one dedicated keyword that it resets to `topic_selected` on each run, and treats `fetch` creating zero articles as the expected outcome on a used database. Run rows are immutable and are never deleted, so a second walkthrough leaves the first one's run row in place and asserts on the newest.
 

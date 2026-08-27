@@ -46,7 +46,17 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       ahrefs: createAhrefsClient(),
     }
 
-    if (run.source === 'onboarding') {
+    if (run.source === 'selected') {
+      // The articles were chosen by a person and attached when the run was
+      // created, so there is nothing to discover. This is the only source that
+      // advances work already on the board rather than buying new topics.
+      articleIds = (run.articles ?? []).map((entry) =>
+        typeof entry === 'object' ? entry.id : entry,
+      )
+      if (articleIds.length === 0) {
+        throw new Error('This run has no articles attached.')
+      }
+    } else if (run.source === 'onboarding') {
       const sample = await payload.create({
         collection: 'articles',
         overrideAccess: true,
@@ -94,17 +104,34 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       policy: await loadInformationGainPolicy(payload),
       evidenceSources: await loadEvidenceSources(payload),
       llm: createLlmClient(run.mode),
+      // The onboarding run is a smoke test with nobody at the keyboard; every
+      // other run stops at the brief for a person to approve.
+      pauseForBrief: run.source !== 'onboarding',
     }
     const result = await runPipeline(stageContext, { articleIds })
     const completedAt = new Date().toISOString()
+    // A run that advanced nothing is not a success, whatever the job queue
+    // thinks. `runPipeline` deliberately swallows a single article's failure so
+    // the rest of the batch survives, which means the only signal that anything
+    // went wrong is `result.failed` — and reporting `succeeded` regardless left
+    // an operator staring at a card that had not moved with nowhere to look.
+    const advanced = Object.values(result.finalStatuses).reduce((sum, n) => sum + n, 0)
+    const status = advanced === 0 && result.failed > 0 ? 'failed' : 'succeeded'
     await payload.update({
       collection: 'pipeline-runs',
       id: run.id,
       overrideAccess: true,
       data: {
-        status: 'succeeded',
+        status,
         articles: articleIds,
         finalStatuses: result.finalStatuses,
+        warnings: result.failures.length > 0 ? result.failures : null,
+        errorSummary:
+          result.failures.length > 0
+            ? result.failures
+                .map((f) => `${f.stage}: "${f.keyword}" — ${safeError(new Error(f.message))}`)
+                .join('\n\n')
+            : null,
         completedAt,
       },
     })

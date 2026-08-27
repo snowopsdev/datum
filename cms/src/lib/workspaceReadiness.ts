@@ -138,7 +138,9 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const contentReady = input.templates.length > 0
 
   return {
-    ready: runtimeReady && governanceReady && contentReady && verificationReady,
+    // What making content actually requires. Runtime problems surface as a
+    // banner for whoever deploys; the verification run is no longer a gate.
+    ready: governanceReady && contentReady,
     mode,
     configFingerprint,
     runtime: { ready: runtimeReady, missing: [...missing].sort() },

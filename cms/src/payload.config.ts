@@ -15,7 +15,9 @@ import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
 import { EvidenceSources } from './collections/EvidenceSources'
+import { EvidenceSourceCandidates } from './collections/EvidenceSourceCandidates'
 import { CorpusSnapshots } from './collections/CorpusSnapshots'
+import { TopicSearches } from './collections/TopicSearches'
 import { InformationGainRuns } from './collections/InformationGainRuns'
 import { PipelineRuns } from './collections/PipelineRuns'
 import { InformationGainPolicy } from './globals/InformationGainPolicy'
@@ -41,6 +43,9 @@ export default buildConfig({
     },
     components: {
       afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
+      // A provider is the only slot that wraps every admin route, which is what
+      // the run bar needs: a live run outlasts the page you started it from.
+      providers: ['/components/ops/RunBarProvider#RunBarProvider'],
       views: {
         dashboard: {
           Component: '/components/ops/OnboardingDashboardView#OnboardingDashboardView',
@@ -48,11 +53,31 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Workspace setup' },
         },
+        newContent: {
+          Component: '/components/ops/NewContentView#NewContentView',
+          path: '/ops/new',
+          exact: true,
+          meta: { title: 'New content' },
+        },
+        // The keyword-first discovery page this replaced. Redirects so bookmarks work.
+        topicDiscovery: {
+          Component: '/components/ops/TopicDiscoveryView#TopicDiscoveryView',
+          path: '/ops/topics',
+          exact: true,
+          meta: { title: 'New content' },
+        },
+        content: {
+          Component: '/components/ops/ContentListView#ContentListView',
+          path: '/ops/content',
+          exact: true,
+          meta: { title: 'Content' },
+        },
+        // The kanban board this replaced. Kept as a redirect so bookmarks work.
         articleBoard: {
           Component: '/components/ops/ArticleBoardView#ArticleBoardView',
           path: '/ops/articles',
           exact: true,
-          meta: { title: 'Article board' },
+          meta: { title: 'Content' },
         },
         articleReview: {
           Component: '/components/ops/ArticleReviewView#ArticleReviewView',
@@ -77,6 +102,12 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Brand voice' },
         },
+        sourceReview: {
+          Component: '/components/ops/SourceReviewView#SourceReviewView',
+          path: '/ops/governance/source-review',
+          exact: true,
+          meta: { title: 'Source review' },
+        },
       },
     },
   },
@@ -91,7 +122,9 @@ export default buildConfig({
     BrandVoiceFiles,
     GovernanceAudit,
     EvidenceSources,
+    EvidenceSourceCandidates,
     CorpusSnapshots,
+    TopicSearches,
     InformationGainRuns,
     PipelineRuns,
   ],
@@ -114,6 +147,16 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    // Dev push stays on for `next dev` and the pipeline CLI, but not under
+    // vitest. Tests run on migration-built databases, so push has nothing
+    // legitimate to do there — and what it *does* do is race: the
+    // `evidence_source_candidates.resolved_source` FK name is 68 characters,
+    // Postgres keeps 63, so drizzle sees a mismatch on every boot and emits a
+    // DROP + ADD of the same constraint. One process survives that; two vitest
+    // workers booting together do not (the second DROP finds nothing). Turning
+    // push off in tests also removes the interactive "create enum?" prompt that
+    // used to hang the suite after a schema change.
+    push: process.env.VITEST !== 'true',
   }),
   sharp,
   plugins: [],

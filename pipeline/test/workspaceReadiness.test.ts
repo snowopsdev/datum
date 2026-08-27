@@ -22,15 +22,18 @@ const baseInput = (): WorkspaceReadinessInput => ({
 })
 
 describe('workspace readiness', () => {
-  it('shows a governed mock workspace as ready except for verification', () => {
+  it('shows a governed mock workspace as ready, independent of verification', () => {
     const readiness = evaluateWorkspaceReadiness(baseInput())
 
     assert.equal(readiness.mode, 'mock')
     assert.equal(readiness.runtime.ready, true)
     assert.equal(readiness.governance.ready, true)
     assert.equal(readiness.content.ready, true)
+    // `ready` is a run-time question — can Datum write and score content — not
+    // an onboarding one, so it does not wait on a verification run nobody has
+    // done yet.
     assert.equal(readiness.verification.ready, false)
-    assert.equal(readiness.ready, false)
+    assert.equal(readiness.ready, true)
     assert.deepEqual(readiness.runtime.missing, [])
   })
 
@@ -96,6 +99,8 @@ describe('workspace readiness', () => {
     const stale = evaluateWorkspaceReadiness(input)
     assert.equal(stale.verification.ready, false)
     assert.equal(stale.verification.stale, true)
-    assert.equal(stale.ready, false)
+    // A config change stales the verification snapshot, but governance and
+    // templates are unaffected, so the workspace is still ready to run.
+    assert.equal(stale.ready, true)
   })
 })

@@ -115,7 +115,20 @@ step=$((step + 1)); log "$step. Assign a template (the manual editorial step)"
 npx --workspace pipeline tsx scripts/assign-template.ts "$ARTICLE_ID" "$E2E_TEMPLATE"
 
 # ---------------------------------------------------------------------------
-step=$((step + 1)); log "$step. Run the pipeline: research -> generate -> qa -> informationGain"
+step=$((step + 1)); log "$step. Run research (the pipeline stops at the brief)"
+npm run pipeline:run
+BRIEF_OUT="$(probe state "$ARTICLE_ID")"
+assert_eq 'status after research' "$(value_of "$BRIEF_OUT" status)" 'brief_review'
+
+# ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Approve the brief (the editorial checkpoint before writing)"
+APPROVE_OUT="$(probe approve-brief "$ARTICLE_ID")"
+printf '%s\n' "$APPROVE_OUT" | sed 's/^/   /'
+assert_eq 'brief approved'       "$(value_of "$APPROVE_OUT" approved)" 'true'
+assert_ge 'brief has sections'   "$(value_of "$APPROVE_OUT" briefSections)" 1
+
+# ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Run the rest: generate -> qa -> informationGain"
 npm run pipeline:run
 
 # ---------------------------------------------------------------------------
@@ -146,6 +159,30 @@ RUN_ID_AFTER_FIRST="$(value_of "$STATE_OUT" latestRunId)"
 RUN_ROWS_AFTER_FIRST="$(value_of "$STATE_OUT" runRows)"
 
 # ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Assert the source review queue"
+# The three mock SERP hosts rank for the keyword and nobody has rated them, so
+# each is queued from its `serp` sighting. The rating drives the suggestion:
+# DR 78/71/66 all clear SERP_SECONDARY_MIN_DR, so all three suggest `secondary`.
+# The three seeded domains must NOT be queued — an active evidence-sources rule
+# covers them, which is the whole drop-out rule.
+CAND_OUT="$(probe candidates competitor-one.com competitor-two.com industry-mag.example.com \
+  sca.coffee baristahustle.com homegrounds.co)"
+printf '%s\n' "$CAND_OUT"
+for domain in competitor-one.com competitor-two.com industry-mag.example.com; do
+  assert_eq "candidate $domain" "$(value_of "$CAND_OUT" "candidate.$domain")" 'pending:serp:secondary'
+  assert_eq "candidate $domain awaits review" \
+    "$(value_of "$CAND_OUT" "candidatePending.$domain")" 'true'
+done
+# Not "no row exists": a rated domain keeps whatever row it picked up while its
+# rule was inactive. What must hold is that an active rule leaves nothing
+# awaiting review.
+for domain in sca.coffee baristahustle.com homegrounds.co; do
+  assert_eq "rated domain $domain is not awaiting review" \
+    "$(value_of "$CAND_OUT" "candidatePending.$domain")" 'false'
+done
+SERP_COUNT_AFTER_FIRST="$(value_of "$CAND_OUT" candidateSerpCount.competitor-one.com)"
+
+# ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Run again — a settled article must not move"
 # No stage has `verified` as its entryStatus, so the second run finds nothing to
 # do for this article: same status, same run row, no new scoring cost.
@@ -157,12 +194,22 @@ assert_eq 'run rows after re-run' "$(value_of "$SECOND_OUT" runRows)" "$RUN_ROWS
 assert_eq 'run id after re-run'   "$(value_of "$SECOND_OUT" latestRunId)" "$RUN_ID_AFTER_FIRST"
 assert_eq 'total cost after re-run' \
   "$(value_of "$SECOND_OUT" totalCostUsd)" "$(value_of "$STATE_OUT" totalCostUsd)"
+# The scoring stage never ran, so it recorded no new sightings either — a
+# candidate's counts must not creep upward on runs that did no work.
+SECOND_CAND_OUT="$(probe candidates competitor-one.com)"
+assert_eq 'candidate serp count after re-run' \
+  "$(value_of "$SECOND_CAND_OUT" candidateSerpCount.competitor-one.com)" "$SERP_COUNT_AFTER_FIRST"
 
 # ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Report"
 REPORT_OUT="$(npm run pipeline:report -- --period week)"
 printf '%s\n' "$REPORT_OUT"
-if printf '%s\n' "$REPORT_OUT" | grep -q '== Information gain'; then
+# A native match, not `printf … | grep -q`: under `set -o pipefail` that idiom
+# reports failure precisely *when it works*. `grep -q` stops reading at the
+# first match, `printf` then dies of SIGPIPE (141), and pipefail hands the
+# pipeline that status — so a report containing the block looked like one that
+# did not.
+if [[ "$REPORT_OUT" == *'== Information gain'* ]]; then
   printf '   \033[32mPASS\033[0m report contains the information-gain block\n'
 else
   printf '   \033[31mFAIL\033[0m report is missing the information-gain block\n'

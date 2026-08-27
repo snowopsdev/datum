@@ -165,10 +165,16 @@ export function runStructuralChecks(
   }
 
   if (seo.ogTagsRequired) {
+    // `ogImage` is deliberately not required, and the two halves of that
+    // decision have to agree: `generate.ts` treats it as optional because the
+    // model has no hosted image to point at, and there is no tenant default to
+    // fall back on. Demanding it here made the check unwinnable — every draft
+    // failed structural QA on a field nothing could ever fill, and no amount of
+    // regenerating could fix it. The sharing text is still enforced, because
+    // the writer can and does produce it.
     const missing: ('ogTitle' | 'ogDescription' | 'ogImage')[] = []
     if (!article.ogTitle) missing.push('ogTitle')
     if (!article.ogDescription) missing.push('ogDescription')
-    if (!article.ogImage) missing.push('ogImage')
     if (missing.length > 0) violations.push({ code: 'OG_TAGS_MISSING', missing })
   }
 

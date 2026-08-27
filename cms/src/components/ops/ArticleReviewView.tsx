@@ -12,6 +12,7 @@ import type {
   Template,
 } from '../../payload-types'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
+import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import { ArticleReview } from './ArticleReview'
 import type { AuditTimelineEntry } from './articleStatus'
 import { formatAuditTimestamp, toBoardArticle, toRunView } from './articleStatus'
@@ -48,7 +49,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }] =
+  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }, setup] =
     await Promise.all([
       req.payload.find({
         collection: 'templates',
@@ -91,6 +92,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         user: req.user,
         overrideAccess: false,
       }),
+      loadWorkspaceSetup(req.payload),
     ])
 
   const latestRun = (runDocs as InformationGainRun[])[0] ?? null
@@ -148,6 +150,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       <Gutter>
         <ArticleReview
           article={toBoardArticle(article)}
+          mode={setup.readiness.mode}
           templates={templates}
           editHref={`/admin/collections/articles/${article.id}`}
           bodyHtml={lexicalBodyToHtml(article.body)}

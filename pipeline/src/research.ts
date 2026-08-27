@@ -15,22 +15,42 @@
  * against.
  */
 
+import { buildBrief } from './brief'
 import { getOrBuildSnapshot } from './corpus/snapshot'
-import { applyTemplateHints, buildQueryCluster, type Facet } from './informationGain/lib'
+import {
+  applyTemplateHints,
+  buildQueryCluster,
+  type Facet,
+  type InformationGap,
+} from './informationGain/lib'
 import { resolveTemplate, type Stage } from './stages'
 
-/** `facets` is a JSON column on the snapshot, so trust nothing about its shape. */
+/** `facets` / `gaps` are JSON columns on the snapshot, so trust nothing about their shape. */
 const storedFacets = (value: unknown): Facet[] => (Array.isArray(value) ? (value as Facet[]) : [])
+const storedGaps = (value: unknown): InformationGap[] =>
+  Array.isArray(value) ? (value as InformationGap[]) : []
 
 export const researchStage: Stage = {
   name: 'research',
   entryStatus: 'topic_selected',
-  exitStatus: 'researched',
+  // The brief checkpoint. `researched` is the generate stage's entry status,
+  // and approving the brief is what moves a piece there.
+  exitStatus: 'brief_review',
   async run(article, ctx) {
     // runPipeline queries with depth: 1, so the template relationship is populated.
     const template = resolveTemplate(article)
     const serp = await ctx.ahrefs.serpResearch(article.keyword)
-    const queryCluster = buildQueryCluster(article.keyword, serp.relatedQuestions)
+    // The operator may have grouped several related searches into this one
+    // article at discovery time; they belong in the cluster the draft is
+    // written for and scored against, not just the primary.
+    const secondaryKeywords = (article.secondaryKeywords ?? [])
+      .map((row) => row.keyword?.trim())
+      .filter((k): k is string => Boolean(k))
+    const queryCluster = buildQueryCluster(
+      article.keyword,
+      serp.relatedQuestions,
+      secondaryKeywords,
+    )
     const snapshot = await getOrBuildSnapshot(ctx, article, template, serp, queryCluster)
     // A reused snapshot carries the template hints of whichever article built
     // it, so `mustHave` — and the `weight` its floor depends on — are re-derived
@@ -41,9 +61,19 @@ export const researchStage: Stage = {
       (template.requiredSections ?? []).map((section) => section.heading),
       snapshot.baselineDocCount ?? 0,
     )
+    const gaps = storedGaps(snapshot.gaps)
+    const brief = buildBrief({
+      keyword: article.keyword,
+      templateIntent: template.intent,
+      requiredSections: (template.requiredSections ?? []).map((s) => s.heading),
+      facets,
+      gaps,
+      brandVoice: ctx.brandVoice,
+    })
     return {
-      status: 'researched',
+      status: ctx.pauseForBrief === false ? 'researched' : 'brief_review',
       data: {
+        brief,
         research: {
           rankingPagesSummary: serp.rankingPagesSummary,
           commonSubtopics: serp.commonSubtopics.map((text) => ({ text })),
@@ -51,7 +81,7 @@ export const researchStage: Stage = {
           snapshot: snapshot.id,
           queryCluster,
           facets,
-          gaps: snapshot.gaps,
+          gaps,
         },
       },
     }

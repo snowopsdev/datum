@@ -18,7 +18,16 @@ export const KEYWORD_WEIGHT = 1
 export const RELATED_QUESTION_WEIGHT = 0.3
 
 /**
- * The keyword becomes `q0`, surviving related questions `q1…`. Blank entries and
+ * A secondary keyword the operator deliberately grouped with the primary when
+ * they built this topic. Weighted between the two: they chose it, so it carries
+ * more intent than a question the SERP happened to surface, but the primary is
+ * still what the article targets.
+ */
+export const SECONDARY_KEYWORD_WEIGHT = 0.6
+
+/**
+ * The primary keyword becomes `q0`, then any secondary keywords the operator
+ * grouped with it, then surviving related questions. Blank entries and
  * anything that repeats an earlier query (compared trimmed and lower-cased, the
  * keyword included) are dropped, then the weights are normalised to sum to 1 so
  * a long question list cannot inflate a draft's relevance. The stored `text`
@@ -27,6 +36,7 @@ export const RELATED_QUESTION_WEIGHT = 0.3
 export function buildQueryCluster(
   keyword: string,
   relatedQuestions: string[],
+  secondaryKeywords: string[] = [],
 ): QueryClusterEntry[] {
   const seen = new Set<string>()
   const entries: { id: string; text: string; kind: QueryClusterEntry['kind']; raw: number }[] = []
@@ -38,6 +48,18 @@ export function buildQueryCluster(
   }
 
   let index = 1
+  // Before the related questions, so the operator's own grouping keeps the
+  // lower ids and reads first wherever the cluster is rendered.
+  for (const secondary of secondaryKeywords) {
+    const text = secondary.trim()
+    if (text.length === 0) continue
+    const key = text.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    entries.push({ id: `q${index}`, text, kind: 'keyword', raw: SECONDARY_KEYWORD_WEIGHT })
+    index += 1
+  }
+
   for (const question of relatedQuestions) {
     const text = question.trim()
     if (text.length === 0) continue

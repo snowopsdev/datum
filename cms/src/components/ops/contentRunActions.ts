@@ -62,6 +62,6 @@ export async function startContentRunAction(
   }
 
   revalidatePath('/admin')
-  revalidatePath('/admin/ops/articles')
+  revalidatePath('/admin/ops/content')
   return { ok: true, runId }
 }

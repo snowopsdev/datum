@@ -65,6 +65,30 @@ const matchesDomain = (hostname: string, domain: string): boolean =>
   hostname === domain || hostname.endsWith(`.${domain}`)
 
 /**
+ * The active rule covering a hostname, or null when nobody has rated it.
+ *
+ * Separate from `resolveSourceQuality` because two callers need the *question*
+ * rather than the score: the candidate collector, which drops a domain that is
+ * already rated, and the review page, which re-checks pending candidates against
+ * the live rules so a hand-written or deactivated rule takes effect with no
+ * write of its own.
+ */
+export function matchEvidenceRule(
+  hostname: string,
+  rules: EvidenceSourceRule[],
+): EvidenceSourceRule | null {
+  let best: { rule: EvidenceSourceRule; length: number } | null = null
+  for (const rule of rules) {
+    if (!rule.active) continue
+    const domain = normaliseDomain(rule.domain)
+    if (domain === '' || !matchesDomain(hostname, domain)) continue
+    // Longest match wins, so a specific subdomain rule beats its parent domain.
+    if (best === null || domain.length > best.length) best = { rule, length: domain.length }
+  }
+  return best?.rule ?? null
+}
+
+/**
  * The score one cited URL carries, and where that score came from. A URL we
  * cannot even parse scores 0 — an unusable citation is not evidence.
  */
@@ -76,23 +100,16 @@ export function resolveSourceQuality(
   const hostname = hostnameOf(url)
   if (hostname === null) return { score: 0, source: 'rubric', matchedRule: null }
 
-  let best: { rule: EvidenceSourceRule; length: number } | null = null
-  for (const rule of rules) {
-    if (!rule.active) continue
-    const domain = normaliseDomain(rule.domain)
-    if (domain === '' || !matchesDomain(hostname, domain)) continue
-    // Longest match wins, so a specific subdomain rule beats its parent domain.
-    if (best === null || domain.length > best.length) best = { rule, length: domain.length }
-  }
+  const matched = matchEvidenceRule(hostname, rules)
 
-  if (best !== null) {
+  if (matched !== null) {
     return {
       // ?? 0 because a hand-written or imported row can carry a class outside
       // the enum; undefined here would become NaN evidence integrity, which
       // compares false against every floor and would silently pass the gates.
-      score: SOURCE_QUALITY_SCORE[best.rule.qualityClass] ?? 0,
+      score: SOURCE_QUALITY_SCORE[matched.qualityClass] ?? 0,
       source: 'evidence-sources',
-      matchedRule: best.rule.domain,
+      matchedRule: matched.domain,
     }
   }
 

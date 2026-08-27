@@ -361,68 +361,6 @@
   color: var(--ops-primary);
 }
 
-.datum-ops__board {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 24px;
-  align-items: stretch;
-}
-
-.datum-ops__column {
-  flex: 0 0 220px;
-  display: flex;
-  flex-direction: column;
-  background: var(--ops-canvas);
-  border: 1px solid var(--ops-hairline);
-  border-radius: var(--ops-radius-lg);
-  min-height: 280px;
-  max-height: calc(100vh - 220px);
-}
-
-.datum-ops__column--actionable {
-  box-shadow: var(--ops-shadow);
-  border-color: rgba(0, 117, 222, 0.25);
-}
-
-.datum-ops__column-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 14px 14px 4px;
-  gap: 8px;
-}
-
-.datum-ops__column-head h2 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.125px;
-  color: var(--ops-ink-secondary);
-}
-
-.datum-ops__column-head span {
-  font-size: 12px;
-  color: var(--ops-ink-faint);
-  font-weight: 600;
-}
-
-.datum-ops__column-sub {
-  padding: 0 14px 12px;
-  font-size: 14px;
-  color: var(--ops-ink-faint);
-  border-bottom: 1px solid var(--ops-hairline);
-}
-
-.datum-ops__column-body {
-  padding: 10px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
 .datum-ops__empty {
   border: 1px dashed var(--ops-hairline);
   color: var(--ops-ink-faint);
@@ -431,35 +369,6 @@
   text-align: center;
   border-radius: var(--ops-radius-md);
   background: var(--ops-canvas-soft);
-}
-
-.datum-ops__card {
-  display: block;
-  text-align: left;
-  text-decoration: none;
-  color: inherit;
-  border: 1px solid var(--ops-hairline);
-  background: var(--ops-canvas);
-  padding: 12px;
-  border-radius: var(--ops-radius-md);
-  width: 100%;
-}
-
-.datum-ops__card:hover {
-  border-color: rgba(0, 117, 222, 0.45);
-}
-
-.datum-ops__card-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin: 0 0 4px;
-  line-height: 1.35;
-}
-
-.datum-ops__card-meta {
-  color: var(--ops-ink-muted);
-  font-size: 14px;
-  margin: 0 0 8px;
 }
 
 .datum-ops__row {
@@ -910,6 +819,35 @@
   }
 }
 
+/*
+ * Brand voice reuses the template two-pane layout, but its left rail also holds
+ * the "Replace this voice" cards. Those are `.datum-ops__entry-cards`, which ask
+ * for `minmax(280px, 1fr)` — wider than the 220px column they sit in — so they
+ * overflowed and the grid's `overflow: hidden` sheared them off mid-word. Give
+ * the rail room and let the cards fill it in one column instead of demanding a
+ * width the rail cannot give.
+ */
+.datum-ops__bv {
+  grid-template-columns: 320px 1fr;
+}
+
+.datum-ops__bv .datum-ops__tpl-list {
+  overflow-y: auto;
+}
+
+.datum-ops__bv .datum-ops__entry-cards {
+  grid-template-columns: 1fr;
+  max-width: none;
+  gap: 10px;
+  padding: 12px;
+}
+
+@media (max-width: 800px) {
+  .datum-ops__bv {
+    grid-template-columns: 1fr;
+  }
+}
+
 .datum-ops__tpl-list {
   border-right: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
@@ -1134,6 +1072,11 @@
 .datum-ops__pill--muted {
   background: var(--ops-canvas-soft);
   color: var(--ops-ink-faint);
+}
+
+/* A pill holding a short label + value ("DR 78") must not break between them. */
+.datum-ops__pill--tight {
+  white-space: nowrap;
 }
 
 .datum-ops__status--active {
@@ -1967,4 +1910,954 @@
   background: rgba(0, 117, 222, 0.1);
   color: var(--ops-primary);
   cursor: help;
+}
+
+/* ── Run status panel ───────────────────────────────────────────────────
+   Starting a run used to produce one toast and then silence. This is the
+   board's running commentary: what is happening now, and what a finished
+   run actually achieved — including the articles it could not move. */
+
+.datum-ops__runstatus {
+  margin: 16px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--ops-hairline);
+  border-left-width: 3px;
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+}
+
+.datum-ops__runstatus--running,
+.datum-ops__runstatus--queued {
+  border-left-color: var(--ops-primary);
+}
+
+.datum-ops__runstatus--succeeded {
+  border-left-color: var(--ops-green);
+}
+
+.datum-ops__runstatus--failed {
+  border-left-color: var(--ops-red);
+}
+
+.datum-ops__runstatus-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.datum-ops__runstatus p {
+  margin: 0;
+}
+
+.datum-ops__pill--running,
+.datum-ops__pill--queued {
+  background: rgba(0, 117, 222, 0.12);
+  color: var(--ops-primary);
+}
+
+.datum-ops__pill--succeeded {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-ops__pill--failed {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
+}
+
+.datum-ops__runstatus-fails {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__runstatus-fails ul {
+  margin: 6px 0 8px;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--ops-ink-secondary);
+}
+
+.datum-ops__runstatus-fails li + li {
+  margin-top: 6px;
+}
+
+/* ── New template ───────────────────────────────────────────────────────
+   The add control and its form sit inside `.datum-ops__tpl-list`, whose
+   bare `button` rule styles every child button as a list row. Both blocks
+   below opt their own buttons back out of it. */
+
+.datum-ops__tpl-add {
+  color: var(--ops-primary);
+  font-weight: 600;
+}
+
+.datum-ops__tpl-new {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ops-hairline);
+  background: var(--ops-canvas-soft);
+}
+
+.datum-ops__tpl-list .datum-ops__tpl-new button {
+  display: inline-flex;
+  width: auto;
+  border-bottom: 0;
+  padding: 8px 14px;
+}
+
+.datum-ops__tpl-list .datum-ops__tpl-new .datum-ops__link-btn {
+  padding: 8px 4px;
+}
+
+.datum-ops__tpl-new .datum-ops__field {
+  margin-bottom: 10px;
+}
+
+.datum-ops__tpl-new .datum-ops__hint {
+  margin: 10px 0 0;
+}
+
+/* ── Global run bar ─────────────────────────────────────────────────────
+   Mounted from a Payload provider, so it is outside `.datum-ops` and cannot
+   inherit those tokens — every colour here resolves against Payload's own
+   theme variables, with a literal fallback for each. */
+
+.datum-runbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: var(--theme-elevation-0, #ffffff);
+  border-top: 1px solid var(--theme-elevation-150, #e6e6e6);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  color: var(--theme-text, #000000);
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  animation: datum-runbar-in 180ms ease-out;
+}
+
+@keyframes datum-runbar-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .datum-runbar {
+    animation: none;
+  }
+}
+
+.datum-runbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 10px 20px;
+}
+
+.datum-runbar__dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--theme-elevation-400, #9a9a9a);
+}
+
+.datum-runbar__dot--queued,
+.datum-runbar__dot--running {
+  background: #0075de;
+  animation: datum-runbar-pulse 1.4s ease-in-out infinite;
+}
+
+.datum-runbar__dot--succeeded {
+  background: #1aae39;
+}
+
+.datum-runbar__dot--failed {
+  background: var(--theme-error-600, #c0332c);
+}
+
+@keyframes datum-runbar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 117, 222, 0.5);
+  }
+  50% {
+    opacity: 0.65;
+    box-shadow: 0 0 0 6px rgba(0, 117, 222, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .datum-runbar__dot--queued,
+  .datum-runbar__dot--running {
+    animation: none;
+  }
+}
+
+.datum-runbar__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.datum-runbar__text strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.datum-runbar__detail {
+  font-size: 12px;
+  color: var(--theme-elevation-600, #615d59);
+  /* One line: the bar is a status line, not a log. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datum-runbar__track {
+  flex: 0 1 220px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--theme-elevation-150, #e6e6e6);
+  overflow: hidden;
+}
+
+.datum-runbar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: #0075de;
+  transition: width 400ms ease;
+}
+
+.datum-runbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.datum-runbar__link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0075de;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.datum-runbar__link:hover {
+  text-decoration: underline;
+}
+
+.datum-runbar__close {
+  border: 0;
+  background: transparent;
+  color: var(--theme-elevation-600, #615d59);
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.datum-runbar__close:hover {
+  background: var(--theme-elevation-100, #f1f1f1);
+}
+
+@media (max-width: 700px) {
+  .datum-runbar__track {
+    display: none;
+  }
+}
+
+/* Expanded run detail: per-stage model-call counts, above the bar's own row. */
+.datum-runbar__detail-panel {
+  /* Sits above the status row, so its rule goes on the bottom edge. */
+  border-bottom: 1px solid var(--theme-elevation-150, #e6e6e6);
+  background: var(--theme-elevation-50, #f6f5f4);
+  padding: 10px 20px 12px;
+}
+
+.datum-runbar__detail-panel ul {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 1600px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 4px 24px;
+}
+
+.datum-runbar__detail-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.datum-runbar__detail-num {
+  color: var(--theme-elevation-600, #615d59);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.datum-runbar__detail-panel p {
+  max-width: 1600px;
+  margin: 8px auto 0;
+  font-size: 11px;
+  color: var(--theme-elevation-500, #8a8a8a);
+}
+
+/* ── QA failure detail ──────────────────────────────────────────────────
+   Each failure states the problem and the instruction that fixes it. The
+   instruction is not decoration: it is the text regeneration sends to the
+   writer, so what the reviewer reads here is what the next draft is told. */
+
+.datum-ops__qa-fails {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.datum-ops__qa-fails li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__qa-fails li:last-child {
+  border-bottom: 0;
+}
+
+.datum-ops__qa-what {
+  margin: 0 0 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink);
+}
+
+.datum-ops__qa-fix {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__qa-fix strong {
+  color: var(--ops-ink-secondary);
+}
+
+.datum-ops__qa-code {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-ops__qa-sources {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ops-ink-faint);
+}
+
+/* ── Stepper ─────────────────────────────────────────────────────────────
+   Five dots for the five stages a person thinks in. Colour is the owner:
+   blue while Datum works, orange when a person has to act, grey when done.
+   Used in list rows (compact) and the piece header (full, with labels). */
+
+.datum-stepper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  --stepper-accent: var(--ops-primary);
+}
+
+.datum-stepper--you {
+  --stepper-accent: var(--ops-orange);
+}
+
+.datum-stepper--done {
+  --stepper-accent: var(--ops-green);
+}
+
+.datum-stepper__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 22px;
+}
+
+.datum-stepper__step + .datum-stepper__step::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--ops-hairline);
+}
+
+.datum-stepper__step--done + .datum-stepper__step::before,
+.datum-stepper__step--done + .datum-stepper__step--current::before {
+  background: var(--stepper-accent);
+}
+
+.datum-stepper__dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ops-hairline);
+  background: var(--ops-canvas);
+}
+
+.datum-stepper__step--done .datum-stepper__dot {
+  background: var(--stepper-accent);
+  border-color: var(--stepper-accent);
+}
+
+.datum-stepper__step--current .datum-stepper__dot {
+  border-color: var(--stepper-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--stepper-accent) 22%, transparent);
+}
+
+.datum-stepper__label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ops-ink-faint);
+  white-space: nowrap;
+}
+
+.datum-stepper__step--current .datum-stepper__label {
+  color: var(--ops-ink);
+  font-weight: 600;
+}
+
+.datum-stepper--full {
+  width: 100%;
+  max-width: 520px;
+}
+
+.datum-stepper--full .datum-stepper__dot {
+  width: 14px;
+  height: 14px;
+}
+
+.datum-ops__stage-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ── Content list ──────────────────────────────────────────────────────── */
+
+.datum-content__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+
+.datum-ops__tabs--pills {
+  display: flex;
+  gap: 4px;
+  border: 0;
+  padding: 3px;
+  background: var(--ops-canvas-soft);
+  border-radius: var(--ops-radius-full);
+}
+
+.datum-ops__tabs--pills button {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: var(--ops-radius-full);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ops-ink-muted);
+  cursor: pointer;
+}
+
+.datum-ops__tabs--pills button.is-active {
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  box-shadow: var(--ops-shadow);
+}
+
+.datum-content__count {
+  margin-left: 4px;
+  font-weight: 500;
+  color: var(--ops-ink-faint);
+}
+
+.datum-content__search {
+  flex: 0 1 280px;
+  padding: 8px 12px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  font: inherit;
+  font-size: 13px;
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+}
+
+.datum-content__bulk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas-soft);
+  font-size: 13px;
+}
+
+.datum-content__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  overflow: hidden;
+}
+
+.datum-content__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 2fr) minmax(180px, 1.2fr) 130px auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ops-hairline);
+  border-left: 3px solid transparent;
+}
+
+.datum-content__row:last-child {
+  border-bottom: 0;
+}
+
+.datum-content__row--you {
+  border-left-color: var(--ops-orange);
+}
+
+.datum-content__pick {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.datum-content__main {
+  min-width: 0;
+}
+
+.datum-content__title {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ops-ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datum-content__title:hover {
+  text-decoration: underline;
+}
+
+.datum-content__meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-content__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.datum-content__stage-label {
+  font-size: 12px;
+  color: var(--ops-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datum-content__owner {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--ops-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  background: rgba(0, 117, 222, 0.1);
+  color: var(--ops-primary);
+}
+
+.datum-content__owner--you {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+}
+
+.datum-content__owner--done {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-content__action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.datum-content__empty {
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px dashed var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+}
+
+.datum-content__empty h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: var(--ops-ink);
+}
+
+.datum-content__empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .datum-content__row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'pick main owner'
+      'pick stage action';
+  }
+  .datum-content__pick { grid-area: pick; }
+  .datum-content__main { grid-area: main; }
+  .datum-content__stage { grid-area: stage; }
+  .datum-content__owner { grid-area: owner; justify-self: end; }
+  .datum-content__action { grid-area: action; }
+}
+
+/* ── Brief editor ──────────────────────────────────────────────────────── */
+
+.datum-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--ops-hairline);
+  border-left: 3px solid var(--ops-orange);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  margin-bottom: 20px;
+}
+
+.datum-brief__intro h2 {
+  margin: 4px 0 8px;
+  font-size: 20px;
+}
+
+.datum-brief .datum-ops__field {
+  margin: 0;
+}
+
+.datum-brief__sections-head h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.datum-brief__list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.datum-brief__section {
+  padding: 10px 12px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas-soft);
+}
+
+.datum-brief__section--template {
+  background: var(--ops-canvas);
+}
+
+.datum-brief__section-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.datum-brief__heading {
+  font-size: 14px;
+}
+
+.datum-brief__heading-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-xs);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+}
+
+.datum-brief__section textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-xs);
+  font: inherit;
+  font-size: 13px;
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  resize: vertical;
+}
+
+.datum-brief__add {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.datum-brief__add input {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border: 1px dashed var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  font: inherit;
+  font-size: 13px;
+  background: transparent;
+  color: var(--ops-ink);
+}
+
+.datum-brief__research {
+  padding: 12px 14px;
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas-soft);
+  font-size: 13px;
+  color: var(--ops-ink-secondary);
+}
+
+.datum-brief__research p {
+  margin: 0;
+}
+
+.datum-brief__research p + p {
+  margin-top: 8px;
+}
+
+.datum-brief__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ── New content: template cards ───────────────────────────────────────── */
+
+.datum-new__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.datum-new__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.datum-new__card:hover {
+  border-color: rgba(0, 117, 222, 0.45);
+}
+
+.datum-new__card.is-selected {
+  border-color: var(--ops-primary);
+  box-shadow: 0 0 0 2px rgba(0, 117, 222, 0.2);
+}
+
+.datum-new__card strong {
+  font-size: 15px;
+}
+
+.datum-new__card span {
+  font-size: 13px;
+  color: var(--ops-ink-muted);
+  line-height: 1.4;
+}
+
+.datum-new__card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-new__card--add {
+  border-style: dashed;
+  background: var(--ops-canvas-soft);
+}
+
+.datum-new__auto > summary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ── First run ─────────────────────────────────────────────────────────── */
+
+.datum-first {
+  max-width: 760px;
+  margin: 48px auto;
+}
+
+.datum-first h1 {
+  margin: 4px 0 10px;
+  font-size: 28px;
+}
+
+.datum-first__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.datum-first__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.datum-first__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  text-align: left;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: var(--ops-shadow);
+}
+
+.datum-first__card:hover {
+  border-color: var(--ops-primary);
+}
+
+.datum-first__card strong {
+  font-size: 16px;
+}
+
+.datum-first__card span {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink-muted);
+}
+
+/* ── Runtime banner (outside .datum-ops, so Payload theme tokens) ───────── */
+
+.datum-runtime {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--theme-warning-100, #fff4e5);
+  color: var(--theme-warning-900, #5a2e00);
+  border-bottom: 1px solid var(--theme-warning-300, #f5c58a);
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+
+.datum-runtime code {
+  font-size: 12px;
+}
+
+.datum-runtime__close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Folded nav section */
+.datum-ops-nav__section--fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.datum-ops-nav__section--fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.datum-ops-nav__section--fold > summary::after {
+  content: ' ›';
+  opacity: 0.6;
+}
+
+.datum-ops-nav__section--fold[open] > summary::after {
+  content: ' ⌄';
 }

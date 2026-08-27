@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/snow/orca/workspaces/information-gain-planning && for c in entry-cards list field hint pills pill card card-title card-meta actions link-btn error empty panel panel-body header e...",
+  "error": "Exit code 1\nentry-cards: (eval):1: bad math expression: operand expected at `^a-z-'",
+  "timestamp": "2026-08-26T23:17:04.471Z",
+  "retry_count": 1
+}

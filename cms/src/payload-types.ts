@@ -77,7 +77,9 @@ export interface Config {
     'brand-voice-files': BrandVoiceFile;
     'governance-audit': GovernanceAudit;
     'evidence-sources': EvidenceSource;
+    'evidence-source-candidates': EvidenceSourceCandidate;
     'corpus-snapshots': CorpusSnapshot;
+    'topic-searches': TopicSearch;
     'information-gain-runs': InformationGainRun;
     'pipeline-runs': PipelineRun;
     'payload-kv': PayloadKv;
@@ -98,7 +100,9 @@ export interface Config {
     'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
+    'evidence-source-candidates': EvidenceSourceCandidatesSelect<false> | EvidenceSourceCandidatesSelect<true>;
     'corpus-snapshots': CorpusSnapshotsSelect<false> | CorpusSnapshotsSelect<true>;
+    'topic-searches': TopicSearchesSelect<false> | TopicSearchesSelect<true>;
     'information-gain-runs': InformationGainRunsSelect<false> | InformationGainRunsSelect<true>;
     'pipeline-runs': PipelineRunsSelect<false> | PipelineRunsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -204,6 +208,10 @@ export interface Media {
 export interface Template {
   id: number;
   name: string;
+  /**
+   * What this kind of piece is for, in one line. Shown when choosing a template and used as the brief's angle.
+   */
+  intent?: string | null;
   outline?: {
     root: {
       type: string;
@@ -262,6 +270,9 @@ export interface Template {
     faqRequired?: boolean | null;
     faqMinQuestions?: number | null;
     faqMaxQuestions?: number | null;
+    /**
+     * Require a social title and description on every draft. The social image is never checked — the writer has no image to point at and there is no tenant default, so requiring one would fail every draft.
+     */
     ogTagsRequired?: boolean | null;
   };
   updatedAt: string;
@@ -273,9 +284,25 @@ export interface Template {
  */
 export interface Article {
   id: number;
+  /**
+   * Hidden from the article board and skipped by every pipeline run.
+   */
+  archived?: boolean | null;
   title?: string | null;
   slug?: string | null;
+  /**
+   * The primary keyword this article targets.
+   */
   keyword: string;
+  /**
+   * Related searches grouped with the primary keyword. The article is written and scored to cover all of them.
+   */
+  secondaryKeywords?:
+    | {
+        keyword: string;
+        id?: string | null;
+      }[]
+    | null;
   template?: (number | null) | Template;
   research?: {
     rankingPagesSummary?: string | null;
@@ -332,6 +359,42 @@ export interface Article {
       | boolean
       | null;
   };
+  /**
+   * What the piece will argue and cover, agreed before writing starts. Approving it is what queues the draft.
+   */
+  brief?: {
+    angle?: string | null;
+    audience?: string | null;
+    sections?:
+      | {
+          heading: string;
+          notes?: string | null;
+          source?: ('template' | 'research' | 'editor') | null;
+          id?: string | null;
+        }[]
+      | null;
+    mustCover?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    opportunities?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    notes?: string | null;
+    approvedAt?: string | null;
+    approvedBy?: string | null;
+  };
   body?: {
     root: {
       type: string;
@@ -364,6 +427,7 @@ export interface Article {
    */
   status:
     | 'topic_selected'
+    | 'brief_review'
     | 'researched'
     | 'drafted'
     | 'qa_passed'
@@ -1004,12 +1068,106 @@ export interface EvidenceSource {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-source-candidates".
+ */
+export interface EvidenceSourceCandidate {
+  id: number;
+  /**
+   * Hostname without scheme or path, normalised the same way as evidence sources.
+   */
+  domain: string;
+  /**
+   * pending = waiting for someone to rate it. approved = an evidence-sources row was created from it. dismissed = deliberately left unrated; it stays dismissed however often it turns up again.
+   */
+  status: 'pending' | 'approved' | 'dismissed';
+  /**
+   * The dropdown default on the review page, not a decision. Never first_party_dataset (only a human can certify a source as ours) and never blocked (a suggestion should not default to shutting a domain out).
+   */
+  suggestedClass: 'primary' | 'official_docs' | 'secondary' | 'unverified';
+  /**
+   * How many times the verifier has cited this domain, across all runs.
+   */
+  citationCount?: number | null;
+  /**
+   * How many scored articles had this domain ranking for their keyword.
+   */
+  serpCount?: number | null;
+  /**
+   * Ahrefs domain rating, most recent one seen. Popularity, not accuracy.
+   */
+  domainRating?: number | null;
+  firstSeenAt?: string | null;
+  lastSeenAt?: string | null;
+  /**
+   * CandidateSighting[] — the most recent times this domain turned up, newest first and capped at MAX_CANDIDATE_SIGHTINGS.
+   */
+  sightings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * The rule created when this candidate was approved.
+   */
+  resolvedSource?: (number | null) | EvidenceSource;
+  resolvedAt?: string | null;
+  /**
+   * Who approved or dismissed it.
+   */
+  resolvedBy?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topic-searches".
+ */
+export interface TopicSearch {
+  id: number;
+  /**
+   * The subject the operator typed, as they typed it.
+   */
+  seed: string;
+  seedKey: string;
+  /**
+   * Keyword metrics are per-market, so the cache key includes it.
+   */
+  country: string;
+  fetchedAt: string;
+  /**
+   * How many keywords the lookup returned.
+   */
+  resultCount?: number | null;
+  /**
+   * DiscoveredKeyword[] exactly as Ahrefs returned it, already ranked.
+   */
+  candidates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pipeline-runs".
  */
 export interface PipelineRun {
   id: number;
   runId: string;
-  source: 'onboarding' | 'admin' | 'cli';
+  /**
+   * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.
+   */
+  source: 'onboarding' | 'admin' | 'cli' | 'selected';
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   mode: 'mock' | 'live';
   template: number | Template;
@@ -1211,8 +1369,16 @@ export interface PayloadLockedDocument {
         value: number | EvidenceSource;
       } | null)
     | ({
+        relationTo: 'evidence-source-candidates';
+        value: number | EvidenceSourceCandidate;
+      } | null)
+    | ({
         relationTo: 'corpus-snapshots';
         value: number | CorpusSnapshot;
+      } | null)
+    | ({
+        relationTo: 'topic-searches';
+        value: number | TopicSearch;
       } | null)
     | ({
         relationTo: 'information-gain-runs';
@@ -1310,6 +1476,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface TemplatesSelect<T extends boolean = true> {
   name?: T;
+  intent?: T;
   outline?: T;
   dos?:
     | T
@@ -1349,9 +1516,16 @@ export interface TemplatesSelect<T extends boolean = true> {
  * via the `definition` "articles_select".
  */
 export interface ArticlesSelect<T extends boolean = true> {
+  archived?: T;
   title?: T;
   slug?: T;
   keyword?: T;
+  secondaryKeywords?:
+    | T
+    | {
+        keyword?: T;
+        id?: T;
+      };
   template?: T;
   research?:
     | T
@@ -1373,6 +1547,25 @@ export interface ArticlesSelect<T extends boolean = true> {
         queryCluster?: T;
         facets?: T;
         gaps?: T;
+      };
+  brief?:
+    | T
+    | {
+        angle?: T;
+        audience?: T;
+        sections?:
+          | T
+          | {
+              heading?: T;
+              notes?: T;
+              source?: T;
+              id?: T;
+            };
+        mustCover?: T;
+        opportunities?: T;
+        notes?: T;
+        approvedAt?: T;
+        approvedBy?: T;
       };
   body?: T;
   titleTag?: T;
@@ -1617,6 +1810,26 @@ export interface EvidenceSourcesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-source-candidates_select".
+ */
+export interface EvidenceSourceCandidatesSelect<T extends boolean = true> {
+  domain?: T;
+  status?: T;
+  suggestedClass?: T;
+  citationCount?: T;
+  serpCount?: T;
+  domainRating?: T;
+  firstSeenAt?: T;
+  lastSeenAt?: T;
+  sightings?: T;
+  resolvedSource?: T;
+  resolvedAt?: T;
+  resolvedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "corpus-snapshots_select".
  */
 export interface CorpusSnapshotsSelect<T extends boolean = true> {
@@ -1659,6 +1872,20 @@ export interface CorpusSnapshotsSelect<T extends boolean = true> {
   gaps?: T;
   baselineDocCount?: T;
   failedPageCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topic-searches_select".
+ */
+export interface TopicSearchesSelect<T extends boolean = true> {
+  seed?: T;
+  seedKey?: T;
+  country?: T;
+  fetchedAt?: T;
+  resultCount?: T;
+  candidates?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1967,7 +2194,7 @@ export interface LlmSetting {
   createdAt?: string | null;
 }
 /**
- * Deterministic publication gates applied by the informationGain pipeline stage. Every change is recorded in Governance audits and changes the policy version stamped on future runs.
+ * Information gain is the pipeline's check that a draft actually adds something new and provable, not just a reworded version of what's already out there. These rules decide whether a draft publishes, goes back for another pass, or gets flagged for a person to review. Every change here is logged in Governance audits and changes the policy version stamped on future runs, so you can trace exactly which rules judged any given article.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "information-gain-policy".
@@ -1975,47 +2202,47 @@ export interface LlmSetting {
 export interface InformationGainPolicy {
   id: number;
   /**
-   * Weighted share of consensus facets the draft must cover. Failing this gate → REVISE. Leave blank to use INFORMATION_GAIN_MIN_CONSENSUS_COVERAGE from the environment, or the default 0.75.
+   * How much of what other sites already agree on the draft has to cover. If a draft fails this check, it gets sent back for revision. Leave this blank to fall back to the INFORMATION_GAIN_MIN_CONSENSUS_COVERAGE environment variable, or the built-in default of 0.75.
    */
   minConsensusCoverage?: number | null;
   /**
-   * Verified gain units ÷ potential gain units; low values mean the draft's novelty rests on unsupported claims. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_VERIFICATION_RATIO from the environment, or the default 0.9.
+   * How much of the draft's new material is actually backed by evidence. A low score means most of what looks new isn't proven. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_MIN_VERIFICATION_RATIO environment variable, or the built-in default of 0.9.
    */
   minVerificationRatio?: number | null;
   /**
-   * Evidence integrity (support × source quality × exactness) required for a materially novel factual or inference claim. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_NOVEL_FACTUAL_INTEGRITY from the environment, or the default 0.9.
+   * How solid the evidence has to be for a new fact or conclusion, based on how well it is supported, how trustworthy the source is, and how closely it matches. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_MIN_NOVEL_FACTUAL_INTEGRITY environment variable, or the built-in default of 0.9.
    */
   minNovelFactualIntegrity?: number | null;
   /**
-   * Evidence integrity required for materially novel claims containing numbers, dates, or units. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_MIN_NUMERIC_TEMPORAL_INTEGRITY from the environment, or the default 0.95.
+   * Same as the factual-evidence floor above, but for a new claim that includes a number, date, or unit, held to a higher bar because a wrong number is worse than a wrong fact. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_MIN_NUMERIC_TEMPORAL_INTEGRITY environment variable, or the built-in default of 0.95.
    */
   minNumericTemporalIntegrity?: number | null;
   /**
-   * Numeric or temporal values in a materially novel claim must match the cited evidence exactly. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH from the environment, or the default true.
+   * A new claim's numbers or dates must match its source exactly, not just roughly. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH environment variable, or the built-in default of true.
    */
   requireExactValueMatch?: ('true' | 'false') | null;
   /**
-   * Every materially novel verifiable claim must cite at least one evidence excerpt. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_REQUIRE_EVIDENCE_LINEAGE from the environment, or the default true.
+   * Every new, checkable claim must point to at least one source. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_REQUIRE_EVIDENCE_LINEAGE environment variable, or the built-in default of true.
    */
   requireEvidenceLineage?: ('true' | 'false') | null;
   /**
-   * Drafts are model-generated, so any claimed first-party test, survey, or dataset is fabricated. Failing this gate → BLOCK. Leave blank to use INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS from the environment, or the default true.
+   * Drafts are written by a model, so any claim that we ran our own test, survey, or study is fabricated. Block it. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS environment variable, or the built-in default of true.
    */
   blockFirstPartyMeasurements?: ('true' | 'false') | null;
   /**
-   * A claim contradicting reliable evidence at or above this probability needs a human decision (it may be legitimately new). Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MAX_CONTRADICTION_PROBABILITY from the environment, or the default 0.25.
+   * If a claim looks like it contradicts a reliable source, at or above this likelihood send it to a person instead of blocking it automatically. It might just be genuinely new information. If a draft fails this check, it gets flagged for a person to review. Leave this blank to fall back to the INFORMATION_GAIN_MAX_CONTRADICTION_PROBABILITY environment variable, or the built-in default of 0.25.
    */
   maxContradictionProbability?: number | null;
   /**
-   * Novelty at or above this makes a claim "materially novel"; a materially novel inference needs human review. Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MATERIAL_NOVELTY_THRESHOLD from the environment, or the default 0.55.
+   * How new a claim has to be before we count it as genuinely new. Past this line, a new conclusion (not just a fact) gets a human look. If a draft fails this check, it gets flagged for a person to review. Leave this blank to fall back to the INFORMATION_GAIN_MATERIAL_NOVELTY_THRESHOLD environment variable, or the built-in default of 0.55.
    */
   materialNoveltyThreshold?: number | null;
   /**
-   * Share of draft claims already published on this site at or above this triggers a consolidation review. Failing this gate → HUMAN_REVIEW. Leave blank to use INFORMATION_GAIN_MAX_INTERNAL_DUPLICATION_RATE from the environment, or the default 0.35.
+   * If too much of the draft repeats what's already on the site, flag it so a person can check whether it should be merged into an existing article instead. If a draft fails this check, it gets flagged for a person to review. Leave this blank to fall back to the INFORMATION_GAIN_MAX_INTERNAL_DUPLICATION_RATE environment variable, or the built-in default of 0.35.
    */
   maxInternalDuplicationRate?: number | null;
   /**
-   * Minimum number of materially novel claims with verified evidence. Failing this gate → REVISE. Leave blank to use INFORMATION_GAIN_MIN_VERIFIED_NOVEL_CLAIMS from the environment, or the default 1.
+   * The draft needs at least this many genuinely new claims backed by evidence, or there is no real reason to publish it. If a draft fails this check, it gets sent back for revision. Leave this blank to fall back to the INFORMATION_GAIN_MIN_VERIFIED_NOVEL_CLAIMS environment variable, or the built-in default of 1.
    */
   minVerifiedNovelClaims?: number | null;
   updatedAt?: string | null;
