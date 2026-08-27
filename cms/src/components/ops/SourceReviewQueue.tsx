@@ -91,7 +91,7 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
             <>
               {' '}
               <span
-                className="datum-ops__pill datum-ops__pill--muted"
+                className="datum-ops__pill datum-ops__pill--muted datum-ops__pill--tight"
                 title="Ahrefs domain rating: how many sites link to this one. Popularity, not accuracy."
               >
                 DR {candidate.domainRating}

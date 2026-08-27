@@ -1136,6 +1136,11 @@
   color: var(--ops-ink-faint);
 }
 
+/* A pill holding a short label + value ("DR 78") must not break between them. */
+.datum-ops__pill--tight {
+  white-space: nowrap;
+}
+
 .datum-ops__status--active {
   background: rgba(26, 174, 57, 0.12);
   color: var(--ops-green);
