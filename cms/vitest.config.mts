@@ -8,5 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['tests/int/**/*.int.spec.ts'],
+    // Database-backed suites share one Postgres schema. Payload pushes that
+    // schema during getPayload(), so running those files concurrently races
+    // duplicate enum and index creation on a fresh database.
+    fileParallelism: false,
   },
 })
