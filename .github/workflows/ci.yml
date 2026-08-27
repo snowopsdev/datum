@@ -63,5 +63,8 @@ jobs:
       - name: Test pipeline
         run: npm test --workspace pipeline
 
+      - name: Migrate cms database
+        run: npm run payload --workspace cms -- migrate
+
       - name: Test cms integration
         run: npm run test:int --workspace cms
