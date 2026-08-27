@@ -207,6 +207,199 @@ export function formatAuditTimestamp(iso: string): string {
  * `actions.ts` (the `regenerateArticleAction` fallback when there is no
  * information-gain run to explain the send-back instead).
  */
+
+/** One QA failure, said in words, with the instruction that would fix it. */
+export type QaFailure = {
+  /** Which check produced it, for grouping in the UI. */
+  check: 'structural' | 'factCheck' | 'qualitativeReview'
+  /** Plain-language statement of what is wrong, with the real numbers in it. */
+  what: string
+  /** What the next draft must do differently. This is what regeneration sends. */
+  fix: string
+  /** The machine code, kept for operators who want to grep for it. */
+  code: string | null
+}
+
+const OG_FIELD_LABEL: Record<string, string> = {
+  ogTitle: 'social title',
+  ogDescription: 'social description',
+  ogImage: 'social image',
+}
+
+const HEADING_FIX: Record<string, string> = {
+  multiple_h1:
+    'Use exactly one H1 — the article title. Demote every other top-level heading to an H2.',
+  skipped_level:
+    'Do not skip heading levels. An H2 may only be followed by another H2 or an H3, never an H4.',
+  missing_section:
+    'Add the missing H2 section. The template requires it and QA checks for it by name.',
+}
+
+const vNum = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null
+const vStr = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim() : null
+
+/**
+ * Turn one structural violation into something a person can act on.
+ *
+ * The violations carry everything needed for this — the limit that was
+ * exceeded, the actual value, which tags are missing, the offending phrase —
+ * and the UI previously rendered only `code`, so `OG_TAGS_MISSING` was the
+ * entire message. Worse, `buildRegenerateRevisionNotes` fed that same bare code
+ * into the next generate prompt, which is close to no instruction at all.
+ *
+ * Defensive about its input on purpose: `qaResults.structural.violations` is a
+ * JSON column, so an older row may hold a shape this does not know. Unknown
+ * codes fall through to the code itself rather than being dropped, because a
+ * failure nobody can see is worse than one that is tersely described.
+ */
+export function describeViolation(raw: unknown): QaFailure | null {
+  if (typeof raw === 'string') {
+    return { check: 'structural', what: raw, fix: raw, code: null }
+  }
+  if (!raw || typeof raw !== 'object' || !('code' in raw)) return null
+  const v = raw as Record<string, unknown>
+  const code = String(v.code)
+  // Rows persisted before the structured shapes existed carry a free-text
+  // `message` instead of the typed fields. Dropping it would turn a described
+  // failure back into a bare code, so it is the fallback everywhere below.
+  const message = vStr(v.message)
+
+  switch (code) {
+    case 'TITLE_TAG_TOO_LONG': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The SEO title tag is ${actual ?? '?'} characters; the limit is ${limit ?? '?'}.`,
+        fix: `Rewrite the title tag to ${limit ?? 'the limit'} characters or fewer, keeping the main keyword near the front.`,
+      }
+    }
+    case 'META_DESCRIPTION_TOO_LONG': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The meta description is ${actual ?? '?'} characters; the limit is ${limit ?? '?'}.`,
+        fix: `Rewrite the meta description to ${limit ?? 'the limit'} characters or fewer.`,
+      }
+    }
+    case 'HEADING_STRUCTURE': {
+      const problem = vStr(v.problem) ?? ''
+      const heading = vStr(v.heading)
+      const detail = vStr(v.detail)
+      return {
+        check: 'structural',
+        code,
+        what: detail ?? `Heading problem${heading ? ` at "${heading}"` : ''}.`,
+        fix:
+          (HEADING_FIX[problem] ?? 'Fix the heading structure.') +
+          (problem === 'missing_section' && heading ? ` Missing section: "${heading}".` : ''),
+      }
+    }
+    case 'FAQ_COUNT_OUT_OF_RANGE': {
+      const min = vNum(v.min)
+      const max = vNum(v.max)
+      const actual = vNum(v.actual)
+      const range = max != null ? `${min ?? 0}–${max}` : `at least ${min ?? 0}`
+      return {
+        check: 'structural',
+        code,
+        what: `The article has ${actual ?? 0} FAQ question${actual === 1 ? '' : 's'}; the template asks for ${range}.`,
+        fix: `Write ${range} FAQ questions, each a real question a reader would ask, with a direct answer.`,
+      }
+    }
+    case 'OG_TAGS_MISSING': {
+      const missing = Array.isArray(v.missing) ? v.missing.map((m) => String(m)) : []
+      const labels = missing.map((m) => OG_FIELD_LABEL[m] ?? m)
+      return {
+        check: 'structural',
+        code,
+        what: `Missing social sharing ${labels.length === 1 ? 'tag' : 'tags'}: ${labels.join(', ') || 'unknown'}. These are what appears when the page is shared.`,
+        fix: `Add the missing ${labels.length === 1 ? 'tag' : 'tags'}: ${labels.join(' and ') || 'social tags'}.${missing.includes('ogImage') ? ' The social image must be a direct URL to an image file, not a link to a web page.' : ''}`,
+      }
+    }
+    case 'READING_LEVEL_TOO_HIGH': {
+      const limit = vNum(v.limit)
+      const actual = vNum(v.actual)
+      return {
+        check: 'structural',
+        code,
+        what: `The writing reads at US grade ${actual?.toFixed(1) ?? '?'}; the limit is grade ${limit ?? '?'}.`,
+        fix: `Simplify the language to grade ${limit ?? 'the limit'} or below: shorter sentences, fewer clauses, plainer words.`,
+      }
+    }
+    case 'BANNED_PHRASE': {
+      const phrase = vStr(v.phrase)
+      const field = vStr(v.field)
+      const source = vStr(v.source)
+      const origin = source === 'brand' ? 'your brand voice' : 'the platform style guide'
+      return {
+        check: 'structural',
+        code,
+        what: phrase
+          ? `"${phrase}" appears in the ${field ?? 'article'}, and ${origin} bans it.`
+          : (message ?? 'A banned phrase appears in the article.'),
+        fix: phrase
+          ? `Remove "${phrase}" and say the same thing in plain words.`
+          : 'Remove the banned phrase and say the same thing in plain words.',
+      }
+    }
+    default:
+      return {
+        check: 'structural',
+        code,
+        what: message ?? code,
+        fix: message ? `Fix this: ${message}` : `Fix: ${code}.`,
+      }
+  }
+}
+
+/**
+ * Every QA failure on an article, described rather than coded.
+ *
+ * The fact-check and qualitative checks already return prose from the model, so
+ * their note *is* the description; the instruction asks the next draft to
+ * address it directly.
+ */
+export const QA_CHECK_LABEL: Record<QaFailure['check'], string> = {
+  structural: 'Structure',
+  factCheck: 'Fact check',
+  qualitativeReview: 'Style',
+}
+
+export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFailure[] {
+  const out: QaFailure[] = []
+  const qa = article.qaResults
+  const raw = qa?.structural?.violations
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      const described = describeViolation(v)
+      if (described) out.push(described)
+    }
+  }
+  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
+    out.push({
+      check: 'factCheck',
+      code: null,
+      what: qa.factCheck.notes,
+      fix: 'Correct this, and cite a source for anything you change.',
+    })
+  }
+  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
+    out.push({
+      check: 'qualitativeReview',
+      code: null,
+      what: qa.qualitativeReview.notes,
+      fix: 'Rewrite to address this, keeping everything the review did not object to.',
+    })
+  }
+  return out
+}
+
 export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): string[] {
   const lines: string[] = []
   const qa = article.qaResults
@@ -238,7 +431,10 @@ export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): s
  * sends an article back for regeneration: one bullet per reason from the
  * latest `information-gain-runs` row, or — when no run exists yet, e.g. an
  * article a reviewer sends back before information-gain ever scored it — one
- * bullet per `qaFailureLines`. The reviewer's own note, when given, is
+ * bullet per `qaFailures` — each one the plain-language problem *and* the
+ * instruction that fixes it, because the prompt renders these verbatim and
+ * `- OG_TAGS_MISSING`, which is what this used to send, tells a writer nothing.
+ * The reviewer's own note, when given, is
  * appended last so `generate`'s prompt sees both the machine-found gaps and
  * whatever the human added.
  */
@@ -253,7 +449,7 @@ export function buildRegenerateRevisionNotes(
   const lines =
     reasons && reasons.length > 0
       ? reasons.map((r) => `- [${String(r.policy ?? 'unknown')}] ${String(r.message ?? '')}`)
-      : qaFailureLines(article).map((line) => `- ${line}`)
+      : qaFailures(article).map((f) => `- [${QA_CHECK_LABEL[f.check]}] ${f.what} ${f.fix}`)
   const trimmedNote = note?.trim()
   const sections = [lines.join('\n'), trimmedNote ? `Reviewer note: ${trimmedNote}` : ''].filter(
     Boolean,

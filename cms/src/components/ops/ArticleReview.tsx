@@ -15,7 +15,7 @@ import {
   sendBackAction,
 } from './actions'
 import {
-  qaFailureLines,
+  qaFailures,
   type AuditTimelineEntry,
   type BoardArticle,
   type InformationGainRunView,
@@ -425,7 +425,7 @@ export function ArticleReview({
   }
 
   const qa = article.qaResults
-  const details = qaFailureLines(article)
+  const failures = qaFailures(article)
   const summaryRun = article.informationGain?.run
   const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
   const runIsCurrent = run != null && summaryRunId === run.id
@@ -575,14 +575,25 @@ export function ArticleReview({
                 <CheckRow label="Fact check" passed={qa?.factCheck?.passed} />
                 <CheckRow label="Qualitative" passed={qa?.qualitativeReview?.passed} />
               </div>
-              {details.length > 0 ? (
+              {failures.length > 0 ? (
                 <div className="datum-ops__block">
-                  <h3>Failure detail</h3>
-                  <ul className="datum-ops__list">
-                    {details.map((d, index) => (
-                      <li key={`${d}-${index}`}>{d}</li>
+                  <h3>What failed</h3>
+                  <ul className="datum-ops__qa-fails">
+                    {failures.map((f, index) => (
+                      <li key={`${f.code ?? f.check}-${index}`}>
+                        <p className="datum-ops__qa-what">{f.what}</p>
+                        <p className="datum-ops__qa-fix">
+                          <strong>To fix:</strong> {f.fix}
+                        </p>
+                        {f.code ? <code className="datum-ops__qa-code">{f.code}</code> : null}
+                      </li>
                     ))}
                   </ul>
+                  <p className="datum-ops__hint">
+                    Regenerating sends every &ldquo;to fix&rdquo; line above to the writer verbatim,
+                    along with the original brief. It rewrites against the same research, so the new
+                    draft is comparable to this one.
+                  </p>
                 </div>
               ) : null}
               {run && run.reasons.length > 0 ? (

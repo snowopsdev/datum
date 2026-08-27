@@ -2424,3 +2424,48 @@
   font-size: 11px;
   color: var(--theme-elevation-500, #8a8a8a);
 }
+
+/* ── QA failure detail ──────────────────────────────────────────────────
+   Each failure states the problem and the instruction that fixes it. The
+   instruction is not decoration: it is the text regeneration sends to the
+   writer, so what the reviewer reads here is what the next draft is told. */
+
+.datum-ops__qa-fails {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.datum-ops__qa-fails li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__qa-fails li:last-child {
+  border-bottom: 0;
+}
+
+.datum-ops__qa-what {
+  margin: 0 0 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink);
+}
+
+.datum-ops__qa-fix {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink-muted);
+}
+
+.datum-ops__qa-fix strong {
+  color: var(--ops-ink-secondary);
+}
+
+.datum-ops__qa-code {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ops-ink-faint);
+}

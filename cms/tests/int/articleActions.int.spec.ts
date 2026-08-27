@@ -129,14 +129,18 @@ describe('buildRegenerateRevisionNotes', () => {
     const notes = buildRegenerateRevisionNotes(null, {
       qaResults: { factCheck: { passed: false, notes: 'unsupported stat' } },
     } as never)
-    expect(notes).toBe('- Fact: unsupported stat')
+    expect(notes).toBe(
+      '- [Fact check] unsupported stat Correct this, and cite a source for anything you change.',
+    )
   })
 
   it('falls back to qaFailureLines when the run has no reasons', () => {
     const notes = buildRegenerateRevisionNotes({ reasons: [] }, {
       qaResults: { qualitativeReview: { passed: false, notes: 'too salesy' } },
     } as never)
-    expect(notes).toBe('- Style: too salesy')
+    expect(notes).toBe(
+      '- [Style] too salesy Rewrite to address this, keeping everything the review did not object to.',
+    )
   })
 
   it('appends the reviewer note after the reasons', () => {
@@ -304,7 +308,18 @@ describe('the three send-back-for-rework actions null informationGain identicall
  */
 describe('regenerateArticleAction resolves the run through the current pointer', () => {
   const QA_FAILURE = {
-    structural: { passed: false, violations: [{ code: 'BANNED_PHRASE', message: 'found "game changer"' }] },
+    structural: {
+      passed: false,
+      violations: [
+        {
+          code: 'BANNED_PHRASE',
+          phrase: 'game changer',
+          field: 'body',
+          context: '...a real game changer for fans...',
+          source: 'platform',
+        },
+      ],
+    },
   }
 
   /** `find` dispatched per collection, so a run row exists but is not linked. */
@@ -365,7 +380,9 @@ describe('regenerateArticleAction resolves the run through the current pointer',
 
     await regenerateArticleAction(1)
 
-    expect(revisionNotesSent()).toBe('- BANNED_PHRASE — found "game changer"')
+    expect(revisionNotesSent()).toBe(
+      '- [Structure] "game changer" appears in the body, and the platform style guide bans it. Remove "game changer" and say the same thing in plain words.',
+    )
     expect(findMock).not.toHaveBeenCalled()
   })
 
@@ -397,6 +414,8 @@ describe('regenerateArticleAction resolves the run through the current pointer',
 
     await regenerateArticleAction(1)
 
-    expect(revisionNotesSent()).toBe('- BANNED_PHRASE — found "game changer"')
+    expect(revisionNotesSent()).toBe(
+      '- [Structure] "game changer" appears in the body, and the platform style guide bans it. Remove "game changer" and say the same thing in plain words.',
+    )
   })
 })
