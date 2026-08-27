@@ -43,6 +43,9 @@ export default buildConfig({
     },
     components: {
       afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
+      // A provider is the only slot that wraps every admin route, which is what
+      // the run bar needs: a live run outlasts the page you started it from.
+      providers: ['/components/ops/RunBarProvider#RunBarProvider'],
       views: {
         dashboard: {
           Component: '/components/ops/OnboardingDashboardView#OnboardingDashboardView',

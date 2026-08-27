@@ -11,7 +11,7 @@ import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipel
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 import { isRunnableStatus } from './articleStatus'
-import { type RunStatusDTO, toRunFailures } from './boardTypes'
+import { type RunArticleDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/articles'
 
@@ -208,13 +208,34 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
     const run = docs[0]
     if (!run) return null
     const started = run.startedAt ?? run.createdAt
+
+    // Only while it matters: a settled run's articles are already on the board,
+    // and this action is polled from every admin page.
+    const active = run.status === 'queued' || run.status === 'running'
+    const ids = Array.isArray(run.articles)
+      ? run.articles.flatMap((a) => (typeof a === 'number' ? [a] : a?.id ? [a.id] : []))
+      : []
+    let articles: RunArticleDTO[] = []
+    if (active && ids.length > 0) {
+      const found = await payload.find({
+        collection: 'articles',
+        where: { id: { in: ids } },
+        pagination: false,
+        limit: ids.length,
+        depth: 0,
+      })
+      articles = found.docs.map((d) => ({ id: d.id, keyword: d.keyword, status: d.status }))
+    }
     return {
       runId: run.runId,
       status: run.status,
       mode: run.mode,
       source: run.source,
       startedLabel: started ? new Date(started).toLocaleTimeString() : 'just now',
-      articleCount: Array.isArray(run.articles) ? run.articles.length : 0,
+      startedAtIso: started ? new Date(started).toISOString() : null,
+      articleCount: ids.length,
+      articles,
+      completedAtIso: run.completedAt ? new Date(run.completedAt).toISOString() : null,
       finalStatuses:
         run.finalStatuses && typeof run.finalStatuses === 'object' && !Array.isArray(run.finalStatuses)
           ? (run.finalStatuses as Record<string, number>)

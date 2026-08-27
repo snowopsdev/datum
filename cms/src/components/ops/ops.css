@@ -2222,3 +2222,166 @@
 .datum-ops__tpl-new .datum-ops__hint {
   margin: 10px 0 0;
 }
+
+/* ── Global run bar ─────────────────────────────────────────────────────
+   Mounted from a Payload provider, so it is outside `.datum-ops` and cannot
+   inherit those tokens — every colour here resolves against Payload's own
+   theme variables, with a literal fallback for each. */
+
+.datum-runbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: var(--theme-elevation-0, #ffffff);
+  border-top: 1px solid var(--theme-elevation-150, #e6e6e6);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  color: var(--theme-text, #000000);
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  animation: datum-runbar-in 180ms ease-out;
+}
+
+@keyframes datum-runbar-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .datum-runbar {
+    animation: none;
+  }
+}
+
+.datum-runbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 10px 20px;
+}
+
+.datum-runbar__dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--theme-elevation-400, #9a9a9a);
+}
+
+.datum-runbar__dot--queued,
+.datum-runbar__dot--running {
+  background: #0075de;
+  animation: datum-runbar-pulse 1.4s ease-in-out infinite;
+}
+
+.datum-runbar__dot--succeeded {
+  background: #1aae39;
+}
+
+.datum-runbar__dot--failed {
+  background: var(--theme-error-600, #c0332c);
+}
+
+@keyframes datum-runbar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 117, 222, 0.5);
+  }
+  50% {
+    opacity: 0.65;
+    box-shadow: 0 0 0 6px rgba(0, 117, 222, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .datum-runbar__dot--queued,
+  .datum-runbar__dot--running {
+    animation: none;
+  }
+}
+
+.datum-runbar__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.datum-runbar__text strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.datum-runbar__detail {
+  font-size: 12px;
+  color: var(--theme-elevation-600, #615d59);
+  /* One line: the bar is a status line, not a log. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datum-runbar__track {
+  flex: 0 1 220px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--theme-elevation-150, #e6e6e6);
+  overflow: hidden;
+}
+
+.datum-runbar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: #0075de;
+  transition: width 400ms ease;
+}
+
+.datum-runbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.datum-runbar__link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0075de;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.datum-runbar__link:hover {
+  text-decoration: underline;
+}
+
+.datum-runbar__close {
+  border: 0;
+  background: transparent;
+  color: var(--theme-elevation-600, #615d59);
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.datum-runbar__close:hover {
+  background: var(--theme-elevation-100, #f1f1f1);
+}
+
+@media (max-width: 700px) {
+  .datum-runbar__track {
+    display: none;
+  }
+}

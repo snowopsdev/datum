@@ -252,8 +252,14 @@ export function ReportsPanel({ articles, costs }: Props) {
                   </p>
                   {details.length > 0 ? (
                     <ul>
-                      {details.map((d) => (
-                        <li key={d}>{d}</li>
+                      {/*
+                        Indexed because these are not unique: an article that
+                        breaks the same rule four times yields four identical
+                        lines (four `HEADING_STRUCTURE`s), and keying on the
+                        text alone makes React drop all but the first.
+                      */}
+                      {details.map((d, i) => (
+                        <li key={`${d}-${i}`}>{d}</li>
                       ))}
                     </ul>
                   ) : null}

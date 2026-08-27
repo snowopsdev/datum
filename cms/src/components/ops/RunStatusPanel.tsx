@@ -1,16 +1,11 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 
-import { latestRunAction } from './boardActions'
 import type { RunStatusDTO } from './boardTypes'
 import './ops.css'
 
 type Props = { initial: RunStatusDTO | null }
-
-/** How often an in-flight run is re-checked. */
-const POLL_MS = 3000
 
 const STATUS_COPY: Record<RunStatusDTO['status'], string> = {
   queued: 'Queued',
@@ -22,38 +17,14 @@ const STATUS_COPY: Record<RunStatusDTO['status'], string> = {
 /**
  * The board's answer to "what happened to my run".
  *
- * Without this, starting a run gave one toast and then silence: the cards do not
- * move on their own, a stage failure is caught and logged server-side, and the
- * run row is the only record — none of which is visible from the board. It polls
- * only while a run is actually in flight, then stops.
+ * The board's durable record of the last run: what moved, and what did not.
+ * Live progress is the `GlobalRunBar`'s job — it is the single poller, and it
+ * refreshes this route when a run settles, so this stays a plain render of
+ * server props rather than a second timer racing the first.
  */
 export function RunStatusPanel({ initial }: Props) {
-  const router = useRouter()
-  const [polled, setPolled] = useState<RunStatusDTO | null>(null)
-
-  // Derived, not synced: the poll only ever refines the run the server already
-  // handed us, so the moment `initial` names a *different* run — a new one was
-  // started — whatever we polled is about the previous one and is dropped.
-  const run = polled && polled.runId === initial?.runId ? polled : initial
-
+  const run = initial
   const active = run?.status === 'queued' || run?.status === 'running'
-
-  useEffect(() => {
-    if (!active) return
-    let live = true
-    const id = setInterval(async () => {
-      const next = await latestRunAction()
-      if (!live) return
-      setPolled(next)
-      // The board is a server component, so the cards only move when the route
-      // re-renders. Ask for that exactly once, when the run stops.
-      if (next && next.status !== 'queued' && next.status !== 'running') router.refresh()
-    }, POLL_MS)
-    return () => {
-      live = false
-      clearInterval(id)
-    }
-  }, [active, router])
 
   if (!run) return null
 
