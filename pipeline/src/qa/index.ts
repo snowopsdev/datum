@@ -1,6 +1,6 @@
 import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
 import { completeJSONLogged } from '../llm'
-import { lexicalToPlainText, type RichText } from '../richtext'
+import { lexicalToMarkdown, lexicalToPlainText, type RichText } from '../richtext'
 import { resolveTemplate, type Stage } from '../stages'
 
 import { runStructuralChecks } from './structuralChecks'
@@ -28,6 +28,14 @@ export const qaStage: Stage = {
     })
 
     const bodyText = article.body ? lexicalToPlainText(article.body as RichText) : ''
+    // Markdown, not plain text, for the qualitative reviewer: templates state
+    // structural rules ("each item name belongs in an H2") and plain text drops
+    // every heading marker, so the reviewer cannot see heading levels at all. It
+    // guesses, and a wrong guess is unrecoverable — structural QA passes, the
+    // reviewer fails the same article forever, and every regeneration hits the
+    // identical invisible wall. The fact checker keeps plain text: it judges
+    // claims, not layout.
+    const bodyMarkdown = article.body ? lexicalToMarkdown(article.body as RichText) : ''
     const faqText =
       article.faqItems?.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n') || '(none)'
 
@@ -52,7 +60,7 @@ export const qaStage: Stage = {
     ].join('\n')
     const qualResult = await completeJSONLogged(ctx, 'qualitativeReview', article.id, {
       system: BASE_QUALITATIVE_SYSTEM + (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE),
-      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyText}\n\nFAQ:\n${faqText}`,
+      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\nFAQ:\n${faqText}`,
     })
     const qualitativeReview = parseQualitative(qualResult.json)
 

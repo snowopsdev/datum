@@ -26,7 +26,6 @@ function parseGenerated(json: unknown): GeneratedArticle {
     'metaDescription',
     'ogTitle',
     'ogDescription',
-    'ogImage',
     'bodyMarkdown',
   ] as const
   for (const field of stringFields) {
@@ -34,6 +33,12 @@ function parseGenerated(json: unknown): GeneratedArticle {
       throw new Error(`generate output missing string field "${field}"`)
     }
   }
+  // `ogImage` is asked for but not required: the model has no real image to
+  // point at, so the only way it can satisfy a hard requirement is to invent a
+  // URL, and a fabricated image link is worse than an absent one. Structural QA
+  // already reports a missing one as OG_TAGS_MISSING, which puts it in front of
+  // a human instead of throwing away a paid generate call.
+  if (typeof record.ogImage !== 'string') record.ogImage = ''
   if (!Array.isArray(record.faqItems)) throw new Error('generate output missing faqItems array')
   for (const item of record.faqItems as unknown[]) {
     const faq = item as Record<string, unknown>
