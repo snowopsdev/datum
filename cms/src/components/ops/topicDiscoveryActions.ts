@@ -1,11 +1,15 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
+
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
+import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import type {
   CreateTopicsResult,
   DiscoverResult,
@@ -189,7 +193,7 @@ export async function createTopicsAction(input: {
     // `wanted` arrives in the order the panel listed it, which is already sorted
     // by opportunity, so the first surviving pick is the strongest one.
     const [primary, ...secondaries] = free
-    await payload.create({
+    const created = await payload.create({
       collection: 'articles',
       data: {
         keyword: primary,
@@ -214,8 +218,41 @@ export async function createTopicsAction(input: {
       },
     })
 
+    // Research starts on its own. There is no "run" button to find afterwards:
+    // the next thing the editor sees is the brief. If the workspace is not
+    // ready (no brand voice, missing keys) the piece still exists and the
+    // list says what it is waiting on.
+    let researchQueued = false
+    const { readiness } = await loadWorkspaceSetup(payload)
+    if (readiness.runtime.ready && readiness.governance.ready) {
+      try {
+        await createPipelineRun(payload, user, {
+          runId: randomUUID(),
+          source: 'selected',
+          templateId: input.templateId,
+          count: 1,
+          articleIds: [created.id],
+          requestedBy: typeof user.email === 'string' ? user.email : String(user.id),
+          readiness,
+        })
+        researchQueued = true
+      } catch (e) {
+        // `selected` runs queue behind an active one, so this is only reached
+        // on a real failure; the piece is still there for a later run.
+        if (!(e instanceof ActivePipelineRunError)) throw e
+      }
+    }
+
     revalidatePath(BOARD_PATH)
-    return { ok: true, primary, covered: free.length, skipped: wanted.length - free.length }
+    revalidatePath('/admin/ops/new')
+    return {
+      ok: true,
+      articleId: created.id,
+      primary,
+      covered: free.length,
+      skipped: wanted.length - free.length,
+      researchQueued,
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not create that topic.') }
   }

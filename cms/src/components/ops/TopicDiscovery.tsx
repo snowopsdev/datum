@@ -15,6 +15,8 @@ type Props = {
   templates: Array<{ id: number; name: string }>
   /** Live mode spends real money per article, so the copy has to say so. */
   mode: 'mock' | 'live'
+  /** Chosen on the New content screen; when set, the picker below is hidden. */
+  templateId?: number
 }
 
 /** Rough guide next to a keyword difficulty score, so a number means something. */
@@ -28,10 +30,11 @@ function difficultyLabel(kd: number): string {
 const compact = (n: number): string =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n)
 
-export function TopicDiscovery({ templates, mode }: Props) {
+export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }: Props) {
   const router = useRouter()
   const [seed, setSeed] = useState('')
-  const [templateId, setTemplateId] = useState(templates[0]?.id ?? 0)
+  const [pickedTemplateId, setTemplateId] = useState(templates[0]?.id ?? 0)
+  const templateId = fixedTemplateId ?? pickedTemplateId
   const [candidates, setCandidates] = useState<TopicCandidate[] | null>(null)
   const [searchedFor, setSearchedFor] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -97,20 +100,14 @@ export function TopicDiscovery({ templates, mode }: Props) {
         return
       }
       setDone(
-        result.covered === 1
-          ? `Added "${result.primary}" to the board, ready for the pipeline.`
-          : `Added one topic covering ${result.covered} related searches, targeting "${result.primary}".` +
-            (result.skipped > 0 ? ` ${result.skipped} already had an article.` : ''),
+        result.researchQueued
+          ? `Created "${result.primary}". Researching it now — opening the piece.`
+          : `Created "${result.primary}". Research will start once the workspace is ready.`,
       )
       setPicked(new Set())
-      // Reflect the new articles in the board columns behind this panel, and
-      // re-mark the rows now taken.
-      setCandidates((prev) =>
-        prev
-          ? prev.map((c) => (picked.has(c.keyword) ? { ...c, alreadyTaken: true } : c))
-          : prev,
-      )
-      router.refresh()
+      // The piece is where everything happens next; go there rather than
+      // leaving the editor to find it in a list.
+      router.push(`/admin/ops/articles/${result.articleId}`)
     })
   }
 
@@ -237,7 +234,7 @@ export function TopicDiscovery({ templates, mode }: Props) {
             ) : (
               <>
                 <div className="datum-ops__period" style={{ marginTop: 16 }}>
-                  <label className="datum-ops__field" style={{ marginBottom: 0 }}>
+                  <label className="datum-ops__field" style={{ marginBottom: 0 }} hidden={fixedTemplateId != null}>
                     <label htmlFor="topic-template">Write these as</label>
                     <select
                       disabled={pending}
@@ -259,10 +256,10 @@ export function TopicDiscovery({ templates, mode }: Props) {
                     type="button"
                   >
                     {pending
-                      ? 'Adding…'
+                      ? 'Creating…'
                       : picked.size > 1
-                        ? `Add 1 topic covering ${picked.size} searches`
-                        : 'Add to the board'}
+                        ? `Create 1 piece covering ${picked.size} searches`
+                        : 'Create piece'}
                   </button>
                 </div>
                 {picked.size > 1 ? (

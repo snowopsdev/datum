@@ -89,7 +89,7 @@ export function ContentRunForm({ source, templates, mode, disabled = false }: Pr
           ? 'Queuing…'
           : source === 'onboarding'
             ? 'Run verification demo'
-            : 'Discover and run'}
+            : 'Find gaps and research them'}
       </button>
       {message ? (
         <p className="datum-ops__form-message" role="status">

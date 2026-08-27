@@ -53,11 +53,18 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Workspace setup' },
         },
+        newContent: {
+          Component: '/components/ops/NewContentView#NewContentView',
+          path: '/ops/new',
+          exact: true,
+          meta: { title: 'New content' },
+        },
+        // The keyword-first discovery page this replaced. Redirects so bookmarks work.
         topicDiscovery: {
           Component: '/components/ops/TopicDiscoveryView#TopicDiscoveryView',
           path: '/ops/topics',
           exact: true,
-          meta: { title: 'Find topics' },
+          meta: { title: 'New content' },
         },
         content: {
           Component: '/components/ops/ContentListView#ContentListView',

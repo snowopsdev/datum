@@ -2694,3 +2694,64 @@
   gap: 10px;
   align-items: center;
 }
+
+/* ── New content: template cards ───────────────────────────────────────── */
+
+.datum-new__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.datum-new__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.datum-new__card:hover {
+  border-color: rgba(0, 117, 222, 0.45);
+}
+
+.datum-new__card.is-selected {
+  border-color: var(--ops-primary);
+  box-shadow: 0 0 0 2px rgba(0, 117, 222, 0.2);
+}
+
+.datum-new__card strong {
+  font-size: 15px;
+}
+
+.datum-new__card span {
+  font-size: 13px;
+  color: var(--ops-ink-muted);
+  line-height: 1.4;
+}
+
+.datum-new__card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ops-ink-faint);
+}
+
+.datum-new__card--add {
+  border-style: dashed;
+  background: var(--ops-canvas-soft);
+}
+
+.datum-new__auto > summary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 14px;
+}

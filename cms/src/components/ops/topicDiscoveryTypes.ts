@@ -32,7 +32,15 @@ export type DiscoverResult =
   | { ok: false; error: string }
 
 export type CreateTopicsResult =
-  | { ok: true; primary: string; covered: number; skipped: number }
+  | {
+      ok: true
+      articleId: number
+      primary: string
+      covered: number
+      skipped: number
+      /** False when the workspace is not ready to run; the piece still exists. */
+      researchQueued: boolean
+    }
   | { ok: false; error: string }
 
 /** One previous search, for the "pick up where you left off" list. */
