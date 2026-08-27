@@ -2385,3 +2385,42 @@
     display: none;
   }
 }
+
+/* Expanded run detail: per-stage model-call counts, above the bar's own row. */
+.datum-runbar__detail-panel {
+  /* Sits above the status row, so its rule goes on the bottom edge. */
+  border-bottom: 1px solid var(--theme-elevation-150, #e6e6e6);
+  background: var(--theme-elevation-50, #f6f5f4);
+  padding: 10px 20px 12px;
+}
+
+.datum-runbar__detail-panel ul {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 1600px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 4px 24px;
+}
+
+.datum-runbar__detail-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.datum-runbar__detail-num {
+  color: var(--theme-elevation-600, #615d59);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.datum-runbar__detail-panel p {
+  max-width: 1600px;
+  margin: 8px auto 0;
+  font-size: 11px;
+  color: var(--theme-elevation-500, #8a8a8a);
+}

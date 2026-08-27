@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { latestRunAction } from './boardActions'
-import { runProgress, STAGE_PROGRESS, type RunStatusDTO } from './boardTypes'
+import { callLabel, runProgress, STAGE_PROGRESS, type RunStatusDTO } from './boardTypes'
 import './ops.css'
 
 /** Tight enough to feel live while a run is going. */
@@ -43,19 +43,24 @@ export function GlobalRunBar() {
   const [run, setRun] = useState<RunStatusDTO | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [dismissed, setDismissed] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const seen = useRef<{ runId: string; status: string } | null>(null)
 
   const active = run?.status === 'queued' || run?.status === 'running'
 
   const poll = useCallback(async () => {
     const next = await latestRunAction()
-    setRun((prev) => {
-      // A run that just settled is worth one route refresh, so the page behind
-      // the bar catches up — but exactly one, or the poll would refresh forever.
-      const wasActive = prev?.status === 'queued' || prev?.status === 'running'
-      const nowSettled = next && next.status !== 'queued' && next.status !== 'running'
-      if (wasActive && nowSettled && prev?.runId === next?.runId) router.refresh()
-      return next
-    })
+    // Compared against a ref rather than inside a `setRun` updater: React runs
+    // updaters during render, so calling `router.refresh()` in one updates the
+    // Router while this component is rendering.
+    const prev = seen.current
+    seen.current = next ? { runId: next.runId, status: next.status } : null
+    // A run that just settled is worth one route refresh, so the page behind
+    // the bar catches up — but exactly one, or the poll would refresh forever.
+    const wasActive = prev?.status === 'queued' || prev?.status === 'running'
+    const nowSettled = next && next.status !== 'queued' && next.status !== 'running'
+    if (wasActive && nowSettled && prev?.runId === next.runId) router.refresh()
+    setRun(next)
   }, [router])
 
   useEffect(() => {
@@ -86,28 +91,87 @@ export function GlobalRunBar() {
   }
 
   const progress = active ? runProgress(run.articles) : 1
-  const stages = [...new Set(run.articles.map((a) => STAGE_PROGRESS[a.status]?.label ?? 'Finishing up'))]
   const onBoard = pathname === '/admin/ops/articles'
-
   const moved = Object.entries(run.finalStatuses)
   const total = moved.reduce((sum, [, n]) => sum + n, 0)
 
+  const activity = run.activity
+  // The article whose status is furthest back is the one the pipeline is on:
+  // stages run in order, so the laggard is the current work.
+  const current = [...run.articles].sort(
+    (a, b) => (STAGE_PROGRESS[a.status]?.step ?? 99) - (STAGE_PROGRESS[b.status]?.step ?? 99),
+  )[0]
+  const stageLabel = current ? (STAGE_PROGRESS[current.status]?.label ?? 'Finishing up') : 'Starting'
+  const stageStep = current ? (STAGE_PROGRESS[current.status]?.step ?? 3) + 1 : 1
+
+  // What the model is doing *right now*, which article status cannot say: a
+  // draft sits at one status for the whole ninety seconds a `generate` takes.
+  const doing = activity?.lastCallStage ? callLabel(activity.lastCallStage, current?.status ?? null) : null
+  const sinceCall = activity?.lastCallAtIso
+    ? Math.floor((now - new Date(activity.lastCallAtIso).getTime()) / 1000)
+    : null
+  // No new call for a while is normal — it means one is in flight — but saying
+  // so beats a frozen-looking line.
+  const waiting = sinceCall !== null && sinceCall > 12
+
+  const verbose = active
+    ? [
+        doing ?? stageLabel,
+        waiting ? `waiting on the model (${sinceCall}s)` : null,
+        activity && activity.totalCalls > 0
+          ? `${activity.totalCalls} model call${activity.totalCalls === 1 ? '' : 's'} · $${activity.totalCostUsd.toFixed(2)}`
+          : null,
+        `${elapsed(run.startedAtIso, now)} elapsed`,
+        run.mode === 'live' ? 'live providers' : 'mock mode',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
+
   return (
     <div className={`datum-runbar datum-runbar--${run.status}`} role="status" aria-live="polite">
+      {/*
+        Rendered before the status row: the bar is anchored to the bottom edge,
+        so a panel after the row would push the row up off its anchor. This way
+        the row stays put and the detail expands upward.
+      */}
+      {expanded && active && activity ? (
+        <div className="datum-runbar__detail-panel">
+          <ul>
+            {activity.byStage.map((entry) => (
+              <li key={entry.stage}>
+                <span>{callLabel(entry.stage, current?.status ?? null)}</span>
+                <span className="datum-runbar__detail-num">
+                  {entry.calls} call{entry.calls === 1 ? '' : 's'} · ${entry.costUsd.toFixed(2)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p>
+            {run.articles.length > 1
+              ? `${run.articles.length} articles in this run. `
+              : ''}
+            Each article goes through research, writing, QA and information-gain scoring. Counts are
+            model calls billed to this run so far.
+          </p>
+        </div>
+      ) : null}
       <div className="datum-runbar__inner">
         <span className={`datum-runbar__dot datum-runbar__dot--${run.status}`} aria-hidden="true" />
 
         <div className="datum-runbar__text">
           <strong>
             {active
-              ? `Running ${run.articleCount} article${run.articleCount === 1 ? '' : 's'}`
+              ? run.status === 'queued'
+                ? 'Queued — waiting to start'
+                : `Step ${stageStep} of 4 · ${stageLabel}${current ? ` · ${current.keyword}` : ''}`
               : run.status === 'failed'
                 ? 'Run failed'
                 : 'Run finished'}
           </strong>
           <span className="datum-runbar__detail">
             {active
-              ? `${stages.join(' · ') || 'Starting'} — ${elapsed(run.startedAtIso, now)} elapsed${run.mode === 'live' ? ' · live providers' : ''}`
+              ? verbose
               : run.failures.length > 0
                 ? `${run.failures[0].keyword} failed at ${run.failures[0].stage}${run.failures.length > 1 ? ` (+${run.failures.length - 1} more)` : ''}`
                 : total > 0
@@ -130,6 +194,16 @@ export function GlobalRunBar() {
         ) : null}
 
         <div className="datum-runbar__actions">
+          {active && activity && activity.byStage.length > 0 ? (
+            <button
+              aria-expanded={expanded}
+              className="datum-runbar__link"
+              onClick={() => setExpanded((v) => !v)}
+              type="button"
+            >
+              {expanded ? 'Hide detail' : 'Detail'}
+            </button>
+          ) : null}
           {!onBoard ? (
             <Link className="datum-runbar__link" href="/admin/ops/articles">
               Open board
@@ -147,6 +221,7 @@ export function GlobalRunBar() {
           ) : null}
         </div>
       </div>
+
     </div>
   )
 }

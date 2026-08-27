@@ -11,7 +11,12 @@ import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipel
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 import { isRunnableStatus } from './articleStatus'
-import { type RunArticleDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
+import {
+  type RunActivityDTO,
+  type RunArticleDTO,
+  type RunStatusDTO,
+  toRunFailures,
+} from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/articles'
 
@@ -226,6 +231,39 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       })
       articles = found.docs.map((d) => ({ id: d.id, keyword: d.keyword, status: d.status }))
     }
+
+    // Every LLM call writes a `cost-log` row, so counting them is the only way
+    // to tell "the model is working" from "the stage has hung" — the article's
+    // status does not change for the whole ninety seconds a draft takes.
+    let activity: RunActivityDTO | null = null
+    if (active) {
+      const calls = await payload.find({
+        collection: 'cost-log',
+        where: { pipelineRunId: { equals: run.runId } },
+        sort: '-createdAt',
+        pagination: false,
+        limit: 500,
+        depth: 0,
+      })
+      const byStage = new Map<string, { calls: number; costUsd: number }>()
+      let totalCostUsd = 0
+      for (const row of calls.docs) {
+        const stage = row.stage ?? 'unknown'
+        const entry = byStage.get(stage) ?? { calls: 0, costUsd: 0 }
+        entry.calls += 1
+        entry.costUsd += row.costUsd ?? 0
+        byStage.set(stage, entry)
+        totalCostUsd += row.costUsd ?? 0
+      }
+      const latest = calls.docs[0]
+      activity = {
+        totalCalls: calls.docs.length,
+        totalCostUsd,
+        byStage: [...byStage.entries()].map(([stage, v]) => ({ stage, ...v })),
+        lastCallStage: latest?.stage ?? null,
+        lastCallAtIso: latest?.createdAt ? new Date(latest.createdAt).toISOString() : null,
+      }
+    }
     return {
       runId: run.runId,
       status: run.status,
@@ -236,6 +274,7 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       articleCount: ids.length,
       articles,
       completedAtIso: run.completedAt ? new Date(run.completedAt).toISOString() : null,
+      activity,
       finalStatuses:
         run.finalStatuses && typeof run.finalStatuses === 'object' && !Array.isArray(run.finalStatuses)
           ? (run.finalStatuses as Record<string, number>)

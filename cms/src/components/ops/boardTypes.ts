@@ -35,6 +35,42 @@ export const STAGE_PROGRESS: Record<string, { step: number; label: string }> = {
 
 export const TOTAL_STAGES = 4
 
+/**
+ * What each LLM call is for, in words.
+ *
+ * `cost-log` writes a row per call, so this is the finest-grained live signal
+ * the system produces — much finer than article status, which sits unchanged
+ * through the ninety seconds a `generate` call takes. `claimExtraction` appears
+ * in two different stages and is labelled by the article's status, which is the
+ * only thing that distinguishes them.
+ */
+export const CALL_LABELS: Record<string, string> = {
+  generate: 'Writing the draft',
+  factCheck: 'Fact-checking against live web search',
+  qualitativeReview: 'Reviewing style and brand voice',
+  informationGainJudge: 'Judging what is genuinely new',
+  evidenceVerification: 'Hunting evidence for new claims',
+}
+
+/** `claimExtraction` means different work depending on where the article is. */
+export function callLabel(stage: string, articleStatus: string | null): string {
+  if (stage === 'claimExtraction') {
+    return articleStatus === 'qa_passed'
+      ? "Extracting the draft's own claims"
+      : 'Reading the pages that already rank'
+  }
+  return CALL_LABELS[stage] ?? stage
+}
+
+/** LLM work recorded against a run so far — the "is it stuck?" answer. */
+export type RunActivityDTO = {
+  totalCalls: number
+  totalCostUsd: number
+  byStage: { stage: string; calls: number; costUsd: number }[]
+  lastCallStage: string | null
+  lastCallAtIso: string | null
+}
+
 /** Mean completion across a run's articles, 0–1. Settled articles count as done. */
 export function runProgress(articles: RunArticleDTO[]): number {
   if (articles.length === 0) return 0
@@ -58,6 +94,8 @@ export type RunStatusDTO = {
   articles: RunArticleDTO[]
   /** When it actually finished — the bar lingers from this, not from page load. */
   completedAtIso: string | null
+  /** Populated while in flight, so the bar can say what the model is doing. */
+  activity: RunActivityDTO | null
   /** `{ verified: 2, needs_revision: 1 }` — what the run actually achieved. */
   finalStatuses: Record<string, number>
   failures: RunFailureDTO[]
