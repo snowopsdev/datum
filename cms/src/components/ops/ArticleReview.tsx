@@ -16,6 +16,7 @@ import {
 } from './actions'
 import { BriefEditor } from './BriefEditor'
 import { revisitBriefAction } from './briefActions'
+import { runSelectedArticlesAction } from './boardActions'
 import { Stepper } from './Stepper'
 import {
   OWNER_LABEL,
@@ -432,6 +433,7 @@ export function ArticleReview({
   const [templateId, setTemplateId] = useState(
     article.templateId != null ? String(article.templateId) : '',
   )
+  const [confirmLiveCost, setConfirmLiveCost] = useState(false)
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   /**
    * Deliberately *not* seeded from the article's persisted
@@ -609,6 +611,51 @@ export function ArticleReview({
                   }
                 >
                   Assign & return
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {article.status === 'topic_selected' && article.templateId != null ? (
+            <div className="datum-ops__block">
+              <h3>Start research</h3>
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                {/*
+                  This exists because a piece created while the workspace was
+                  not ready (no brand voice, missing live keys) is created
+                  anyway and left here — nothing queues research for it on its
+                  own once the workspace becomes ready, and until now there was
+                  no way to start it from the admin.
+                */}
+                Research has not started yet. This runs it for this piece alone.
+              </p>
+              {mode === 'live' ? (
+                <label className="datum-ops__cost-confirm">
+                  <input
+                    checked={confirmLiveCost}
+                    disabled={pending}
+                    onChange={(e) => setConfirmLiveCost(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>This run uses paid live providers.</span>
+                </label>
+              ) : null}
+              <div className="datum-ops__actions">
+                <button
+                  type="button"
+                  className="datum-ops__btn datum-ops__btn--primary"
+                  disabled={pending || (mode === 'live' && !confirmLiveCost)}
+                  onClick={() =>
+                    runAction(async () => {
+                      const result = await runSelectedArticlesAction({
+                        articleIds: [article.id],
+                        confirmLiveCost,
+                      })
+                      if (!result.ok) throw new Error(result.error)
+                    }, false)
+                  }
+                >
+                  Start research
                 </button>
               </div>
             </div>

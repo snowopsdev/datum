@@ -94,7 +94,14 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
     setError(null)
     setDone(null)
     startTransition(async () => {
-      const result = await createTopicsAction({ keywords: [...picked], templateId })
+      // `picked` is a Set, ordered by click order, not opportunity — spreading
+      // it directly would let whichever keyword was ticked first become the
+      // primary. `candidates` is already opportunity-sorted, so filter it
+      // instead of the Set to keep the highest-opportunity pick first, which
+      // is what `createTopicsAction` assumes and what the hint text below
+      // promises.
+      const ordered = (candidates ?? []).filter((c) => picked.has(c.keyword)).map((c) => c.keyword)
+      const result = await createTopicsAction({ keywords: ordered, templateId })
       if (!result.ok) {
         setError(result.error)
         return
@@ -120,8 +127,9 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
         <p className="datum-ops__sub">
           Type a subject you want to cover. We ask Ahrefs what people actually search for around
           it, then you pick the ones worth writing. Tick several related searches and they become a
-          single article covering all of them. Creating one starts research; you approve a brief before
-          anything is written or paid for.
+          single article covering all of them. Creating one starts research right away — that alone
+          calls paid services in live mode. Nothing is <em>written</em> until you approve the brief
+          it produces.
         </p>
 
         <form className="datum-ops__period" onSubmit={search}>

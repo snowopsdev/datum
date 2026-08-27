@@ -64,8 +64,9 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
         </Link>
       </div>
       <p className="datum-ops__lede">
-        Pick the kind of piece, say what it is about, and Datum researches it while you wait. You
-        approve a brief before a word is written{mode === 'live' ? ' or a provider is paid' : ''}.
+        Pick the kind of piece, say what it is about, and Datum researches it while you wait
+        {mode === 'live' ? ' — that research alone calls paid services' : ''}. You approve a brief
+        before a word of the piece itself is written.
       </p>
 
       <section className="datum-ops__panel">
