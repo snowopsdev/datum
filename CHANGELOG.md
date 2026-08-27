@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.0](https://github.com/snowopsdev/datum/compare/v0.2.0...v0.3.0) (2026-08-27)
+
+
+### Features
+
+* **cms:** add the evidence-source-candidates collection ([35f7fc8](https://github.com/snowopsdev/datum/commit/35f7fc8f5fa1f589ea3163307cda0704e5f287f9))
+* **cms:** add the source review governance page ([015aff4](https://github.com/snowopsdev/datum/commit/015aff46905ab36443c074d328ab374b9cfb01a6))
+* **cms:** add the topic discovery migration ([b289188](https://github.com/snowopsdev/datum/commit/b28918859201be75ec7dae11d0a8fce612ac6619))
+* **cms:** group picked topics into one article and cache discovery ([cdf1d5f](https://github.com/snowopsdev/datum/commit/cdf1d5f4c9c4a7183f23b76e447f906aeb2b2bdd))
+* **cms:** intent-first new content flow that starts research on its own ([5df5866](https://github.com/snowopsdev/datum/commit/5df5866849c43a5274cd2a4556ceb9c37341d60e))
+* **cms:** let operators discover topics from a subject they type ([1e12678](https://github.com/snowopsdev/datum/commit/1e1267801334c5ec0388cafd8fb4cc40b1fbea10))
+* **cms:** onboarding is one decision, then your first piece ([278a0fa](https://github.com/snowopsdev/datum/commit/278a0fac0ad617718fe6befb0c42d18f7301149e))
+* **cms:** replace the article board with a content list and stepper ([9ad44e3](https://github.com/snowopsdev/datum/commit/9ad44e38d7f5b208eebe8e02083e2e5b61641356))
+* **cms:** report run outcomes on the board and allow new templates ([a35393d](https://github.com/snowopsdev/datum/commit/a35393d3520ef1f4cf16c94798844547388c6aa1))
+* **cms:** run and remove selected topics from the article board ([cf03720](https://github.com/snowopsdev/datum/commit/cf037201848c956f11f687af387c346c49a17201))
+* **cms:** say what QA failed and what the rewrite must change ([1ec050b](https://github.com/snowopsdev/datum/commit/1ec050b57570f4d2ec337bb2fe0cfc5d875cec24))
+* **cms:** say what the model is doing during a live run ([3a2b758](https://github.com/snowopsdev/datum/commit/3a2b758c48f1c85bfd8a17d32ea7a393a6958d48))
+* **cms:** show active runs in a sticky bar across the admin ([57cacf2](https://github.com/snowopsdev/datum/commit/57cacf23bd0aede7676d6816fed07754a5d854cb))
+* **pipeline:** add the brief checkpoint between research and writing ([bda52a7](https://github.com/snowopsdev/datum/commit/bda52a70dfc288a39a8b2dd8e5aa9ed0a7a7de5e))
+* **pipeline:** record unrated evidence domains from the scoring stage ([c32951b](https://github.com/snowopsdev/datum/commit/c32951b1266f3ad030f499272fed3a9cba8c2195))
+
+
+### Bug Fixes
+
+* **cms:** keep the domain rating pill on one line ([b32e575](https://github.com/snowopsdev/datum/commit/b32e57576bfd1bb22593c2f7006e22f5e2598131))
+* **cms:** make the source review page match the ops CSS conventions ([c9f35b6](https://github.com/snowopsdev/datum/commit/c9f35b6f47a9d1905b4374eec05f168def6800cb))
+* **cms:** Prevent integration schema races ([9dd2e14](https://github.com/snowopsdev/datum/commit/9dd2e14b7d8f3d6fe50c1a0f960fc38fa177962a))
+* **cms:** unstick deferred research and fix two Codex findings ([5125ef1](https://github.com/snowopsdev/datum/commit/5125ef1fab1151c41ee5a31ae36f1ccf7a7ad2d7))
+* **pipeline:** label FAQ entries so QA stops reporting them as duplicate content ([e7b6417](https://github.com/snowopsdev/datum/commit/e7b641777e0b3e7b2e5f58e77cbb21e61381901d))
+* **pipeline:** repair the OpenAI path and the checks it feeds ([013b19f](https://github.com/snowopsdev/datum/commit/013b19ff219a0ccd2c385e1bce989068ff401399))
+* **pipeline:** stop failing every draft on a missing social image ([116aee8](https://github.com/snowopsdev/datum/commit/116aee8b9924fa5dbcf063c97f209d6ed1fcfecc))
+* **pipeline:** stop the e2e report check failing when it finds the block ([f20cb34](https://github.com/snowopsdev/datum/commit/f20cb34592ee93ad792dc18a9fd30836214b256a))
+* **pipeline:** stop truncating command output when it is piped ([fc7c26c](https://github.com/snowopsdev/datum/commit/fc7c26c413679629f27bae61cf0597e211c9b008))
+* **pipeline:** update workspaceReadiness tests for the ready redefinition ([b157e20](https://github.com/snowopsdev/datum/commit/b157e20663c3e8d36d47e444e69184f7b8e383d1))
+
 ## [0.2.0](https://github.com/snowopsdev/datum/compare/v0.1.0...v0.2.0) (2026-08-26)
 
 
