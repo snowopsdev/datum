@@ -1,6 +1,11 @@
 import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
 import { completeJSONLogged } from '../llm'
-import { lexicalToMarkdown, lexicalToPlainText, type RichText } from '../richtext'
+import {
+  extractHeadings,
+  lexicalToMarkdown,
+  lexicalToPlainText,
+  type RichText,
+} from '../richtext'
 import { resolveTemplate, type Stage } from '../stages'
 
 import { runStructuralChecks } from './structuralChecks'
@@ -39,11 +44,24 @@ export const qaStage: Stage = {
     const faqText =
       article.faqItems?.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n') || '(none)'
 
+    // `faqItems` is structured data for search engines, and templates like
+    // How-To also require an "FAQ" H2 in the body — so for those the same Q&As
+    // legitimately exist twice, once rendered and once as markup. Appending the
+    // FAQ block after the body without saying so made every reviewer report the
+    // article as repeating itself, an unfixable complaint: removing either copy
+    // breaks a rule the template enforces. Say which is which instead.
+    const bodyHasFaqSection = article.body
+      ? extractHeadings(article.body as RichText).some((h) => /\bfaq\b|frequently asked/i.test(h.text))
+      : false
+    const faqBlock = bodyHasFaqSection
+      ? `FAQ entries (structured data for search engines — these intentionally mirror the article's own FAQ section, so do not report them as duplicated content):\n${faqText}`
+      : `FAQ entries (structured data for search engines, not part of the body):\n${faqText}`
+
     const factResult = await completeJSONLogged(ctx, 'factCheck', article.id, {
       system:
         'You are a rigorous fact checker. Verify the factual claims in the article using web search. ' +
         'Return JSON: {"passed": boolean, "notes": string, "sources": string[]} where sources are the URLs you used.',
-      user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\nFAQ:\n${faqText}`,
+      user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\n${faqBlock}`,
       needWebSearch: true,
     })
     const factCheck = parseFactCheck(factResult.json)
@@ -60,7 +78,7 @@ export const qaStage: Stage = {
     ].join('\n')
     const qualResult = await completeJSONLogged(ctx, 'qualitativeReview', article.id, {
       system: BASE_QUALITATIVE_SYSTEM + (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE),
-      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\nFAQ:\n${faqText}`,
+      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
     })
     const qualitativeReview = parseQualitative(qualResult.json)
 

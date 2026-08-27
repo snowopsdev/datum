@@ -585,6 +585,25 @@ export function ArticleReview({
                         <p className="datum-ops__qa-fix">
                           <strong>To fix:</strong> {f.fix}
                         </p>
+                        {f.sources && f.sources.length > 0 ? (
+                          <p className="datum-ops__qa-sources">
+                            Checked against:{' '}
+                            {f.sources.map((url, i) => (
+                              <React.Fragment key={url}>
+                                {i > 0 ? ', ' : ''}
+                                <a href={url} rel="noreferrer noopener" target="_blank">
+                                  {(() => {
+                                    try {
+                                      return new URL(url).hostname.replace(/^www\./, '')
+                                    } catch {
+                                      return url
+                                    }
+                                  })()}
+                                </a>
+                              </React.Fragment>
+                            ))}
+                          </p>
+                        ) : null}
                         {f.code ? <code className="datum-ops__qa-code">{f.code}</code> : null}
                       </li>
                     ))}

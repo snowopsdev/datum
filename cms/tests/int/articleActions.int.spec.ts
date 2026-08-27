@@ -130,7 +130,7 @@ describe('buildRegenerateRevisionNotes', () => {
       qaResults: { factCheck: { passed: false, notes: 'unsupported stat' } },
     } as never)
     expect(notes).toBe(
-      '- [Fact check] unsupported stat Correct this, and cite a source for anything you change.',
+      '- [Fact check] unsupported stat Correct each of these, and keep every other fact as it stands. Cite a source for anything you change.',
     )
   })
 

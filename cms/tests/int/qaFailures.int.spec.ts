@@ -103,6 +103,29 @@ describe('qaFailures', () => {
     expect(failures[0].what).toBe('too salesy')
   })
 
+  it('hands the fact checker\'s verified sources to the rewrite', () => {
+    const [f] = qaFailures({
+      qaResults: {
+        factCheck: {
+          passed: false,
+          notes: 'Season count is wrong',
+          sources: ['https://example.com/seasons', 'not a url', { url: 'https://other.org/x' }],
+        },
+      },
+    } as never)
+    expect(f.sources).toEqual(['https://example.com/seasons', 'https://other.org/x'])
+    expect(f.fix).toContain('https://example.com/seasons')
+    expect(f.fix).toContain('keep every other fact as it stands')
+  })
+
+  it('asks for a citation instead when the checker recorded no sources', () => {
+    const [f] = qaFailures({
+      qaResults: { factCheck: { passed: false, notes: 'wrong', sources: [] } },
+    } as never)
+    expect(f.sources).toEqual([])
+    expect(f.fix).toContain('Cite a source')
+  })
+
   it('carries every structural violation through, described', () => {
     const failures = qaFailures({
       qaResults: {

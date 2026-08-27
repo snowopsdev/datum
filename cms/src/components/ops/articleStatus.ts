@@ -218,6 +218,8 @@ export type QaFailure = {
   fix: string
   /** The machine code, kept for operators who want to grep for it. */
   code: string | null
+  /** Pages the fact checker verified against, for the rewrite to work from. */
+  sources?: string[]
 }
 
 const OG_FIELD_LABEL: Record<string, string> = {
@@ -382,11 +384,28 @@ export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFai
     }
   }
   if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
+    // The checker verified against real pages and recorded them. Handing those
+    // URLs to the rewrite is the difference between "this claim is wrong" and
+    // "this claim is wrong, and here is where the right answer lives" — without
+    // them the next draft has to re-derive the correction from nothing, which
+    // is how the same error survives a regeneration.
+    const sources = Array.isArray(qa.factCheck.sources)
+      ? qa.factCheck.sources
+          .map((entry) =>
+            typeof entry === 'string' ? entry : ((entry as { url?: unknown } | null)?.url ?? null),
+          )
+          .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+      : []
     out.push({
       check: 'factCheck',
       code: null,
+      sources,
       what: qa.factCheck.notes,
-      fix: 'Correct this, and cite a source for anything you change.',
+      fix:
+        'Correct each of these, and keep every other fact as it stands.' +
+        (sources.length > 0
+          ? ` The checker verified against these pages — use them for the corrected values: ${sources.join(', ')}`
+          : ' Cite a source for anything you change.'),
     })
   }
   if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
