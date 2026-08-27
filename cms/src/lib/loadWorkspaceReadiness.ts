@@ -6,7 +6,7 @@ import { evaluateWorkspaceReadiness, type WorkspaceReadiness } from './workspace
 export interface PipelineRunSummary {
   id: number | string
   runId: string
-  source: 'onboarding' | 'admin' | 'cli'
+  source: 'onboarding' | 'admin' | 'cli' | 'selected'
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   mode: 'mock' | 'live'
   configFingerprint: string

@@ -2002,3 +2002,116 @@
   color: var(--ops-primary);
   cursor: help;
 }
+
+/* ── Board selection and run bar ─────────────────────────────────────────
+   The board's cards used to be plain links. They now carry a checkbox, so
+   the card is a container and `__card-link` is the part that navigates —
+   otherwise ticking the box would also open the article. */
+
+.datum-ops__runbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas-soft);
+}
+
+.datum-ops__runbar-main {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.datum-ops__runbar-count {
+  margin: 2px 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ops-ink);
+}
+
+.datum-ops__runbar-main .datum-ops__hint {
+  margin: 0;
+}
+
+.datum-ops__runbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.datum-ops__runbar > .datum-ops__hint,
+.datum-ops__runbar > .datum-ops__ok,
+.datum-ops__runbar > .datum-ops__error {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+/* Who has to act on a column, stated rather than implied by colour alone. */
+.datum-ops__owner {
+  margin: 0 14px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.datum-ops__owner--run {
+  color: var(--ops-primary);
+}
+
+.datum-ops__owner--you {
+  color: var(--ops-orange);
+}
+
+.datum-ops__owner--done {
+  color: var(--ops-ink-faint);
+}
+
+.datum-ops__column--you {
+  border-color: rgba(221, 91, 0, 0.35);
+}
+
+.datum-ops__column-select {
+  margin: 0 14px 10px;
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+.datum-ops__card.is-picked {
+  border-color: var(--ops-primary);
+  box-shadow: inset 0 0 0 1px var(--ops-primary);
+}
+
+.datum-ops__card-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ops-ink-muted);
+  cursor: pointer;
+}
+
+.datum-ops__card-pick input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.datum-ops__card-link {
+  display: block;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.datum-ops__card-warn {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ops-orange);
+}

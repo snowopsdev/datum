@@ -12,6 +12,12 @@ import type { DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 export interface TopicCandidate extends DiscoveredKeyword {
   /** True when an article already exists for this keyword. */
   alreadyTaken: boolean
+  /**
+   * True when the only article for this keyword was taken off the board.
+   * It still blocks a second pick — keywords are one-article-per — but the
+   * panel has to say *why*, or removing a topic looks like it did nothing.
+   */
+  archived: boolean
 }
 
 export type DiscoverResult =

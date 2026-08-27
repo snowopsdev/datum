@@ -4,12 +4,18 @@ import { createLocalReq, type Payload, type TypedUser } from 'payload'
 import type { WorkspaceReadiness } from './workspaceReadiness'
 
 export interface CreatePipelineRunInput {
-  source: 'onboarding' | 'admin'
+  source: 'onboarding' | 'admin' | 'selected'
   templateId: number
   count: number
   requestedBy: string
   readiness: WorkspaceReadiness
   runId: string
+  /**
+   * The articles a `selected` run should advance, attached at creation rather
+   * than discovered by the task. Every other source creates its own articles,
+   * so this is empty for them.
+   */
+  articleIds?: number[]
 }
 
 export class ActivePipelineRunError extends Error {
@@ -52,7 +58,12 @@ export async function createPipelineRun(
     })
     if (active.docs[0]) throw new ActivePipelineRunError(active.docs[0].runId)
 
-    const requestedCount = input.source === 'onboarding' ? 1 : Math.max(1, Math.min(5, input.count))
+    const requestedCount =
+      input.source === 'onboarding'
+        ? 1
+        : input.source === 'selected'
+          ? Math.max(1, Math.min(50, input.articleIds?.length ?? 0))
+          : Math.max(1, Math.min(5, input.count))
     await payload.create({
       collection: 'pipeline-runs',
       overrideAccess: true,
@@ -64,6 +75,7 @@ export async function createPipelineRun(
         mode: input.readiness.mode,
         template: input.templateId,
         requestedCount,
+        ...(input.articleIds?.length ? { articles: input.articleIds } : {}),
         configFingerprint: input.readiness.configFingerprint,
         configSnapshot: {
           mode: input.readiness.mode,

@@ -50,6 +50,12 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Workspace setup' },
         },
+        topicDiscovery: {
+          Component: '/components/ops/TopicDiscoveryView#TopicDiscoveryView',
+          path: '/ops/topics',
+          exact: true,
+          meta: { title: 'Find topics' },
+        },
         articleBoard: {
           Component: '/components/ops/ArticleBoardView#ArticleBoardView',
           path: '/ops/articles',

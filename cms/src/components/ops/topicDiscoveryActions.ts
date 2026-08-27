@@ -107,13 +107,23 @@ export async function discoverTopicsAction(
       limit: 500,
     })
     const taken = new Set(docs.map((d) => d.keyword?.toLowerCase()).filter(Boolean))
+    // An archived article still owns its keyword, so the row stays unpickable —
+    // but "removed from the board" and "already being written" are different
+    // answers to "why can't I pick this", and the panel says which.
+    const archived = new Set(
+      docs.filter((d) => d.archived).map((d) => d.keyword?.toLowerCase()).filter(Boolean),
+    )
 
     return {
       ok: true,
       seed: term,
       cached: usableCache !== null,
       fetchedAt,
-      candidates: candidates.map((c) => ({ ...c, alreadyTaken: taken.has(c.keyword.toLowerCase()) })),
+      candidates: candidates.map((c) => ({
+        ...c,
+        alreadyTaken: taken.has(c.keyword.toLowerCase()),
+        archived: archived.has(c.keyword.toLowerCase()),
+      })),
     }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not search for topics.') }

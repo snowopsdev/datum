@@ -23,22 +23,108 @@ export const ARTICLE_STATUSES = [
 
 export type ArticleStatus = (typeof ARTICLE_STATUSES)[number]
 
+/**
+ * The four statuses a pipeline stage waits on, and the stage that picks each up.
+ *
+ * A single run walks all four stages in order, so an article that starts at
+ * `topic_selected` normally comes out the far end scored. The middle three only
+ * persist when a run stopped part-way — which is exactly why the board has to
+ * name them rather than leave a card sitting in a column with no explanation.
+ */
+export const NEXT_STAGE_FOR_STATUS = {
+  topic_selected: 'Research',
+  researched: 'Writing the draft',
+  drafted: 'QA checks',
+  qa_passed: 'Information-gain scoring',
+} as const
+
+export type RunnableStatus = keyof typeof NEXT_STAGE_FOR_STATUS
+
+/** Whether starting a run would actually move this article. */
+export function isRunnableStatus(status: string): status is RunnableStatus {
+  return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
+}
+
+/**
+ * Who has to do something for a card to move.
+ *
+ * `run` — a pipeline run advances it; nobody needs to read it first.
+ * `you`  — it is waiting on a human decision and a run will not touch it.
+ * `done` — terminal.
+ */
+export type ColumnOwner = 'run' | 'you' | 'done'
+
 export const STATUS_COLUMNS: {
   id: ArticleStatus
   label: string
   blurb: string
+  owner: ColumnOwner
   actionable: boolean
 }[] = [
-  { id: 'topic_selected', label: 'Topic selected', blurb: 'Assign a template', actionable: true },
-  { id: 'researched', label: 'Researched', blurb: 'Pipeline', actionable: false },
-  { id: 'drafted', label: 'Drafted', blurb: 'Awaiting QA', actionable: false },
-  { id: 'needs_revision', label: 'Needs revision', blurb: 'Triage failures', actionable: true },
-  { id: 'qa_passed', label: 'QA passed', blurb: 'Awaiting information gain', actionable: false },
-  { id: 'verified', label: 'Verified', blurb: 'Approve or publish', actionable: true },
-  { id: 'needs_review', label: 'Needs review', blurb: 'Reviewer decision', actionable: true },
-  { id: 'blocked', label: 'Blocked', blurb: 'Override or send back', actionable: true },
-  { id: 'approved', label: 'Approved', blurb: 'Ready to publish', actionable: false },
-  { id: 'published', label: 'Published', blurb: 'Live', actionable: false },
+  {
+    id: 'topic_selected',
+    label: 'Topic selected',
+    blurb: 'Chosen but not started. Tick some and start a run.',
+    owner: 'run',
+    actionable: true,
+  },
+  {
+    id: 'researched',
+    label: 'Researched',
+    blurb: 'A run stopped after research. Start another to carry on.',
+    owner: 'run',
+    actionable: true,
+  },
+  {
+    id: 'drafted',
+    label: 'Drafted',
+    blurb: 'Written but not checked. Start a run to QA it.',
+    owner: 'run',
+    actionable: true,
+  },
+  {
+    id: 'needs_revision',
+    label: 'Needs revision',
+    blurb: 'QA found problems. Open it to read them, then rewrite.',
+    owner: 'you',
+    actionable: true,
+  },
+  {
+    id: 'qa_passed',
+    label: 'QA passed',
+    blurb: 'Checks passed, not scored yet. Start a run to finish.',
+    owner: 'run',
+    actionable: true,
+  },
+  {
+    id: 'verified',
+    label: 'Verified',
+    blurb: 'Cleared scoring. Approve it when you are happy.',
+    owner: 'you',
+    actionable: true,
+  },
+  {
+    id: 'needs_review',
+    label: 'Needs review',
+    blurb: 'Scoring wants your call. Override or send it back.',
+    owner: 'you',
+    actionable: true,
+  },
+  {
+    id: 'blocked',
+    label: 'Blocked',
+    blurb: 'Scoring blocked it. Override or send it back.',
+    owner: 'you',
+    actionable: true,
+  },
+  {
+    id: 'approved',
+    label: 'Approved',
+    blurb: 'Signed off. Publish when you are ready.',
+    owner: 'you',
+    actionable: true,
+  },
+  { id: 'published', label: 'Published', blurb: 'Live. Nothing left to do.', owner: 'done', actionable: false },
 ]
 
 export type BoardArticle = {

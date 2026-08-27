@@ -108,7 +108,14 @@ export async function runPipeline(
   const stageSummaries: StageRunSummary[] = []
   let totalFailed = 0
   for (const stage of options.stages ?? stages) {
-    const and: Where[] = [{ status: { equals: stage.entryStatus } }, { template: { exists: true } }]
+    // `archived` is deliberately part of the entry query rather than a board-only
+    // filter: an archived topic still holds a pipeline status, so leaving it out
+    // here would let a run pick up work somebody explicitly took off the board.
+    const and: Where[] = [
+      { status: { equals: stage.entryStatus } },
+      { template: { exists: true } },
+      { archived: { not_equals: true } },
+    ]
     if (options.articleIds?.length) and.push({ id: { in: options.articleIds } })
     const { docs } = await ctx.payload.find({
       collection: 'articles',

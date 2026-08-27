@@ -22,7 +22,11 @@ export const PipelineRuns: CollectionConfig = {
       name: 'source',
       type: 'select',
       required: true,
-      options: ['onboarding', 'admin', 'cli'],
+      options: ['onboarding', 'admin', 'cli', 'selected'],
+      admin: {
+        description:
+          'Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.',
+      },
     },
     {
       name: 'status',
@@ -33,7 +37,11 @@ export const PipelineRuns: CollectionConfig = {
     },
     { name: 'mode', type: 'select', required: true, options: ['mock', 'live'] },
     { name: 'template', type: 'relationship', relationTo: 'templates', required: true },
-    { name: 'requestedCount', type: 'number', required: true, min: 1, max: 5 },
+    // `admin`/`onboarding` runs are capped at 5 because each one buys a fresh
+    // topic. A `selected` run buys nothing new — it advances articles that are
+    // already on the board — so the ceiling is only there to stop a runaway
+    // select-all, and the DB column is plain numeric either way.
+    { name: 'requestedCount', type: 'number', required: true, min: 1, max: 50 },
     { name: 'articles', type: 'relationship', relationTo: 'articles', hasMany: true },
     { name: 'configFingerprint', type: 'text', required: true, index: true },
     { name: 'configSnapshot', type: 'json', required: true },

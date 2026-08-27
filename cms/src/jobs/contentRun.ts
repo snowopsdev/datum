@@ -46,7 +46,17 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       ahrefs: createAhrefsClient(),
     }
 
-    if (run.source === 'onboarding') {
+    if (run.source === 'selected') {
+      // The articles were chosen by a person and attached when the run was
+      // created, so there is nothing to discover. This is the only source that
+      // advances work already on the board rather than buying new topics.
+      articleIds = (run.articles ?? []).map((entry) =>
+        typeof entry === 'object' ? entry.id : entry,
+      )
+      if (articleIds.length === 0) {
+        throw new Error('This run has no articles attached.')
+      }
+    } else if (run.source === 'onboarding') {
       const sample = await payload.create({
         collection: 'articles',
         overrideAccess: true,

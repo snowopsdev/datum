@@ -123,7 +123,8 @@ export function TopicDiscovery({ templates, mode }: Props) {
         <p className="datum-ops__sub">
           Type a subject you want to cover. We ask Ahrefs what people actually search for around
           it, then you pick the ones worth writing. Tick several related searches and they become a
-          single article covering all of them. Nothing is created until you choose.
+          single article covering all of them. Nothing is written or paid for here — picking a topic
+          just puts it on the board.
         </p>
 
         <form className="datum-ops__period" onSubmit={search}>
@@ -215,7 +216,7 @@ export function TopicDiscovery({ templates, mode }: Props) {
                         {c.alreadyTaken ? (
                           <span className="datum-ops__pill datum-ops__pill--muted datum-ops__pill--tight">
                             {' '}
-                            already on the board
+                            {c.archived ? 'removed from the board' : 'already on the board'}
                           </span>
                         ) : null}
                       </td>
@@ -294,8 +295,9 @@ export function TopicDiscovery({ templates, mode }: Props) {
               Nothing has been written or spent yet.
             </li>
             <li>
-              <strong>You start a run</strong> with the panel above the board. Datum researches
-              what already ranks, writes a draft in your brand voice, and checks it.
+              <strong>You start a run</strong> from the article board: tick the topics you want and
+              press Start. Datum researches what already ranks, writes a draft in your brand voice,
+              and checks it. You choose which topics run and when.
             </li>
             <li>
               <strong>Three checks must pass</strong> — structure, facts (verified against live web

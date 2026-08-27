@@ -25,6 +25,21 @@ export const Articles: CollectionConfig = {
   },
   fields: [
     {
+      // Taking a topic off the board without destroying it. A hard delete is
+      // impossible by design — `article-audit` rows are append-only and their
+      // NOT NULL FK back to the article refuses to be nulled — and it would be
+      // the wrong trade anyway: the trail of what was chosen and dropped is
+      // exactly the sort of thing an audit log exists to keep.
+      name: 'archived',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Hidden from the article board and skipped by every pipeline run.',
+      },
+    },
+    {
       name: 'title',
       type: 'text',
     },

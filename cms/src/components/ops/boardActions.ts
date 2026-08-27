@@ -1,0 +1,189 @@
+'use server'
+
+import { randomUUID } from 'node:crypto'
+
+import config from '@payload-config'
+import { revalidatePath } from 'next/cache'
+import { headers as getHeaders } from 'next/headers'
+import { getPayload } from 'payload'
+
+import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+
+import { isRunnableStatus } from './articleStatus'
+
+const BOARD_PATH = '/admin/ops/articles'
+
+export type BoardActionResult = { ok: true; message: string } | { ok: false; error: string }
+
+async function requireUser() {
+  const headers = await getHeaders()
+  const payload = await getPayload({ config })
+  const { user } = await payload.auth({ headers })
+  if (!user) throw new Error('Sign in to manage the board.')
+  return { payload, user }
+}
+
+function errorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
+  return fallback
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * Advance the articles a person ticked on the board, and only those.
+ *
+ * This is the counterpart to `startContentRunAction`, which buys *new* topics
+ * from Ahrefs before running anything. Both end up in `runPipeline`, but they
+ * answer different questions: "find me work" versus "do this work". Keeping
+ * them apart is the point — a board full of topics somebody chose deliberately
+ * should never need a content-gap lookup to move.
+ */
+export async function runSelectedArticlesAction(input: {
+  articleIds: number[]
+  confirmLiveCost?: boolean
+}): Promise<BoardActionResult> {
+  try {
+    const { payload, user } = await requireUser()
+    const ids = [...new Set(input.articleIds)].filter((id) => Number.isFinite(id) && id > 0)
+    if (ids.length === 0) return { ok: false, error: 'Pick at least one article to run.' }
+
+    const setup = await loadWorkspaceSetup(payload)
+    const { readiness } = setup
+    if (!readiness.runtime.ready) {
+      return {
+        ok: false,
+        error: `Configure the required environment variables: ${readiness.runtime.missing.join(', ')}.`,
+      }
+    }
+    if (!readiness.governance.ready) {
+      return { ok: false, error: 'Activate a brand voice before running the pipeline.' }
+    }
+    if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
+      return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
+    }
+
+    const { docs } = await payload.find({
+      collection: 'articles',
+      where: { id: { in: ids } },
+      pagination: false,
+      limit: ids.length,
+      depth: 0,
+    })
+    if (docs.length === 0) return { ok: false, error: 'Those articles no longer exist.' }
+
+    // A status with no stage waiting on it would be silently dropped by
+    // `runPipeline`'s entry-status query, so the run would report success
+    // having done nothing. Refuse instead of lying about it.
+    const stalled = docs.filter((doc) => !isRunnableStatus(doc.status))
+    if (stalled.length > 0) {
+      return {
+        ok: false,
+        error: `${plural(stalled.length, 'article')} cannot be advanced by a run — open ${stalled.length === 1 ? 'it' : 'them'} to decide what happens next.`,
+      }
+    }
+    const untemplated = docs.filter((doc) => !doc.template)
+    if (untemplated.length > 0) {
+      return {
+        ok: false,
+        error: `Assign a template to ${plural(untemplated.length, 'article')} first — the pipeline skips articles without one.`,
+      }
+    }
+
+    // The run row needs one template for its own record; each article is still
+    // written against its own, so a mixed selection runs correctly either way.
+    const first = docs[0].template
+    const templateId = typeof first === 'object' && first ? first.id : Number(first)
+
+    const runId = randomUUID()
+    await createPipelineRun(payload, user, {
+      runId,
+      source: 'selected',
+      templateId,
+      count: docs.length,
+      articleIds: docs.map((doc) => doc.id),
+      requestedBy: user.email || String(user.id),
+      readiness,
+    })
+
+    revalidatePath(BOARD_PATH)
+    revalidatePath('/admin')
+    return {
+      ok: true,
+      message: `Started a run for ${plural(docs.length, 'article')}. Refresh to watch them move.`,
+    }
+  } catch (error) {
+    if (error instanceof ActivePipelineRunError) {
+      return { ok: false, error: `${error.message} Wait for it to finish before starting another.` }
+    }
+    return { ok: false, error: errorMessage(error, 'Could not start that run.') }
+  }
+}
+
+/**
+ * Take chosen topics off the board before anything has been spent on them.
+ *
+ * Archives rather than deletes. A hard delete is not available: `article-audit`
+ * rows are append-only (`beforeDelete` throws) and their `article_id` is NOT
+ * NULL behind an ON DELETE SET NULL foreign key, so Postgres refuses to remove
+ * an article while any audit row points at it — which every article has from
+ * the moment it is created. Archiving keeps that record of what was chosen and
+ * dropped, and `runPipeline` skips archived articles, so the practical effect
+ * is the one asked for: it leaves the board and never runs.
+ *
+ * Deliberately limited to `topic_selected`. Past that point an article has
+ * research, a draft and cost behind it, and setting that aside is a different
+ * decision than un-picking a topic — it belongs on the article's own page.
+ */
+export async function removeTopicsAction(articleIds: number[]): Promise<BoardActionResult> {
+  try {
+    const { payload, user } = await requireUser()
+    const ids = [...new Set(articleIds)].filter((id) => Number.isFinite(id) && id > 0)
+    if (ids.length === 0) return { ok: false, error: 'Pick at least one topic to remove.' }
+
+    const { docs } = await payload.find({
+      collection: 'articles',
+      where: { id: { in: ids } },
+      pagination: false,
+      limit: ids.length,
+      depth: 0,
+    })
+    const started = docs.filter((doc) => doc.status !== 'topic_selected')
+    if (started.length > 0) {
+      return {
+        ok: false,
+        error: `${plural(started.length, 'article')} has already been worked on and cannot be removed here. Only topics that have not started are removable.`,
+      }
+    }
+    if (docs.length === 0) return { ok: false, error: 'Those topics no longer exist.' }
+
+    for (const doc of docs) {
+      await payload.update({
+        collection: 'articles',
+        id: doc.id,
+        data: { archived: true },
+        user,
+        overrideAccess: false,
+        context: {
+          articleAudit: {
+            actor: typeof user.email === 'string' ? user.email : String(user.id),
+            actorType: 'user' as const,
+            event: 'topic_removed_from_board',
+            summary: 'Topic archived before any work was done on it',
+            details: { keyword: doc.keyword },
+          },
+        },
+      })
+    }
+
+    revalidatePath(BOARD_PATH)
+    revalidatePath('/admin/ops/topics')
+    return {
+      ok: true,
+      message: `Removed ${plural(docs.length, 'topic')} from the board. ${docs.length === 1 ? 'It is' : 'They are'} archived, not deleted — still in Article records if you want ${docs.length === 1 ? 'it' : 'them'} back.`,
+    }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Could not remove those topics.') }
+  }
+}

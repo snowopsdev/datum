@@ -277,6 +277,10 @@ export interface Template {
  */
 export interface Article {
   id: number;
+  /**
+   * Hidden from the article board and skipped by every pipeline run.
+   */
+  archived?: boolean | null;
   title?: string | null;
   slug?: string | null;
   /**
@@ -1116,7 +1120,10 @@ export interface TopicSearch {
 export interface PipelineRun {
   id: number;
   runId: string;
-  source: 'onboarding' | 'admin' | 'cli';
+  /**
+   * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.
+   */
+  source: 'onboarding' | 'admin' | 'cli' | 'selected';
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   mode: 'mock' | 'live';
   template: number | Template;
@@ -1464,6 +1471,7 @@ export interface TemplatesSelect<T extends boolean = true> {
  * via the `definition` "articles_select".
  */
 export interface ArticlesSelect<T extends boolean = true> {
+  archived?: T;
   title?: T;
   slug?: T;
   keyword?: T;
