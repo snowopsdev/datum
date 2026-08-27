@@ -2755,3 +2755,109 @@
   font-weight: 600;
   font-size: 14px;
 }
+
+/* ── First run ─────────────────────────────────────────────────────────── */
+
+.datum-first {
+  max-width: 760px;
+  margin: 48px auto;
+}
+
+.datum-first h1 {
+  margin: 4px 0 10px;
+  font-size: 28px;
+}
+
+.datum-first__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.datum-first__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.datum-first__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  text-align: left;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: var(--ops-shadow);
+}
+
+.datum-first__card:hover {
+  border-color: var(--ops-primary);
+}
+
+.datum-first__card strong {
+  font-size: 16px;
+}
+
+.datum-first__card span {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ops-ink-muted);
+}
+
+/* ── Runtime banner (outside .datum-ops, so Payload theme tokens) ───────── */
+
+.datum-runtime {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--theme-warning-100, #fff4e5);
+  color: var(--theme-warning-900, #5a2e00);
+  border-bottom: 1px solid var(--theme-warning-300, #f5c58a);
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+
+.datum-runtime code {
+  font-size: 12px;
+}
+
+.datum-runtime__close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Folded nav section */
+.datum-ops-nav__section--fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.datum-ops-nav__section--fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.datum-ops-nav__section--fold > summary::after {
+  content: ' ›';
+  opacity: 0.6;
+}
+
+.datum-ops-nav__section--fold[open] > summary::after {
+  content: ' ⌄';
+}

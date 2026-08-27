@@ -4,17 +4,27 @@ import type { AdminViewServerProps } from 'payload'
 import React from 'react'
 
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
-import { OnboardingHub } from './OnboardingHub'
+import { FirstRun } from './FirstRun'
 
+/**
+ * `/admin`. A workspace with a voice and any content goes straight to the
+ * list; otherwise the first-run screen, which is one decision long.
+ */
 export async function OnboardingDashboardView(props: AdminViewServerProps) {
   const { initPageResult } = props
   const { req } = initPageResult
   if (!req.user) redirect('/admin/login')
-  const setup = await loadWorkspaceSetup(req.payload)
+
+  const [setup, pieces] = await Promise.all([
+    loadWorkspaceSetup(req.payload),
+    req.payload.count({ collection: 'articles', where: { archived: { not_equals: true } } }),
+  ])
+  const hasVoice = setup.readiness.governance.ready
+  if (hasVoice && pieces.totalDocs > 0) redirect('/admin/ops/content')
 
   return (
     <Gutter>
-      <OnboardingHub setup={setup} />
+      <FirstRun hasVoice={hasVoice} mode={setup.readiness.mode} />
     </Gutter>
   )
 }

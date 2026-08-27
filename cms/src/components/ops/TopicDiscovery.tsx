@@ -120,8 +120,8 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
         <p className="datum-ops__sub">
           Type a subject you want to cover. We ask Ahrefs what people actually search for around
           it, then you pick the ones worth writing. Tick several related searches and they become a
-          single article covering all of them. Nothing is written or paid for here — picking a topic
-          just puts it on the board.
+          single article covering all of them. Creating one starts research; you approve a brief before
+          anything is written or paid for.
         </p>
 
         <form className="datum-ops__period" onSubmit={search}>
