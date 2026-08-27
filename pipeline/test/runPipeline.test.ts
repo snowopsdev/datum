@@ -8,6 +8,7 @@ import {
   runPipeline,
   type Stage,
   type StageContext,
+  stages,
 } from '../src/stages'
 
 const articleAt = (id: number, status: Article['status']): Article =>
@@ -204,5 +205,27 @@ describe('describeFailures', () => {
 
   it('is empty for a clean run', () => {
     assert.equal(describeFailures(summary([{ stage: 'research', total: 4, failed: 0, warned: 0 }])), '')
+  })
+})
+
+describe('the brief checkpoint', () => {
+  it('research exits at brief_review, and no stage picks brief_review up', () => {
+    const research = stages.find((stage) => stage.name === 'research')
+    assert.ok(research)
+    assert.equal(research.exitStatus, 'brief_review')
+    // A dead end for `runPipeline`, like needs_revision: only a person moves it.
+    assert.ok(stages.every((stage) => stage.entryStatus !== 'brief_review'))
+  })
+
+  it('generate still enters at researched, which is where an approved brief lands', () => {
+    const generate = stages.find((stage) => stage.name === 'generate')
+    assert.equal(generate?.entryStatus, 'researched')
+  })
+
+  it('a run finds nothing to do for an article waiting at its brief', async () => {
+    const { ctx, updates } = fakeCtx([articleAt(1, 'brief_review')])
+    const summary = await runPipeline(ctx, { stages: [stubStage('generate', 'researched', 'drafted')] })
+    assert.deepEqual(updates, [])
+    assert.deepEqual(summary.finalStatuses, {})
   })
 })

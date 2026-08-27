@@ -7,6 +7,7 @@
  *
  * Usage:
  *   tsx scripts/ig-e2e-probe.ts reset <keyword>       ensure a templateless topic_selected article
+ *   tsx scripts/ig-e2e-probe.ts approve-brief <id>    approve the brief so the next run writes
  *   tsx scripts/ig-e2e-probe.ts state <articleId>     the article's status, decision, run and cost rows
  *   tsx scripts/ig-e2e-probe.ts candidates <domain…>  each domain's review-queue row, or `none`
  */
@@ -41,6 +42,16 @@ const CLEARED = {
       voiceNotes: null,
       notTraitViolations: null,
     },
+  },
+  brief: {
+    angle: null,
+    audience: null,
+    sections: [],
+    mustCover: null,
+    opportunities: null,
+    notes: null,
+    approvedAt: null,
+    approvedBy: null,
   },
   qaModels: null,
   generationModel: null,
@@ -99,6 +110,47 @@ if (command === 'reset') {
     console.log(`articleId=${created.id}`)
     console.log('reused=false')
   }
+  process.exit(0)
+}
+
+if (command === 'approve-brief') {
+  const articleId = Number.parseInt(rest[0] ?? '', 10)
+  if (Number.isNaN(articleId)) {
+    console.error('Usage: tsx scripts/ig-e2e-probe.ts approve-brief <articleId>')
+    process.exit(1)
+  }
+  const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
+  if (article.status !== 'brief_review') {
+    console.log('approved=false')
+    console.log(`status=${article.status}`)
+    process.exit(1)
+  }
+  // The same write `approveBriefAction` makes, minus the run it queues: the
+  // walkthrough runs the pipeline itself on the next step.
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    overrideAccess: true,
+    data: {
+      status: 'researched',
+      brief: {
+        ...(article.brief ?? {}),
+        approvedAt: new Date().toISOString(),
+        approvedBy: 'ig-e2e',
+      },
+    },
+    context: {
+      articleAudit: {
+        actor: 'ig-e2e',
+        actorType: 'system',
+        event: 'brief_approved',
+        summary: 'Brief approved by the e2e walkthrough',
+      },
+    },
+  })
+  console.log('approved=true')
+  console.log('status=researched')
+  console.log(`briefSections=${article.brief?.sections?.length ?? 0}`)
   process.exit(0)
 }
 

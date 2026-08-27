@@ -10,6 +10,7 @@ import type { Article, InformationGainRun } from '../../payload-types'
 
 export const ARTICLE_STATUSES = [
   'topic_selected',
+  'brief_review',
   'researched',
   'drafted',
   'qa_passed',
@@ -66,6 +67,13 @@ export const STATUS_COLUMNS: {
     label: 'Topic selected',
     blurb: 'Chosen but not started. Tick some and start a run.',
     owner: 'run',
+    actionable: true,
+  },
+  {
+    id: 'brief_review',
+    label: 'Brief',
+    blurb: 'Research is done. Read the brief and approve it to start writing.',
+    owner: 'you',
     actionable: true,
   },
   {

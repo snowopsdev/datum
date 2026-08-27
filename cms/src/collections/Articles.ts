@@ -140,6 +140,44 @@ export const Articles: CollectionConfig = {
       ],
     },
     {
+      // The checkpoint between research and writing. Built by the research
+      // stage from things that already exist (template sections, research
+      // gaps, the brand voice's audience), edited and approved by a person,
+      // and only then does the generate stage run. `brief_review` is the
+      // status that waits here; no pipeline stage has it as an entry status.
+      name: 'brief',
+      type: 'group',
+      admin: {
+        description:
+          'What the piece will argue and cover, agreed before writing starts. Approving it is what queues the draft.',
+      },
+      fields: [
+        { name: 'angle', type: 'text' },
+        { name: 'audience', type: 'text' },
+        {
+          name: 'sections',
+          type: 'array',
+          fields: [
+            { name: 'heading', type: 'text', required: true },
+            { name: 'notes', type: 'textarea' },
+            {
+              // `template` rows are enforced by structural QA whatever the
+              // brief says; `research` rows are suggestions from the gaps the
+              // ranking pages leave; `editor` rows were added by a person.
+              name: 'source',
+              type: 'select',
+              options: ['template', 'research', 'editor'],
+            },
+          ],
+        },
+        { name: 'mustCover', type: 'json' },
+        { name: 'opportunities', type: 'json' },
+        { name: 'notes', type: 'textarea' },
+        { name: 'approvedAt', type: 'date' },
+        { name: 'approvedBy', type: 'text' },
+      ],
+    },
+    {
       name: 'body',
       type: 'richText',
     },
@@ -186,6 +224,7 @@ export const Articles: CollectionConfig = {
       defaultValue: 'topic_selected',
       options: [
         'topic_selected',
+        'brief_review',
         'researched',
         'drafted',
         'qa_passed',

@@ -58,6 +58,7 @@ const headingStructureRules =
 const templates: TemplateSeed[] = [
   {
     name: 'Listicle',
+    intent: 'A ranked list of the best options, with how they were chosen',
     outline: richText(
       heading('h2', 'Introduction'),
       paragraph(
@@ -96,6 +97,7 @@ const templates: TemplateSeed[] = [
   },
   {
     name: 'How-To',
+    intent: 'A step-by-step guide that gets the reader to a working result',
     outline: richText(
       heading('h2', 'Introduction'),
       paragraph(
@@ -141,6 +143,7 @@ const templates: TemplateSeed[] = [
   },
   {
     name: 'Comparison',
+    intent: 'A head-to-head comparison that ends with a clear verdict',
     outline: richText(
       heading('h2', 'Introduction'),
       paragraph(

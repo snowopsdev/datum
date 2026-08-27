@@ -208,6 +208,10 @@ export interface Media {
 export interface Template {
   id: number;
   name: string;
+  /**
+   * What this kind of piece is for, in one line. Shown when choosing a template and used as the brief's angle.
+   */
+  intent?: string | null;
   outline?: {
     root: {
       type: string;
@@ -355,6 +359,42 @@ export interface Article {
       | boolean
       | null;
   };
+  /**
+   * What the piece will argue and cover, agreed before writing starts. Approving it is what queues the draft.
+   */
+  brief?: {
+    angle?: string | null;
+    audience?: string | null;
+    sections?:
+      | {
+          heading: string;
+          notes?: string | null;
+          source?: ('template' | 'research' | 'editor') | null;
+          id?: string | null;
+        }[]
+      | null;
+    mustCover?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    opportunities?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    notes?: string | null;
+    approvedAt?: string | null;
+    approvedBy?: string | null;
+  };
   body?: {
     root: {
       type: string;
@@ -387,6 +427,7 @@ export interface Article {
    */
   status:
     | 'topic_selected'
+    | 'brief_review'
     | 'researched'
     | 'drafted'
     | 'qa_passed'
@@ -1435,6 +1476,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface TemplatesSelect<T extends boolean = true> {
   name?: T;
+  intent?: T;
   outline?: T;
   dos?:
     | T
@@ -1505,6 +1547,25 @@ export interface ArticlesSelect<T extends boolean = true> {
         queryCluster?: T;
         facets?: T;
         gaps?: T;
+      };
+  brief?:
+    | T
+    | {
+        angle?: T;
+        audience?: T;
+        sections?:
+          | T
+          | {
+              heading?: T;
+              notes?: T;
+              source?: T;
+              id?: T;
+            };
+        mustCover?: T;
+        opportunities?: T;
+        notes?: T;
+        approvedAt?: T;
+        approvedBy?: T;
       };
   body?: T;
   titleTag?: T;

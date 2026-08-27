@@ -25,6 +25,7 @@ export const UNGATED_OVERRIDE_TARGETS = [
   'needs_revision',
   'drafted',
   'researched',
+  'brief_review',
   'topic_selected',
   ...OVERRIDABLE_STATUSES,
 ] as const

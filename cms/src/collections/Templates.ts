@@ -14,6 +14,13 @@ export const Templates: CollectionConfig = {
       unique: true,
     },
     {
+      // One line, in the reader's terms, for the brief's angle and the "I want
+      // to make a…" picker: "a ranked list of the best options".
+      name: 'intent',
+      type: 'text',
+      admin: { description: 'What this kind of piece is for, in one line. Shown when choosing a template and used as the brief\'s angle.' },
+    },
+    {
       name: 'outline',
       type: 'richText',
     },

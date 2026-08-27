@@ -147,6 +147,10 @@ it('advances only the article ids assigned to a scoped run', async () => {
     ahrefs,
     runId: 'scope-1',
     mode: 'mock',
+    // This test is about *which* articles a scoped run touches, not the brief
+    // checkpoint, so the stop after research is switched off to let the run
+    // walk all four stages in one pass.
+    pauseForBrief: false,
     styleGuide: loadStyleGuide(),
     models: {
       generate: 'claude-opus-5',

@@ -133,6 +133,16 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    // Dev push stays on for `next dev` and the pipeline CLI, but not under
+    // vitest. Tests run on migration-built databases, so push has nothing
+    // legitimate to do there — and what it *does* do is race: the
+    // `evidence_source_candidates.resolved_source` FK name is 68 characters,
+    // Postgres keeps 63, so drizzle sees a mismatch on every boot and emits a
+    // DROP + ADD of the same constraint. One process survives that; two vitest
+    // workers booting together do not (the second DROP finds nothing). Turning
+    // push off in tests also removes the interactive "create enum?" prompt that
+    // used to hang the suite after a schema change.
+    push: process.env.VITEST !== 'true',
   }),
   sharp,
   plugins: [],

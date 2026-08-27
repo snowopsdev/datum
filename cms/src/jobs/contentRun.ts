@@ -104,6 +104,9 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       policy: await loadInformationGainPolicy(payload),
       evidenceSources: await loadEvidenceSources(payload),
       llm: createLlmClient(run.mode),
+      // The onboarding run is a smoke test with nobody at the keyboard; every
+      // other run stops at the brief for a person to approve.
+      pauseForBrief: run.source !== 'onboarding',
     }
     const result = await runPipeline(stageContext, { articleIds })
     const completedAt = new Date().toISOString()

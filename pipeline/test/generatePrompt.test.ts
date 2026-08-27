@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { Article, Template } from '../../cms/src/payload-types'
-import { buildPrompt, gapsBlock } from '../src/generatePrompt'
+import { briefBlock, buildPrompt, gapsBlock } from '../src/generatePrompt'
 import { markdownToLexical } from '../src/richtext'
 
 const template: Template = {
@@ -157,4 +157,33 @@ test('buildPrompt omits the gaps block when research has none', () => {
   assert.ok(!prompt.includes('# Information gaps (opportunities)'))
   assert.ok(!prompt.includes('# Evidence rules'))
   assert.ok(!prompt.includes('# Revision notes (previous attempt)'))
+})
+
+test('briefBlock renders the editor\'s brief with their notes ranked above the outline', () => {
+  const [block] = briefBlock({
+    angle: 'A step-by-step guide for "espresso maintenance"',
+    audience: 'Home baristas.',
+    sections: [
+      { heading: 'What you need', notes: '', source: 'template' },
+      { heading: 'Descaling frequency', notes: 'Cite the maker.', source: 'research' },
+      { heading: 'Our pick', notes: 'Keep it short.', source: 'editor' },
+    ],
+    mustCover: ['Cleaning cycle', 'Water hardness'],
+    opportunities: ['Descaling frequency'],
+    notes: 'Lead with the weekly routine, not the theory.',
+  })
+  assert.match(block, /^# Brief \(approved by the editor\)/)
+  assert.match(block, /Angle: A step-by-step guide/)
+  assert.match(block, /Audience: Home baristas\./)
+  assert.match(block, /- What you need \(required section\)/)
+  assert.match(block, /- Descaling frequency: Cite the maker\./)
+  assert.match(block, /- Our pick: Keep it short\./)
+  assert.match(block, /Must cover: Cleaning cycle; Water hardness/)
+  assert.match(block, /follow this over the template outline where they conflict:\nLead with the weekly routine/)
+})
+
+test('briefBlock is empty when there is no brief, so older articles generate as before', () => {
+  assert.deepEqual(briefBlock(null), [])
+  assert.deepEqual(briefBlock(undefined), [])
+  assert.deepEqual(briefBlock({ angle: '', sections: [], mustCover: [], opportunities: [], notes: '' }), [])
 })

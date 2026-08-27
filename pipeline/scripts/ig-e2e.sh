@@ -115,7 +115,20 @@ step=$((step + 1)); log "$step. Assign a template (the manual editorial step)"
 npx --workspace pipeline tsx scripts/assign-template.ts "$ARTICLE_ID" "$E2E_TEMPLATE"
 
 # ---------------------------------------------------------------------------
-step=$((step + 1)); log "$step. Run the pipeline: research -> generate -> qa -> informationGain"
+step=$((step + 1)); log "$step. Run research (the pipeline stops at the brief)"
+npm run pipeline:run
+BRIEF_OUT="$(probe state "$ARTICLE_ID")"
+assert_eq 'status after research' "$(value_of "$BRIEF_OUT" status)" 'brief_review'
+
+# ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Approve the brief (the editorial checkpoint before writing)"
+APPROVE_OUT="$(probe approve-brief "$ARTICLE_ID")"
+printf '%s\n' "$APPROVE_OUT" | sed 's/^/   /'
+assert_eq 'brief approved'       "$(value_of "$APPROVE_OUT" approved)" 'true'
+assert_ge 'brief has sections'   "$(value_of "$APPROVE_OUT" briefSections)" 1
+
+# ---------------------------------------------------------------------------
+step=$((step + 1)); log "$step. Run the rest: generate -> qa -> informationGain"
 npm run pipeline:run
 
 # ---------------------------------------------------------------------------
