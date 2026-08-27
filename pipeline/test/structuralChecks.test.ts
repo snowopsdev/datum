@@ -154,3 +154,35 @@ test('a missing requiredSections heading is flagged; instructional outline headi
     `expected only FAQ missing, got ${JSON.stringify(violations)}`,
   )
 })
+
+test('a missing social image does not fail the draft', () => {
+  // `generate.ts` treats `ogImage` as optional because the model has no hosted
+  // image to point at, and there is no tenant default. Requiring it here made
+  // every draft fail structural QA on a field nothing could ever fill.
+  const violations = runStructuralChecks(makeArticle({ ogImage: '' }), template, styleGuide)
+  assert.equal(violations.filter((v) => v.code === 'OG_TAGS_MISSING').length, 0)
+})
+
+test('missing sharing text is still flagged, and names which tags', () => {
+  const violations = runStructuralChecks(
+    makeArticle({ ogTitle: '', ogDescription: '' }),
+    template,
+    styleGuide,
+  )
+  const violation = violations.find((v) => v.code === 'OG_TAGS_MISSING')
+  assert.ok(violation, 'expected OG_TAGS_MISSING')
+  assert.deepEqual(violation.missing, ['ogTitle', 'ogDescription'])
+})
+
+test('og tags are not checked at all when the template does not ask for them', () => {
+  const relaxed: Template = {
+    ...template,
+    seoSpec: { ...template.seoSpec, ogTagsRequired: false },
+  }
+  const violations = runStructuralChecks(
+    makeArticle({ ogTitle: '', ogDescription: '', ogImage: '' }),
+    relaxed,
+    styleGuide,
+  )
+  assert.equal(violations.filter((v) => v.code === 'OG_TAGS_MISSING').length, 0)
+})

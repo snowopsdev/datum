@@ -390,8 +390,13 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                       onChange={(e) => setSeo({ ...seo, ogTagsRequired: e.target.checked })}
                       disabled={pending}
                     />{' '}
-                    OG tags required
+                    Social sharing text required
                   </label>
+                  <p className="datum-ops__hint">
+                    Checks that the draft has a social title and description — the text shown when
+                    someone shares the page. The social <em>image</em> is not checked: the writer
+                    has no image to point at, so requiring one would fail every draft.
+                  </p>
                 </div>
                 <div className="datum-ops__field">
                   <label htmlFor="headingRules">Heading structure rules</label>

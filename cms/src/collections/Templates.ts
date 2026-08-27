@@ -91,6 +91,10 @@ export const Templates: CollectionConfig = {
         {
           name: 'ogTagsRequired',
           type: 'checkbox',
+          admin: {
+            description:
+              'Require a social title and description on every draft. The social image is never checked — the writer has no image to point at and there is no tenant default, so requiring one would fail every draft.',
+          },
         },
       ],
     },
