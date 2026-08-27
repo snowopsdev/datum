@@ -70,6 +70,14 @@ export interface StageRunSummary {
   warned: number
 }
 
+/** Why one article did not advance, kept so a caller can say so out loud. */
+export interface StageFailure {
+  articleId: number
+  keyword: string
+  stage: Stage['name']
+  message: string
+}
+
 export interface RunPipelineResult {
   articleIds: number[]
   finalStatuses: Record<string, number>
@@ -77,6 +85,8 @@ export interface RunPipelineResult {
   stages: StageRunSummary[]
   /** Articles that threw, across every stage; `0` means the run was clean. */
   failed: number
+  /** One entry per failure, in the order they happened. */
+  failures: StageFailure[]
 }
 
 /** `"research 2/5, qa 1/3"` — the per-stage counts behind a non-zero exit. */
@@ -106,6 +116,7 @@ export async function runPipeline(
   const processed = new Set<number>()
   const finalStatusByArticle = new Map<number, ArticleStatus>()
   const stageSummaries: StageRunSummary[] = []
+  const failures: StageFailure[] = []
   let totalFailed = 0
   for (const stage of options.stages ?? stages) {
     // `archived` is deliberately part of the entry query rather than a board-only
@@ -172,6 +183,12 @@ export async function runPipeline(
       } catch (error) {
         failed += 1
         const message = error instanceof Error ? error.message : String(error)
+        failures.push({
+          articleId: article.id,
+          keyword: article.keyword,
+          stage: stage.name,
+          message,
+        })
         console.error(`[${stage.name}] article ${article.id} failed: ${message}`, error)
       }
     }
@@ -193,5 +210,6 @@ export async function runPipeline(
     finalStatuses,
     stages: stageSummaries,
     failed: totalFailed,
+    failures,
   }
 }

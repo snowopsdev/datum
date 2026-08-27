@@ -7,6 +7,8 @@ import React, { useMemo, useState, useTransition } from 'react'
 import type { BoardArticle, ColumnOwner } from './articleStatus'
 import { isRunnableStatus, NEXT_STAGE_FOR_STATUS, STATUS_COLUMNS } from './articleStatus'
 import { removeTopicsAction, runSelectedArticlesAction } from './boardActions'
+import type { RunStatusDTO } from './boardTypes'
+import { RunStatusPanel } from './RunStatusPanel'
 import './ops.css'
 
 type Props = {
@@ -15,6 +17,7 @@ type Props = {
   mode: 'mock' | 'live'
   pipelineReady: boolean
   runActive: boolean
+  latestRun: RunStatusDTO | null
 }
 
 function ageLabel(iso: string): string {
@@ -31,7 +34,14 @@ const OWNER_LABEL: Record<ColumnOwner, string> = {
   done: 'Finished',
 }
 
-export function ArticleBoard({ articles, templates, mode, pipelineReady, runActive }: Props) {
+export function ArticleBoard({
+  articles,
+  templates,
+  mode,
+  pipelineReady,
+  runActive,
+  latestRun,
+}: Props) {
   const router = useRouter()
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [confirmLiveCost, setConfirmLiveCost] = useState(false)
@@ -121,6 +131,8 @@ export function ArticleBoard({ articles, templates, mode, pipelineReady, runActi
         cards you want and use the bar below. Need more topics?{' '}
         <Link href="/admin/ops/topics">Find topics</Link>.
       </p>
+
+      <RunStatusPanel initial={latestRun} />
 
       <section className="datum-ops__runbar">
         <div className="datum-ops__runbar-main">

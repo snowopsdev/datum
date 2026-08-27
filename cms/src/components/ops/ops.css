@@ -2115,3 +2115,110 @@
   font-size: 12px;
   color: var(--ops-orange);
 }
+
+/* ── Run status panel ───────────────────────────────────────────────────
+   Starting a run used to produce one toast and then silence. This is the
+   board's running commentary: what is happening now, and what a finished
+   run actually achieved — including the articles it could not move. */
+
+.datum-ops__runstatus {
+  margin: 16px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--ops-hairline);
+  border-left-width: 3px;
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+}
+
+.datum-ops__runstatus--running,
+.datum-ops__runstatus--queued {
+  border-left-color: var(--ops-primary);
+}
+
+.datum-ops__runstatus--succeeded {
+  border-left-color: var(--ops-green);
+}
+
+.datum-ops__runstatus--failed {
+  border-left-color: var(--ops-red);
+}
+
+.datum-ops__runstatus-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.datum-ops__runstatus p {
+  margin: 0;
+}
+
+.datum-ops__pill--running,
+.datum-ops__pill--queued {
+  background: rgba(0, 117, 222, 0.12);
+  color: var(--ops-primary);
+}
+
+.datum-ops__pill--succeeded {
+  background: rgba(26, 174, 57, 0.12);
+  color: var(--ops-green);
+}
+
+.datum-ops__pill--failed {
+  background: rgba(192, 51, 44, 0.12);
+  color: var(--ops-red);
+}
+
+.datum-ops__runstatus-fails {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ops-hairline);
+}
+
+.datum-ops__runstatus-fails ul {
+  margin: 6px 0 8px;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--ops-ink-secondary);
+}
+
+.datum-ops__runstatus-fails li + li {
+  margin-top: 6px;
+}
+
+/* ── New template ───────────────────────────────────────────────────────
+   The add control and its form sit inside `.datum-ops__tpl-list`, whose
+   bare `button` rule styles every child button as a list row. Both blocks
+   below opt their own buttons back out of it. */
+
+.datum-ops__tpl-add {
+  color: var(--ops-primary);
+  font-weight: 600;
+}
+
+.datum-ops__tpl-new {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ops-hairline);
+  background: var(--ops-canvas-soft);
+}
+
+.datum-ops__tpl-list .datum-ops__tpl-new button {
+  display: inline-flex;
+  width: auto;
+  border-bottom: 0;
+  padding: 8px 14px;
+}
+
+.datum-ops__tpl-list .datum-ops__tpl-new .datum-ops__link-btn {
+  padding: 8px 4px;
+}
+
+.datum-ops__tpl-new .datum-ops__field {
+  margin-bottom: 10px;
+}
+
+.datum-ops__tpl-new .datum-ops__hint {
+  margin: 10px 0 0;
+}

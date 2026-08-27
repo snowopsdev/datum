@@ -107,14 +107,28 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
     }
     const result = await runPipeline(stageContext, { articleIds })
     const completedAt = new Date().toISOString()
+    // A run that advanced nothing is not a success, whatever the job queue
+    // thinks. `runPipeline` deliberately swallows a single article's failure so
+    // the rest of the batch survives, which means the only signal that anything
+    // went wrong is `result.failed` — and reporting `succeeded` regardless left
+    // an operator staring at a card that had not moved with nowhere to look.
+    const advanced = Object.values(result.finalStatuses).reduce((sum, n) => sum + n, 0)
+    const status = advanced === 0 && result.failed > 0 ? 'failed' : 'succeeded'
     await payload.update({
       collection: 'pipeline-runs',
       id: run.id,
       overrideAccess: true,
       data: {
-        status: 'succeeded',
+        status,
         articles: articleIds,
         finalStatuses: result.finalStatuses,
+        warnings: result.failures.length > 0 ? result.failures : null,
+        errorSummary:
+          result.failures.length > 0
+            ? result.failures
+                .map((f) => `${f.stage}: "${f.keyword}" — ${safeError(new Error(f.message))}`)
+                .join('\n\n')
+            : null,
         completedAt,
       },
     })

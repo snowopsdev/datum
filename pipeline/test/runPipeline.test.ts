@@ -186,6 +186,7 @@ describe('describeFailures', () => {
     finalStatuses: {},
     stages,
     failed: stages.reduce((sum, entry) => sum + entry.failed, 0),
+    failures: [],
   })
 
   it('names only the stages that failed, with their counts', () => {

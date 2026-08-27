@@ -6,6 +6,7 @@ import React from 'react'
 
 import type { Article } from '../../payload-types'
 import { ArticleBoard } from './ArticleBoard'
+import { latestRunAction } from './boardActions'
 import { toBoardArticle } from './articleStatus'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
@@ -21,7 +22,7 @@ export async function ArticleBoardView(props: AdminViewServerProps) {
     redirect('/admin/login')
   }
 
-  const [{ docs }, setup] = await Promise.all([
+  const [{ docs }, setup, latestRun] = await Promise.all([
     req.payload.find({
       collection: 'articles',
       depth: 1,
@@ -35,6 +36,7 @@ export async function ArticleBoardView(props: AdminViewServerProps) {
       overrideAccess: false,
     }),
     loadWorkspaceSetup(req.payload),
+    latestRunAction(),
   ])
 
   const articles = (docs as Article[]).map(toBoardArticle)
@@ -54,6 +56,7 @@ export async function ArticleBoardView(props: AdminViewServerProps) {
         <ArticleBoard
           articles={articles}
           mode={setup.readiness.mode}
+          latestRun={latestRun}
           pipelineReady={canStartRun(setup.readiness)}
           runActive={setup.latestRun?.status === 'queued' || setup.latestRun?.status === 'running'}
           templates={setup.templates as Array<{ id: number; name: string }>}

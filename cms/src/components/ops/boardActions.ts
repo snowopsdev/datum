@@ -11,6 +11,7 @@ import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipel
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 import { isRunnableStatus } from './articleStatus'
+import { type RunStatusDTO, toRunFailures } from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/articles'
 
@@ -111,7 +112,7 @@ export async function runSelectedArticlesAction(input: {
     revalidatePath('/admin')
     return {
       ok: true,
-      message: `Started a run for ${plural(docs.length, 'article')}. Refresh to watch them move.`,
+      message: `Started a run for ${plural(docs.length, 'article')}. Progress shows above.`,
     }
   } catch (error) {
     if (error instanceof ActivePipelineRunError) {
@@ -185,5 +186,43 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
     }
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Could not remove those topics.') }
+  }
+}
+
+/**
+ * The most recent run, for the board's status panel.
+ *
+ * Polled from the client while a run is in flight, so it stays deliberately
+ * small: no article bodies, no scorecards, just what a person needs to answer
+ * "is it still going, and did it work".
+ */
+export async function latestRunAction(): Promise<RunStatusDTO | null> {
+  try {
+    const { payload } = await requireUser()
+    const { docs } = await payload.find({
+      collection: 'pipeline-runs',
+      sort: '-createdAt',
+      limit: 1,
+      depth: 0,
+    })
+    const run = docs[0]
+    if (!run) return null
+    const started = run.startedAt ?? run.createdAt
+    return {
+      runId: run.runId,
+      status: run.status,
+      mode: run.mode,
+      source: run.source,
+      startedLabel: started ? new Date(started).toLocaleTimeString() : 'just now',
+      articleCount: Array.isArray(run.articles) ? run.articles.length : 0,
+      finalStatuses:
+        run.finalStatuses && typeof run.finalStatuses === 'object' && !Array.isArray(run.finalStatuses)
+          ? (run.finalStatuses as Record<string, number>)
+          : {},
+      failures: toRunFailures(run.warnings),
+      errorSummary: run.errorSummary ?? null,
+    }
+  } catch {
+    return null
   }
 }
