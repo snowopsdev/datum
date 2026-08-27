@@ -82,6 +82,13 @@ export function gapsBlock(research: Article['research'], revisionNotes?: string 
   return sections
 }
 
+/** Non-blank secondary keywords the operator grouped into this article. */
+export function secondaryKeywordsOf(article: { secondaryKeywords?: { keyword?: string | null }[] | null }): string[] {
+  return (article.secondaryKeywords ?? [])
+    .map((row) => row.keyword?.trim())
+    .filter((k): k is string => Boolean(k))
+}
+
 export function buildPrompt(
   article: Article,
   template: Template,
@@ -96,6 +103,16 @@ export function buildPrompt(
   const samples = brandVoice ? brandVoiceSamplesToPrompt(brandVoice) : null
   return [
     `Write a complete article targeting the keyword: "${article.keyword}".`,
+    // One article is expected to cover the whole group the operator picked, so
+    // the secondaries have to reach the writer — otherwise they only ever
+    // affect scoring, and the draft never earns the coverage they represent.
+    ...(secondaryKeywordsOf(article).length > 0
+      ? [
+          `It must also cover these related searches, each with its own section or clearly addressed passage: ${secondaryKeywordsOf(article)
+            .map((k) => `"${k}"`)
+            .join(', ')}.`,
+        ]
+      : []),
     `# Template: ${template.name}`,
     `## Outline\n${outline}`,
     `## Dos\n${dos}`,

@@ -30,7 +30,17 @@ export const researchStage: Stage = {
     // runPipeline queries with depth: 1, so the template relationship is populated.
     const template = resolveTemplate(article)
     const serp = await ctx.ahrefs.serpResearch(article.keyword)
-    const queryCluster = buildQueryCluster(article.keyword, serp.relatedQuestions)
+    // The operator may have grouped several related searches into this one
+    // article at discovery time; they belong in the cluster the draft is
+    // written for and scored against, not just the primary.
+    const secondaryKeywords = (article.secondaryKeywords ?? [])
+      .map((row) => row.keyword?.trim())
+      .filter((k): k is string => Boolean(k))
+    const queryCluster = buildQueryCluster(
+      article.keyword,
+      serp.relatedQuestions,
+      secondaryKeywords,
+    )
     const snapshot = await getOrBuildSnapshot(ctx, article, template, serp, queryCluster)
     // A reused snapshot carries the template hints of whichever article built
     // it, so `mustHave` — and the `weight` its floor depends on — are re-derived

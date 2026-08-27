@@ -17,6 +17,7 @@ import { GovernanceAudit } from './collections/GovernanceAudit'
 import { EvidenceSources } from './collections/EvidenceSources'
 import { EvidenceSourceCandidates } from './collections/EvidenceSourceCandidates'
 import { CorpusSnapshots } from './collections/CorpusSnapshots'
+import { TopicSearches } from './collections/TopicSearches'
 import { InformationGainRuns } from './collections/InformationGainRuns'
 import { PipelineRuns } from './collections/PipelineRuns'
 import { InformationGainPolicy } from './globals/InformationGainPolicy'
@@ -100,6 +101,7 @@ export default buildConfig({
     EvidenceSources,
     EvidenceSourceCandidates,
     CorpusSnapshots,
+    TopicSearches,
     InformationGainRuns,
     PipelineRuns,
   ],

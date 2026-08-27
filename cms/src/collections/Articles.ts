@@ -36,6 +36,22 @@ export const Articles: CollectionConfig = {
       name: 'keyword',
       type: 'text',
       required: true,
+      admin: { description: 'The primary keyword this article targets.' },
+    },
+    {
+      // Chosen by the operator in topic discovery, before research runs, so it
+      // cannot live on `research.queryCluster` (which is derived afterwards).
+      // These feed the query cluster and the generate prompt, which is how one
+      // article ends up covering a group of related searches instead of the
+      // group becoming a board item each.
+      name: 'secondaryKeywords',
+      type: 'array',
+      labels: { singular: 'Secondary keyword', plural: 'Secondary keywords' },
+      admin: {
+        description:
+          'Related searches grouped with the primary keyword. The article is written and scored to cover all of them.',
+      },
+      fields: [{ name: 'keyword', type: 'text', required: true }],
     },
     {
       name: 'template',

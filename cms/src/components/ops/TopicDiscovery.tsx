@@ -1,13 +1,14 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import React, { useState, useTransition } from 'react'
+import React, { useEffect, useState, useTransition } from 'react'
 
 import {
   createTopicsAction,
   discoverTopicsAction,
-  type TopicCandidate,
+  recentSearchesAction,
 } from './topicDiscoveryActions'
+import type { RecentSearch, TopicCandidate } from './topicDiscoveryTypes'
 import './ops.css'
 
 type Props = {
@@ -36,7 +37,22 @@ export function TopicDiscovery({ templates, mode }: Props) {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
+  const [cached, setCached] = useState(false)
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [recent, setRecent] = useState<RecentSearch[]>([])
   const [pending, startTransition] = useTransition()
+
+  // Previous subjects survive leaving the screen, so coming back does not mean
+  // retyping — and re-opening one is served from cache, costing no API units.
+  useEffect(() => {
+    let live = true
+    void recentSearchesAction().then((rows) => {
+      if (live) setRecent(rows)
+    })
+    return () => {
+      live = false
+    }
+  }, [candidates])
 
   const toggle = (keyword: string) => {
     setPicked((prev) => {
@@ -47,12 +63,11 @@ export function TopicDiscovery({ templates, mode }: Props) {
     })
   }
 
-  const search = (event: React.FormEvent) => {
-    event.preventDefault()
+  const runSearch = (term: string, refresh = false) => {
     setError(null)
     setDone(null)
     startTransition(async () => {
-      const result = await discoverTopicsAction(seed)
+      const result = await discoverTopicsAction(term, { refresh })
       if (!result.ok) {
         setError(result.error)
         setCandidates(null)
@@ -60,8 +75,16 @@ export function TopicDiscovery({ templates, mode }: Props) {
       }
       setCandidates(result.candidates)
       setSearchedFor(result.seed)
+      setSeed(result.seed)
+      setCached(result.cached)
+      setFetchedAt(result.fetchedAt)
       setPicked(new Set())
     })
+  }
+
+  const search = (event: React.FormEvent) => {
+    event.preventDefault()
+    runSearch(seed)
   }
 
   const create = () => {
@@ -74,7 +97,10 @@ export function TopicDiscovery({ templates, mode }: Props) {
         return
       }
       setDone(
-        `${result.created} topic${result.created === 1 ? '' : 's'} added to the board, ready for the pipeline.`,
+        result.covered === 1
+          ? `Added "${result.primary}" to the board, ready for the pipeline.`
+          : `Added one topic covering ${result.covered} related searches, targeting "${result.primary}".` +
+            (result.skipped > 0 ? ` ${result.skipped} already had an article.` : ''),
       )
       setPicked(new Set())
       // Reflect the new articles in the board columns behind this panel, and
@@ -96,7 +122,8 @@ export function TopicDiscovery({ templates, mode }: Props) {
       <div className="datum-ops__panel-body">
         <p className="datum-ops__sub">
           Type a subject you want to cover. We ask Ahrefs what people actually search for around
-          it, then you pick the ones worth writing. Nothing is created until you choose.
+          it, then you pick the ones worth writing. Tick several related searches and they become a
+          single article covering all of them. Nothing is created until you choose.
         </p>
 
         <form className="datum-ops__period" onSubmit={search}>
@@ -116,6 +143,25 @@ export function TopicDiscovery({ templates, mode }: Props) {
           </button>
         </form>
 
+        {recent.length > 0 && !candidates ? (
+          <p className="datum-ops__hint">
+            Recent searches:{' '}
+            {recent.map((r, i) => (
+              <React.Fragment key={r.seed}>
+                {i > 0 ? ' · ' : ''}
+                <button
+                  className="datum-ops__link-btn"
+                  disabled={pending}
+                  onClick={() => runSearch(r.seed)}
+                  type="button"
+                >
+                  {r.seed}
+                </button>
+              </React.Fragment>
+            ))}
+          </p>
+        ) : null}
+
         {error ? <p className="datum-ops__error">{error}</p> : null}
         {done ? <p className="datum-ops__ok">{done}</p> : null}
 
@@ -126,6 +172,20 @@ export function TopicDiscovery({ templates, mode }: Props) {
               {searchedFor}&rdquo;. <strong>Searches</strong> is how many people look for it each
               month; <strong>difficulty</strong> is how hard it is to rank, so low numbers with
               decent volume are the best place to start.
+            </p>
+
+            <p className="datum-ops__hint">
+              {cached ? 'Saved from ' : 'Fetched '}
+              {fetchedAt ? new Date(fetchedAt).toLocaleString() : 'just now'}
+              {cached ? ' — reused so it costs no Ahrefs credits.' : '.'}{' '}
+              <button
+                className="datum-ops__link-btn"
+                disabled={pending}
+                onClick={() => runSearch(searchedFor, true)}
+                type="button"
+              >
+                Refresh from Ahrefs
+              </button>
             </p>
 
             <div className="datum-ops__ig-table-wrap">
@@ -197,9 +257,24 @@ export function TopicDiscovery({ templates, mode }: Props) {
                     onClick={create}
                     type="button"
                   >
-                    {pending ? 'Adding…' : `Add ${picked.size || ''} to the board`.replace('  ', ' ')}
+                    {pending
+                      ? 'Adding…'
+                      : picked.size > 1
+                        ? `Add 1 topic covering ${picked.size} searches`
+                        : 'Add to the board'}
                   </button>
                 </div>
+                {picked.size > 1 ? (
+                  <p className="datum-ops__hint">
+                    These {picked.size} searches become <strong>one article</strong>, not{' '}
+                    {picked.size} — it targets{' '}
+                    <strong>
+                      {candidates?.find((c) => picked.has(c.keyword) && !c.alreadyTaken)?.keyword}
+                    </strong>{' '}
+                    and is written and scored to cover the rest as well. Splitting them would
+                    produce thin pages competing with each other for the same intent.
+                  </p>
+                ) : null}
                 <p className="datum-ops__hint">
                   The template decides the shape of the article — a how-to, a comparison, or a
                   ranked list — and QA checks the draft against it, so pick the one that matches
@@ -214,8 +289,9 @@ export function TopicDiscovery({ templates, mode }: Props) {
           <summary>What happens after I add a topic?</summary>
           <ol>
             <li>
-              <strong>You add topics here.</strong> They land in <em>Topic selected</em> on the
-              board. Nothing has been written or spent yet.
+              <strong>You add topics here.</strong> Everything you tick in one search becomes a
+              single article covering that group, sitting in <em>Topic selected</em> on the board.
+              Nothing has been written or spent yet.
             </li>
             <li>
               <strong>You start a run</strong> with the panel above the board. Datum researches

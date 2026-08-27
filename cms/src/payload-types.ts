@@ -79,6 +79,7 @@ export interface Config {
     'evidence-sources': EvidenceSource;
     'evidence-source-candidates': EvidenceSourceCandidate;
     'corpus-snapshots': CorpusSnapshot;
+    'topic-searches': TopicSearch;
     'information-gain-runs': InformationGainRun;
     'pipeline-runs': PipelineRun;
     'payload-kv': PayloadKv;
@@ -101,6 +102,7 @@ export interface Config {
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
     'evidence-source-candidates': EvidenceSourceCandidatesSelect<false> | EvidenceSourceCandidatesSelect<true>;
     'corpus-snapshots': CorpusSnapshotsSelect<false> | CorpusSnapshotsSelect<true>;
+    'topic-searches': TopicSearchesSelect<false> | TopicSearchesSelect<true>;
     'information-gain-runs': InformationGainRunsSelect<false> | InformationGainRunsSelect<true>;
     'pipeline-runs': PipelineRunsSelect<false> | PipelineRunsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -277,7 +279,19 @@ export interface Article {
   id: number;
   title?: string | null;
   slug?: string | null;
+  /**
+   * The primary keyword this article targets.
+   */
   keyword: string;
+  /**
+   * Related searches grouped with the primary keyword. The article is written and scored to cover all of them.
+   */
+  secondaryKeywords?:
+    | {
+        keyword: string;
+        id?: string | null;
+      }[]
+    | null;
   template?: (number | null) | Template;
   research?: {
     rankingPagesSummary?: string | null;
@@ -1062,6 +1076,41 @@ export interface EvidenceSourceCandidate {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topic-searches".
+ */
+export interface TopicSearch {
+  id: number;
+  /**
+   * The subject the operator typed, as they typed it.
+   */
+  seed: string;
+  seedKey: string;
+  /**
+   * Keyword metrics are per-market, so the cache key includes it.
+   */
+  country: string;
+  fetchedAt: string;
+  /**
+   * How many keywords the lookup returned.
+   */
+  resultCount?: number | null;
+  /**
+   * DiscoveredKeyword[] exactly as Ahrefs returned it, already ranked.
+   */
+  candidates?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pipeline-runs".
  */
 export interface PipelineRun {
@@ -1277,6 +1326,10 @@ export interface PayloadLockedDocument {
         value: number | CorpusSnapshot;
       } | null)
     | ({
+        relationTo: 'topic-searches';
+        value: number | TopicSearch;
+      } | null)
+    | ({
         relationTo: 'information-gain-runs';
         value: number | InformationGainRun;
       } | null)
@@ -1414,6 +1467,12 @@ export interface ArticlesSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   keyword?: T;
+  secondaryKeywords?:
+    | T
+    | {
+        keyword?: T;
+        id?: T;
+      };
   template?: T;
   research?:
     | T
@@ -1741,6 +1800,20 @@ export interface CorpusSnapshotsSelect<T extends boolean = true> {
   gaps?: T;
   baselineDocCount?: T;
   failedPageCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topic-searches_select".
+ */
+export interface TopicSearchesSelect<T extends boolean = true> {
+  seed?: T;
+  seedKey?: T;
+  country?: T;
+  fetchedAt?: T;
+  resultCount?: T;
+  candidates?: T;
   updatedAt?: T;
   createdAt?: T;
 }
