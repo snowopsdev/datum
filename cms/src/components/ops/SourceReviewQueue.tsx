@@ -68,6 +68,8 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
   const [qualityClass, setQualityClass] = useState<string>(candidate.suggestedClass)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const classFieldId = `class-${candidate.id}`
+  const noteFieldId = `note-${candidate.id}`
 
   const run = (action: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
     setError(null)
@@ -81,20 +83,24 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
   const bucket = queueBucket(candidate)
 
   return (
-    <div className="datum-ops__card">
-      <div className="datum-ops__card-title">
-        {candidate.domain}
-        {candidate.domainRating !== null ? (
-          <span
-            className="datum-ops__pill"
-            title="Ahrefs domain rating: how many sites link to this one. Popularity, not accuracy."
-          >
-            {' '}
-            DR {candidate.domainRating}
-          </span>
-        ) : null}
+    <article className="datum-ops__entry-card">
+      <div className="datum-ops__entry-card-head">
+        <h3>
+          {candidate.domain}
+          {candidate.domainRating !== null ? (
+            <>
+              {' '}
+              <span
+                className="datum-ops__pill datum-ops__pill--muted"
+                title="Ahrefs domain rating: how many sites link to this one. Popularity, not accuracy."
+              >
+                DR {candidate.domainRating}
+              </span>
+            </>
+          ) : null}
+        </h3>
+        <p>Last seen {candidate.lastSeenLabel}</p>
       </div>
-      <div className="datum-ops__card-meta">Last seen {candidate.lastSeenLabel}</div>
 
       <Badges candidate={candidate} />
 
@@ -131,10 +137,11 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
 
       {bucket === 'review' ? (
         <>
-          <label className="datum-ops__field">
-            How much should we trust it?
+          <div className="datum-ops__field">
+            <label htmlFor={classFieldId}>How much should we trust it?</label>
             <select
               disabled={pending}
+              id={classFieldId}
               onChange={(e) => setQualityClass(e.target.value)}
               value={qualityClass}
             >
@@ -144,21 +151,22 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
                 </option>
               ))}
             </select>
-          </label>
-          <p className="datum-ops__hint">
-            Only Primary, Official docs and Our own data are strong enough to back a claim nobody
-            else is making. The rest record what you think without changing any result.
-          </p>
-          <label className="datum-ops__field">
-            Why (optional)
+            <p className="datum-ops__hint">
+              Only Primary, Official docs and Our own data are strong enough to back a claim
+              nobody else is making. The rest record what you think without changing any result.
+            </p>
+          </div>
+          <div className="datum-ops__field">
+            <label htmlFor={noteFieldId}>Why (optional)</label>
             <textarea
               disabled={pending}
+              id={noteFieldId}
               onChange={(e) => setNote(e.target.value)}
               placeholder="What makes this domain worth this rating?"
               rows={2}
               value={note}
             />
-          </label>
+          </div>
           <div className="datum-ops__actions">
             <button
               className="datum-ops__btn datum-ops__btn--primary"
@@ -198,7 +206,7 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
       ) : null}
 
       {error ? <p className="datum-ops__error">{error}</p> : null}
-    </div>
+    </article>
   )
 }
 
@@ -214,55 +222,60 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
   const shown = buckets[tab]
 
   return (
-    <div className="datum-ops__panel">
+    <div className="datum-ops">
       <div className="datum-ops__header">
-        <p className="datum-ops__eyebrow">Governance</p>
         <h1>Source review</h1>
-        <p className="datum-ops__lede">
-          Domains the pipeline ran into that nobody has rated yet. Until a domain is rated, evidence
-          from it can&rsquo;t back a claim nobody else is making, so an article resting on one gets
-          blocked. Rate the ones you trust and dismiss the rest.
-        </p>
-        <div className="datum-ops__pills">
+        <span className="datum-ops__pill">governance</span>
+      </div>
+      <p className="datum-ops__lede">
+        Domains the pipeline ran into that nobody has rated yet. Until a domain is rated, evidence
+        from it can&rsquo;t back a claim nobody else is making, so an article resting on one gets
+        blocked. Rate the ones you trust and dismiss the rest.
+      </p>
+
+      <div className="datum-ops__period">
+        <span className="datum-ops__sub" style={{ margin: 0 }}>
+          Status
+        </span>
+        <div className="datum-ops__switcher">
           {TABS.map((entry) => (
             <button
-              className={`datum-ops__pill${tab === entry.key ? '' : ' datum-ops__pill--muted'}`}
+              className={tab === entry.key ? 'is-active' : undefined}
               key={entry.key}
               onClick={() => setTab(entry.key)}
               type="button"
             >
-              {buckets[entry.key].length} {entry.label.toLowerCase()}
+              {entry.label} ({buckets[entry.key].length})
             </button>
           ))}
         </div>
-        <p className="datum-ops__hint">
-          Ratings apply to articles scored from now on. One that is already blocked or waiting for
-          review keeps its result until it is scored again — open it from the{' '}
-          <Link href="/admin/ops/articles" prefetch={false}>
-            article board
-          </Link>{' '}
-          and use Reset to drafted to re-check the same draft, or Send back and then Regenerate to
-          rewrite it first.
-        </p>
       </div>
 
-      <div className="datum-ops__panel-body">
-        {shown.length === 0 ? (
-          <p className="datum-ops__empty">
-            {tab === 'review'
-              ? 'Nothing waiting. Every domain the pipeline has cited or seen ranking is either rated or dismissed.'
-              : tab === 'rated'
-                ? 'No domains rated yet.'
-                : 'Nothing dismissed.'}
-          </p>
-        ) : (
-          <div className="datum-ops__entry-cards">
-            {shown.map((candidate) => (
-              <CandidateCard candidate={candidate} key={candidate.id} />
-            ))}
-          </div>
-        )}
-      </div>
+      <p className="datum-ops__hint">
+        Ratings apply to articles scored from now on. One that is already blocked or waiting for
+        review keeps its result until it is scored again — open it from the{' '}
+        <Link href="/admin/ops/articles" prefetch={false}>
+          article board
+        </Link>{' '}
+        and use Reset to drafted to re-check the same draft, or Send back and then Regenerate to
+        rewrite it first.
+      </p>
+
+      {shown.length === 0 ? (
+        <p className="datum-ops__empty" style={{ marginTop: 20 }}>
+          {tab === 'review'
+            ? 'Nothing waiting. Every domain the pipeline has cited or seen ranking is either rated or dismissed.'
+            : tab === 'rated'
+              ? 'No domains rated yet.'
+              : 'Nothing dismissed.'}
+        </p>
+      ) : (
+        <div className="datum-ops__entry-cards" style={{ marginTop: 20 }}>
+          {shown.map((candidate) => (
+            <CandidateCard candidate={candidate} key={candidate.id} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
