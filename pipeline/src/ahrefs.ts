@@ -36,9 +36,36 @@ export interface AhrefsClient {
    */
   contentGapKeywords(): Promise<GapKeyword[]>
   serpResearch(keyword: string): Promise<SerpResearch>
+  /**
+   * Keywords related to a seed phrase the operator typed, for the topic
+   * discovery panel. Unlike `contentGapKeywords` this is not scoped to what
+   * competitors rank for — it answers "what else could we write about X",
+   * which is the question someone has when they arrive with a subject rather
+   * than a gap report.
+   */
+  discoverKeywords(seed: string, limit?: number): Promise<DiscoveredKeyword[]>
 }
 
+/** One candidate topic offered to the operator, before any article exists. */
+export interface DiscoveredKeyword {
+  keyword: string
+  volume: number
+  difficulty: number
+  /** volume ÷ difficulty — the same ranking `fetchTopics` sorts gap keywords by. */
+  opportunity: number
+}
+
+/** Shared so the discovery panel and `fetchTopics` rank candidates identically. */
+export const opportunityScore = (volume: number, difficulty: number): number =>
+  volume / Math.max(difficulty, 1)
+
 const API_BASE = 'https://api.ahrefs.com/v3'
+
+interface MatchingTermRow {
+  keyword: string | null
+  volume: number | null
+  difficulty: number | null
+}
 
 interface OrganicKeywordRow {
   keyword: string | null
@@ -121,6 +148,29 @@ class RealAhrefsClient implements AhrefsClient {
     return [...gaps.values()]
   }
 
+  async discoverKeywords(seed: string, limit = 25): Promise<DiscoveredKeyword[]> {
+    const { keywords } = await this.get<{ keywords: MatchingTermRow[] }>(
+      '/keywords-explorer/matching-terms',
+      {
+        country: config.ahrefsCountry,
+        keywords: seed,
+        select: 'keyword,volume,difficulty',
+        order_by: 'volume:desc',
+        limit: String(Math.min(Math.max(limit, 1), 100)),
+        match_mode: 'terms',
+      },
+    )
+    return (keywords ?? [])
+      .flatMap((row) => {
+        const keyword = row.keyword?.trim()
+        if (!keyword) return []
+        const volume = row.volume ?? 0
+        const difficulty = row.difficulty ?? 0
+        return [{ keyword, volume, difficulty, opportunity: opportunityScore(volume, difficulty) }]
+      })
+      .sort((a, b) => b.opportunity - a.opportunity)
+  }
+
   async serpResearch(keyword: string): Promise<SerpResearch> {
     const { positions } = await this.get<{ positions: SerpPositionRow[] }>(
       '/serp-overview/serp-overview',
@@ -176,6 +226,29 @@ class MockAhrefsClient implements AhrefsClient {
       { keyword: 'crm implementation checklist', volume: 880, difficulty: 12, bestCompetitorPosition: 7 },
       { keyword: 'hubspot vs salesforce for startups', volume: 720, difficulty: 35, bestCompetitorPosition: 4 },
     ]
+  }
+
+  async discoverKeywords(seed: string, limit = 25): Promise<DiscoveredKeyword[]> {
+    const base = seed.trim() || 'topic'
+    // Shaped like real matching-terms output: the seed itself is highest
+    // volume and hardest, modifiers get progressively easier.
+    const rows = [
+      { suffix: '', volume: 74000, difficulty: 71 },
+      { suffix: ' pricing', volume: 12000, difficulty: 44 },
+      { suffix: ' alternatives', volume: 8600, difficulty: 38 },
+      { suffix: ' vs competitors', volume: 3200, difficulty: 29 },
+      { suffix: ' for beginners', volume: 2400, difficulty: 17 },
+      { suffix: ' checklist', volume: 1100, difficulty: 11 },
+    ]
+    return rows
+      .slice(0, Math.min(Math.max(limit, 1), rows.length))
+      .map(({ suffix, volume, difficulty }) => ({
+        keyword: `${base}${suffix}`,
+        volume,
+        difficulty,
+        opportunity: opportunityScore(volume, difficulty),
+      }))
+      .sort((a, b) => b.opportunity - a.opportunity)
   }
 
   async serpResearch(keyword: string): Promise<SerpResearch> {

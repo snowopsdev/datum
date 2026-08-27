@@ -115,6 +115,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
   // an ungoverned article on to generation.
   const ahrefs: AhrefsClient = {
     contentGapKeywords: async () => [],
+    discoverKeywords: async () => [],
     serpResearch: async (keyword) => ({
       rankingPagesSummary: 'Research summary',
       commonSubtopics: ['Equipment'],

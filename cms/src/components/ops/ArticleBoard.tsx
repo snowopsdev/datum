@@ -7,6 +7,7 @@ import type { BoardArticle } from './articleStatus'
 import { STATUS_COLUMNS } from './articleStatus'
 import './ops.css'
 import { ContentRunForm } from './ContentRunForm'
+import { TopicDiscovery } from './TopicDiscovery'
 
 type Props = {
   articles: BoardArticle[]
@@ -46,13 +47,16 @@ export function ArticleBoard({ articles, templates, mode, pipelineReady, runActi
       <p className="datum-ops__lede">
         Actions only — open a card to assign, triage, or approve. Pipeline owns in-flight statuses.
       </p>
+      <TopicDiscovery mode={mode} templates={templates} />
+
       <section className="datum-ops__launch-panel">
         <div>
           <p className="datum-ops__eyebrow">New content run</p>
-          <h2>Discover topics and run the pipeline</h2>
+          <h2>Run the pipeline</h2>
           <p>
-            Select the template for this batch. Datum will discover new opportunities and take only
-            those articles through QA.
+            Takes topics already on the board through research, writing, and QA. Use{' '}
+            <strong>Find topics</strong> above to add your own, or let this discover gaps your
+            competitors rank for and you do not.
           </p>
           {!pipelineReady ? <Link href="/admin">Review workspace readiness</Link> : null}
         </div>

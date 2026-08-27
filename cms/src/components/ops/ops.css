@@ -910,6 +910,35 @@
   }
 }
 
+/*
+ * Brand voice reuses the template two-pane layout, but its left rail also holds
+ * the "Replace this voice" cards. Those are `.datum-ops__entry-cards`, which ask
+ * for `minmax(280px, 1fr)` — wider than the 220px column they sit in — so they
+ * overflowed and the grid's `overflow: hidden` sheared them off mid-word. Give
+ * the rail room and let the cards fill it in one column instead of demanding a
+ * width the rail cannot give.
+ */
+.datum-ops__bv {
+  grid-template-columns: 320px 1fr;
+}
+
+.datum-ops__bv .datum-ops__tpl-list {
+  overflow-y: auto;
+}
+
+.datum-ops__bv .datum-ops__entry-cards {
+  grid-template-columns: 1fr;
+  max-width: none;
+  gap: 10px;
+  padding: 12px;
+}
+
+@media (max-width: 800px) {
+  .datum-ops__bv {
+    grid-template-columns: 1fr;
+  }
+}
+
 .datum-ops__tpl-list {
   border-right: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
