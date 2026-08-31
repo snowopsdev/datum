@@ -6,6 +6,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
+import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
 
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
 
@@ -179,7 +180,7 @@ export async function approveArticleAction(articleId: number, reviewNotes?: stri
 
 export async function publishArticleAction(articleId: number, reviewNotes?: string) {
   const { payload, user } = await requireUser()
-  await payload.update({
+  const published = await payload.update({
     collection: 'articles',
     id: articleId,
     data: {
@@ -194,6 +195,7 @@ export async function publishArticleAction(articleId: number, reviewNotes?: stri
     user,
     overrideAccess: false,
   })
+  revalidatePublishedArticle(published)
   revalidateOps(articleId)
 }
 
