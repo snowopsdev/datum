@@ -7,10 +7,10 @@ import type { Payload } from 'payload'
 import { verifyWebhookSignature } from '../../src/jobs/webhookDeliver.js'
 import { login } from '../helpers/login'
 import {
-  archiveArticles,
   cleanupOpsUser,
   opsPayload,
   opsTestUser,
+  retireArticles,
   seedArticle,
   seedOpsUser,
   setWebhookSettings,
@@ -40,6 +40,7 @@ let payload: Payload
 let page: Page
 let listener: Server
 let listenerUrl: string
+let previousWebhookSettings: { enabled: boolean; url: string | null; secret: string | null }
 const deliveries: Delivery[] = []
 const seededIds: number[] = []
 const WEBHOOK_SECRET = 'e2e-suite-secret'
@@ -66,6 +67,14 @@ test.describe('Content ops', () => {
     })
     await new Promise<void>((resolve) => listener.listen(0, '127.0.0.1', resolve))
     listenerUrl = `http://127.0.0.1:${(listener.address() as AddressInfo).port}/hook`
+    // The webhook global is a singleton the target database may already
+    // configure; snapshot it so teardown restores rather than clobbers it.
+    const existing = await payload.findGlobal({ slug: 'webhook-settings', depth: 0 })
+    previousWebhookSettings = {
+      enabled: existing?.enabled !== false,
+      url: existing?.url ?? null,
+      secret: existing?.secret ?? null,
+    }
     await setWebhookSettings(payload, { enabled: true, url: listenerUrl, secret: WEBHOOK_SECRET })
 
     const context = await browser.newContext()
@@ -74,8 +83,11 @@ test.describe('Content ops', () => {
   })
 
   test.afterAll(async () => {
+    // Disable before retiring so the withdrawals queue no deliveries, then
+    // put back whatever configuration the database had before the suite.
     await setWebhookSettings(payload, { enabled: false })
-    await archiveArticles(payload, seededIds)
+    await retireArticles(payload, seededIds)
+    await setWebhookSettings(payload, previousWebhookSettings)
     await cleanupOpsUser(payload)
     await new Promise<void>((resolve, reject) =>
       listener.close((err) => (err ? reject(err) : resolve())),

@@ -45,14 +45,31 @@ export async function seedArticle(
   return payload.create({ collection: 'articles', overrideAccess: true, data: data as never })
 }
 
-/** Articles cannot be hard-deleted (append-only audit FK), so cleanup archives. */
-export async function archiveArticles(payload: Payload, ids: number[]): Promise<void> {
+/**
+ * Articles cannot be hard-deleted (append-only audit FK), so cleanup archives
+ * them — and also withdraws any the suite published, because the public
+ * routes, homepage, and report metrics select `published` rows without
+ * excluding archived ones. `approved` is the state the fixture held before
+ * the test published it. Run while webhooks are already disabled so the
+ * withdrawal queues no delivery; on a caching (production) server the old
+ * page may persist for one ISR window, which this suite does not target.
+ */
+export async function retireArticles(payload: Payload, ids: number[]): Promise<void> {
   for (const id of ids) {
+    const current = await payload.findByID({
+      collection: 'articles',
+      id,
+      depth: 0,
+      overrideAccess: true,
+    })
     await payload.update({
       collection: 'articles',
       id,
       overrideAccess: true,
-      data: { archived: true },
+      data: {
+        archived: true,
+        ...(current.status === 'published' ? { status: 'approved' } : {}),
+      },
     })
   }
 }
