@@ -4,9 +4,7 @@ import { describe, it } from 'node:test'
 import { createAhrefsClient } from '../src/ahrefs'
 import { fetchPage } from '../src/corpus/fetchPage'
 
-// `createAhrefsClient()` returns the mock client whenever there is no Ahrefs
-// key, which is the case in tests; the real client is not exercised here.
-const client = createAhrefsClient()
+const client = createAhrefsClient('mock')
 
 describe('mock serpResearch pages', () => {
   it('renders the same three results as data and as summary text', async () => {

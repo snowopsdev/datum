@@ -295,7 +295,18 @@ class MockAhrefsClient implements AhrefsClient {
   }
 }
 
-export function createAhrefsClient(): AhrefsClient {
-  if (config.mockMode || !config.ahrefsApiKey) return new MockAhrefsClient()
+/**
+ * Run-scoped, like `createLlmClient(mode)`: the caller says which mode this
+ * run is in instead of the factory reading the module-global `config.mockMode`,
+ * so a queued run's mode comes from its `pipeline-runs` row. A live request
+ * without a key still degrades to mock — loudly, because a "live" run silently
+ * returning canned SERPs is how bad briefs get researched.
+ */
+export function createAhrefsClient(mode: 'mock' | 'live'): AhrefsClient {
+  if (mode === 'mock') return new MockAhrefsClient()
+  if (!config.ahrefsApiKey) {
+    console.warn('[ahrefs] live mode requested but AHREFS_API_KEY is unset; using mock data')
+    return new MockAhrefsClient()
+  }
   return new RealAhrefsClient(config.ahrefsApiKey)
 }

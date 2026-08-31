@@ -8,6 +8,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
+import { config as pipelineConfig } from '../../../../pipeline/src/config'
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import type {
@@ -81,7 +82,14 @@ export async function discoverTopicsAction(
         ? (cachedRow.candidates as DiscoveredKeyword[])
         : null
 
-    const candidates = usableCache ?? (await createAhrefsClient().discoverKeywords(term, 25))
+    const candidates =
+      usableCache ??
+      // Discovery has no pipeline-runs row to carry a mode, so the ambient
+      // config decides — the same signal the run bar shows the operator.
+      (await createAhrefsClient(pipelineConfig.mockMode ? 'mock' : 'live').discoverKeywords(
+        term,
+        25,
+      ))
     if (candidates.length === 0) {
       return { ok: false, error: `No keywords came back for "${term}". Try a broader phrase.` }
     }
