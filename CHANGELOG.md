@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/snowopsdev/datum/compare/v0.3.0...v0.4.0) (2026-08-31)
+
+
+### Features
+
+* **ops:** webhooks, scheduled publishing, caching, and a shared status table ([#63](https://github.com/snowopsdev/datum/issues/63)) ([98db434](https://github.com/snowopsdev/datum/commit/98db434a136e1578eb8aa35e3067e61eca01883b))
+
 ## [0.3.0](https://github.com/snowopsdev/datum/compare/v0.2.0...v0.3.0) (2026-08-27)
 
 
