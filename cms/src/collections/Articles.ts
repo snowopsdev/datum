@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
+import { emitArticleStatusEvent } from '../lib/articleEvents'
 import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
   gateReviewOverride,
@@ -18,7 +19,7 @@ export const Articles: CollectionConfig = {
     // `gateVerifiedStatus` re-derives the fresh-justification test rather than
     // trusting the hook before it.
     beforeChange: [invalidateStaleInformationGain, gateReviewOverride, gateVerifiedStatus],
-    afterChange: [auditArticleChange],
+    afterChange: [auditArticleChange, emitArticleStatusEvent],
   },
   admin: {
     group: false,
