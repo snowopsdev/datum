@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run release-please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           # Optional RELEASE_PLEASE_TOKEN (fine-grained PAT): release PRs opened with
           # the default GITHUB_TOKEN don't trigger CI, so required checks never run
