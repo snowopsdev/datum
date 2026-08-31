@@ -24,6 +24,7 @@ import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
 import { WebhookSettings } from './globals/WebhookSettings'
 import { ContentRunTask } from './jobs/contentRun'
+import { PublishDueTask } from './jobs/publishDue'
 import { WebhookDeliverTask } from './jobs/webhookDeliver'
 
 const filename = fileURLToPath(import.meta.url)
@@ -132,17 +133,19 @@ export default buildConfig({
   ],
   globals: [LlmSettings, InformationGainPolicy, WebhookSettings],
   jobs: {
-    tasks: [ContentRunTask, WebhookDeliverTask],
+    tasks: [ContentRunTask, WebhookDeliverTask, PublishDueTask],
     enableConcurrencyControl: true,
     processingOrder: 'createdAt',
     // Production runs no queues in-process; the external scheduler calls
-    // `payload jobs:run --queue content --limit 1` and needs a second line for
-    // `--queue webhooks` (see docs/operations.md once written).
+    // `payload jobs:run --queue content --limit 1` and needs lines for
+    // `--queue webhooks` and `--queue scheduled --handle-schedules`
+    // (see docs/operations.md once written).
     autoRun:
       process.env.NODE_ENV === 'development'
         ? [
             { cron: '*/2 * * * * *', queue: 'content', limit: 1 },
             { cron: '*/2 * * * * *', queue: 'webhooks', limit: 5 },
+            { cron: '*/10 * * * * *', queue: 'scheduled', limit: 1 },
           ]
         : [],
   },

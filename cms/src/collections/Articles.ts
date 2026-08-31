@@ -233,6 +233,21 @@ export const Articles: CollectionConfig = {
       },
     },
     {
+      // Scheduled publishing: the publish-due job (jobs/publishDue.ts) moves
+      // due approved articles to published through the normal update path.
+      // The value survives status moves as inert intent; only `approved` is
+      // ever picked up, so a stray date on a reviewed-back article does nothing.
+      name: 'publishAt',
+      type: 'date',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        condition: (data) => data?.status === 'approved',
+        description: 'Publish automatically at this time. Leave blank to publish by hand.',
+      },
+    },
+    {
       name: 'qaResults',
       type: 'group',
       fields: [

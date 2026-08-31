@@ -6,6 +6,7 @@ import * as migration_20260827_183330_board_selected_runs from './20260827_18333
 import * as migration_20260827_184000_article_archived from './20260827_184000_article_archived';
 import * as migration_20260827_214532_brief_checkpoint from './20260827_214532_brief_checkpoint';
 import * as migration_20260831_190025_webhook_settings_and_delivery_task from './20260831_190025_webhook_settings_and_delivery_task';
+import * as migration_20260831_191144_scheduled_publishing from './20260831_191144_scheduled_publishing';
 
 export const migrations = [
   {
@@ -46,6 +47,11 @@ export const migrations = [
   {
     up: migration_20260831_190025_webhook_settings_and_delivery_task.up,
     down: migration_20260831_190025_webhook_settings_and_delivery_task.down,
-    name: '20260831_190025_webhook_settings_and_delivery_task'
+    name: '20260831_190025_webhook_settings_and_delivery_task',
+  },
+  {
+    up: migration_20260831_191144_scheduled_publishing.up,
+    down: migration_20260831_191144_scheduled_publishing.down,
+    name: '20260831_191144_scheduled_publishing'
   },
 ];
