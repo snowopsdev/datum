@@ -8,6 +8,13 @@ permissions:
   contents: write
   pull-requests: write
 
+# Queue runs instead of overlapping: two pushes to main in quick succession
+# would otherwise race to update the same release PR. Never cancel — a
+# half-finished run could leave a tag without its GitHub release.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     name: release-please
