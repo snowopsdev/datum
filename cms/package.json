@@ -30,7 +30,7 @@
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.117.1",
+    "@anthropic-ai/sdk": "^0.120.0",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/next": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
@@ -39,7 +39,7 @@
     "dotenv": "17.4.2",
     "graphql": "^16.8.1",
     "mammoth": "^1.12.1",
-    "next": "16.3.1",
+    "next": "16.3.2",
     "openai": "^7.5.0",
     "payload": "3.88.0",
     "pdf-parse": "^2.4.5",
@@ -50,19 +50,19 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@testing-library/react": "16.3.2",
-    "@types/node": "22.19.9",
+    "@types/node": "26.3.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
-    "@vitejs/plugin-react": "6.0.5",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
     "eslint": "^9.16.0",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.3.2",
     "jsdom": "30.0.1",
     "prettier": "^3.4.2",
     "tsx": "4.23.12",
     "typescript": "5.7.3",
-    "typescript-eslint": "^8.67.0",
+    "typescript-eslint": "^8.68.0",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "engines": {
     "node": ">=22.22.2"
