@@ -49,6 +49,18 @@ describe('gateReadOnlyStatus', () => {
     expect(updated.title).toBe('draft output')
   })
 
+  it('rejects content edits smuggled into a jump between machine statuses', async () => {
+    const article = await makeArticle({ status: 'drafted', title: 'draft' })
+    await expect(
+      payload.update({
+        collection: 'articles',
+        id: article.id,
+        overrideAccess: true,
+        data: { status: 'qa_passed', title: 'tampered, never QA-checked' },
+      }),
+    ).rejects.toThrow(/read-only until the run finishes/)
+  })
+
   it('lets a person pull the article out of a machine status, notes included', async () => {
     const article = await makeArticle({ status: 'qa_passed' })
     const updated = await payload.update({

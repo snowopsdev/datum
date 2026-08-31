@@ -324,7 +324,12 @@ export const gateReadOnlyStatus: CollectionBeforeChangeHook = ({
   if (!STATUS_META[status]?.readOnly) return data
   const supplied = (context as { articleAudit?: ArticleAuditContext } | undefined)?.articleAudit
   if (supplied?.actorType === 'pipeline' || supplied?.actorType === 'system') return data
-  if (typeof data.status === 'string' && data.status !== status) return data
+  // Only transitions *into a human-owned status* are exempt. Exempting any
+  // status change would let one update smuggle content edits through a jump
+  // between machine statuses (`drafted` → `qa_passed` skips QA entirely, and
+  // scoring picks articles up by status alone).
+  const target = typeof data.status === 'string' ? (data.status as ArticleStatus) : status
+  if (target !== status && !STATUS_META[target]?.readOnly) return data
   const original = originalDoc as Record<string, unknown>
   const touched = SCORED_CONTENT_FIELDS.filter(
     (path) => !sameValue(valueAt(data, path), valueAt(original, path)),
