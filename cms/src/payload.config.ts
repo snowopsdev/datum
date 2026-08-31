@@ -166,8 +166,10 @@ export default buildConfig({
     // DROP + ADD of the same constraint. One process survives that; two vitest
     // workers booting together do not (the second DROP finds nothing). Turning
     // push off in tests also removes the interactive "create enum?" prompt that
-    // used to hang the suite after a schema change.
-    push: process.env.VITEST !== 'true',
+    // used to hang the suite after a schema change. Playwright has the same
+    // problem doubled: parallel e2e workers each boot Payload for seeding, so
+    // the test:e2e script sets DISABLE_DEV_PUSH to keep them out of the race.
+    push: process.env.VITEST !== 'true' && process.env.DISABLE_DEV_PUSH !== 'true',
   }),
   sharp,
   plugins: [],
