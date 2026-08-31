@@ -20,7 +20,7 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 | --- | --- |
 | [`cms/`](cms/) | Payload CMS 3 app using Next.js 16 and Postgres. Stores templates and articles and provides the admin UI. |
 | [`pipeline/`](pipeline/) | Node/TypeScript CLI that advances articles through research → generate → QA |
-| [`docs/`](docs/) | Style guide and other content rules that the pipeline reads |
+| [`docs/`](docs/) | Style guide and other content rules that the pipeline reads, plus [`docs/operations.md`](docs/operations.md) for queues, webhooks, caching, and limits |
 
 `cms` and `pipeline` share one Postgres database and the types generated in `cms/src/payload-types.ts`. The pipeline imports Payload in the same process. It does not call the CMS over HTTP.
 
