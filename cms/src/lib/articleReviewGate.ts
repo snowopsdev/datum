@@ -2,6 +2,7 @@ import type { CollectionBeforeChangeHook } from 'payload'
 import { APIError } from 'payload'
 
 import type { ArticleAuditContext } from './articleAudit'
+import { STATUS_META, type ArticleStatus } from './articleStatusMeta'
 
 export const OVERRIDABLE_STATUSES = ['needs_review', 'blocked'] as const
 
@@ -298,6 +299,44 @@ function valueAt(doc: Record<string, unknown> | undefined, path: string): unknow
  * and a pass there feeds it straight back into scoring at `qa_passed`. An edit
  * that already sends the article backwards keeps the status it asked for.
  */
+/**
+ * Hygraph-style read-only step: while a status the table marks `readOnly`
+ * holds the article (`drafted`, `qa_passed` — a run is about to read or
+ * overwrite it), human edits to the scored content fields are rejected instead
+ * of silently lost to the next stage's output or a decision invalidation.
+ *
+ * Three shapes of write stay open, in the order they are checked:
+ * pipeline/system updates (the machine owning the article is the point);
+ * status transitions (a person pulling it out of the machine state — send
+ * back, reset — may also carry notes and QA payloads); and writes that touch
+ * none of the scored fields (archiving, review notes).
+ *
+ * `SCORED_CONTENT_FIELDS` is deliberately the fence: those are exactly the
+ * fields whose mid-run edits corrupt or invalidate work already paid for.
+ */
+export const gateReadOnlyStatus: CollectionBeforeChangeHook = ({
+  context,
+  data,
+  originalDoc,
+}) => {
+  if (!originalDoc) return data
+  const status = originalDoc.status as ArticleStatus
+  if (!STATUS_META[status]?.readOnly) return data
+  const supplied = (context as { articleAudit?: ArticleAuditContext } | undefined)?.articleAudit
+  if (supplied?.actorType === 'pipeline' || supplied?.actorType === 'system') return data
+  if (typeof data.status === 'string' && data.status !== status) return data
+  const original = originalDoc as Record<string, unknown>
+  const touched = SCORED_CONTENT_FIELDS.filter(
+    (path) => !sameValue(valueAt(data, path), valueAt(original, path)),
+  )
+  if (touched.length === 0) return data
+  throw new APIError(
+    `This article is ${STATUS_META[status].label} ("${status}") and its content is read-only until the run finishes. ` +
+      `Blocked fields: ${touched.join(', ')}. Send it back for revision to edit it.`,
+    400,
+  )
+}
+
 export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
   data,
   originalDoc,

@@ -4,6 +4,7 @@ import { auditArticleChange } from '../lib/articleAudit'
 import { emitArticleStatusEvent } from '../lib/articleEvents'
 import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
+  gateReadOnlyStatus,
   gateReviewOverride,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
@@ -15,10 +16,17 @@ export const Articles: CollectionConfig = {
     // `invalidateStaleInformationGain` is first because it is a *dependency*:
     // it clears the decision an edited draft no longer deserves, and
     // `gateVerifiedStatus` has to see that clearance rather than the PASS it
-    // replaced. The other two are ordered as documentation only —
-    // `gateVerifiedStatus` re-derives the fresh-justification test rather than
-    // trusting the hook before it.
-    beforeChange: [invalidateStaleInformationGain, gateReviewOverride, gateVerifiedStatus],
+    // replaced. `gateReadOnlyStatus` sits after it (readOnly statuses never
+    // carry a decision, so order is documentation) and before the review gates
+    // it has nothing in common with. The last two are ordered as documentation
+    // only — `gateVerifiedStatus` re-derives the fresh-justification test
+    // rather than trusting the hook before it.
+    beforeChange: [
+      invalidateStaleInformationGain,
+      gateReadOnlyStatus,
+      gateReviewOverride,
+      gateVerifiedStatus,
+    ],
     afterChange: [auditArticleChange, emitArticleStatusEvent],
   },
   admin: {
