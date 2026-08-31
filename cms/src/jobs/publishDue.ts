@@ -47,9 +47,20 @@ export const PublishDueTask: TaskConfig<PublishDueTask> = {
       // One article's failure must not hold back the rest of the batch; it
       // stays `approved` and the next run retries it.
       try {
-        await req.payload.update({
+        // The eligibility conditions are repeated in the update's own `where`
+        // rather than trusting the batch query above: a reviewer can move the
+        // article off `approved` (or archive it) while the batch iterates, and
+        // an unconditional write by id would publish it anyway, undoing them.
+        const result = await req.payload.update({
           collection: 'articles',
-          id: article.id,
+          where: {
+            and: [
+              { id: { equals: article.id } },
+              { status: { equals: 'approved' } },
+              { publishAt: { less_than_equal: new Date().toISOString() } },
+              { archived: { not_equals: true } },
+            ],
+          },
           data: { status: 'published', publishedAt: new Date().toISOString() },
           context: {
             articleAudit: {
@@ -62,7 +73,10 @@ export const PublishDueTask: TaskConfig<PublishDueTask> = {
           },
           overrideAccess: true,
         })
-        published.push(article.id)
+        if (result.errors.length > 0) {
+          throw new Error(result.errors.map((e) => e.message).join('; '))
+        }
+        if (result.docs.length > 0) published.push(article.id)
       } catch (error) {
         req.payload.logger.error(
           `scheduled publish failed for article ${article.id}: ${

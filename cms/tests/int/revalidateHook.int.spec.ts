@@ -65,6 +65,25 @@ describe('revalidate webhook consumer', () => {
     expect(revalidated).toEqual(['/articles/1', '/articles/some-article'])
   })
 
+  it('purges the previous slug when an unpublish renamed it in the same save', async () => {
+    const rawBody = JSON.stringify({
+      event: ARTICLE_STATUS_EVENT,
+      articleId: 1,
+      slug: 'renamed-article',
+      previousSlug: 'original-article',
+      from: 'published',
+      to: 'needs_revision',
+    })
+    const response = await post(rawBody, signedHeaders(rawBody))
+    expect(response.status).toBe(200)
+    expect(revalidated).toEqual([
+      '/articles/1',
+      '/articles/renamed-article',
+      '/articles/1',
+      '/articles/original-article',
+    ])
+  })
+
   it('acknowledges but ignores transitions that never touch published', async () => {
     const rawBody = JSON.stringify({
       event: ARTICLE_STATUS_EVENT,

@@ -46,6 +46,10 @@ export const emitArticleStatusEvent: CollectionAfterChangeHook = async ({
           event: ARTICLE_STATUS_EVENT,
           articleId: doc.id,
           slug: (doc.slug as string | null) ?? null,
+          // The slug the article had before this update. An unpublish that
+          // renames the slug in the same save would otherwise leave the old
+          // slug's cached page serving withdrawn content until ISR expiry.
+          previousSlug: (previousDoc?.slug as string | null) ?? null,
           from,
           to,
           actorType: supplied?.actorType ?? (user ? 'user' : 'system'),

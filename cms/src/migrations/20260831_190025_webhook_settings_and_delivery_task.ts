@@ -17,7 +17,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
-   DROP TABLE "webhook_settings" CASCADE;
+   -- Rows carrying the removed task slug would fail the enum-narrowing cast
+  -- below and abort the rollback, so they go first.
+  DELETE FROM "payload_jobs_log" WHERE "task_slug" = 'webhook-deliver';
+  DELETE FROM "payload_jobs" WHERE "task_slug" = 'webhook-deliver';
+  DROP TABLE "webhook_settings" CASCADE;
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "task_slug" SET DATA TYPE text;
   DROP TYPE "public"."enum_payload_jobs_log_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'content-run');

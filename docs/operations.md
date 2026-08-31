@@ -28,7 +28,7 @@ All background work runs on Payload's jobs queue. In development every queue aut
 
 Configured in the admin **Webhooks** global, each field falling back to `WEBHOOK_URL` / `WEBHOOK_SECRET`; nothing sends until both a URL and a secret resolve, and the global's `enabled` checkbox is a kill switch that also silences already-queued deliveries.
 
-- **Event**: every article status transition (creates included, as `from: null`) queues one `article.status_changed` delivery. Body: `event`, `articleId`, `slug`, `from`, `to`, `actor`, `actorType`, `pipelineRunId` (when a run caused it), `occurredAt`.
+- **Event**: every article status transition (creates included, as `from: null`) queues one `article.status_changed` delivery. Body: `event`, `articleId`, `slug`, `previousSlug`, `from`, `to`, `actor`, `actorType`, `pipelineRunId` (when a run caused it), `occurredAt`.
 - **Delivery contract**: POST, `content-type: application/json`, 3-second timeout, 5 attempts total (4 retries). Headers:
   - `x-datum-event` — the event name
   - `x-datum-timestamp` — milliseconds since epoch, signed

@@ -40,7 +40,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'stale timestamp' }, { status: 401 })
   }
 
-  let body: { event?: string; articleId?: number; slug?: string | null; from?: string; to?: string }
+  let body: {
+    event?: string
+    articleId?: number
+    slug?: string | null
+    previousSlug?: string | null
+    from?: string
+    to?: string
+  }
   try {
     body = JSON.parse(rawBody)
   } catch {
@@ -56,6 +63,11 @@ export async function POST(request: Request): Promise<Response> {
     (body.from === 'published' || body.to === 'published')
   if (touchesPublished) {
     revalidatePublishedArticle({ id: body.articleId as number, slug: body.slug })
+    // A save that renamed the slug while unpublishing cached the article under
+    // the old slug; purge that path too or it serves until ISR expiry.
+    if (body.previousSlug && body.previousSlug !== body.slug) {
+      revalidatePublishedArticle({ id: body.articleId as number, slug: body.previousSlug })
+    }
   }
   return Response.json({ revalidated: touchesPublished })
 }
