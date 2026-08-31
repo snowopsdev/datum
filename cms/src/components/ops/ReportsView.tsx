@@ -4,7 +4,8 @@ import { Gutter } from '@payloadcms/ui'
 import { redirect } from 'next/navigation'
 import React from 'react'
 
-import type { Article, CostLog } from '../../payload-types'
+import type { Article, CostLog, PipelineRun } from '../../payload-types'
+import { runHealth, stageKpis } from '../../lib/opsKpis'
 import { toBoardArticle } from './articleStatus'
 import { ReportsPanel, type CostReport, type SpendRow } from './ReportsPanel'
 
@@ -50,7 +51,7 @@ export async function ReportsView(props: AdminViewServerProps) {
     costWhere.createdAt = { greater_than_equal: periodStart }
   }
 
-  const [{ docs: articleDocs }, { docs: costDocs }] = await Promise.all([
+  const [{ docs: articleDocs }, { docs: costDocs }, { docs: runDocs }] = await Promise.all([
     req.payload.find({
       collection: 'articles',
       depth: 1,
@@ -70,6 +71,17 @@ export async function ReportsView(props: AdminViewServerProps) {
       user: req.user,
       overrideAccess: false,
     }),
+    req.payload.find({
+      collection: 'pipeline-runs',
+      depth: 0,
+      limit: 500,
+      pagination: false,
+      sort: '-createdAt',
+      // Same period window as spend, keyed on createdAt like cost rows.
+      where: costWhere,
+      user: req.user,
+      overrideAccess: false,
+    }),
   ])
 
   const articles = (articleDocs as Article[]).map(toBoardArticle)
@@ -80,6 +92,8 @@ export async function ReportsView(props: AdminViewServerProps) {
     rowCount: costDocs.length,
     ...costsAgg,
   }
+  const stages = stageKpis(costDocs as CostLog[])
+  const runs = runHealth(runDocs as PipelineRun[])
 
   return (
     <DefaultTemplate
@@ -93,7 +107,7 @@ export async function ReportsView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <ReportsPanel articles={articles} costs={costs} />
+        <ReportsPanel articles={articles} costs={costs} stages={stages} runs={runs} />
       </Gutter>
     </DefaultTemplate>
   )
