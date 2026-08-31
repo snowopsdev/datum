@@ -34,7 +34,7 @@ npm run jobs:run --workspace cms     # production content worker
 
 ## Key conventions
 
-- Article `status` is the pipeline state machine. Keep `pipeline/src/stages.ts` and `cms/src/components/ops/articleStatus.ts` aligned.
+- Article `status` is the pipeline state machine. Its metadata lives in one shared table, `cms/src/lib/articleStatusMeta.ts`; `pipeline/test/statusAlignment.test.ts` asserts `pipeline/src/stages.ts` agrees with it.
 - Research stops at `brief_review`. Only approval moves an article to `researched` and queues writing.
 - `needs_revision`, `needs_review`, and `blocked` require reviewer action; pipeline runs do not pick them up.
 - Route every pipeline LLM call through `completeJSONLogged()` so cost rows are written.

@@ -3,6 +3,7 @@ import type { Payload, Where } from 'payload'
 import type { Article, Template } from '../../cms/src/payload-types'
 
 import type { AhrefsClient } from './ahrefs'
+import type { PipelineStageName } from './articleStatusMeta'
 import type { BrandVoiceContent } from './brandVoice'
 import { generateStage } from './generate'
 import { informationGainStage } from './informationGain/index'
@@ -53,7 +54,7 @@ export interface StageOutcome {
 }
 
 export interface Stage {
-  name: 'research' | 'generate' | 'qa' | 'informationGain'
+  name: PipelineStageName
   entryStatus: ArticleStatus
   exitStatus: ArticleStatus
   run(article: Article, ctx: StageContext): Promise<StageOutcome>

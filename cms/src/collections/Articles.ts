@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
+import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
   gateReviewOverride,
   gateVerifiedStatus,
@@ -222,19 +223,9 @@ export const Articles: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'topic_selected',
-      options: [
-        'topic_selected',
-        'brief_review',
-        'researched',
-        'drafted',
-        'qa_passed',
-        'verified',
-        'needs_review',
-        'blocked',
-        'needs_revision',
-        'approved',
-        'published',
-      ],
+      // The shared table owns the list; a literal copy here is what the old
+      // "keep these files aligned" convention existed to protect.
+      options: [...ARTICLE_STATUSES],
       admin: {
         description:
           'verified = information-gain PASS (ready to approve). needs_review / blocked = a reviewer must override or send back.',
