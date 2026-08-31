@@ -1,7 +1,10 @@
 import type { CollectionConfig } from 'payload'
 
 import { auditArticleChange } from '../lib/articleAudit'
+import { emitArticleStatusEvent } from '../lib/articleEvents'
+import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
+  gateReadOnlyStatus,
   gateReviewOverride,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
@@ -13,11 +16,18 @@ export const Articles: CollectionConfig = {
     // `invalidateStaleInformationGain` is first because it is a *dependency*:
     // it clears the decision an edited draft no longer deserves, and
     // `gateVerifiedStatus` has to see that clearance rather than the PASS it
-    // replaced. The other two are ordered as documentation only —
-    // `gateVerifiedStatus` re-derives the fresh-justification test rather than
-    // trusting the hook before it.
-    beforeChange: [invalidateStaleInformationGain, gateReviewOverride, gateVerifiedStatus],
-    afterChange: [auditArticleChange],
+    // replaced. `gateReadOnlyStatus` sits after it (readOnly statuses never
+    // carry a decision, so order is documentation) and before the review gates
+    // it has nothing in common with. The last two are ordered as documentation
+    // only — `gateVerifiedStatus` re-derives the fresh-justification test
+    // rather than trusting the hook before it.
+    beforeChange: [
+      invalidateStaleInformationGain,
+      gateReadOnlyStatus,
+      gateReviewOverride,
+      gateVerifiedStatus,
+    ],
+    afterChange: [auditArticleChange, emitArticleStatusEvent],
   },
   admin: {
     group: false,
@@ -222,22 +232,27 @@ export const Articles: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'topic_selected',
-      options: [
-        'topic_selected',
-        'brief_review',
-        'researched',
-        'drafted',
-        'qa_passed',
-        'verified',
-        'needs_review',
-        'blocked',
-        'needs_revision',
-        'approved',
-        'published',
-      ],
+      // The shared table owns the list; a literal copy here is what the old
+      // "keep these files aligned" convention existed to protect.
+      options: [...ARTICLE_STATUSES],
       admin: {
         description:
           'verified = information-gain PASS (ready to approve). needs_review / blocked = a reviewer must override or send back.',
+      },
+    },
+    {
+      // Scheduled publishing: the publish-due job (jobs/publishDue.ts) moves
+      // due approved articles to published through the normal update path.
+      // The value survives status moves as inert intent; only `approved` is
+      // ever picked up, so a stray date on a reviewed-back article does nothing.
+      name: 'publishAt',
+      type: 'date',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        condition: (data) => data?.status === 'approved',
+        description: 'Publish automatically at this time. Leave blank to publish by hand.',
       },
     },
     {

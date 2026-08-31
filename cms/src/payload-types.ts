@@ -118,10 +118,14 @@ export interface Config {
   globals: {
     'llm-settings': LlmSetting;
     'information-gain-policy': InformationGainPolicy;
+    'webhook-settings': WebhookSetting;
+    'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
     'llm-settings': LlmSettingsSelect<false> | LlmSettingsSelect<true>;
     'information-gain-policy': InformationGainPolicySelect<false> | InformationGainPolicySelect<true>;
+    'webhook-settings': WebhookSettingsSelect<false> | WebhookSettingsSelect<true>;
+    'payload-jobs-stats': PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -131,6 +135,8 @@ export interface Config {
   jobs: {
     tasks: {
       'content-run': TaskContentRun;
+      'webhook-deliver': TaskWebhookDeliver;
+      'publish-due': TaskPublishDue;
       inline: {
         input: unknown;
         output: unknown;
@@ -437,6 +443,10 @@ export interface Article {
     | 'needs_revision'
     | 'approved'
     | 'published';
+  /**
+   * Publish automatically at this time. Leave blank to publish by hand.
+   */
+  publishAt?: string | null;
   qaResults?: {
     structural?: {
       passed?: boolean | null;
@@ -1277,7 +1287,7 @@ export interface PayloadJob {
     | {
         executedAt: string;
         completedAt: string;
-        taskSlug: 'inline' | 'content-run';
+        taskSlug: 'inline' | 'content-run' | 'webhook-deliver' | 'publish-due';
         taskID: string;
         input?:
           | {
@@ -1310,7 +1320,7 @@ export interface PayloadJob {
         id?: string | null;
       }[]
     | null;
-  taskSlug?: ('inline' | 'content-run') | null;
+  taskSlug?: ('inline' | 'content-run' | 'webhook-deliver' | 'publish-due') | null;
   queue?: string | null;
   waitUntil?: string | null;
   processing?: boolean | null;
@@ -1318,6 +1328,15 @@ export interface PayloadJob {
    * Used for concurrency control. Jobs with the same key are subject to exclusive/supersedes rules.
    */
   concurrencyKey?: string | null;
+  meta?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1581,6 +1600,7 @@ export interface ArticlesSelect<T extends boolean = true> {
         id?: T;
       };
   status?: T;
+  publishAt?: T;
   qaResults?:
     | T
     | {
@@ -2000,6 +2020,7 @@ export interface PayloadJobsSelect<T extends boolean = true> {
   waitUntil?: T;
   processing?: T;
   concurrencyKey?: T;
+  meta?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2249,6 +2270,47 @@ export interface InformationGainPolicy {
   createdAt?: string | null;
 }
 /**
+ * Article status changes POST a signed event here. Leave fields blank to use the WEBHOOK_URL / WEBHOOK_SECRET environment variables; nothing is sent until both a URL and a secret are set.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "webhook-settings".
+ */
+export interface WebhookSetting {
+  id: number;
+  /**
+   * Kill switch. Unchecking stops all deliveries, whatever else is configured.
+   */
+  enabled?: boolean | null;
+  /**
+   * Endpoint that receives event POSTs. Blank uses WEBHOOK_URL.
+   */
+  url?: string | null;
+  /**
+   * Shared secret that signs each delivery. Blank uses WEBHOOK_SECRET.
+   */
+  secret?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats".
+ */
+export interface PayloadJobsStat {
+  id: number;
+  stats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings_select".
  */
@@ -2286,6 +2348,28 @@ export interface InformationGainPolicySelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "webhook-settings_select".
+ */
+export interface WebhookSettingsSelect<T extends boolean = true> {
+  enabled?: T;
+  url?: T;
+  secret?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats_select".
+ */
+export interface PayloadJobsStatsSelect<T extends boolean = true> {
+  stats?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "collections_widget".
  */
 export interface CollectionsWidget {
@@ -2313,6 +2397,54 @@ export interface TaskContentRun {
       | boolean
       | null;
     finalStatuses:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskWebhook-deliver".
+ */
+export interface TaskWebhookDeliver {
+  input: {
+    event: string;
+    body:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  output: {
+    delivered: boolean;
+    status?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPublish-due".
+ */
+export interface TaskPublishDue {
+  input?: unknown;
+  output: {
+    published:
       | {
           [k: string]: unknown;
         }

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React from 'react'
 
+import type { RunHealth, StageKpiRow } from '../../lib/opsKpis'
 import type { BoardArticle } from './articleStatus'
 import { ARTICLE_STATUSES } from './articleStatus'
 import './ops.css'
@@ -22,6 +23,8 @@ export type CostReport = {
 type Props = {
   articles: BoardArticle[]
   costs: CostReport
+  stages: StageKpiRow[]
+  runs: RunHealth
 }
 
 function failureDetails(a: BoardArticle): { fails: string[]; details: string[] } {
@@ -108,7 +111,7 @@ function BarList({ rows }: { rows: SpendRow[] }) {
   )
 }
 
-export function ReportsPanel({ articles, costs }: Props) {
+export function ReportsPanel({ articles, costs, stages, runs }: Props) {
   const router = useRouter()
   const byStatus = Object.fromEntries(ARTICLE_STATUSES.map((s) => [s, 0])) as Record<string, number>
   for (const a of articles) byStatus[a.status] = (byStatus[a.status] ?? 0) + 1
@@ -323,6 +326,52 @@ export function ReportsPanel({ articles, costs }: Props) {
         <h2>Spend by stage</h2>
         <div className="datum-ops__panel-body">
           <BarList rows={costs.byStage} />
+          {stages.length > 0 ? (
+            <table className="datum-ops__table" style={{ marginTop: 10 }}>
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Calls</th>
+                  <th>Tokens in</th>
+                  <th>Tokens out</th>
+                  <th>Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stages.map((s) => (
+                  <tr key={s.stage}>
+                    <td>{s.stage}</td>
+                    <td>{s.calls}</td>
+                    <td>{s.inputTokens.toLocaleString()}</td>
+                    <td>{s.outputTokens.toLocaleString()}</td>
+                    <td>${s.costUsd.toFixed(4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="datum-ops__panel">
+        <h2>Pipeline runs</h2>
+        <div className="datum-ops__panel-body">
+          <ul className="datum-ops__list">
+            <li>succeeded: {runs.succeeded}</li>
+            <li>failed: {runs.failed}</li>
+            <li>queued / running: {runs.active}</li>
+          </ul>
+          {runs.recentFailures.length > 0 ? (
+            <ul className="datum-ops__list" style={{ marginTop: 10 }}>
+              {runs.recentFailures.map((f) => (
+                <li key={f.runId}>
+                  <code>{f.runId.slice(0, 8)}</code>
+                  {f.completedAt ? ` · ${f.completedAt.slice(0, 16).replace('T', ' ')}` : ''} —{' '}
+                  {f.errorSummary ?? 'no summary recorded'}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
 

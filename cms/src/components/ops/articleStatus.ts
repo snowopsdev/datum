@@ -6,63 +6,48 @@ import type {
   SourceQualityClass,
   VerificationMode,
 } from '../../lib/informationGain/types'
+import {
+  ARTICLE_STATUSES,
+  CONTENT_STAGES,
+  PIPELINE_STAGE_LABEL,
+  STATUS_META,
+} from '../../lib/articleStatusMeta'
+import type {
+  ArticleStatus,
+  ColumnOwner,
+  ContentStage,
+  RunnableStatus,
+  StatusMeta,
+} from '../../lib/articleStatusMeta'
 import type { Article, InformationGainRun } from '../../payload-types'
 
-export const ARTICLE_STATUSES = [
-  'topic_selected',
-  'brief_review',
-  'researched',
-  'drafted',
-  'qa_passed',
-  'verified',
-  'needs_review',
-  'blocked',
-  'needs_revision',
-  'approved',
-  'published',
-] as const
-
-export type ArticleStatus = (typeof ARTICLE_STATUSES)[number]
+// The status machine's metadata lives in one shared table
+// (`lib/articleStatusMeta.ts`) consumed by the collection, this module, and
+// the pipeline. These re-exports keep this module the ops UI's single import
+// for status vocabulary, as it was before the table existed.
+export { ARTICLE_STATUSES, CONTENT_STAGES, STATUS_META }
+export type { ArticleStatus, ColumnOwner, ContentStage, RunnableStatus }
 
 /**
- * The four statuses a pipeline stage waits on, and the stage that picks each up.
+ * The statuses a pipeline stage waits on, and the board copy for what picks
+ * each up. Derived from the table's `pickupStage` column.
  *
  * A single run walks all four stages in order, so an article that starts at
  * `topic_selected` normally comes out the far end scored. The middle three only
  * persist when a run stopped part-way — which is exactly why the board has to
  * name them rather than leave a card sitting in a column with no explanation.
  */
-export const NEXT_STAGE_FOR_STATUS = {
-  topic_selected: 'Research',
-  researched: 'Writing the draft',
-  drafted: 'QA checks',
-  qa_passed: 'Information-gain scoring',
-} as const
-
-export type RunnableStatus = keyof typeof NEXT_STAGE_FOR_STATUS
+export const NEXT_STAGE_FOR_STATUS = Object.fromEntries(
+  ARTICLE_STATUSES.flatMap((status) => {
+    const { pickupStage } = STATUS_META[status]
+    return pickupStage ? [[status, PIPELINE_STAGE_LABEL[pickupStage]]] : []
+  }),
+) as Record<RunnableStatus, string>
 
 /** Whether starting a run would actually move this article. */
 export function isRunnableStatus(status: string): status is RunnableStatus {
   return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
 }
-
-/**
- * Who has to do something for a card to move.
- *
- * `run` — a pipeline run advances it; nobody needs to read it first.
- * `you`  — it is waiting on a human decision and a run will not touch it.
- * `done` — terminal.
- */
-export type ColumnOwner = 'run' | 'you' | 'done'
-
-/**
- * The five stages a person thinks in. Every internal status maps to exactly
- * one, with who has to act and the verb that moves it. This is what the list
- * rows, the stepper and the piece page all read from, so a status can never
- * mean one thing on one screen and another elsewhere.
- */
-export const CONTENT_STAGES = ['research', 'brief', 'writing', 'review', 'publish'] as const
-export type ContentStage = (typeof CONTENT_STAGES)[number]
 
 export const STAGE_LABEL: Record<ContentStage, string> = {
   research: 'Research',
@@ -89,35 +74,30 @@ export type StageInfo = {
   action: string | null
 }
 
-const stage = (
-  s: ContentStage,
-  owner: ColumnOwner,
-  label: string,
-  action: string | null = null,
-): StageInfo => ({
-  stage: s,
-  step: CONTENT_STAGES.indexOf(s) + 1,
+const toStageInfo = ({ stage, owner, label, action }: StatusMeta): StageInfo => ({
+  stage,
+  step: CONTENT_STAGES.indexOf(stage) + 1,
   owner,
   label,
   action,
 })
 
-export const STATUS_STAGE: Record<ArticleStatus, StageInfo> = {
-  topic_selected: stage('research', 'run', 'researching what already ranks'),
-  brief_review: stage('brief', 'you', 'brief ready to approve', 'Review brief'),
-  researched: stage('writing', 'run', 'about to write'),
-  drafted: stage('writing', 'run', 'running checks'),
-  needs_revision: stage('review', 'you', 'checks failed', 'See what failed'),
-  qa_passed: stage('review', 'run', 'scoring information gain'),
-  needs_review: stage('review', 'you', 'scoring wants your call', 'Decide'),
-  blocked: stage('review', 'you', 'scoring blocked it', 'Decide'),
-  verified: stage('review', 'you', 'passed every check', 'Approve'),
-  approved: stage('publish', 'you', 'signed off', 'Publish'),
-  published: stage('publish', 'done', 'live'),
-}
+export const STATUS_STAGE: Record<ArticleStatus, StageInfo> = Object.fromEntries(
+  ARTICLE_STATUSES.map((status) => [status, toStageInfo(STATUS_META[status])]),
+) as Record<ArticleStatus, StageInfo>
 
 export function stageOf(status: string): StageInfo {
-  return STATUS_STAGE[status as ArticleStatus] ?? stage('research', 'run', status.replace(/_/g, ' '))
+  return (
+    STATUS_STAGE[status as ArticleStatus] ??
+    toStageInfo({
+      stage: 'research',
+      owner: 'run',
+      label: status.replace(/_/g, ' '),
+      action: null,
+      readOnly: false,
+      pickupStage: null,
+    })
+  )
 }
 
 export type BoardArticle = {

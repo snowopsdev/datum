@@ -13,6 +13,19 @@ type Props = {
   params: Promise<{ slug: string }>
 }
 
+// ISR: readers get a cached page instead of a Postgres query per request.
+// Publishing purges immediately via `revalidatePublishedArticle`; the interval
+// only bounds staleness for edits made to an already-published article.
+export const revalidate = 300
+
+// Empty on purpose: build machines have no database, so nothing prerenders at
+// build time. Without this export the segment stays fully dynamic and
+// `revalidate` never applies; with it, each article renders on first request
+// and is then served from cache.
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  return []
+}
+
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const payload = await getPayload({ config })

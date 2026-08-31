@@ -90,11 +90,12 @@ async function main(): Promise<number> {
     `[pipeline] ${args.command} — run ${runId} (${config.mockMode ? 'MOCK' : 'live'} mode)`,
   )
 
+  const mode = config.mockMode ? 'mock' : 'live'
   const fetchCtx: FetchContext = {
     payload,
     runId,
-    mode: config.mockMode ? 'mock' : 'live',
-    ahrefs: createAhrefsClient(),
+    mode,
+    ahrefs: createAhrefsClient(mode),
   }
 
   if (args.command === 'fetch') {

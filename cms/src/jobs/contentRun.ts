@@ -43,7 +43,7 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       payload,
       runId: run.runId,
       mode: run.mode,
-      ahrefs: createAhrefsClient(),
+      ahrefs: createAhrefsClient(run.mode),
     }
 
     if (run.source === 'selected') {
