@@ -53,7 +53,7 @@ Banned phrases live under `## Banned phrases` in [`docs/style-guide.md`](docs/st
 
 We use [Conventional Commits](https://www.conventionalcommits.org/) — `type(scope): subject`, e.g. `feat(cms): add article export`, `fix(pipeline): handle empty SERP results`. Common scopes: `cms`, `pipeline`, `docs`, `deps`, `ci`.
 
-PRs are **squash-merged**, so your PR title becomes the commit message on `main` — CI checks that it's a valid conventional commit. [release-please](https://github.com/googleapis/release-please) reads those commits to compute version bumps and changelog entries (`fix` → patch, `feat` → minor, `feat!` → major — mark breaking changes with `!` in the PR title; `BREAKING CHANGE:` footers don't survive title-only squash merging); see [RELEASING.md](RELEASING.md). Don't edit `CHANGELOG.md`, the root `package.json` version, or `.release-please-manifest.json` by hand, and don't create tags or GitHub releases manually.
+PRs are **squash-merged**, so your PR title becomes the commit message on `main` — CI checks that it's a valid conventional commit. [release-please](https://github.com/googleapis/release-please) reads those commits to compute version bumps and changelog entries (`fix` → patch, `feat` → minor, `feat!` → major — mark breaking changes with `!` in the PR title; `BREAKING CHANGE:` footers don't survive title-only squash merging). While the version is still 0.x, breaking changes bump the minor instead of cutting `1.0.0` — still mark them with `!`; see [RELEASING.md](RELEASING.md). Don't edit `CHANGELOG.md`, the root `package.json` version, or `.release-please-manifest.json` by hand, and don't create tags or GitHub releases manually.
 
 ## Pull requests
 
