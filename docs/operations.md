@@ -44,8 +44,8 @@ Configured in the admin **Webhooks** global, each field falling back to `WEBHOOK
 
 ## Modes and money
 
-- Mock mode is the default whenever no LLM provider key is present (`MOCK_MODE` can force it); mock runs make no outbound LLM or Ahrefs calls but still write cost-log rows, so reports work locally.
-- Every pipeline LLM call goes through `completeJSONLogged()` and writes an append-only `cost-log` row (provider, model, tokens, USD). Ahrefs live mode requires `AHREFS_API_KEY`; without it a live run degrades to mock data with a logged warning.
+- Mock mode is the default whenever no LLM provider key is present (`MOCK_MODE` can force it); mock runs make no outbound LLM or Ahrefs calls but still write cost-log rows, so reports work locally. A Codex login does not flip the mode; `codex/*` models need `MOCK_MODE=false` set explicitly.
+- Every pipeline LLM call goes through `completeJSONLogged()` and writes an append-only `cost-log` row (provider, model, tokens, USD). Rows for `codex/*` calls carry `provider = codex` and their USD is an estimate at API rates, not what the ChatGPT plan charged. Ahrefs live mode requires `AHREFS_API_KEY`; without it a live run degrades to mock data with a logged warning.
 
 ## Fixed limits worth knowing
 
