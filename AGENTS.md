@@ -46,6 +46,7 @@ npm run jobs:run --workspace cms     # production content worker
 - Integration tests need a migration-built database because Payload dev push is disabled under Vitest.
 - Preserve append-only audit and information-gain records and the review gates in `articleReviewGate.ts`.
 - Mock mode is the local default. Do not trigger paid APIs unless the task explicitly requires live mode.
+- `codex/*` model ids spawn the operator's Codex CLI on their ChatGPT plan. Never read or store `~/.codex/auth.json`. A Codex login never auto-enables live mode.
 
 ## Commit attribution
 

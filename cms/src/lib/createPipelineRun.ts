@@ -91,11 +91,12 @@ export async function createPipelineRun(
           activeVoiceId: input.readiness.governance.activeVoiceId,
           templateId: input.templateId,
           models: input.readiness.content.models.map(
-            ({ stage, model, source, provider, envVar, configured }) => ({
+            ({ stage, model, source, provider, requirement, envVar, configured }) => ({
               stage,
               model,
               source,
               provider,
+              requirement,
               envVar,
               configured,
             }),

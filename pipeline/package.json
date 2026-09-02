@@ -27,6 +27,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
     "@mozilla/readability": "^0.6.0",
+    "@openai/codex-sdk": "0.152.1",
     "dotenv": "17.4.2",
     "linkedom": "^0.18.13",
     "openai": "^7.5.0",

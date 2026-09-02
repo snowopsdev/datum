@@ -26,7 +26,7 @@ export const LlmSettings: GlobalConfig = {
   admin: {
     group: false,
     description:
-      'Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; prices are USD per 1M tokens and feed the cost log.',
+      'Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; a codex/ model needs `codex login` on the host instead of a key. Prices are USD per 1M tokens and feed the cost log; codex prices are estimates at API rates, not what your ChatGPT plan charges.',
   },
   access: {
     read: ({ req }) => Boolean(req.user),

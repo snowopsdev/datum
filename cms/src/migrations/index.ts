@@ -7,6 +7,7 @@ import * as migration_20260827_184000_article_archived from './20260827_184000_a
 import * as migration_20260827_214532_brief_checkpoint from './20260827_214532_brief_checkpoint';
 import * as migration_20260831_190025_webhook_settings_and_delivery_task from './20260831_190025_webhook_settings_and_delivery_task';
 import * as migration_20260831_191144_scheduled_publishing from './20260831_191144_scheduled_publishing';
+import * as migration_20260902_210000_codex_model_options from './20260902_210000_codex_model_options';
 
 export const migrations = [
   {
@@ -53,5 +54,10 @@ export const migrations = [
     up: migration_20260831_191144_scheduled_publishing.up,
     down: migration_20260831_191144_scheduled_publishing.down,
     name: '20260831_191144_scheduled_publishing'
+  },
+  {
+    up: migration_20260902_210000_codex_model_options.up,
+    down: migration_20260902_210000_codex_model_options.down,
+    name: '20260902_210000_codex_model_options',
   },
 ];

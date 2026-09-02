@@ -2057,7 +2057,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
- * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; prices are USD per 1M tokens and feed the cost log.
+ * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; a codex/ model needs `codex login` on the host instead of a key. Prices are USD per 1M tokens and feed the cost log; codex prices are estimates at API rates, not what your ChatGPT plan charges.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings".
@@ -2083,6 +2083,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2104,6 +2110,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2125,6 +2137,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2146,6 +2164,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2167,6 +2191,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2188,6 +2218,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2209,6 +2245,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   updatedAt?: string | null;

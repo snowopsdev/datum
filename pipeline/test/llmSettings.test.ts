@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { catalogModel, LLM_CATALOG, LLM_MODEL_OPTIONS } from '../../cms/src/lib/llmCatalog'
+import {
+  catalogModel,
+  CODEX_MIRRORED_MODELS,
+  LLM_CATALOG,
+  LLM_MODEL_OPTIONS,
+} from '../../cms/src/lib/llmCatalog'
 import { resolveExtractionModel, resolveModel, resolveStageModels } from '../../cms/src/lib/llmSettings'
-import { providerForModel } from '../src/llmProvider'
+import { codexModelId, providerForModel } from '../src/llmProvider'
 import { costUsd } from '../src/pricing'
 
 describe('resolveModel precedence', () => {
@@ -65,5 +70,32 @@ describe('model catalog', () => {
     }
     assert.match(catalogModel('gpt-5.6-terra')?.label ?? '', /GPT-5\.6 Terra/)
     assert.match(LLM_MODEL_OPTIONS.find((o) => o.value === 'gpt-5.6-terra')?.label ?? '', /\$2 in \/ \$12 out/)
+  })
+
+  it('prices every Codex entry exactly as the model it mirrors', () => {
+    for (const model of LLM_CATALOG.filter((m) => m.provider === 'codex')) {
+      const base = catalogModel(codexModelId(model.id))
+      assert.ok(base, model.id)
+      assert.equal(model.input, base.input, model.id)
+      assert.equal(model.output, base.output, model.id)
+    }
+  })
+
+  it('mirrors exactly the models the ChatGPT plan serves', () => {
+    const mirrored = LLM_CATALOG.filter((m) => m.provider === 'codex').map((m) => codexModelId(m.id))
+    assert.deepEqual([...mirrored].sort(), [...CODEX_MIRRORED_MODELS].sort())
+  })
+
+  it('leaves models the ChatGPT plan does not serve unmirrored', () => {
+    for (const id of ['gpt-5.4-nano', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano']) {
+      assert.ok(catalogModel(id), id)
+      assert.equal(catalogModel(`codex/${id}`), undefined, id)
+    }
+  })
+
+  it('offers a Codex entry in the dropdown labelled with its provider', () => {
+    const option = LLM_MODEL_OPTIONS.find((o) => o.value === 'codex/gpt-5.6-terra')
+    assert.ok(option)
+    assert.match(option.label, /Codex \(ChatGPT plan\)/)
   })
 })

@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 
-import { apiKeyForModel, envVarNameForModel, providerForModel } from './llmProvider'
+import {
+  type LlmProvider,
+  providerForModel,
+  type ProviderRequirement,
+  requirementForModel,
+} from './llmProvider'
 import {
   type LlmSettingsDoc,
   PIPELINE_STAGES,
@@ -33,14 +38,16 @@ export interface WorkspaceReadinessInput {
   activeVoice: ReadinessEntity | null
   templates: ReadinessTemplate[]
   verification: VerificationSnapshot | null
+  codexLoggedIn?: boolean
 }
 
 export interface ModelReadiness {
   stage: PipelineStage
   model: string
   source: 'admin' | 'default' | 'env'
-  provider: 'anthropic' | 'openai'
-  envVar: string
+  provider: LlmProvider
+  requirement: ProviderRequirement['kind']
+  envVar: string | null
   configured: boolean
 }
 
@@ -51,6 +58,13 @@ export interface WorkspaceReadiness {
   runtime: {
     ready: boolean
     missing: string[]
+    needsCodexLogin: boolean
+    /**
+     * Everything unmet, in the words an operator acts on. `missing` holds
+     * environment variable names only, so callers that interpolate it render an
+     * empty sentence when the sole blocker is a Codex login.
+     */
+    blockers: string[]
   }
   governance: {
     ready: boolean
@@ -74,6 +88,9 @@ function configured(value: string | undefined): boolean {
   return Boolean(value?.trim())
 }
 
+// A Codex login is deliberately absent here, matching `pipeline/src/config.ts`:
+// a dev machine that happens to carry one must not be flipped into live runs by
+// it. A codex-only workspace reaches live by setting MOCK_MODE=false.
 function modeFromEnv(env: Record<string, string | undefined>): PipelineMode {
   const value = env.MOCK_MODE?.trim().toLowerCase()
   if (value === 'false' || value === '0' || value === 'no') return 'live'
@@ -87,18 +104,26 @@ function fingerprint(value: unknown): string {
 
 export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): WorkspaceReadiness {
   const mode = modeFromEnv(input.env)
+  const codexLoggedIn = input.codexLoggedIn ?? false
   const resolved = resolveStageModels(input.models, input.env)
   const models: ModelReadiness[] = PIPELINE_STAGES.map((stage) => {
     const selection = resolved[stage]
+    const requirement = requirementForModel(selection.model)
     return {
       stage,
       model: selection.model,
       source: selection.source,
       provider: providerForModel(selection.model),
-      envVar: envVarNameForModel(selection.model),
-      configured: mode === 'mock' || configured(apiKeyForModel(selection.model, input.env)),
+      requirement: requirement.kind,
+      envVar: requirement.kind === 'env' ? requirement.envVar : null,
+      configured:
+        mode === 'mock' ||
+        (requirement.kind === 'env' ? configured(input.env[requirement.envVar]) : codexLoggedIn),
     }
   })
+  const needsCodexLogin = models.some(
+    (model) => model.requirement === 'codex-login' && !model.configured,
+  )
 
   const missing = new Set<string>()
   if (mode === 'live') {
@@ -106,7 +131,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       if (!configured(input.env[name])) missing.add(name)
     }
     for (const model of models) {
-      if (!model.configured) missing.add(model.envVar)
+      if (!model.configured && model.envVar) missing.add(model.envVar)
     }
   }
 
@@ -116,9 +141,12 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ahrefs: configured(input.env.AHREFS_API_KEY),
       target: configured(input.env.TARGET_DOMAIN),
       competitors: configured(input.env.COMPETITOR_DOMAINS),
-      providers: [...new Set(models.map((model) => model.envVar))]
+      providers: [...new Set(models.map((model) => model.envVar ?? 'codex-login'))]
         .sort()
-        .map((name) => [name, configured(input.env[name])]),
+        .map((name) => [
+          name,
+          name === 'codex-login' ? codexLoggedIn : configured(input.env[name]),
+        ]),
     },
     voice: input.activeVoice ? [input.activeVoice.id, input.activeVoice.updatedAt] : null,
     templates: input.templates
@@ -133,7 +161,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const verificationCurrent = input.verification?.configFingerprint === configFingerprint
   const verificationReady =
     input.verification?.status === 'succeeded' && terminalArticle && verificationCurrent
-  const runtimeReady = missing.size === 0
+  const runtimeReady = missing.size === 0 && !needsCodexLogin
   const governanceReady = input.activeVoice !== null
   const contentReady = input.templates.length > 0
 
@@ -143,7 +171,12 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     ready: governanceReady && contentReady,
     mode,
     configFingerprint,
-    runtime: { ready: runtimeReady, missing: [...missing].sort() },
+    runtime: {
+      ready: runtimeReady,
+      missing: [...missing].sort(),
+      needsCodexLogin,
+      blockers: [...[...missing].sort(), ...(needsCodexLogin ? ['`codex login` on this host'] : [])],
+    },
     governance: {
       ready: governanceReady,
       activeVoiceId: input.activeVoice?.id ?? null,

@@ -15,7 +15,9 @@ const nextConfig: NextConfig = {
     },
   },
   // Node-only parsers used by cms/src/lib/extractText.ts; keep them out of the bundle.
-  serverExternalPackages: ['pdf-parse', 'mammoth'],
+  // The Codex SDK spawns a vendored native binary it resolves relative to its own
+  // package directory, which bundling would move away from that binary.
+  serverExternalPackages: ['pdf-parse', 'mammoth', '@openai/codex-sdk', '@openai/codex'],
   images: {
     localPatterns: [
       {
