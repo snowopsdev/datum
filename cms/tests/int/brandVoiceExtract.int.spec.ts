@@ -90,7 +90,10 @@ describe('brand voice extraction', () => {
     try {
       expect(extractionMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(true)
       writeFileSync(path.join(home, 'auth.json'), '{}')
-      expect(extractionMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(false)
+      // A login is not consent to spend the plan. `pipeline/src/config.ts` and
+      // `modeFromEnv` both stay mock on a bare login, and an upload that went
+      // live here would bill quota the operator never opted into.
+      expect(extractionMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(true)
       expect(extractionMockMode({ CODEX_HOME: home, MOCK_MODE: 'true' }, CODEX_MODEL)).toBe(true)
       expect(extractionMockMode({ MOCK_MODE: 'false' }, CODEX_MODEL)).toBe(false)
     } finally {

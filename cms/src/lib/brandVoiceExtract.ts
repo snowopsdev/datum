@@ -60,8 +60,12 @@ export function extractionMockMode(
 ): boolean {
   const explicit = parseBool(env.MOCK_MODE)
   if (explicit !== undefined) return explicit
+  // A Codex login is not consent to spend the plan, so it never activates a
+  // live call on its own. `pipeline/src/config.ts` and `modeFromEnv` make the
+  // same call; if this one differed, an upload would bill quota while the rest
+  // of the workspace still reported mock.
   return requirementForModel(model).kind === 'codex-login'
-    ? !codexAuthFilePresent(env)
+    ? true
     : apiKeyForModel(model, env) === undefined
 }
 
