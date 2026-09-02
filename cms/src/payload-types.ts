@@ -2083,6 +2083,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2104,6 +2110,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2125,6 +2137,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2146,6 +2164,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2167,6 +2191,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2188,6 +2218,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2209,6 +2245,12 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
       )
     | null;
   updatedAt?: string | null;
