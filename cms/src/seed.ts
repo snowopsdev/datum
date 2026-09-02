@@ -251,10 +251,6 @@ const templates: TemplateSeed[] = [
       paragraph(
         'Date: Saturday, Aug. 29. Time: 10 p.m. ET. TV: national broadcast network. Stream: streaming service. Location: Allegiant Stadium, Las Vegas.',
       ),
-      heading('h2', 'What to Know About Memphis at UNLV'),
-      paragraph(
-        'Charles Huff makes his Memphis debut, while Dan Mullen enters his second year at UNLV. Both teams carry unsettled quarterback situations into the opener, which is the single biggest variable in a game this hard to handicap.',
-      ),
       heading('h2', 'Players To Watch'),
       heading('h3', 'Memphis: Dallan Hayden'),
       paragraph(
@@ -263,6 +259,10 @@ const templates: TemplateSeed[] = [
       heading('h3', 'UNLV: Jai\'Den Thomas'),
       paragraph(
         'Thomas ran for 1,036 yards and 12 touchdowns last season and added 39 receptions, making him the most complete offensive threat on the field.',
+      ),
+      heading('h2', 'What to Know About Memphis at UNLV'),
+      paragraph(
+        'Charles Huff makes his Memphis debut, while Dan Mullen enters his second year at UNLV. Both teams carry unsettled quarterback situations into the opener, which is the single biggest variable in a game this hard to handicap.',
       ),
     ),
   },
