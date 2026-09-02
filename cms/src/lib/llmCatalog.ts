@@ -37,7 +37,11 @@ export const LLM_CATALOG: readonly LlmModel[] = [
   { id: 'gpt-5-nano', label: 'GPT-5 nano', provider: 'openai', input: 0.05, output: 0.4, note: '' },
 ]
 
-const PROVIDER_LABEL: Record<LlmProvider, string> = { anthropic: 'Anthropic', openai: 'OpenAI' }
+const PROVIDER_LABEL: Record<LlmProvider, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  codex: 'Codex (ChatGPT plan)',
+}
 
 const money = (n: number): string => `$${n % 1 === 0 ? n.toFixed(0) : n.toString()}`
 

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { apiKeyForModel, envVarNameForModel, providerForModel } from './llmProvider'
+import { apiKeyForModel, envVarNameForModel, type LlmProvider, providerForModel } from './llmProvider'
 import {
   type LlmSettingsDoc,
   PIPELINE_STAGES,
@@ -39,8 +39,8 @@ export interface ModelReadiness {
   stage: PipelineStage
   model: string
   source: 'admin' | 'default' | 'env'
-  provider: 'anthropic' | 'openai'
-  envVar: string
+  provider: LlmProvider
+  envVar: string | null
   configured: boolean
 }
 
@@ -95,7 +95,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       model: selection.model,
       source: selection.source,
       provider: providerForModel(selection.model),
-      envVar: envVarNameForModel(selection.model),
+      envVar: envVarNameForModel(selection.model) ?? null,
       configured: mode === 'mock' || configured(apiKeyForModel(selection.model, input.env)),
     }
   })
@@ -106,7 +106,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       if (!configured(input.env[name])) missing.add(name)
     }
     for (const model of models) {
-      if (!model.configured) missing.add(model.envVar)
+      if (!model.configured && model.envVar) missing.add(model.envVar)
     }
   }
 
@@ -116,7 +116,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ahrefs: configured(input.env.AHREFS_API_KEY),
       target: configured(input.env.TARGET_DOMAIN),
       competitors: configured(input.env.COMPETITOR_DOMAINS),
-      providers: [...new Set(models.map((model) => model.envVar))]
+      providers: [...new Set(models.map((model) => model.envVar ?? 'codex-login'))]
         .sort()
         .map((name) => [name, configured(input.env[name])]),
     },
