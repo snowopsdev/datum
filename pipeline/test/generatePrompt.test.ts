@@ -187,3 +187,23 @@ test('briefBlock is empty when there is no brief, so older articles generate as 
   assert.deepEqual(briefBlock(undefined), [])
   assert.deepEqual(briefBlock({ angle: '', sections: [], mustCover: [], opportunities: [], notes: '' }), [])
 })
+
+test('buildPrompt carries the template example into the prompt, before the Output section', () => {
+  const withExample: Template = {
+    ...template,
+    example: markdownToLexical('## How to Watch Memphis at UNLV\n\nKickoff is 10 p.m. ET.'),
+  }
+  const prompt = buildPrompt(makeArticle(baseResearch), withExample, null)
+  const at = prompt.indexOf('## Example')
+  assert.ok(at > -1, '## Example missing')
+  assert.ok(at < prompt.indexOf('# Output'), '## Example must precede # Output')
+  assert.match(prompt, /How to Watch Memphis at UNLV/)
+  // The example is a different article; its facts must not be treated as this
+  // draft's, or they reach the information-gain stage unsourced.
+  assert.match(prompt, /do not carry over any of its facts/)
+})
+
+test('buildPrompt omits the Example heading when the template has none', () => {
+  const prompt = buildPrompt(makeArticle(baseResearch), template, null)
+  assert.ok(!prompt.includes('## Example'))
+})
