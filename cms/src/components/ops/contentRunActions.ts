@@ -32,7 +32,7 @@ export async function startContentRunAction(
   if (!readiness.runtime.ready) {
     return {
       ok: false,
-      error: `Configure the required environment variables: ${readiness.runtime.missing.join(', ')}.`,
+      error: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
     }
   }
   if (!readiness.governance.ready) {

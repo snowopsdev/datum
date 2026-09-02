@@ -59,6 +59,12 @@ export interface WorkspaceReadiness {
     ready: boolean
     missing: string[]
     needsCodexLogin: boolean
+    /**
+     * Everything unmet, in the words an operator acts on. `missing` holds
+     * environment variable names only, so callers that interpolate it render an
+     * empty sentence when the sole blocker is a Codex login.
+     */
+    blockers: string[]
   }
   governance: {
     ready: boolean
@@ -165,7 +171,12 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     ready: governanceReady && contentReady,
     mode,
     configFingerprint,
-    runtime: { ready: runtimeReady, missing: [...missing].sort(), needsCodexLogin },
+    runtime: {
+      ready: runtimeReady,
+      missing: [...missing].sort(),
+      needsCodexLogin,
+      blockers: [...[...missing].sort(), ...(needsCodexLogin ? ['`codex login` on this host'] : [])],
+    },
     governance: {
       ready: governanceReady,
       activeVoiceId: input.activeVoice?.id ?? null,

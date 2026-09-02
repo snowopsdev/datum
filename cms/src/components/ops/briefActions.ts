@@ -113,7 +113,7 @@ export async function approveBriefAction(
     if (!readiness.runtime.ready) {
       return {
         ok: false,
-        error: `Writing needs these configured first: ${readiness.runtime.missing.join(', ')}.`,
+        error: `Writing needs these configured first: ${readiness.runtime.blockers.join(', ')}.`,
       }
     }
     if (!readiness.governance.ready) {

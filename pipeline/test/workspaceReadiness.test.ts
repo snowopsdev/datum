@@ -190,3 +190,35 @@ describe('workspace readiness', () => {
     assert.equal(stale.ready, true)
   })
 })
+
+describe('codex login is reported to blocked actions', () => {
+  it('lists the login among blockers so action errors are never empty', () => {
+    const input = baseInput()
+    input.env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      TARGET_DOMAIN: 'example.com',
+      COMPETITOR_DOMAINS: 'competitor.example',
+      ANTHROPIC_API_KEY: 'configured',
+    }
+    input.models = { generateModel: 'codex/gpt-5.6-terra' }
+    input.codexLoggedIn = false
+
+    const readiness = evaluateWorkspaceReadiness(input)
+
+    assert.deepEqual(readiness.runtime.missing, [])
+    assert.equal(readiness.runtime.needsCodexLogin, true)
+    // The action messages interpolate this list; an empty one renders
+    // "Configure the required environment variables: ." and helps nobody.
+    assert.ok(readiness.runtime.blockers.length > 0)
+    assert.match(readiness.runtime.blockers.join(' '), /codex login/)
+  })
+
+  it('leaves blockers equal to missing when no codex stage is selected', () => {
+    const input = baseInput()
+    input.env = { MOCK_MODE: 'false', OPENAI_API_KEY: 'configured' }
+    input.models = { generateModel: 'gpt-5.6-terra' }
+    const readiness = evaluateWorkspaceReadiness(input)
+    assert.deepEqual(readiness.runtime.blockers, readiness.runtime.missing)
+  })
+})
