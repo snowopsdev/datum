@@ -10,7 +10,18 @@ import {
   parseBrandVoiceContent,
 } from './brandVoice'
 import { BRAND_VOICE_FIXTURE } from './brandVoiceFixture'
-import { apiKeyForModel, type LlmProvider, providerForModel } from './llmProvider'
+import { codexAuthFilePresent } from './codexAuth'
+import {
+  type CodexTextRequest,
+  type CodexTextResult,
+  completeTextViaCodex,
+} from './codexCompletion'
+import {
+  apiKeyForModel,
+  type LlmProvider,
+  providerForModel,
+  requirementForModel,
+} from './llmProvider'
 import { type LlmSettingsDoc, resolveExtractionModel } from './llmSettings'
 import { costUsd } from './pricing'
 
@@ -39,14 +50,19 @@ export function extractionModel(
 
 /**
  * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
- * mock whenever the extraction model's provider has no API key. Never throws —
- * the admin flow must work in a keyless dev environment.
+ * mock whenever the extraction model's credential is absent — an API key for
+ * the key providers, a Codex CLI login for `codex/*`. Never throws — the admin
+ * flow must work in a keyless dev environment.
  */
 export function extractionMockMode(
   env: Record<string, string | undefined> = process.env,
   model: string = extractionModel(env),
 ): boolean {
-  return parseBool(env.MOCK_MODE) ?? apiKeyForModel(model, env) === undefined
+  const explicit = parseBool(env.MOCK_MODE)
+  if (explicit !== undefined) return explicit
+  return requirementForModel(model).kind === 'codex-login'
+    ? !codexAuthFilePresent(env)
+    : apiKeyForModel(model, env) === undefined
 }
 
 const EXTRACTION_SYSTEM_PROMPT = [
@@ -115,6 +131,7 @@ export async function extractBrandVoiceFromText(input: {
   text: string
   filename: string
   model?: string
+  completeViaCodex?: (req: CodexTextRequest) => Promise<CodexTextResult>
 }): Promise<ExtractionResult> {
   const model = input.model || extractionModel()
   if (extractionMockMode(process.env, model)) return mockExtraction(input.filename, model)
@@ -125,7 +142,19 @@ export async function extractBrandVoiceFromText(input: {
   let text: string | undefined
   let stopReason: string
   let usage: { inputTokens: number; outputTokens: number }
-  if (provider === 'openai') {
+  if (provider === 'codex') {
+    const response = await (input.completeViaCodex ?? completeTextViaCodex)({
+      system: EXTRACTION_SYSTEM_PROMPT,
+      user: userMessage,
+      model,
+    })
+    text = response.text || undefined
+    stopReason = 'completed'
+    usage = {
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+    }
+  } else if (provider === 'openai') {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const response = await client.responses.create({
       model,

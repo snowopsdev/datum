@@ -56,12 +56,20 @@ export async function activateDefaultBrandVoiceAction(): Promise<
 }
 
 /** What the runtime banner needs: live mode with anything missing. */
-export async function runtimeStatusAction(): Promise<{ mode: 'mock' | 'live'; missing: string[] }> {
+export async function runtimeStatusAction(): Promise<{
+  mode: 'mock' | 'live'
+  missing: string[]
+  needsCodexLogin: boolean
+}> {
   try {
     const { payload } = await requireUser()
     const { readiness } = await loadWorkspaceSetup(payload)
-    return { mode: readiness.mode, missing: readiness.runtime.missing }
+    return {
+      mode: readiness.mode,
+      missing: readiness.runtime.missing,
+      needsCodexLogin: readiness.runtime.needsCodexLogin,
+    }
   } catch {
-    return { mode: 'mock', missing: [] }
+    return { mode: 'mock', missing: [], needsCodexLogin: false }
   }
 }

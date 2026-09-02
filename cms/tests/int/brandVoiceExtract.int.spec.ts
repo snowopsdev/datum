@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
@@ -58,6 +59,8 @@ describe('extractText', () => {
   })
 })
 
+const CODEX_MODEL = 'codex/gpt-5.6-terra'
+
 describe('brand voice extraction', () => {
   it('follows the pipeline mock rule: MOCK_MODE wins, else mock without the model provider key', () => {
     expect(extractionMockMode({})).toBe(true)
@@ -80,6 +83,72 @@ describe('brand voice extraction', () => {
     expect(extractionMockMode({ OPENAI_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(false)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(true)
     expect(extractionMockMode({ OPENAI_API_KEY: 'k' })).toBe(true)
+  })
+
+  it('reads the Codex CLI login, not an API key, for a codex/ model', () => {
+    const home = mkdtempSync(path.join(tmpdir(), 'datum-codex-auth-'))
+    try {
+      expect(extractionMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(true)
+      writeFileSync(path.join(home, 'auth.json'), '{}')
+      expect(extractionMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(false)
+      expect(extractionMockMode({ CODEX_HOME: home, MOCK_MODE: 'true' }, CODEX_MODEL)).toBe(true)
+      expect(extractionMockMode({ MOCK_MODE: 'false' }, CODEX_MODEL)).toBe(false)
+    } finally {
+      rmSync(home, { force: true, recursive: true })
+    }
+  })
+
+  it('routes a codex/ model through the Codex CLI and bills the prefixed id', async () => {
+    vi.stubEnv('MOCK_MODE', 'false')
+    try {
+      const result = await extractBrandVoiceFromText({
+        text: 'anything',
+        filename: 'guide.md',
+        model: CODEX_MODEL,
+        completeViaCodex: async (req) => {
+          expect(req.model).toBe(CODEX_MODEL)
+          return {
+            text: JSON.stringify(BRAND_VOICE_FIXTURE),
+            usage: { inputTokens: 11, outputTokens: 22, webSearchRequests: 0 },
+            model: req.model,
+          }
+        },
+      })
+      expect(result.provider).toBe('codex')
+      expect(result.model).toBe(CODEX_MODEL)
+      expect(result.usage).toEqual({ inputTokens: 11, outputTokens: 22 })
+      expect(result.content.name).toBe(BRAND_VOICE_FIXTURE.name)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('bills a Codex reply that could not be parsed, like any other provider', async () => {
+    vi.stubEnv('MOCK_MODE', 'false')
+    try {
+      const failure = await extractBrandVoiceFromText({
+        text: 'anything',
+        filename: 'guide.md',
+        model: CODEX_MODEL,
+        completeViaCodex: async () => ({
+          text: 'Sorry, I could not read that document.',
+          usage: { inputTokens: 5, outputTokens: 1, webSearchRequests: 0 },
+          model: CODEX_MODEL,
+        }),
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      )
+
+      expect(failure).toBeInstanceOf(BrandVoiceExtractionError)
+      expect((failure as BrandVoiceExtractionError).billed).toEqual({
+        provider: 'codex',
+        model: CODEX_MODEL,
+        usage: { inputTokens: 5, outputTokens: 1 },
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('returns the demo fixture in mock mode without touching the network', async () => {

@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+import { codexAuthFilePresent } from './codexAuth'
 import type { LlmSettingsDoc } from './llmSettings'
 import { evaluateWorkspaceReadiness, type WorkspaceReadiness } from './workspaceReadiness'
 
@@ -109,6 +110,10 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
           completedAt: latestRun.completedAt,
         }
       : null,
+    // The file check, not `checkCodexLogin`: this runs on every admin page
+    // load, and spawning a CLI per render is too costly for a banner. The
+    // authoritative login check runs once per pipeline run.
+    codexLoggedIn: codexAuthFilePresent(process.env),
   })
 
   return {
