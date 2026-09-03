@@ -116,7 +116,7 @@ describe('candidatePagePaths', () => {
     const found = candidatePagePaths(page, HOME)
     assert.equal(found.length, MAX_DISCOVERED_PAGES)
     assert.equal(MAX_DISCOVERED_PAGES + 1, MAX_SITE_PAGES)
-    assert.equal(found.includes('https://acme.example/blog'), false)
+    assert.ok(found.every((url) => url !== 'https://acme.example/blog'))
   })
 
   it('reads unquoted and single-quoted href attributes', () => {
