@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="1520" height="768" viewBox="0 0 1520 768" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pipeline-data-flow-title pipeline-data-flow-desc">
       <title id="pipeline-data-flow-title">Datum pipeline and data integration seam</title>
-      <desc id="pipeline-data-flow-desc">External keyword data enters through the AhrefsClient provider seam and the open web supplies competitor pages and search results, feeding a run that fetches topics, researches, writes, checks and scores an article. Every model call, research included, is routed through one provider adapter chosen from the model id. The run pauses twice for a person: once to approve the brief, which gates the writing and review spend, and once to review the finished draft before it is published.</desc>
+      <desc id="pipeline-data-flow-desc">External keyword data enters through the AhrefsClient provider seam and the open web supplies competitor pages and search results, feeding the pipeline runs that fetch topics, research, write, check and score an article. Every model call, research included, is routed through one provider adapter chosen from the model id. Two decisions belong to a person: approving the brief, which gates the writing and review spend and starts a second pipeline run for it, and reviewing the finished draft before it is published.</desc>
       <defs>
         <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
         <marker id="pipeline-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
