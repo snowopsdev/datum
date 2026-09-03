@@ -56,7 +56,7 @@
 
     <svg width="1480" height="680" viewBox="0 0 1480 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="article-status-flow-title article-status-flow-desc">
       <title id="article-status-flow-title">Article status flow</title>
-      <desc id="article-status-flow-desc">An article moves through eleven statuses grouped into five stages: research, brief, writing, review and publish. A pipeline run advances only four of them; every other move is made by a person, including approving the brief, which is what releases the writing spend, and overriding or sending back an article that the quality checks or the information-gain score held.</desc>
+      <desc id="article-status-flow-desc">An article moves through eleven statuses grouped into five stages: research, brief, writing, review and publish. A pipeline run advances only four of them. Most of the rest are moved by a person, including approving the brief, which is what releases the writing spend, and overriding or sending back an article that the quality checks or the information-gain score held. The one exception is the scheduler, which publishes an approved article once its publishAt date falls due.</desc>
       <defs>
         <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap');</style>
         <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -219,7 +219,7 @@
       <text x="1124" y="632" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">A RUN OWNS THE DRAFT</text>
     </svg>
 
-    <p class="note">Research stops at <code>brief_review</code>. Approving the brief is what starts writing, so the decision lands before the expensive half. Research itself is not free: it makes a paid SERP request and extracts claims from what already ranks. A run only ever picks up <code>topic_selected</code>, <code>researched</code>, <code>drafted</code> and <code>qa_passed</code>; every other status waits on a person. Two routes reach <code>verified</code>: an information-gain run returning <code>PASS</code>, or a reviewer overriding a held article with a justification different from the one already stored.</p>
+    <p class="note">Research stops at <code>brief_review</code>. Approving the brief is what starts writing, so the decision lands before the expensive half. Research itself is not free: it makes a paid SERP request and extracts claims from what already ranks. A run only ever picks up <code>topic_selected</code>, <code>researched</code>, <code>drafted</code> and <code>qa_passed</code>; every other status waits on a person, or on the scheduler when an <code>approved</code> article has a due <code>publishAt</code>. Two routes reach <code>verified</code>: an information-gain run returning <code>PASS</code>, or a reviewer overriding a held article with a justification different from the one already stored.</p>
   </main>
 </body>
 </html>
