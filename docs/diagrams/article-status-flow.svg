@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="article-status-flow-title article-status-flow-desc">
+<svg width="1480" height="680" viewBox="0 0 1480 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="article-status-flow-title article-status-flow-desc">
       <title id="article-status-flow-title">Article status flow</title>
-      <desc id="article-status-flow-desc">An article moves from topic selection through research, drafting, quality checks and information-gain scoring to editor approval and publication. A failed check or a blocking score holds it for a reviewer, who can override it to verified or send it back to be regenerated against the reasons it failed on.</desc>
+      <desc id="article-status-flow-desc">An article moves through eleven statuses grouped into five stages: research, brief, writing, review and publish. A pipeline run advances only four of them; every other move is made by a person, including approving the brief before any writing is paid for, and overriding or sending back an article that the quality checks or the information-gain score held.</desc>
       <defs>
         <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap');</style>
         <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -10,114 +10,156 @@
         <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
           <polygon points="0 0, 8 3, 0 6" fill="#171717"/>
         </marker>
-        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#444444"/>
+        <marker id="arrow-soft" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#8a8a8a"/>
         </marker>
       </defs>
 
-      <rect width="1280" height="640" fill="#f7f7f5"/>
+      <rect width="1480" height="680" fill="#f7f7f5"/>
 
-      <!-- Held zone: the three statuses pipeline:run will not pick up again -->
-      <rect x="352" y="328" width="504" height="152" rx="8" fill="#171717" opacity="0.018"/>
-      <rect x="352" y="328" width="504" height="152" rx="8" fill="none" stroke="#8a8a8a" stroke-width="0.8" stroke-dasharray="4,4"/>
-      <text x="376" y="464" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">HELD — pipeline:run WILL NOT PICK THESE UP; A REVIEWER MOVES THEM</text>
+      <!-- Stage band: the five steps the ops UI shows (CONTENT_STAGES) -->
+      <text x="132" y="108" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">RESEARCH</text>
+      <line x1="72" y1="120" x2="192" y2="120" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="312" y="108" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">BRIEF</text>
+      <line x1="252" y1="120" x2="372" y2="120" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="582" y="108" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">WRITING</text>
+      <line x1="432" y1="120" x2="732" y2="120" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="942" y="108" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">REVIEW</text>
+      <line x1="792" y1="120" x2="1092" y2="120" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="1302" y="108" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">PUBLISH</text>
+      <line x1="1152" y1="120" x2="1452" y2="120" stroke="#c8c8c4" stroke-width="0.8"/>
 
-      <!-- Automated pipeline transitions -->
-      <line x1="48" y1="168" x2="72" y2="168" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="192" y1="168" x2="240" y2="168" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="360" y1="168" x2="408" y2="168" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="528" y1="168" x2="576" y2="168" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="696" y1="168" x2="744" y2="168" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <line x1="440" y1="208" x2="440" y2="360" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <path d="M 608 208 V 280 Q 608 288 600 288 H 504 Q 496 288 496 296 V 360" fill="none" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <path d="M 672 208 V 280 Q 672 288 680 288 H 712 Q 720 288 720 296 V 360" fill="none" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-
-      <!-- Reviewer transitions -->
-      <line x1="864" y1="168" x2="912" y2="168" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-      <line x1="1032" y1="168" x2="1080" y2="168" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-      <line x1="776" y1="360" x2="776" y2="208" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-      <path d="M 384 404 H 312 Q 304 404 304 396 V 208" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-      <line x1="616" y1="420" x2="560" y2="420" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-
-      <!-- Transition labels -->
-      <rect x="36" y="148" width="32" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="52" y="156" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FETCH</text>
-      <rect x="196" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="216" y="156" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RESEARCH</text>
-      <rect x="364" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="384" y="156" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GENERATE</text>
-      <rect x="532" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="552" y="156" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA PASS</text>
-      <rect x="700" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="720" y="156" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IG PASS</text>
-      <rect x="868" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="888" y="156" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">APPROVE</text>
-      <rect x="1036" y="148" width="40" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="1056" y="156" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PUBLISH</text>
-      <rect x="452" y="236" width="48" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="476" y="244" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA FAIL</text>
-      <rect x="524" y="268" width="56" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="552" y="276" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IG REVISE</text>
-      <rect x="660" y="268" width="76" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="698" y="276" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REVIEW / BLOCK</text>
-      <rect x="788" y="276" width="52" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="814" y="284" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">OVERRIDE</text>
-      <rect x="316" y="284" width="60" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="346" y="292" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REGENERATE</text>
-      <rect x="562" y="400" width="52" height="12" rx="2" fill="#f7f7f5"/>
-      <text x="588" y="408" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEND BACK</text>
+      <!-- Held zone: statuses a run will never pick back up -->
+      <rect x="468" y="376" width="580" height="136" rx="8" fill="#171717" opacity="0.018"/>
+      <rect x="468" y="376" width="580" height="136" rx="8" fill="none" stroke="#8a8a8a" stroke-width="0.8" stroke-dasharray="4,4"/>
+      <text x="492" y="502" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">HELD — A RUN WILL NOT PICK THESE UP; A PERSON MOVES THEM</text>
 
       <!-- Start -->
-      <circle cx="40" cy="168" r="8" fill="#171717"/>
+      <circle cx="40" cy="184" r="6" fill="#171717"/>
 
-      <!-- Pipeline statuses -->
-      <rect x="72" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="72" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-      <text x="132" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Topic selected</text>
-      <text x="132" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">template required</text>
-      <rect x="240" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="240" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-      <text x="300" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Researched</text>
-      <text x="300" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">corpus snapshot</text>
-      <rect x="408" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="408" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
-      <text x="468" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Drafted</text>
-      <text x="468" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">awaiting QA</text>
-      <rect x="576" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="576" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
-      <text x="636" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">QA passed</text>
-      <text x="636" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">awaiting score</text>
-      <rect x="744" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="744" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
-      <text x="804" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Verified</text>
-      <text x="804" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PASS or override</text>
-      <rect x="912" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="912" y="128" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
-      <text x="972" y="164" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Approved</text>
-      <text x="972" y="184" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ready to publish</text>
-      <rect x="1080" y="128" width="120" height="80" rx="8" fill="#f7f7f5"/>
-      <rect x="1080" y="128" width="120" height="80" rx="8" fill="#171717" stroke="#171717" stroke-width="1.2"/>
-      <text x="1140" y="164" fill="#ffffff" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Published</text>
-      <text x="1140" y="184" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">live on site</text>
+      <!-- Pipeline transitions -->
+      <line x1="50" y1="184" x2="72" y2="184" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="192" y1="184" x2="252" y2="184" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="552" y1="184" x2="612" y2="184" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="732" y1="184" x2="792" y2="184" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="912" y1="184" x2="972" y2="184" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="648" y1="224" x2="648" y2="400" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 812 224 V 296 Q 812 304 804 304 H 768 Q 760 304 760 312 V 420 Q 760 428 752 428 H 676" fill="none" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="888" y1="224" x2="888" y2="400" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- Person transitions -->
+      <line x1="372" y1="184" x2="432" y2="184" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="1092" y1="184" x2="1152" y2="184" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="1272" y1="184" x2="1332" y2="184" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="980" y1="400" x2="980" y2="224" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 492 428 H 412 Q 404 428 404 420 V 256 Q 404 248 412 248 H 484 Q 492 248 492 240 V 224" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="792" y1="444" x2="676" y2="444" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+      <!-- Scheduler transition -->
+      <path d="M 1212 224 V 272 Q 1212 280 1220 280 H 1384 Q 1392 280 1392 272 V 224" fill="none" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow-soft)"/>
+
+      <!-- Transition labels -->
+      <rect x="200" y="164" width="44" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="222" y="172" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RESEARCH</text>
+      <rect x="382" y="164" width="40" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="402" y="172" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">APPROVE</text>
+      <rect x="560" y="164" width="44" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="582" y="172" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GENERATE</text>
+      <rect x="742" y="164" width="40" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="762" y="172" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA PASS</text>
+      <rect x="922" y="164" width="40" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="942" y="172" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IG PASS</text>
+      <rect x="1102" y="164" width="40" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="1122" y="172" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">APPROVE</text>
+      <rect x="1282" y="164" width="40" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="1302" y="172" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PUBLISH</text>
+      <rect x="660" y="294" width="56" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="688" y="302" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QA FAIL</text>
+      <rect x="772" y="340" width="68" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="806" y="348" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IG REVISE</text>
+      <rect x="900" y="294" width="72" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="936" y="302" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REVIEW / BLOCK</text>
+      <rect x="992" y="330" width="60" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="1022" y="338" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">OVERRIDE</text>
+      <rect x="316" y="294" width="80" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="356" y="302" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REGENERATE</text>
+      <rect x="684" y="458" width="68" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="718" y="466" fill="#171717" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEND BACK</text>
+      <rect x="1270" y="290" width="64" height="12" rx="2" fill="#f7f7f5"/>
+      <text x="1302" y="298" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ON publishAt</text>
+
+      <!-- Statuses a run advances -->
+      <rect x="72" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="72" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <text x="132" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Topic selected</text>
+      <text x="132" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">topic_selected</text>
+
+      <rect x="252" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="252" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1.6"/>
+      <rect x="260" y="150" width="60" height="12" rx="2" fill="none" stroke="#171717" stroke-width="0.8" opacity="0.4"/>
+      <text x="290" y="159" fill="#171717" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">YOU APPROVE</text>
+      <text x="312" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Brief ready</text>
+      <text x="312" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">brief_review</text>
+
+      <rect x="432" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="432" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <text x="492" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Researched</text>
+      <text x="492" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">researched</text>
+
+      <rect x="612" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="612" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <rect x="620" y="150" width="48" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8" opacity="0.4"/>
+      <text x="644" y="159" fill="#666666" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">READ-ONLY</text>
+      <text x="672" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Drafted</text>
+      <text x="672" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">drafted</text>
+
+      <rect x="792" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="792" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1"/>
+      <rect x="800" y="150" width="48" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8" opacity="0.4"/>
+      <text x="824" y="159" fill="#666666" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">READ-ONLY</text>
+      <text x="852" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">QA passed</text>
+      <text x="852" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">qa_passed</text>
+
+      <!-- Statuses a person moves -->
+      <rect x="972" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="972" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
+      <text x="1032" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Verified</text>
+      <text x="1032" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">verified</text>
+
+      <rect x="1152" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="1152" y="144" width="120" height="80" rx="8" fill="#ffffff" stroke="#171717" stroke-width="1"/>
+      <text x="1212" y="184" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Approved</text>
+      <text x="1212" y="204" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">approved</text>
+
+      <rect x="1332" y="144" width="120" height="80" rx="8" fill="#f7f7f5"/>
+      <rect x="1332" y="144" width="120" height="80" rx="8" fill="#171717" stroke="#171717" stroke-width="1.2"/>
+      <text x="1392" y="184" fill="#ffffff" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Published</text>
+      <text x="1392" y="204" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">published</text>
 
       <!-- Held statuses -->
-      <rect x="384" y="360" width="176" height="88" rx="8" fill="#f7f7f5"/>
-      <rect x="384" y="360" width="176" height="88" rx="8" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
-      <text x="472" y="396" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Needs revision</text>
-      <text x="472" y="416" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">fix, then re-run</text>
-      <rect x="616" y="360" width="208" height="88" rx="8" fill="#f7f7f5"/>
-      <rect x="616" y="360" width="208" height="88" rx="8" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
-      <text x="720" y="396" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Needs review / Blocked</text>
-      <text x="720" y="416" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">fresh justification</text>
+      <rect x="492" y="400" width="176" height="88" rx="8" fill="#f7f7f5"/>
+      <rect x="492" y="400" width="176" height="88" rx="8" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
+      <text x="580" y="436" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Needs revision</text>
+      <text x="580" y="456" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">needs_revision</text>
+
+      <rect x="792" y="400" width="232" height="88" rx="8" fill="#f7f7f5"/>
+      <rect x="792" y="400" width="232" height="88" rx="8" fill="#e4e4e0" stroke="#171717" stroke-width="1.2"/>
+      <text x="908" y="436" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Needs review / Blocked</text>
+      <text x="908" y="456" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">needs_review · blocked</text>
 
       <!-- Legend -->
-      <line x1="40" y1="552" x2="1240" y2="552" stroke="#c8c8c4" stroke-width="0.8"/>
-      <text x="40" y="584" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">TRANSITIONS</text>
-      <line x1="168" y1="580" x2="208" y2="580" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
-      <text x="224" y="584" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">PIPELINE</text>
-      <line x1="320" y1="580" x2="360" y2="580" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-      <text x="376" y="584" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">REVIEWER ACTION</text>
-      <rect x="560" y="572" width="16" height="16" rx="4" fill="#171717" opacity="0.018"/>
-      <rect x="560" y="572" width="16" height="16" rx="4" fill="none" stroke="#8a8a8a" stroke-width="0.8" stroke-dasharray="4,4"/>
-      <text x="584" y="584" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">HELD FOR A REVIEWER</text>
-</svg>
+      <line x1="72" y1="600" x2="1452" y2="600" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="72" y="632" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">TRANSITIONS</text>
+      <line x1="200" y1="628" x2="240" y2="628" stroke="#666666" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="256" y="632" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">A PIPELINE RUN</text>
+      <line x1="400" y1="628" x2="440" y2="628" stroke="#171717" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <text x="456" y="632" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">A PERSON</text>
+      <line x1="600" y1="628" x2="640" y2="628" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow-soft)"/>
+      <text x="656" y="632" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">THE SCHEDULER</text>
+      <rect x="820" y="620" width="16" height="16" rx="4" fill="#171717" opacity="0.018"/>
+      <rect x="820" y="620" width="16" height="16" rx="4" fill="none" stroke="#8a8a8a" stroke-width="0.8" stroke-dasharray="4,4"/>
+      <text x="848" y="632" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">HELD FOR A PERSON</text>
+      <rect x="1064" y="622" width="48" height="12" rx="2" fill="none" stroke="#666666" stroke-width="0.8" opacity="0.4"/>
+      <text x="1088" y="631" fill="#666666" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">READ-ONLY</text>
+      <text x="1124" y="632" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">A RUN OWNS THE DRAFT</text>
+    </svg>

@@ -192,7 +192,7 @@ export default buildConfig({
     // Production runs no queues in-process; the external scheduler calls
     // `payload jobs:run --queue content --limit 1` and needs lines for
     // `--queue webhooks` and `--queue scheduled --handle-schedules`
-    // (see docs/operations.md once written).
+    // (see docs/operations.md).
     autoRun:
       process.env.NODE_ENV === 'development'
         ? [
