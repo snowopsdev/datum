@@ -1,13 +1,13 @@
 /**
- * One Codex CLI turn per completion: a read-only sandbox rooted at a throwaway
- * scratch directory, run against the managed CODEX_HOME so the operator's own
- * Codex config never reaches a pipeline call.
+ * Shared Codex completion boundary. Production calls fail closed because a
+ * local agent cannot safely process application content with host authority;
+ * hermetic tests may inject a runner to exercise the response contract.
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { CODEX_LOGIN_HINT, ensureManagedCodexHome } from './codexAuth'
+import { CODEX_LOGIN_HINT } from './codexAuth'
 import { codexModelId } from './llmProvider'
 
 type Env = Record<string, string | undefined>
@@ -64,6 +64,16 @@ export interface CodexRunner {
 
 export class CodexNotLoggedInError extends Error {}
 
+export class CodexLocalExecutionDisabledError extends Error {
+  constructor() {
+    super(
+      'Local Codex execution is disabled for application content because it cannot isolate ' +
+        'the agent from host credentials and files; select an API-backed model instead',
+    )
+    this.name = 'CodexLocalExecutionDisabledError'
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 600_000
 
 const LOGGED_OUT = /not logged in|logged out|unauthori[sz]ed|401|refresh token/i
@@ -72,6 +82,13 @@ export async function completeTextViaCodex(
   req: CodexTextRequest,
   deps: { runner?: CodexRunner; env?: Env } = {},
 ): Promise<CodexTextResult> {
+  // Application prompts contain authenticated notes, uploads, article text,
+  // research, and crawled pages. A local Codex agent can read beyond its empty
+  // working directory (including its reusable login), so read-only mode and an
+  // environment allowlist cannot form a safe boundary. Keep runner injection
+  // solely as a hermetic test seam; production callers never supply one.
+  if (!deps.runner) throw new CodexLocalExecutionDisabledError()
+
   const env = deps.env ?? process.env
   const workingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'datum-codex-'))
   try {
@@ -99,11 +116,10 @@ async function runTurn(
   req: CodexTextRequest,
   env: Env,
   workingDirectory: string,
-  injected: CodexRunner | undefined,
+  injected: CodexRunner,
 ): Promise<CodexTurn> {
   try {
-    const runner = injected ?? (await sdkRunner(env))
-    const thread = runner.startThread({
+    const thread = injected.startThread({
       model: codexModelId(req.model),
       sandboxMode: 'read-only',
       workingDirectory,
@@ -128,21 +144,4 @@ async function runTurn(
     }
     throw new Error(`Codex: ${message}`)
   }
-}
-
-/** Imported lazily so mock-mode processes and unit tests never load the SDK. */
-async function sdkRunner(env: Env): Promise<CodexRunner> {
-  const { Codex } = await import('@openai/codex-sdk')
-  return new Codex({
-    codexPathOverride: env.CODEX_PATH || undefined,
-    // `env` replaces the child's environment rather than extending it, so the
-    // whole parent environment has to be carried across alongside CODEX_HOME.
-    env: { ...definedEnv(process.env), CODEX_HOME: ensureManagedCodexHome(env) },
-  })
-}
-
-function definedEnv(env: Env): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-  )
 }

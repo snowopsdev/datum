@@ -53,18 +53,19 @@ describe('codexModelId', () => {
 })
 
 describe('requirementForModel', () => {
-  it('reports the env var for key providers and a login for codex', () => {
+  it('reports the env var for key providers and disables live codex', () => {
     assert.deepEqual(requirementForModel('claude-opus-5'), { kind: 'env', envVar: 'ANTHROPIC_API_KEY' })
     assert.deepEqual(requirementForModel('gpt-5'), { kind: 'env', envVar: 'OPENAI_API_KEY' })
-    assert.deepEqual(requirementForModel('codex/gpt-5'), { kind: 'codex-login' })
+    assert.deepEqual(requirementForModel('codex/gpt-5'), { kind: 'codex-disabled' })
   })
 })
 
 describe('describeRequirement', () => {
-  it('names the env var or the login command', () => {
+  it('names the env var, login command, or safe replacement', () => {
     assert.equal(describeRequirement({ kind: 'env', envVar: 'ANTHROPIC_API_KEY' }), 'ANTHROPIC_API_KEY')
     assert.equal(describeRequirement({ kind: 'env', envVar: 'OPENAI_API_KEY' }), 'OPENAI_API_KEY')
     assert.equal(describeRequirement({ kind: 'codex-login' }), '`codex login`')
+    assert.equal(describeRequirement({ kind: 'codex-disabled' }), 'an API-backed model')
   })
 })
 

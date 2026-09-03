@@ -94,7 +94,7 @@ describe('workspace readiness', () => {
     )
   })
 
-  it('holds a Codex stage back on the CLI login rather than an environment variable', () => {
+  it('blocks live Codex stages before a run can be queued', () => {
     const input = baseInput()
     input.env = {
       MOCK_MODE: 'false',
@@ -106,14 +106,16 @@ describe('workspace readiness', () => {
     input.profile = envProfile(input.env)
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
 
-    const loggedOut = evaluateWorkspaceReadiness(input)
-    assert.equal(loggedOut.runtime.needsCodexLogin, true)
-    assert.equal(loggedOut.runtime.ready, false)
-    // Everything else is configured, so `missing` is the proof that a login is
-    // never reported as an environment variable somebody could set.
-    assert.deepEqual(loggedOut.runtime.missing, [])
+    const blocked = evaluateWorkspaceReadiness(input)
+    assert.equal(blocked.runtime.needsCodexLogin, false)
+    assert.equal(blocked.runtime.ready, false)
+    assert.deepEqual(blocked.runtime.missing, [])
+    assert.deepEqual(blocked.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
+    assert.deepEqual(blocked.runtime.blockers, [
+      'Select an API-backed model instead of codex/gpt-5.6-terra',
+    ])
     assert.deepEqual(
-      loggedOut.content.models.map((model) => [
+      blocked.content.models.map((model) => [
         model.stage,
         model.model,
         model.provider,
@@ -121,17 +123,15 @@ describe('workspace readiness', () => {
       ])[0],
       ['generate', 'codex/gpt-5.6-terra', 'codex', false],
     )
-    assert.equal(loggedOut.content.models[0]!.envVar, null)
-    assert.equal(loggedOut.content.models[0]!.requirement, 'codex-login')
+    assert.equal(blocked.content.models[0]!.envVar, null)
+    assert.equal(blocked.content.models[0]!.requirement, 'codex-disabled')
 
     input.codexLoggedIn = true
     const loggedIn = evaluateWorkspaceReadiness(input)
-    assert.equal(loggedIn.content.models[0]!.configured, true)
+    assert.equal(loggedIn.content.models[0]!.configured, false)
     assert.equal(loggedIn.runtime.needsCodexLogin, false)
-    assert.equal(loggedIn.runtime.ready, true)
-    // A login the fingerprint ignored would leave a run verified against the
-    // logged-out configuration looking current.
-    assert.notEqual(loggedIn.configFingerprint, loggedOut.configFingerprint)
+    assert.equal(loggedIn.runtime.ready, false)
+    assert.equal(loggedIn.configFingerprint, blocked.configFingerprint)
   })
 
   it('treats a Codex stage as configured in mock mode, logged in or not', () => {
@@ -141,6 +141,7 @@ describe('workspace readiness', () => {
     const readiness = evaluateWorkspaceReadiness(input)
     assert.equal(readiness.content.models[0]!.configured, true)
     assert.equal(readiness.runtime.needsCodexLogin, false)
+    assert.deepEqual(readiness.runtime.unsupportedModels, [])
     assert.equal(readiness.runtime.ready, true)
   })
 
@@ -344,8 +345,8 @@ describe('workspace readiness', () => {
   })
 })
 
-describe('codex login is reported to blocked actions', () => {
-  it('lists the login among blockers so action errors are never empty', () => {
+describe('unsupported Codex models are reported to blocked actions', () => {
+  it('lists the model migration among blockers so action errors are never empty', () => {
     const input = baseInput()
     input.env = {
       MOCK_MODE: 'false',
@@ -361,11 +362,11 @@ describe('codex login is reported to blocked actions', () => {
     const readiness = evaluateWorkspaceReadiness(input)
 
     assert.deepEqual(readiness.runtime.missing, [])
-    assert.equal(readiness.runtime.needsCodexLogin, true)
+    assert.equal(readiness.runtime.needsCodexLogin, false)
     // The action messages interpolate this list; an empty one renders
     // "Configure the required environment variables: ." and helps nobody.
     assert.ok(readiness.runtime.blockers.length > 0)
-    assert.match(readiness.runtime.blockers.join(' '), /codex login/)
+    assert.match(readiness.runtime.blockers.join(' '), /API-backed model/)
   })
 
   it('leaves blockers equal to missing when no codex stage is selected', () => {

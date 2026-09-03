@@ -1,5 +1,6 @@
 // Shared with the CMS so both workspaces drive the Codex CLI identically.
 export {
+  CodexLocalExecutionDisabledError,
   CodexNotLoggedInError,
   type CodexRunner,
   type CodexTextRequest,

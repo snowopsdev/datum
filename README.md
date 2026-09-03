@@ -48,7 +48,7 @@ Everything that decides how Datum writes lives under **Setup** in the admin nav,
 
 - **Setup checklist** (`/admin/ops/setup`) — five steps, and `/admin` keeps showing it until the three required ones are done and the workspace holds at least one piece. Three are required, and a content run refuses to start without them: a workspace with a target domain (`/admin/ops/setup/workspace`), an active brand voice, and at least one active audience (`/admin/ops/setup/audiences`). Two are recommended and change what a draft may claim: your positioning (`/admin/ops/setup/positioning`) and an evidence bank (`/admin/ops/setup/evidence`). The workspace, audience and positioning steps each have **Draft with AI** and **Refine with AI**, and the evidence bank offers the assistant on two of its three tabs; every reply drafts one section of one asset, so you read it before accepting it. They work from your own site: **Fetch site pages** reads your home page and up to seven marketing pages linked from it. **Start with the demo workspace** fills all five in one click. See [`docs/tenant-context.md`](docs/tenant-context.md).
 - **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. An active voice is required for content runs. Seed a demo voice with `npm run seed -- --with-brand-voice`.
-- **Models** (`/admin/globals/llm-settings`) — nine choices: one for each of the seven pipeline stages that call a model (generate, fact check, qualitative review, claim extraction, information-gain judge, evidence verification, evidence check), plus brand-voice extraction and the setup assistant. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` / `SETUP_ASSIST_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`, `o`-numbered and `chatgpt-*` models) wherever that call runs; see the env var split below. A `codex/*` model (for example `codex/gpt-5.6-terra`) needs no key. It runs through your own Codex CLI login on that host instead; see [Using your ChatGPT plan (Codex)](#using-your-chatgpt-plan-codex).
+- **Models** (`/admin/globals/llm-settings`) — nine choices: one for each of the seven pipeline stages that call a model (generate, fact check, qualitative review, claim extraction, information-gain judge, evidence verification, evidence check), plus brand-voice extraction and the setup assistant. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` / `SETUP_ASSIST_MODEL` env var, or to `claude-opus-5` if neither is set. Each live model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`, `o`-numbered and `chatgpt-*` models) wherever that call runs; see the env var split below. Legacy `codex/*` choices are mock-only.
 - **Sources** (`/admin/collections/evidence-sources`) and **Source review** (`/admin/ops/governance/source-review`) — Sources holds the domain rules you have already rated and is what scoring reads. Source review is the queue behind it: the domains the pipeline cited or saw ranking that nobody has rated yet. An unrated domain can't back a claim nobody else is making, so an article resting on one gets blocked; rate the ones you trust and the next run counts them. See [`docs/information-gain.md`](docs/information-gain.md).
 - **Scoring policy** (`/admin/globals/information-gain-policy`) — the thresholds that decide whether a scored draft passes, needs revision, needs your call, or is blocked. Every run stamps the policy version onto the score it writes. See [`docs/information-gain.md`](docs/information-gain.md).
 Delivery settings sit apart from all of that, because no run reads them: **Webhooks** (`/admin/globals/webhook-settings`) sends a signed `article.status_changed` POST on every status transition, falling back to `WEBHOOK_URL` and `WEBHOOK_SECRET`. Nothing is sent until both a URL and a secret resolve. See [`docs/operations.md`](docs/operations.md).
@@ -115,25 +115,11 @@ npm run payload --workspace cms -- jobs:run --queue scheduled \
 
 Each invocation of the first command processes one queued content run; schedule it repeatedly for continuous processing. Run the other two every minute or faster. [`docs/operations.md`](docs/operations.md) has the cadence, the delivery contract and the fixed limits.
 
-For live API calls, set `MOCK_MODE=false` and provide the key for each chosen model's provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). A `codex login` on the host is the third way to satisfy this, for `codex/*` models. Ahrefs also needs `AHREFS_API_KEY` plus a target domain and competitors, which come from the **Workspace** global (`/admin/globals/workspace-profile`); `TARGET_DOMAIN` and `COMPETITOR_DOMAINS` are its fallback. See [`.env.example`](.env.example).
+For live API calls, set `MOCK_MODE=false` and provide the key for each chosen model's provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). Ahrefs also needs `AHREFS_API_KEY` plus a target domain and competitors, which come from the **Workspace** global (`/admin/globals/workspace-profile`); `TARGET_DOMAIN` and `COMPETITOR_DOMAINS` are its fallback. See [`.env.example`](.env.example).
 
-### Using your ChatGPT plan (Codex)
+### Codex model choices
 
-`codex/*` models run each call through the Codex CLI on your ChatGPT plan instead of a per-token API. `npm install` brings the binary. To use it:
-
-1. Run `codex login` on every host that makes model calls. That is the host running `npm run jobs:run --workspace cms` and the host running the Next server, which does brand-voice extraction. Datum never reads or stores the token; preflight runs `codex login status`.
-2. Pick a `codex/` model in **Models** (`/admin/globals/llm-settings`). Six are available, the subset the ChatGPT plan serves: `codex/gpt-5.6-sol`, `codex/gpt-5.6-terra`, `codex/gpt-5.6-luna`, `codex/gpt-5.5`, `codex/gpt-5.4`, `codex/gpt-5.4-mini`. The `codex/` prefix alone decides routing.
-3. Set `MOCK_MODE=false` explicitly. A Codex login does not switch a workspace to live mode.
-
-What to expect:
-
-- Every call carries roughly 15k input tokens of overhead. A trivial prompt billed 15,767 input tokens, because Codex loads its own agent preamble and tool definitions on each call. Budget that per stage against your plan's quota. It is the main reason API keys stay the default and Codex is opt-in.
-- Cost-log rows for these calls are marked `provider = codex` and hold estimates at API rates. Your plan bills in its own included usage and credits, so the dollar figure is indicative, not what you were charged.
-- Each call runs in an isolated `CODEX_HOME` that Datum manages. It holds a minimal config plus a symlink to your existing `auth.json`. Without it your own Codex config would apply to every call; on the machine this was measured on, that meant 11 MCP servers booting and a `notify` hook launching a desktop app per call. Passing `-c 'mcp_servers={}'` does not prevent this, because `-c` merges into the config table rather than replacing it. `DATUM_CODEX_HOME` overrides the managed home.
-- If `CODEX_HOME` is already set by other tooling (Orca sets it per account), whatever it points at is the login Datum uses.
-- Optional tuning: `CODEX_PATH` overrides the binary, `CODEX_REASONING_EFFORT` defaults to `medium`, `CODEX_TIMEOUT_MS` defaults to `600000`.
-
-This is for a local or otherwise trusted host. OpenAI has not stated whether embedding Codex with a ChatGPT login inside a hosted multi-tenant product is permitted, so that is out of scope.
+Legacy `codex/*` choices remain available for deterministic mock fixtures, but live local Codex execution is disabled. Application prompts can contain uploaded, authenticated, or externally fetched text, and the local agent cannot be isolated from reusable host credentials and unrelated readable files. Select an Anthropic or OpenAI API-backed model for live runs. Readiness and pipeline preflight reject a live `codex/*` selection before a run is queued or processed.
 
 ## Environment variables
 
@@ -157,10 +143,6 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) �
 | `SETUP_ASSIST_MODEL` | Fallback model for the setup assistant. Falls back to `BRAND_VOICE_EXTRACT_MODEL` before the platform default. |
 | `INFORMATION_GAIN_*` | Threshold overrides used when the Scoring policy global is blank. See [`docs/information-gain.md`](docs/information-gain.md). |
 | `WEBHOOK_URL` / `WEBHOOK_SECRET` | Fallback for the Webhooks global. Nothing is delivered until both resolve. See [`docs/operations.md`](docs/operations.md). |
-| `CODEX_PATH` | Overrides the Codex CLI binary used by `codex/*` models. Not required in mock mode. |
-| `CODEX_REASONING_EFFORT` | Reasoning effort passed to the Codex CLI for `codex/*` models (default `medium`). Not required in mock mode. |
-| `CODEX_TIMEOUT_MS` | Per-call timeout for `codex/*` models, in milliseconds (default `600000`). Not required in mock mode. |
-| `DATUM_CODEX_HOME` | Overrides the managed `CODEX_HOME` Datum builds for each `codex/*` call. Not required in mock mode. |
 | `PAYLOAD_AUTO_LOGIN` (cms/.env only) | `true` to skip the admin login form in local dev; never honoured when `NODE_ENV=production` |
 | `PAYLOAD_AUTO_LOGIN_EMAIL` (cms/.env only) | Which seeded user to auto-login as (default `admin@datum.local`) |
 

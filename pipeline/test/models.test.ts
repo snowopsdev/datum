@@ -4,7 +4,6 @@ import { describe, it } from 'node:test'
 import type { Payload } from 'payload'
 
 import { type LlmSettingsDoc, PIPELINE_STAGES } from '../../cms/src/lib/llmSettings'
-import { CODEX_LOGIN_HINT } from '../src/codexAuth'
 import { loadStageModels, type StageModelDeps } from '../src/models'
 
 /** A Payload stand-in that answers the one global `loadStageModels` reads. */
@@ -24,77 +23,38 @@ const quietly = async <T>(body: () => Promise<T>): Promise<T> => {
   }
 }
 
-type CountingDeps = StageModelDeps & { logins: number }
-
-function deps(overrides: Partial<StageModelDeps> = {}): CountingDeps {
-  const state: CountingDeps = {
+function deps(overrides: Partial<StageModelDeps> = {}): StageModelDeps {
+  return {
     env: { ANTHROPIC_API_KEY: 'test-key' },
     mockMode: false,
-    logins: 0,
-    checkLogin: async () => {
-      state.logins += 1
-      return true
-    },
     ...overrides,
   }
-  return state
 }
 
 describe('loadStageModels (codex stages)', () => {
-  it('accepts a codex model when the CLI is logged in', async () => {
-    const injected = deps()
-    const models = await quietly(() =>
-      loadStageModels(fakePayload({ generateModel: 'codex/gpt-5.6-sol' }), injected),
-    )
-    assert.equal(models.generate, 'codex/gpt-5.6-sol')
-    assert.equal(injected.logins, 1)
-  })
-
-  it('rejects a codex model when the CLI is logged out', async () => {
+  it('rejects a codex model before a live run starts', async () => {
     await assert.rejects(
       quietly(() =>
-        loadStageModels(fakePayload({ generateModel: 'codex/gpt-5.6-sol' }), deps({
-          checkLogin: async () => false,
-        })),
+        loadStageModels(fakePayload({ generateModel: 'codex/gpt-5.6-sol' }), deps()),
       ),
       (error: Error) => {
         assert.equal(
           error.message,
-          `generate model "codex/gpt-5.6-sol" (from admin) needs a Codex login — ${CODEX_LOGIN_HINT} (MOCK_MODE=false)`,
+          'generate model "codex/gpt-5.6-sol" (from admin) cannot run live because local Codex execution is disabled; select an API-backed model',
         )
         return true
       },
     )
   })
 
-  it('checks the login once however many stages are on Codex', async () => {
-    const injected = deps()
-    await quietly(() =>
+  it('preserves codex selections as harmless fixture labels in mock mode', async () => {
+    const models = await quietly(() =>
       loadStageModels(
-        fakePayload({
-          generateModel: 'codex/gpt-5.6-sol',
-          factCheckModel: 'codex/gpt-5.6-terra',
-          qualitativeReviewModel: 'codex/gpt-5.5',
-          claimExtractionModel: 'codex/gpt-5.4',
-        }),
-        injected,
+        fakePayload({ generateModel: 'codex/gpt-5.6-sol' }),
+        deps({ env: {}, mockMode: true }),
       ),
     )
-    assert.equal(injected.logins, 1)
-  })
-
-  it('never checks the login in mock mode', async () => {
-    const injected = deps({ env: {}, mockMode: true })
-    await quietly(() =>
-      loadStageModels(fakePayload({ generateModel: 'codex/gpt-5.6-sol' }), injected),
-    )
-    assert.equal(injected.logins, 0)
-  })
-
-  it('never checks the login when no stage is on Codex', async () => {
-    const injected = deps()
-    await quietly(() => loadStageModels(fakePayload({ generateModel: 'claude-sonnet-5' }), injected))
-    assert.equal(injected.logins, 0)
+    assert.equal(models.generate, 'codex/gpt-5.6-sol')
   })
 })
 

@@ -136,6 +136,7 @@ export interface WorkspaceReadiness {
     ready: boolean
     missing: string[]
     needsCodexLogin: boolean
+    unsupportedModels: string[]
     /**
      * Everything unmet, in the words an operator acts on. `missing` holds
      * environment variable names only, so callers that interpolate it render an
@@ -201,12 +202,21 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       envVar: requirement.kind === 'env' ? requirement.envVar : null,
       configured:
         mode === 'mock' ||
-        (requirement.kind === 'env' ? configured(input.env[requirement.envVar]) : codexLoggedIn),
+        (requirement.kind === 'env'
+          ? configured(input.env[requirement.envVar])
+          : requirement.kind === 'codex-login' && codexLoggedIn),
     }
   })
   const needsCodexLogin = models.some(
     (model) => model.requirement === 'codex-login' && !model.configured,
   )
+  const unsupportedModels = [
+    ...new Set(
+      models
+        .filter((model) => model.requirement === 'codex-disabled' && !model.configured)
+        .map((model) => model.model),
+    ),
+  ].sort()
 
   const profile = input.profile
   const missing = new Set<string>()
@@ -232,11 +242,15 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       // changes every gap report and must.
       target: profile.targetDomain,
       competitors: profile.competitors.map((competitor) => competitor.domain),
-      providers: [...new Set(models.map((model) => model.envVar ?? 'codex-login'))]
+      providers: [...new Set(models.map((model) => model.envVar ?? model.requirement))]
         .sort()
         .map((name) => [
           name,
-          name === 'codex-login' ? codexLoggedIn : configured(input.env[name]),
+          name === 'codex-login'
+            ? codexLoggedIn
+            : name === 'codex-disabled'
+              ? false
+              : configured(input.env[name]),
         ]),
     },
     voice: input.activeVoice ? [input.activeVoice.id, input.activeVoice.updatedAt] : null,
@@ -261,7 +275,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const verificationCurrent = input.verification?.configFingerprint === configFingerprint
   const verificationReady =
     input.verification?.status === 'succeeded' && terminalArticle && verificationCurrent
-  const runtimeReady = missing.size === 0 && !needsCodexLogin
+  const runtimeReady = missing.size === 0 && !needsCodexLogin && unsupportedModels.length === 0
   const primaryIcp = input.icps.find((icp) => icp.primary) ?? input.icps[0] ?? null
   const icpsReady = input.icps.length > 0
   const profileReady = profile.targetDomain !== null
@@ -333,7 +347,14 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ready: runtimeReady,
       missing: [...missing].sort(),
       needsCodexLogin,
-      blockers: [...[...missing].sort(), ...(needsCodexLogin ? ['`codex login` on this host'] : [])],
+      unsupportedModels,
+      blockers: [
+        ...[...missing].sort(),
+        ...(needsCodexLogin ? ['`codex login` on this host'] : []),
+        ...(unsupportedModels.length > 0
+          ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
+          : []),
+      ],
     },
     governance: {
       ready: governanceReady,

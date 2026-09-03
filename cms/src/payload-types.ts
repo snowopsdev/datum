@@ -2664,7 +2664,7 @@ export interface EvidenceBank {
   createdAt?: string | null;
 }
 /**
- * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; a codex/ model needs `codex login` on the host instead of a key. Prices are USD per 1M tokens and feed the cost log; codex prices are estimates at API rates, not what your ChatGPT plan charges.
+ * Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY). Local codex/ execution is disabled for application content; those choices are available only for mock fixtures.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings".
