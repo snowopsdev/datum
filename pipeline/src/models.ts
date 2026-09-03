@@ -8,7 +8,6 @@ import {
   resolveStageModels,
 } from '../../cms/src/lib/llmSettings'
 
-import { checkCodexLogin, CODEX_LOGIN_HINT } from './codexAuth'
 import { config } from './config'
 import { apiKeyForModel, requirementForModel } from './llmProvider'
 
@@ -17,7 +16,6 @@ export type StageModels = Record<PipelineStage, string>
 export interface StageModelDeps {
   env: Record<string, string | undefined>
   mockMode: boolean
-  checkLogin: () => Promise<boolean>
 }
 
 /**
@@ -32,14 +30,10 @@ export async function loadStageModels(
   deps: StageModelDeps = {
     env: process.env,
     mockMode: config.mockMode,
-    checkLogin: checkCodexLogin,
   },
 ): Promise<StageModels> {
   const settings = (await payload.findGlobal({ slug: 'llm-settings', depth: 0 })) as LlmSettingsDoc
   const resolved = resolveStageModels(settings, deps.env)
-  // Spawning `codex login status` once per stage would cost six processes for
-  // one answer.
-  let loggedIn: Promise<boolean> | undefined
   for (const stage of PIPELINE_STAGES) {
     const { model, source } = resolved[stage] as ResolvedModel
     const requirement = requirementForModel(model)
@@ -49,13 +43,10 @@ export async function loadStageModels(
           `${stage} model "${model}" (from ${source}) needs ${requirement.envVar} set (MOCK_MODE=false)`,
         )
       }
-      if (requirement.kind === 'codex-login') {
-        loggedIn ??= deps.checkLogin()
-        if (!(await loggedIn)) {
-          throw new Error(
-            `${stage} model "${model}" (from ${source}) needs a Codex login — ${CODEX_LOGIN_HINT} (MOCK_MODE=false)`,
-          )
-        }
+      if (requirement.kind === 'codex-disabled') {
+        throw new Error(
+          `${stage} model "${model}" (from ${source}) cannot run live because local Codex execution is disabled; select an API-backed model`,
+        )
       }
     }
     console.log(`[pipeline] ${stage}: ${model} (${source})`)

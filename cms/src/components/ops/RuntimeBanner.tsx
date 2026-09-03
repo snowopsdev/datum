@@ -17,6 +17,7 @@ export function RuntimeBanner() {
     mode: 'mock' | 'live'
     missing: string[]
     needsCodexLogin: boolean
+    unsupportedModels: string[]
   } | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
@@ -26,7 +27,12 @@ export function RuntimeBanner() {
   }, [])
 
   if (!status || status.mode !== 'live' || dismissed) return null
-  if (status.missing.length === 0 && !status.needsCodexLogin) return null
+  if (
+    status.missing.length === 0 &&
+    !status.needsCodexLogin &&
+    status.unsupportedModels.length === 0
+  )
+    return null
 
   return (
     <div className="datum-runtime" role="status">
@@ -49,6 +55,9 @@ export function RuntimeBanner() {
           {' '}
           Codex models need <code>codex login</code> on this host.
         </>
+      )}
+      {status.unsupportedModels.length > 0 && (
+        <> Local Codex execution is disabled; select an API-backed model for live runs.</>
       )}
       <button aria-label="Dismiss" className="datum-runtime__close" onClick={() => setDismissed(true)} type="button">
         ×

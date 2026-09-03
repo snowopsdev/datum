@@ -59,8 +59,8 @@ function codexMirror(id: string): LlmModel {
     ...base,
     id: `${CODEX_MODEL_PREFIX}${base.id}`,
     provider: 'codex',
-    label: `${base.label} via Codex`,
-    note: 'Estimated at API rates; billed to your ChatGPT plan',
+    label: `${base.label} via Codex (mock only)`,
+    note: 'Local Codex execution is disabled; select an API-backed model for live runs',
   }
 }
 

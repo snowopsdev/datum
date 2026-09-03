@@ -7,6 +7,7 @@ import { after, describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 
 import {
+  CodexLocalExecutionDisabledError,
   CodexNotLoggedInError,
   type CodexRunner,
   type CodexThreadOptions,
@@ -252,22 +253,26 @@ async function withResolvedSpecifiers(
 }
 
 describe('completeTextViaCodex default runner', () => {
-  it('honours CODEX_PATH and hands the child a full environment rooted at the managed home', async () => {
-    const managed = tempDir()
+  it('fails closed before loading the SDK or exposing the host environment', async () => {
+    const sourceHome = tempDir()
+    const managedHome = path.join(tempDir(), 'managed')
+    fs.writeFileSync(path.join(sourceHome, 'auth.json'), '{"sentinel":"reusable-login"}')
     const env = {
-      CODEX_HOME: tempDir(),
+      DATABASE_URL: 'sentinel-database-secret',
       CODEX_PATH: '/opt/bin/codex',
-      DATUM_CODEX_HOME: managed,
+      CODEX_HOME: sourceHome,
+      DATUM_CODEX_HOME: managedHome,
     }
-    const { sdkOptions } = await withResolvedSpecifiers(() =>
-      completeTextViaCodex(request, { env }),
-    )
-    assert.equal(sdkOptions.length, 1)
-    assert.equal(sdkOptions[0].codexPathOverride, '/opt/bin/codex')
-    assert.equal(sdkOptions[0].env.CODEX_HOME, managed)
-    // `env` replaces rather than extends the child environment, so losing the
-    // parent's variables here would strip PATH from the spawned CLI.
-    assert.equal(sdkOptions[0].env.PATH, process.env.PATH)
+    const { sdkOptions, specifiers } = await withResolvedSpecifiers(async () => {
+      await assert.rejects(completeTextViaCodex(request, { env }), (error: Error) => {
+        assert.ok(error instanceof CodexLocalExecutionDisabledError)
+        assert.match(error.message, /select an API-backed model instead/)
+        return true
+      })
+    })
+    assert.deepEqual(sdkOptions, [])
+    assert.equal(specifiers.includes('@openai/codex-sdk'), false)
+    assert.equal(fs.existsSync(managedHome), false)
   })
 
   it('never loads the SDK when a runner is injected', async () => {

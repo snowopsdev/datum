@@ -74,7 +74,7 @@ function parseBool(value: string | undefined): boolean | undefined {
 /**
  * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
  * mock whenever the model's credential is absent — an API key for the key
- * providers, a Codex CLI login for `codex/*`. Never throws — the admin flow
+ * providers; legacy `codex/*` selections stay in mock mode. Never throws — the admin flow
  * must work in a keyless dev environment.
  */
 export function cmsMockMode(
@@ -87,9 +87,8 @@ export function cmsMockMode(
   // live call on its own. `pipeline/src/config.ts` and `modeFromEnv` make the
   // same call; if this one differed, an upload would bill quota while the rest
   // of the workspace still reported mock.
-  return requirementForModel(model).kind === 'codex-login'
-    ? true
-    : apiKeyForModel(model, env) === undefined
+  const requirement = requirementForModel(model)
+  return requirement.kind !== 'env' || apiKeyForModel(model, env) === undefined
 }
 
 function parseJsonReply(text: string): unknown {
@@ -103,9 +102,9 @@ function parseJsonReply(text: string): unknown {
 }
 
 /**
- * One JSON-returning model call, routed by model id: `codex/*` through the
- * local Codex CLI, `gpt-*` through OpenAI's Responses API, everything else
- * through Anthropic Messages.
+ * One JSON-returning model call, routed by model id: `gpt-*` through OpenAI's
+ * Responses API, `claude-*` through Anthropic, and legacy `codex/*` selections
+ * to the fail-closed local boundary.
  *
  * Deliberately refuses to run in mock mode rather than inventing a reply: the
  * shape of a useful mock is the caller's business (brand-voice extraction

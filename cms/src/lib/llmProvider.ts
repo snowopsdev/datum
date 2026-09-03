@@ -26,6 +26,7 @@ export const PROVIDER_ENV_VAR_NAME: Record<ApiKeyProvider, 'ANTHROPIC_API_KEY' |
 export type ProviderRequirement =
   | { kind: 'env'; envVar: 'ANTHROPIC_API_KEY' | 'OPENAI_API_KEY' }
   | { kind: 'codex-login' }
+  | { kind: 'codex-disabled' }
 
 export const CODEX_MODEL_PREFIX = 'codex/'
 
@@ -46,13 +47,14 @@ export function codexModelId(model: string): string {
 export function requirementForModel(model: string): ProviderRequirement {
   const provider = providerForModel(model)
   return provider === 'codex'
-    ? { kind: 'codex-login' }
+    ? { kind: 'codex-disabled' }
     : { kind: 'env', envVar: PROVIDER_ENV_VAR_NAME[provider] }
 }
 
 /** How an operator satisfies a requirement, for embedding in a message. */
 export function describeRequirement(requirement: ProviderRequirement): string {
-  return requirement.kind === 'env' ? requirement.envVar : '`codex login`'
+  if (requirement.kind === 'env') return requirement.envVar
+  return requirement.kind === 'codex-login' ? '`codex login`' : 'an API-backed model'
 }
 
 /** Which env var name the given model's key needs — the name, not the value. Undefined for Codex. */
