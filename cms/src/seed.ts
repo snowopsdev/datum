@@ -4,6 +4,16 @@ import config from '@payload-config'
 import { getPayload, type Payload } from 'payload'
 
 import { BRAND_VOICE_FIXTURE } from './lib/brandVoiceFixture'
+import {
+  EVIDENCE_BANK_FIXTURE,
+  evidenceBankFixtureDoc,
+  ICP_FIXTURE,
+  ICP_FIXTURE_SECONDARY,
+  POSITIONING_FIXTURE,
+  positioningFixtureDoc,
+  WORKSPACE_PROFILE_FIXTURE,
+} from './lib/tenant/fixtures'
+import type { IcpContent } from './lib/tenant'
 import type { Template } from './payload-types'
 
 type RichText = NonNullable<Template['outline']>
@@ -376,6 +386,79 @@ const upsertBrandVoice = async (payload: Payload): Promise<void> => {
   }
 }
 
+/**
+ * The demo workspace that goes with the demo voice: the site we pretend to
+ * write for, the two audiences we pretend to write to, and the position we
+ * pretend to hold. Behind the same
+ * `--with-brand-voice` flag, because a voice for one business and no audience
+ * at all is not a workspace anybody can run.
+ */
+const upsertTenantFixtures = async (payload: Payload): Promise<void> => {
+  await payload.updateGlobal({
+    slug: 'workspace-profile',
+    data: WORKSPACE_PROFILE_FIXTURE as Record<string, unknown>,
+    overrideAccess: true,
+  })
+  payload.logger.info(`Updated workspace profile "${WORKSPACE_PROFILE_FIXTURE.targetDomain}"`)
+  // Primary first: the single-primary cascade clears every other flag, so the
+  // secondary must not be able to claim it on the way past.
+  for (const [icp, primary] of [
+    [ICP_FIXTURE, true],
+    [ICP_FIXTURE_SECONDARY, false],
+  ] as [IcpContent, boolean][]) {
+    const data = {
+      name: icp.name,
+      who: icp.who,
+      pains: icp.pains.map((pain) => ({
+        statement: pain.statement,
+        evidence: pain.evidence.map((row) => ({ ref: row.ref, note: row.note })),
+        confidence: pain.confidence,
+      })),
+      motivation: { ...icp.motivation },
+      solution: {
+        mechanism: icp.solution.mechanism,
+        sampleLines: icp.solution.sampleLines.map((text) => ({ text })),
+        confidence: icp.solution.confidence,
+      },
+      competition: icp.competition.map((row) => ({ ...row })),
+      whyUs: { ...icp.whyUs },
+      channels: icp.channels.map((row) => ({ ...row })),
+      churnTriggers: icp.churnTriggers.map((text) => ({ text })),
+      notOurUser: icp.notOurUser.map((text) => ({ text })),
+      status: 'active' as const,
+      primary,
+    }
+    const existing = await payload.find({
+      collection: 'icps',
+      where: { name: { equals: icp.name } },
+      limit: 1,
+    })
+    if (existing.docs.length > 0) {
+      await payload.update({ collection: 'icps', id: existing.docs[0].id, data })
+      payload.logger.info(`Updated audience "${icp.name}"`)
+    } else {
+      await payload.create({ collection: 'icps', data })
+      payload.logger.info(`Created audience "${icp.name}"`)
+    }
+  }
+  await payload.updateGlobal({
+    slug: 'positioning',
+    data: positioningFixtureDoc(),
+    overrideAccess: true,
+  })
+  payload.logger.info(`Updated positioning "${POSITIONING_FIXTURE.activePosition}"`)
+  await payload.updateGlobal({
+    slug: 'evidence-bank',
+    data: evidenceBankFixtureDoc(),
+    overrideAccess: true,
+  })
+  payload.logger.info(
+    `Updated evidence bank: ${EVIDENCE_BANK_FIXTURE.verifiedClaims.length} verified claim(s), ` +
+      `${EVIDENCE_BANK_FIXTURE.facts.length} fact(s), ` +
+      `${EVIDENCE_BANK_FIXTURE.rejectedClaims.length} rejected`,
+  )
+}
+
 const seed = async (): Promise<void> => {
   const payload = await getPayload({ config })
   await upsertTemplates(payload)
@@ -383,6 +466,7 @@ const seed = async (): Promise<void> => {
   await upsertAdminUser(payload)
   if (process.argv.includes('--with-brand-voice')) {
     await upsertBrandVoice(payload)
+    await upsertTenantFixtures(payload)
   }
   const { totalDocs } = await payload.count({ collection: 'templates' })
   payload.logger.info(`Seed complete. Template count: ${totalDocs}`)

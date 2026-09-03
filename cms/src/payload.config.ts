@@ -14,15 +14,19 @@ import { ArticleAudit } from './collections/ArticleAudit'
 import { BrandVoices } from './collections/BrandVoices'
 import { BrandVoiceFiles } from './collections/BrandVoiceFiles'
 import { GovernanceAudit } from './collections/GovernanceAudit'
+import { Icps } from './collections/Icps'
 import { EvidenceSources } from './collections/EvidenceSources'
 import { EvidenceSourceCandidates } from './collections/EvidenceSourceCandidates'
 import { CorpusSnapshots } from './collections/CorpusSnapshots'
 import { TopicSearches } from './collections/TopicSearches'
 import { InformationGainRuns } from './collections/InformationGainRuns'
 import { PipelineRuns } from './collections/PipelineRuns'
+import { EvidenceBank } from './globals/EvidenceBank'
 import { InformationGainPolicy } from './globals/InformationGainPolicy'
 import { LlmSettings } from './globals/LlmSettings'
+import { Positioning } from './globals/Positioning'
 import { WebhookSettings } from './globals/WebhookSettings'
+import { WorkspaceProfile } from './globals/WorkspaceProfile'
 import { ContentRunTask } from './jobs/contentRun'
 import { PublishDueTask } from './jobs/publishDue'
 import { WebhookDeliverTask } from './jobs/webhookDeliver'
@@ -111,6 +115,47 @@ export default buildConfig({
           exact: true,
           meta: { title: 'Source review' },
         },
+        // The setup hub and the four tenant-asset editors. The hub is the same
+        // component `/admin` renders before onboarding is finished; it stays
+        // here afterwards because a workspace's domain, audiences, position,
+        // and evidence keep changing long after the first piece.
+        setup: {
+          Component: '/components/ops/SetupView#SetupView',
+          path: '/ops/setup',
+          exact: true,
+          meta: { title: 'Workspace setup' },
+        },
+        setupWorkspace: {
+          Component: '/components/ops/SetupWorkspaceView#SetupWorkspaceView',
+          path: '/ops/setup/workspace',
+          exact: true,
+          meta: { title: 'Workspace' },
+        },
+        setupAudiences: {
+          Component: '/components/ops/IcpListView#IcpListView',
+          path: '/ops/setup/audiences',
+          exact: true,
+          meta: { title: 'Audiences' },
+        },
+        // Also serves `/ops/setup/audiences/new`, which is an audience that
+        // does not exist until its first save.
+        setupAudience: {
+          Component: '/components/ops/IcpEditorView#IcpEditorView',
+          path: '/ops/setup/audiences/:id',
+          meta: { title: 'Audience' },
+        },
+        setupPositioning: {
+          Component: '/components/ops/PositioningView#PositioningView',
+          path: '/ops/setup/positioning',
+          exact: true,
+          meta: { title: 'Positioning' },
+        },
+        setupEvidence: {
+          Component: '/components/ops/EvidenceBankView#EvidenceBankView',
+          path: '/ops/setup/evidence',
+          exact: true,
+          meta: { title: 'Evidence bank' },
+        },
       },
     },
   },
@@ -123,6 +168,7 @@ export default buildConfig({
     ArticleAudit,
     BrandVoices,
     BrandVoiceFiles,
+    Icps,
     GovernanceAudit,
     EvidenceSources,
     EvidenceSourceCandidates,
@@ -131,7 +177,14 @@ export default buildConfig({
     InformationGainRuns,
     PipelineRuns,
   ],
-  globals: [LlmSettings, InformationGainPolicy, WebhookSettings],
+  globals: [
+    WorkspaceProfile,
+    Positioning,
+    EvidenceBank,
+    LlmSettings,
+    InformationGainPolicy,
+    WebhookSettings,
+  ],
   jobs: {
     tasks: [ContentRunTask, WebhookDeliverTask, PublishDueTask],
     enableConcurrencyControl: true,

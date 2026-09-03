@@ -8,11 +8,21 @@ import './ops.css'
 
 type Section = BriefEdits['sections'][number]
 
+/** One active audience, with the line it derives, so switching can rewrite it here. */
+export type BriefIcpOption = {
+  id: number
+  name: string
+  primary: boolean
+  audienceLine: string
+}
+
 type Props = {
   articleId: number
   keyword: string
   templateName: string | null
   mode: 'mock' | 'live'
+  /** Active audiences, primary first. Empty when the workspace has none. */
+  icps: BriefIcpOption[]
   initial: {
     angle: string
     audience: string
@@ -20,6 +30,7 @@ type Props = {
     mustCover: string[]
     opportunities: string[]
     notes: string
+    icpId: number | null
   }
 }
 
@@ -31,17 +42,30 @@ type Props = {
  * want. Approving is what starts the writing — there is no separate run
  * button to find afterwards.
  */
-export function BriefEditor({ articleId, keyword, templateName, mode, initial }: Props) {
+export function BriefEditor({ articleId, keyword, templateName, mode, icps, initial }: Props) {
   const router = useRouter()
   const [angle, setAngle] = useState(initial.angle)
   const [audience, setAudience] = useState(initial.audience)
+  const [icpId, setIcpId] = useState<number | null>(initial.icpId)
   const [sections, setSections] = useState<Section[]>(initial.sections)
   const [notes, setNotes] = useState(initial.notes)
   const [newHeading, setNewHeading] = useState('')
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const edits = (): BriefEdits => ({ angle, audience, sections, notes })
+  const edits = (): BriefEdits => ({ angle, audience, sections, notes, icpId })
+
+  /**
+   * Switching audiences rewrites the line, unless the editor has already
+   * written their own. The server applies the same rule when it saves — this
+   * is here so the change is visible before the save, not instead of it.
+   */
+  const chooseIcp = (next: number | null) => {
+    const previousLine = icps.find((icp) => icp.id === icpId)?.audienceLine ?? ''
+    const nextLine = icps.find((icp) => icp.id === next)?.audienceLine ?? ''
+    if ((audience === previousLine || audience === '') && nextLine) setAudience(nextLine)
+    setIcpId(next)
+  }
 
   const updateSection = (index: number, patch: Partial<Section>) =>
     setSections((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
@@ -98,8 +122,30 @@ export function BriefEditor({ articleId, keyword, templateName, mode, initial }:
         />
       </label>
 
+      {icps.length > 0 ? (
+        <label className="datum-ops__field">
+          <span>Audience</span>
+          <select
+            disabled={pending}
+            onChange={(e) => chooseIcp(e.target.value ? Number(e.target.value) : null)}
+            value={icpId ?? ''}
+          >
+            <option value="">Not set</option>
+            {icps.map((icp) => (
+              <option key={icp.id} value={icp.id}>
+                {icp.name}
+                {icp.primary ? ' (primary)' : ''}
+              </option>
+            ))}
+          </select>
+          <span className="datum-ops__hint">
+            Who this piece is for. It steers the draft and the review, not just this brief.
+          </span>
+        </label>
+      ) : null}
+
       <label className="datum-ops__field">
-        <span>Audience</span>
+        <span>{icps.length > 0 ? 'Audience, in a sentence' : 'Audience'}</span>
         <input
           disabled={pending}
           onChange={(e) => setAudience(e.target.value)}

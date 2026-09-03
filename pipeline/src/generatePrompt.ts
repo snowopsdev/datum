@@ -4,30 +4,31 @@
  * `buildPrompt` is the article brief: template, SERP research, and — once the
  * research stage has captured a corpus snapshot — the consensus facets the
  * ranking pages agree on, the gaps they leave, and the rules that keep the
- * writer from filling those gaps with invented evidence. Datum has no
- * first-party data, so "be original" without those rules reads as an
- * invitation to fabricate; `gapsBlock` is where that boundary is stated.
+ * writer from filling those gaps with invented evidence. "Be original" without
+ * those rules reads as an invitation to fabricate; `gapsBlock` is where that
+ * boundary is stated, and the workspace's evidence bank is what the writer is
+ * allowed to reach for on the other side of it.
  */
 
 import type { Article, Template } from '../../cms/src/payload-types'
 
 import { brandVoiceSamplesToPrompt, brandVoiceToPrompt, type BrandVoiceContent } from './brandVoice'
 import { parseBrief } from './brief'
+import {
+  evidenceBankToPrompt,
+  evidenceRules,
+  type IcpContent,
+  icpToPrompt,
+  isEvidenceBankEmpty,
+  positioningToPrompt,
+  type TenantContext,
+  workspaceProfileToPrompt,
+} from './tenant'
 import type { Facet, InformationGap } from './informationGain/lib'
 import { lexicalToMarkdown, type RichText } from './richtext'
 
-/**
- * The novelty boundary, stated verbatim in every prompt that carries facets or
- * gaps. Kept as one constant so the QA judge's expectations and the writer's
- * instructions cannot drift apart.
- */
-export const EVIDENCE_RULES =
-  'Do not invent unique insights. Add a novel factual claim only when you can name the ' +
-  'public source (organisation and document) a fact-checker could find; otherwise state it ' +
-  "as an explicitly labelled inference (for example, 'In our reading of the guidance…'). " +
-  'Never present first-party measurements, tests, surveys, or datasets — Datum has none. ' +
-  'Prefer covering every consensus facet over adding novelty. Every number, date, and ' +
-  'percentage must be one you can attribute.'
+/** The surface a generated article is written for. */
+const GENERATE_SURFACE = 'web'
 
 /**
  * The approved brief, as instructions.
@@ -69,11 +70,22 @@ function jsonArray<T>(value: unknown): T[] {
 
 /**
  * The information-gain half of the brief: what the baseline already covers,
- * what it leaves open, how novelty may be sourced, and — on a re-run after a
- * failed review — what went wrong last time. Empty when the article has no
- * snapshot yet, which keeps pre-snapshot articles generating exactly as before.
+ * what it leaves open, how novelty may be sourced, the workspace's own facts,
+ * and — on a re-run after a failed review — what went wrong last time.
+ *
+ * The facets and gaps are empty when the article has no snapshot yet, which
+ * keeps pre-snapshot articles generating exactly as before. The evidence rules
+ * are not: they used to appear only alongside facets or gaps, which left a
+ * pre-snapshot article free to invent a customer count. They are now sent
+ * whenever there is anything to say about the workspace — a company name, or a
+ * bank — because the first-party boundary is not a consequence of having done
+ * corpus research.
  */
-export function gapsBlock(research: Article['research'], revisionNotes?: string | null): string[] {
+export function gapsBlock(
+  research: Article['research'],
+  tenant: TenantContext,
+  revisionNotes?: string | null,
+): string[] {
   const facets = jsonArray<Facet>(research?.facets)
   const gaps = jsonArray<InformationGap>(research?.gaps)
   const notes = revisionNotes?.trim() ?? ''
@@ -103,9 +115,18 @@ export function gapsBlock(research: Article['research'], revisionNotes?: string 
     sections.push(`# Information gaps (opportunities)\n${bullets}`)
   }
 
-  if (facets.length > 0 || gaps.length > 0) {
-    sections.push(`# Evidence rules\n${EVIDENCE_RULES}`)
+  const bank = evidenceBankToPrompt(tenant.evidenceBank, {
+    asOf: tenant.asOf,
+    surface: GENERATE_SURFACE,
+    companyName: tenant.profile.companyName,
+  })
+  const companyName = tenant.profile.companyName || tenant.profile.targetDomain || ''
+  if (facets.length > 0 || gaps.length > 0 || companyName || bank) {
+    sections.push(`# Evidence rules\n${evidenceRules(companyName, bank !== null)}`)
   }
+  // Directly after the rules that point at it: the rules say "the Evidence bank
+  // below", and a block that arrives after the revision notes makes a liar of them.
+  if (bank) sections.push(bank)
 
   if (notes.length > 0) {
     sections.push(
@@ -127,6 +148,7 @@ export function buildPrompt(
   article: Article,
   template: Template,
   brandVoice: BrandVoiceContent | null,
+  tenant: TenantContext,
 ): string {
   const outline = template.outline ? lexicalToMarkdown(template.outline as RichText) : '(none)'
   const dos = template.dos?.map((d) => `- ${d.text}`).join('\n') || '(none)'
@@ -140,6 +162,7 @@ export function buildPrompt(
   const subtopics = research?.commonSubtopics?.map((s) => `- ${s.text}`).join('\n') || '(none)'
   const questions = research?.relatedQuestions?.map((q) => `- ${q.text}`).join('\n') || '(none)'
   const samples = brandVoice ? brandVoiceSamplesToPrompt(brandVoice) : null
+  const hasEvidenceBank = !isEvidenceBankEmpty(tenant.evidenceBank)
   return [
     `Write a complete article targeting the keyword: "${article.keyword}".`,
     // One article is expected to cover the whole group the operator picked, so
@@ -168,19 +191,47 @@ export function buildPrompt(
     `## Common subtopics\n${subtopics}`,
     `## Related questions\n${questions}`,
     ...briefBlock(article.brief),
-    ...gapsBlock(research, article.revisionNotes),
+    ...gapsBlock(research, tenant, article.revisionNotes),
     `# Output`,
     `Return a JSON object with exactly these keys: title, slug, titleTag, metaDescription, ogTitle, ogDescription, ogImage, faqItems (array of {question, answer}), bodyMarkdown.`,
     `bodyMarkdown uses ## for sections and ### for subsections, never # (the title is the page H1). Respect the SEO spec limits and the outline's section headings.`,
     ...(brandVoice ? ['Every field must follow the brand voice, not only bodyMarkdown.'] : []),
+    // Only when there is a bank to cite. Asking for refs a workspace has no
+    // entries for teaches the model to invent them, and an invented ref is a
+    // fabricated citation dressed up as a checked one.
+    ...(hasEvidenceBank
+      ? [
+          'Put an evidence ref in square brackets at the end of any sentence that states a first-party fact, e.g. [E3].',
+        ]
+      : []),
   ].join('\n\n')
 }
 
-/** Platform style guide, plus the tenant's brand voice block when one is active. */
+/**
+ * The system prompt: the platform style guide, then everything about the
+ * tenant that governs how the piece is written.
+ *
+ * The order is deliberate and is what the golden tests pin. Style guide first
+ * because it is the floor every workspace shares. Then the workspace — who the
+ * company is — because the later blocks are statements about *its* market.
+ * Then the brand voice, which decides the words. Then the audience, which
+ * decides what those words have to land with. Then the positioning, which is
+ * read as a constraint on how the company may be described to that audience.
+ * A block that renders empty is omitted rather than sent as a bare heading.
+ */
 export function buildSystemPrompt(
   styleGuideText: string,
   brandVoice: BrandVoiceContent | null,
+  tenant: TenantContext,
+  icp: IcpContent | null,
 ): string {
-  const base = `You are a senior content writer. Follow this style guide exactly:\n\n${styleGuideText}`
-  return brandVoice ? `${base}\n\n${brandVoiceToPrompt(brandVoice)}` : base
+  return [
+    `You are a senior content writer. Follow this style guide exactly:\n\n${styleGuideText}`,
+    workspaceProfileToPrompt(tenant.profile),
+    brandVoice ? brandVoiceToPrompt(brandVoice) : '',
+    icpToPrompt(icp),
+    positioningToPrompt(tenant.positioning),
+  ]
+    .filter((block) => block.trim().length > 0)
+    .join('\n\n')
 }

@@ -141,8 +141,26 @@ export const informationGainStage: Stage = {
         )
       : new Map<string, JudgeDerived>()
 
+    // The bank entries the draft declared. A claim that restates one is verified
+    // by the bank rather than searched for on the open web, where a private
+    // company's own measurement cannot be found and its absence would otherwise
+    // count against the draft.
+    const firstParty = (Array.isArray(article.evidenceCitations) ? article.evidenceCitations : [])
+      .map((row) => row as { ref?: unknown; excerpt?: unknown })
+      .filter(
+        (row): row is { ref: string; excerpt: string } =>
+          typeof row?.ref === 'string' && typeof row?.excerpt === 'string',
+      )
     const verified = baselineAvailable
-      ? await runVerifier(ctx, article.id, article.keyword, draftClaims, judged, ctx.policy.policy)
+      ? await runVerifier(
+          ctx,
+          article.id,
+          article.keyword,
+          draftClaims,
+          judged,
+          ctx.policy.policy,
+          firstParty,
+        )
       : new Map<string, VerificationOutcome>()
 
     const inputs: ClaimInput[] = draftClaims.map((claim, index) => ({

@@ -151,6 +151,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         <ArticleReview
           article={toBoardArticle(article)}
           mode={setup.readiness.mode}
+          icps={setup.icps}
           templates={templates}
           editHref={`/admin/collections/articles/${article.id}`}
           bodyHtml={lexicalBodyToHtml(article.body)}

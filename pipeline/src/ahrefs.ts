@@ -1,4 +1,5 @@
 import { config } from './config'
+import { resolveWorkspaceProfile, type ResolvedWorkspaceProfile } from './tenant'
 
 export interface GapKeyword {
   keyword: string
@@ -82,8 +83,29 @@ interface SerpPositionRow {
   domain_rating: number | null
 }
 
+/** Everything the real client needs from the workspace, resolved before it is built. */
+export interface AhrefsClientOptions {
+  apiKey: string
+  country: string
+  targetDomain: string | null
+  competitorDomains: string[]
+}
+
 class RealAhrefsClient implements AhrefsClient {
-  constructor(private readonly apiKey: string) {}
+  private readonly apiKey: string
+  private readonly country: string
+  private readonly targetDomain: string | null
+  private readonly competitorDomains: string[]
+
+  // Injected rather than read from `config` at call time: the domain and the
+  // competitor list come from the `workspace-profile` global now, so the client
+  // has to be told which workspace it is working for.
+  constructor(options: AhrefsClientOptions) {
+    this.apiKey = options.apiKey
+    this.country = options.country
+    this.targetDomain = options.targetDomain
+    this.competitorDomains = options.competitorDomains
+  }
 
   private async get<T>(path: string, params: Record<string, string>): Promise<T> {
     const url = new URL(`${API_BASE}${path}`)
@@ -105,7 +127,7 @@ class RealAhrefsClient implements AhrefsClient {
       {
         target,
         date: today,
-        country: config.ahrefsCountry,
+        country: this.country,
         select: 'keyword,volume,keyword_difficulty,best_position',
         order_by: 'volume:desc',
         limit: '200',
@@ -123,13 +145,20 @@ class RealAhrefsClient implements AhrefsClient {
         { field: 'volume', is: ['gte', 100] },
       ],
     })
+    if (!this.targetDomain) {
+      // Without it every competitor keyword looks like a gap, which is worse
+      // than no report at all.
+      throw new Error(
+        'A target domain is required to find content gaps. Set it on the Workspace global or in TARGET_DOMAIN.',
+      )
+    }
     const targetKeywords = new Set(
-      (await this.organicKeywords(config.targetDomain))
+      (await this.organicKeywords(this.targetDomain))
         .map((row) => row.keyword?.toLowerCase())
         .filter((k): k is string => Boolean(k)),
     )
     const gaps = new Map<string, GapKeyword>()
-    for (const competitor of config.competitorDomains) {
+    for (const competitor of this.competitorDomains) {
       for (const row of await this.organicKeywords(competitor, competitorFilter)) {
         if (!row.keyword || row.best_position === null) continue
         const key = row.keyword.toLowerCase()
@@ -152,7 +181,7 @@ class RealAhrefsClient implements AhrefsClient {
     const { keywords } = await this.get<{ keywords: MatchingTermRow[] }>(
       '/keywords-explorer/matching-terms',
       {
-        country: config.ahrefsCountry,
+        country: this.country,
         keywords: seed,
         select: 'keyword,volume,difficulty',
         order_by: 'volume:desc',
@@ -176,7 +205,7 @@ class RealAhrefsClient implements AhrefsClient {
       '/serp-overview/serp-overview',
       {
         keyword,
-        country: config.ahrefsCountry,
+        country: this.country,
         select: 'position,title,url,type,domain_rating',
         top_positions: '10',
       },
@@ -295,18 +324,35 @@ class MockAhrefsClient implements AhrefsClient {
   }
 }
 
+/** The slice of the workspace profile the factory needs; the whole profile satisfies it. */
+export type AhrefsProfile = Pick<ResolvedWorkspaceProfile, 'targetDomain' | 'competitors'>
+
 /**
  * Run-scoped, like `createLlmClient(mode)`: the caller says which mode this
  * run is in instead of the factory reading the module-global `config.mockMode`,
  * so a queued run's mode comes from its `pipeline-runs` row. A live request
  * without a key still degrades to mock — loudly, because a "live" run silently
  * returning canned SERPs is how bad briefs get researched.
+ *
+ * `profile` says which workspace the client works for. Callers that have a
+ * `payload` load it from the `workspace-profile` global; omitting it falls back
+ * to the env vars alone, which is what keeps unit tests and one-off scripts
+ * working without a database.
  */
-export function createAhrefsClient(mode: 'mock' | 'live'): AhrefsClient {
+export function createAhrefsClient(mode: 'mock' | 'live', profile?: AhrefsProfile): AhrefsClient {
   if (mode === 'mock') return new MockAhrefsClient()
   if (!config.ahrefsApiKey) {
     console.warn('[ahrefs] live mode requested but AHREFS_API_KEY is unset; using mock data')
     return new MockAhrefsClient()
   }
-  return new RealAhrefsClient(config.ahrefsApiKey)
+  // Only live runs reach here, so there is no mock default to fall back to:
+  // an env-only workspace with no TARGET_DOMAIN gets a null domain and
+  // `contentGapKeywords` says so rather than researching the wrong site.
+  const resolved = profile ?? resolveWorkspaceProfile(null, process.env)
+  return new RealAhrefsClient({
+    apiKey: config.ahrefsApiKey,
+    country: config.ahrefsCountry,
+    targetDomain: resolved.targetDomain,
+    competitorDomains: resolved.competitors.map((competitor) => competitor.domain),
+  })
 }

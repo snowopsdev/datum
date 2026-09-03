@@ -20,11 +20,13 @@ import {
   buildScorecard,
   DECISION_STATUS,
   deriveJudgeSignals,
+  firstPartyOutcome,
   NEUTRAL_EVIDENCE,
   unjudgedSignals,
   unverifiedOutcome,
   verifiedOutcome,
 } from '../src/informationGain/scorecard'
+import { firstPartyMatches } from '../src/informationGain/passes'
 
 const cluster: QueryClusterEntry[] = [
   { id: 'q0', text: 'home espresso', kind: 'keyword', weight: 0.5 },
@@ -365,4 +367,64 @@ test('the run row carries every field the collection defines', () => {
     verifiedNovel: ['c004'],
   })
   assert.deepEqual(row.claimSummary, scorecard.claimSummary)
+})
+
+/**
+ * A claim the workspace's own evidence bank already backs never reaches the web
+ * verifier.
+ *
+ * The verifier searches the open web, and a private company's own measurement
+ * is by construction not there — so sending one costs a search to learn
+ * nothing, and then scores the claim down for the silence. The bank is the
+ * citation, and the evidence check has already judged the sentence against that
+ * entry's limits before this stage runs.
+ */
+test('firstPartyMatches pairs a draft claim with the bank entry the draft cited', () => {
+  const claims = [
+    draftClaim({
+      id: 'c1',
+      text: 'A reviewer approves the brief before any drafting is paid for, on every article.',
+    }),
+    draftClaim({ id: 'c2', text: 'Roasted coffee holds its peak flavour for four to six weeks.' }),
+  ]
+  const matches = firstPartyMatches(claims, [
+    {
+      ref: 'E1',
+      // The writer's sentence; the extractor's paraphrase of it is `c1`.
+      excerpt: 'A reviewer approves the brief before any drafting is paid for, on every article.',
+    },
+  ])
+  assert.deepEqual([...matches], [['c1', 'E1']])
+})
+
+test('firstPartyMatches ignores fragments too short to identify a claim', () => {
+  const claims = [draftClaim({ id: 'c1', text: 'It is fast.' })]
+  assert.equal(firstPartyMatches(claims, [{ ref: 'E1', excerpt: 'It is fast.' }]).size, 0)
+  assert.equal(firstPartyMatches(claims, []).size, 0)
+})
+
+test('firstPartyMatches tolerates punctuation and case differing between the two', () => {
+  const claims = [
+    draftClaim({
+      id: 'c1',
+      text: 'the median article costs under two dollars of model spend',
+    }),
+  ]
+  const matches = firstPartyMatches(claims, [
+    {
+      ref: 'E3',
+      excerpt: 'The median article costs under two dollars of model spend, end to end.',
+    },
+  ])
+  assert.deepEqual([...matches], [['c1', 'E3']])
+})
+
+test('a first-party outcome is verified, first-party sourced, and says it skipped the web', () => {
+  const outcome = firstPartyOutcome('E1', 'A reviewer approves the brief.')
+  assert.equal(outcome.verificationMode, 'verified')
+  assert.equal(outcome.evidenceSupport, 1)
+  assert.equal(outcome.sourceQuality, 1)
+  assert.equal(outcome.contradictionProbability, 0)
+  assert.equal(outcome.evidence[0].sourceKind, 'first_party_dataset')
+  assert.match(String(outcome.verifierNotes), /evidence-bank entry E1; not sent to the web verifier/)
 })

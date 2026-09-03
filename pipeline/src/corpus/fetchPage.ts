@@ -39,6 +39,7 @@ import { parseHTML } from 'linkedom'
 
 import { config } from '../config'
 import { normaliseWhitespace } from '../informationGain/lib'
+import { userAgentFor } from '../tenant'
 
 import { isBlockedAddress, isBlockedHostname, normaliseHostname } from './addressGuard'
 import { mockPageText } from './mockPages'
@@ -62,10 +63,14 @@ export const FETCH_MAX_BYTES = 200_000
 export const PAGE_TEXT_CAP_CHARS = 24_000
 /** Redirect hops followed before a chain is abandoned; the whole chain shares one deadline. */
 export const MAX_REDIRECTS = 5
-/** The identifier a site owner would use to contact us; never left half-formed. */
-export const USER_AGENT = config.targetDomain
-  ? `DatumBot/1.0 (+https://${config.targetDomain})`
-  : 'DatumBot/1.0'
+/**
+ * The identifier a site owner would use to contact us; never left half-formed.
+ * This is the env-derived default. A run that knows its workspace passes
+ * `opts.userAgent` (built with `userAgentFor`) so the contact URL names the
+ * site in the `workspace-profile` global rather than whatever the host's
+ * `TARGET_DOMAIN` happens to be.
+ */
+export const USER_AGENT = userAgentFor(config.targetDomain)
 
 const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml']
 
@@ -288,8 +293,9 @@ async function readCapped(body: ReadableStream<Uint8Array> | null): Promise<stri
 /**
  * Fetches one URL and extracts its readable text. Never throws.
  * `mock` defaults to `config.mockMode`, in which case canned per-host text is
- * returned with no network call and no DNS lookup at all. `fetchImpl`,
- * `lookupImpl`, and `now` exist for tests.
+ * returned with no network call and no DNS lookup at all. `userAgent` defaults
+ * to the env-derived `USER_AGENT`. `fetchImpl`, `lookupImpl`, and `now` exist
+ * for tests.
  */
 export async function fetchPage(
   url: string,
@@ -298,6 +304,19 @@ export async function fetchPage(
     fetchImpl?: typeof fetch
     lookupImpl?: LookupFn
     now?: () => Date
+    /** Crawler identity for this request; defaults to the env-derived `USER_AGENT`. */
+    userAgent?: string
+    /**
+     * The raw HTML, handed over before Readability reduces it to text.
+     *
+     * Callers that need the page's links have no other way to get them:
+     * `FetchedPage.text` is Readability's `textContent`, which has already
+     * thrown every anchor away. Rather than widen `FetchedPage` — it is stored
+     * on every corpus snapshot row, and 200 kB of markup has no business
+     * there — the HTML is offered once, in passing, to whoever asked for it.
+     * Never called in mock mode, where there is no markup to offer.
+     */
+    onHtml?: (html: string) => void
   } = {},
 ): Promise<FetchedPage> {
   const now = opts.now ?? (() => new Date())
@@ -332,6 +351,7 @@ export async function fetchPage(
 
   const doFetch = opts.fetchImpl ?? fetch
   const lookupImpl = opts.lookupImpl ?? defaultLookup
+  const userAgent = opts.userAgent?.trim() || USER_AGENT
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   // One per hop; torn down together once the page is read or given up on.
@@ -355,7 +375,7 @@ export async function fetchPage(
       // `fetch` gets a dispatcher: an injected `fetchImpl` is a stub with no
       // socket to pin, and giving it one would drag undici into the tests.
       const init: CrawlRequestInit = {
-        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+        headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' },
         redirect: 'manual',
         signal: controller.signal,
       }
@@ -397,6 +417,15 @@ export async function fetchPage(
       }
 
       const html = await readCapped(response.body)
+      // Before extraction, so a page with no readable article still yields its
+      // links. A caller's callback is not allowed to sink the fetch.
+      if (opts.onHtml) {
+        try {
+          opts.onHtml(html)
+        } catch {
+          // The caller's problem, not this page's.
+        }
+      }
       const { title, text } = extractReadableText(html, finalUrl)
       if (text.length === 0) return failure('failed', 'no readable text', finalUrl)
       return {

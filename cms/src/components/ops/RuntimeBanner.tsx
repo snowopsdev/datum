@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 
-import { runtimeStatusAction } from './firstRunActions'
+import { runtimeStatusAction } from './tenantActions'
 import './ops.css'
 
 /**

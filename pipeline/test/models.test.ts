@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 
 import type { Payload } from 'payload'
 
-import type { LlmSettingsDoc } from '../../cms/src/lib/llmSettings'
+import { type LlmSettingsDoc, PIPELINE_STAGES } from '../../cms/src/lib/llmSettings'
 import { CODEX_LOGIN_HINT } from '../src/codexAuth'
 import { loadStageModels, type StageModelDeps } from '../src/models'
 
@@ -95,6 +95,34 @@ describe('loadStageModels (codex stages)', () => {
     const injected = deps()
     await quietly(() => loadStageModels(fakePayload({ generateModel: 'claude-sonnet-5' }), injected))
     assert.equal(injected.logins, 0)
+  })
+})
+
+describe('loadStageModels (every stage)', () => {
+  it('resolves a model for every stage, the newest included', async () => {
+    const models = await quietly(() =>
+      loadStageModels(fakePayload({ evidenceCheckModel: 'claude-haiku-4-5' }), deps()),
+    )
+    assert.deepEqual(Object.keys(models).sort(), [...PIPELINE_STAGES].sort())
+    assert.equal(models.evidenceCheck, 'claude-haiku-4-5')
+    // Unset stages still fall through to the platform default rather than
+    // arriving undefined and being sent as the string "undefined".
+    assert.equal(models.factCheck, 'claude-opus-5')
+  })
+
+  it('holds the evidence check to the same credential check as every other stage', async () => {
+    await assert.rejects(
+      quietly(() =>
+        loadStageModels(fakePayload({ evidenceCheckModel: 'gpt-5.4-mini' }), deps()),
+      ),
+      (error: Error) => {
+        assert.equal(
+          error.message,
+          'evidenceCheck model "gpt-5.4-mini" (from admin) needs OPENAI_API_KEY set (MOCK_MODE=false)',
+        )
+        return true
+      },
+    )
   })
 })
 

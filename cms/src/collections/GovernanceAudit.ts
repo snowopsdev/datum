@@ -7,9 +7,10 @@ const immutable = () => {
 }
 
 /**
- * Immutable audit trail for governance records — brand voices and evidence
- * sources today (add more by extending `subject.relationTo`), plus Globals such
- * as the information-gain policy, which have no id and are identified by
+ * Immutable audit trail for governance records — brand voices, evidence
+ * sources, and audiences today (add more by extending `subject.relationTo`),
+ * plus Globals such as the information-gain policy, which have no id and are
+ * identified by
  * `subjectGlobal` instead. Written only by the `auditGovernanceChange` /
  * `auditGlobalChange` hooks with `overrideAccess: true`; every entry carries
  * exactly one of `subject` or `subjectGlobal`.
@@ -49,7 +50,7 @@ export const GovernanceAudit: CollectionConfig = {
       type: 'relationship',
       // `satisfies` ties this list to the GovernanceSubject union, so the two
       // cannot drift when another collection becomes audited.
-      relationTo: ['brand-voices', 'evidence-sources'] satisfies readonly GovernanceSubject[],
+      relationTo: ['brand-voices', 'evidence-sources', 'icps'] satisfies readonly GovernanceSubject[],
       required: false,
       index: true,
     },

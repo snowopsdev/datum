@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
-import OpenAI from 'openai'
 import type { Payload } from 'payload'
 
 import {
@@ -10,20 +8,16 @@ import {
   parseBrandVoiceContent,
 } from './brandVoice'
 import { BRAND_VOICE_FIXTURE } from './brandVoiceFixture'
-import { codexAuthFilePresent } from './codexAuth'
 import {
-  type CodexTextRequest,
-  type CodexTextResult,
-  completeTextViaCodex,
-} from './codexCompletion'
-import {
-  apiKeyForModel,
-  type LlmProvider,
-  providerForModel,
-  requirementForModel,
-} from './llmProvider'
+  type CmsLlmBilled,
+  CmsLlmError,
+  cmsMockMode,
+  completeJsonCms,
+  logCmsCost,
+} from './cmsLlm'
+import type { CodexTextRequest, CodexTextResult } from './codexCompletion'
+import type { LlmProvider } from './llmProvider'
 import { type LlmSettingsDoc, resolveExtractionModel } from './llmSettings'
-import { costUsd } from './pricing'
 
 export interface ExtractionResult {
   content: BrandVoiceContent
@@ -31,13 +25,6 @@ export interface ExtractionResult {
   provider: LlmProvider | 'mock'
   model: string
   usage: { inputTokens: number; outputTokens: number }
-}
-
-function parseBool(value: string | undefined): boolean | undefined {
-  if (value === undefined || value === '') return undefined
-  if (['true', '1', 'yes'].includes(value.toLowerCase())) return true
-  if (['false', '0', 'no'].includes(value.toLowerCase())) return false
-  return undefined
 }
 
 /** Admin Models global → BRAND_VOICE_EXTRACT_MODEL → default. */
@@ -48,25 +35,12 @@ export function extractionModel(
   return resolveExtractionModel(settings, env).model
 }
 
-/**
- * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
- * mock whenever the extraction model's credential is absent — an API key for
- * the key providers, a Codex CLI login for `codex/*`. Never throws — the admin
- * flow must work in a keyless dev environment.
- */
+/** The shared CMS rule (`cmsMockMode`), defaulted to the extraction model. */
 export function extractionMockMode(
   env: Record<string, string | undefined> = process.env,
   model: string = extractionModel(env),
 ): boolean {
-  const explicit = parseBool(env.MOCK_MODE)
-  if (explicit !== undefined) return explicit
-  // A Codex login is not consent to spend the plan, so it never activates a
-  // live call on its own. `pipeline/src/config.ts` and `modeFromEnv` make the
-  // same call; if this one differed, an upload would bill quota while the rest
-  // of the workspace still reported mock.
-  return requirementForModel(model).kind === 'codex-login'
-    ? true
-    : apiKeyForModel(model, env) === undefined
+  return cmsMockMode(env, model)
 }
 
 const EXTRACTION_SYSTEM_PROMPT = [
@@ -89,28 +63,18 @@ const EXTRACTION_SYSTEM_PROMPT = [
   'Reply with only the JSON object. No prose, no code fences.',
 ].join('\n')
 
+const EXTRACTION_LABEL = 'Brand voice extraction'
+
 /**
  * Thrown when the (billed) model call succeeded but its reply could not be
- * used. Carries the usage so the caller can still log the cost.
+ * used. A `CmsLlmError` narrowed to this feature, so callers can tell an
+ * extraction failure apart from any other CMS-side model call.
  */
-export class BrandVoiceExtractionError extends Error {
-  constructor(
-    message: string,
-    public readonly billed: Pick<ExtractionResult, 'provider' | 'model' | 'usage'>,
-  ) {
-    super(message)
+export class BrandVoiceExtractionError extends CmsLlmError {
+  constructor(message: string, billed: CmsLlmBilled) {
+    super(message, billed)
     this.name = 'BrandVoiceExtractionError'
   }
-}
-
-function parseJsonReply(text: string): unknown {
-  // Models sometimes wrap JSON in code fences despite instructions not to.
-  const stripped = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```\s*$/, '')
-    .trim()
-  return JSON.parse(stripped)
 }
 
 function mockExtraction(filename: string, model: string): ExtractionResult {
@@ -140,81 +104,32 @@ export async function extractBrandVoiceFromText(input: {
   const model = input.model || extractionModel()
   if (extractionMockMode(process.env, model)) return mockExtraction(input.filename, model)
 
-  const provider = providerForModel(model)
-  const userMessage = `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`
-
-  let text: string | undefined
-  let stopReason: string
-  let usage: { inputTokens: number; outputTokens: number }
-  if (provider === 'codex') {
-    const response = await (input.completeViaCodex ?? completeTextViaCodex)({
-      system: EXTRACTION_SYSTEM_PROMPT,
-      user: userMessage,
-      model,
-    })
-    text = response.text || undefined
-    stopReason = 'completed'
-    usage = {
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
-    }
-  } else if (provider === 'openai') {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    const response = await client.responses.create({
-      model,
-      instructions: EXTRACTION_SYSTEM_PROMPT,
-      input: userMessage,
-      max_output_tokens: 8000,
-      text: { format: { type: 'json_object' } },
-    })
-    text = response.output_text || undefined
-    stopReason = response.incomplete_details?.reason ?? response.status ?? 'unknown'
-    usage = {
-      inputTokens: response.usage?.input_tokens ?? 0,
-      outputTokens: response.usage?.output_tokens ?? 0,
-    }
-  } else {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8000,
-      system: EXTRACTION_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    })
-    text = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .at(-1)?.text
-    stopReason = response.stop_reason ?? 'unknown'
-    usage = {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    }
-  }
-
-  const billed = { provider, model, usage }
-  if (!text) {
-    throw new BrandVoiceExtractionError(
-      `Brand voice extraction returned no text (stop_reason: ${stopReason})`,
-      billed,
-    )
-  }
-  let json: unknown
+  let result
   try {
-    json = parseJsonReply(text)
-  } catch {
-    throw new BrandVoiceExtractionError(
-      `Brand voice extraction reply was not valid JSON: ${text.trim().slice(0, 200)}`,
-      billed,
+    result = await completeJsonCms(
+      {
+        system: EXTRACTION_SYSTEM_PROMPT,
+        user: `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`,
+        model,
+        label: EXTRACTION_LABEL,
+      },
+      { completeViaCodex: input.completeViaCodex },
     )
+  } catch (error) {
+    // Re-badge so the long-standing `instanceof BrandVoiceExtractionError`
+    // checks in the server action keep working; the message and billed usage
+    // are the ones `completeJsonCms` produced.
+    if (error instanceof CmsLlmError) throw new BrandVoiceExtractionError(error.message, error.billed)
+    throw error
   }
-  const { content, warnings } = parseBrandVoiceContent(json)
-  return { content, warnings, ...billed }
+
+  const { content, warnings } = parseBrandVoiceContent(result.json)
+  return { content, warnings, provider: result.provider, model: result.model, usage: result.usage }
 }
 
 /**
- * The one cost-log row every extraction leaves behind (mirrors
- * `completeJSONLogged` in the pipeline). Accepts a failed call's `billed`
- * details too, so a malformed reply still has its spend recorded.
+ * The one cost-log row every extraction leaves behind. Accepts a failed call's
+ * `billed` details too, so a malformed reply still has its spend recorded.
  */
 export async function logExtractionCost(
   payload: Payload,
@@ -223,22 +138,15 @@ export async function logExtractionCost(
     Partial<Pick<ExtractionResult, 'content' | 'warnings'>>,
   request: { filename: string; sourceChars: number },
 ): Promise<void> {
-  await payload.create({
-    collection: 'cost-log',
-    overrideAccess: true,
-    data: {
-      pipelineRunId: runId,
-      stage: 'brandVoiceExtract',
-      provider: result.provider,
-      model: result.model,
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      webSearchRequests: 0,
-      costUsd: costUsd(result.model, result.usage.inputTokens, result.usage.outputTokens),
-      request,
-      response: result.content
-        ? { warnings: result.warnings ?? [], name: result.content.name }
-        : { error: 'reply unusable; see server log' },
-    },
+  await logCmsCost(payload, {
+    runId,
+    stage: 'brandVoiceExtract',
+    provider: result.provider,
+    model: result.model,
+    usage: result.usage,
+    request,
+    response: result.content
+      ? { warnings: result.warnings ?? [], name: result.content.name }
+      : { error: 'reply unusable; see server log' },
   })
 }

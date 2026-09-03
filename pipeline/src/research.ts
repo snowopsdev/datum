@@ -24,6 +24,7 @@ import {
   type InformationGap,
 } from './informationGain/lib'
 import { resolveTemplate, type Stage } from './stages'
+import { selectIcp } from './tenant'
 
 /** `facets` / `gaps` are JSON columns on the snapshot, so trust nothing about their shape. */
 const storedFacets = (value: unknown): Facet[] => (Array.isArray(value) ? (value as Facet[]) : [])
@@ -62,6 +63,11 @@ export const researchStage: Stage = {
       snapshot.baselineDocCount ?? 0,
     )
     const gaps = storedGaps(snapshot.gaps)
+    // The audience the brief is written for. A piece created before any ICP
+    // existed still has none, so the fallback resolves to the primary and the
+    // return below backfills it — after which the editor's choice in the brief
+    // is what steers the draft.
+    const icp = selectIcp(ctx.tenant, article)
     const brief = buildBrief({
       keyword: article.keyword,
       templateIntent: template.intent,
@@ -69,6 +75,7 @@ export const researchStage: Stage = {
       facets,
       gaps,
       brandVoice: ctx.brandVoice,
+      icp,
     })
     return {
       status: ctx.pauseForBrief === false ? 'researched' : 'brief_review',
@@ -83,6 +90,9 @@ export const researchStage: Stage = {
           facets,
           gaps,
         },
+        // Backfill, never overwrite: a piece created before any audience
+        // existed gets one now, and one the editor already chose is left alone.
+        ...(article.icp == null && icp?.id != null ? { icp: icp.id as number } : {}),
       },
     }
   },

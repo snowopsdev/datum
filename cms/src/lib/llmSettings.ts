@@ -12,6 +12,7 @@ export const PIPELINE_STAGES = [
   'claimExtraction',
   'informationGainJudge',
   'evidenceVerification',
+  'evidenceCheck',
 ] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
@@ -22,6 +23,7 @@ export const STAGE_ENV_VAR: Record<PipelineStage, string> = {
   claimExtraction: 'PIPELINE_MODEL_CLAIM_EXTRACTION',
   informationGainJudge: 'PIPELINE_MODEL_INFORMATION_GAIN_JUDGE',
   evidenceVerification: 'PIPELINE_MODEL_EVIDENCE_VERIFICATION',
+  evidenceCheck: 'PIPELINE_MODEL_EVIDENCE_CHECK',
 }
 
 export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = {
@@ -31,9 +33,12 @@ export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = 
   claimExtraction: 'claimExtractionModel',
   informationGainJudge: 'informationGainJudgeModel',
   evidenceVerification: 'evidenceVerificationModel',
+  evidenceCheck: 'evidenceCheckModel',
 }
 
 export const EXTRACTION_ENV_VAR = 'BRAND_VOICE_EXTRACT_MODEL'
+
+export const SETUP_ASSIST_ENV_VAR = 'SETUP_ASSIST_MODEL'
 
 /** Shape of the `llm-settings` global (all optional: blank means "use env/default"). */
 export interface LlmSettingsDoc {
@@ -43,7 +48,9 @@ export interface LlmSettingsDoc {
   claimExtractionModel?: string | null
   informationGainJudgeModel?: string | null
   evidenceVerificationModel?: string | null
+  evidenceCheckModel?: string | null
   brandVoiceExtractModel?: string | null
+  setupAssistModel?: string | null
 }
 
 export type ModelSource = 'admin' | 'env' | 'default'
@@ -84,4 +91,21 @@ export function resolveExtractionModel(
   env: Record<string, string | undefined>,
 ): ResolvedModel {
   return resolveModel(settings?.brandVoiceExtractModel, env[EXTRACTION_ENV_VAR])
+}
+
+/**
+ * The model behind the setup assistant.
+ *
+ * It falls back through the brand-voice extraction model before the platform
+ * default, because both do the same job — read a workspace's own words and turn
+ * them into a governed record — and a workspace that has already chosen a
+ * cheaper model for one should not silently pay flagship prices for the other.
+ */
+export function resolveSetupAssistModel(
+  settings: LlmSettingsDoc | null | undefined,
+  env: Record<string, string | undefined>,
+): ResolvedModel {
+  const chosen = resolveModel(settings?.setupAssistModel, env[SETUP_ASSIST_ENV_VAR], '')
+  if (chosen.model) return chosen
+  return resolveExtractionModel(settings, env)
 }

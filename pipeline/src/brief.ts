@@ -14,6 +14,7 @@
 
 import type { BrandVoiceContent } from './brandVoice'
 import type { Facet, InformationGap } from './informationGain/lib'
+import { icpAudienceLine, type IcpContent } from './tenant'
 
 export type BriefSectionSource = 'template' | 'research' | 'editor'
 
@@ -42,6 +43,12 @@ export interface BuildBriefInput {
   facets: Facet[]
   gaps: InformationGap[]
   brandVoice: BrandVoiceContent | null
+  /**
+   * The audience this piece is for. It supersedes the brand voice's audience
+   * description, which describes everyone the brand talks to; the brief needs
+   * the one group this piece is aimed at. Null falls back to the voice.
+   */
+  icp: IcpContent | null
 }
 
 const clean = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
@@ -59,11 +66,13 @@ export function buildBrief(input: BuildBriefInput): BriefDraft {
   const intent = clean(input.templateIntent)
   const angle = intent ? `${intent} for "${input.keyword}"` : `An article about "${input.keyword}"`
 
-  const audienceParts = [
+  const voiceAudience = [
     clean(input.brandVoice?.audience.description),
     clean(input.brandVoice?.audience.needs) ? `Needs: ${clean(input.brandVoice?.audience.needs)}` : '',
-  ].filter(Boolean)
-  const audience = audienceParts.join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const audience = icpAudienceLine(input.icp) || voiceAudience
 
   const sections: BriefSection[] = [
     ...input.requiredSections
