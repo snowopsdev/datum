@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/snowopsdev/datum/compare/v0.4.0...v0.5.0) (2026-09-03)
+
+
+### Features
+
+* **cms:** add a Game Preview template ([7d25dac](https://github.com/snowopsdev/datum/commit/7d25dac4de13e9e14176b4833dfc4a3b49775ba1))
+* **llm:** run pipeline stages on a ChatGPT plan via the Codex CLI ([#67](https://github.com/snowopsdev/datum/issues/67)) ([62090b8](https://github.com/snowopsdev/datum/commit/62090b88be2402f208941e9ff05e113aa8b26e80))
+* **pipeline:** carry the template example into the generate prompt ([54fef48](https://github.com/snowopsdev/datum/commit/54fef486666040c42cfa8cfa280aaa6af39c2ce7))
+* **templates:** add Game Preview and carry the example into the generate prompt ([72ca7b4](https://github.com/snowopsdev/datum/commit/72ca7b40961fea03376553b3da6f440f71bcf859))
+
+
+### Bug Fixes
+
+* **templates:** order the Game Preview example like its outline ([faa96a9](https://github.com/snowopsdev/datum/commit/faa96a922277e2709147e3d903cc1b0ac0b2472d))
+
 ## [0.4.0](https://github.com/snowopsdev/datum/compare/v0.3.0...v0.4.0) (2026-08-31)
 
 
