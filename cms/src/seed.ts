@@ -184,6 +184,88 @@ const templates: TemplateSeed[] = [
       ogTagsRequired: true,
     },
   },
+  {
+    name: 'Game Preview',
+    intent: 'A pre-game preview that tells the reader how to watch and what to watch for',
+    outline: richText(
+      paragraph(
+        'Open by answering the search intent directly: which teams, what date, what time, which network, and where to stream. No H2 label; this paragraph follows the title.',
+      ),
+      paragraph(
+        'Component slot: primary streaming banner. Keep the marker on its own line so the CMS can resolve it.',
+      ),
+      paragraph('Away team current form, most recent result, and the matchup context that follows from it.'),
+      paragraph('Home team current form, most recent result, and the matchup context that follows from it.'),
+      paragraph('The stakes, series history, or tactical angle that frames why this game matters now.'),
+      paragraph('Component slot: score chip.'),
+      heading('h2', 'How to Watch {{matchup}}'),
+      paragraph(
+        'Name the matchup in this heading, house style. A bulleted list follows, one line each: Date, Time (AP style, with time zone), TV network, Stream, and Location (venue and city). Every value must be verified against a trusted source before it ships.',
+      ),
+      heading('h2', 'Players To Watch'),
+      paragraph('One H3 per team in the form "Team: Player name", then a short paragraph on that player.'),
+      heading('h3', 'Away team: player name'),
+      paragraph('The player\'s role, current form, and why they matter in this specific matchup. Source-backed.'),
+      heading('h3', 'Home team: player name'),
+      paragraph('The player\'s role, current form, and why they matter in this specific matchup. Source-backed.'),
+      paragraph('Component slot: related stories.'),
+      heading('h2', 'What to Know About {{matchup}}'),
+      paragraph(
+        'The sport-specific supporting section: coaching changes, injuries, the full verified schedule, series state, or competition context. Name the matchup in the heading, house style.',
+      ),
+      paragraph('Component slot: primary video.'),
+    ),
+    dos: [
+      { text: 'Verify date, start time, network, and venue against a primary source before publishing' },
+      { text: 'Write times in AP style and always include the time zone' },
+      { text: 'Answer the matchup, date, time, and where-to-watch question in the opening paragraph' },
+      { text: 'Give each featured player a concrete, current stat or result, not a general reputation' },
+      { text: 'Keep the away team before the home team in every paired section' },
+      { text: 'Keep each component marker on its own line' },
+    ],
+    donts: [
+      { text: 'Do not publish a start time or network that has not been verified for this specific broadcast' },
+      { text: 'Do not describe player form from memory; cite a recent, dated performance' },
+      { text: 'Do not bury the streaming and broadcast details below the player sections' },
+      { text: 'Do not vary the "How to Watch" field order between articles' },
+      { text: 'Do not let the preview run past the game it previews; this template is not a recap' },
+    ],
+    // "How to Watch" and the context section are deliberately absent: house style
+    // puts the matchup inside those H2s ("How to Watch Memphis at UNLV"), and the
+    // structural check compares whole strings, so enforcing them would fail every
+    // correctly written article. They stay in the outline as guidance. "Players To
+    // Watch" is enforceable because it is fixed text in the real articles.
+    requiredSections: [{ heading: 'Players To Watch' }],
+    seoSpec: {
+      titleTagMaxLength: 60,
+      metaDescriptionMaxLength: 160,
+      headingStructureRules,
+      faqRequired: false,
+      ogTagsRequired: true,
+    },
+    example: richText(
+      paragraph(
+        'Memphis and UNLV meet for the first time on Saturday night at Allegiant Stadium, closing out Week 0 with two teams that arrive under new circumstances. Kickoff is 10 p.m. ET.',
+      ),
+      heading('h2', 'How to Watch Memphis at UNLV'),
+      paragraph(
+        'Date: Saturday, Aug. 29. Time: 10 p.m. ET. TV: national broadcast network. Stream: streaming service. Location: Allegiant Stadium, Las Vegas.',
+      ),
+      heading('h2', 'Players To Watch'),
+      heading('h3', 'Memphis: Dallan Hayden'),
+      paragraph(
+        'Hayden brings 1,185 career rushing yards and eight touchdowns to a backfield that will likely carry the offense while the quarterback job settles.',
+      ),
+      heading('h3', 'UNLV: Jai\'Den Thomas'),
+      paragraph(
+        'Thomas ran for 1,036 yards and 12 touchdowns last season and added 39 receptions, making him the most complete offensive threat on the field.',
+      ),
+      heading('h2', 'What to Know About Memphis at UNLV'),
+      paragraph(
+        'Charles Huff makes his Memphis debut, while Dan Mullen enters his second year at UNLV. Both teams carry unsettled quarterback situations into the opener, which is the single biggest variable in a game this hard to handicap.',
+      ),
+    ),
+  },
 ]
 
 const upsertTemplates = async (payload: Payload): Promise<void> => {

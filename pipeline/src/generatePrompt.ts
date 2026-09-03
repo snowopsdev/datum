@@ -131,6 +131,11 @@ export function buildPrompt(
   const outline = template.outline ? lexicalToMarkdown(template.outline as RichText) : '(none)'
   const dos = template.dos?.map((d) => `- ${d.text}`).join('\n') || '(none)'
   const donts = template.donts?.map((d) => `- ${d.text}`).join('\n') || '(none)'
+  // A worked piece in the template's own shape. Omitted entirely when unset, so
+  // templates without one send no empty heading. It is a shape-and-register
+  // reference: its subject is a different article, and copying its facts would
+  // put unsourced claims into the draft for the information-gain stage to block.
+  const example = template.example ? lexicalToMarkdown(template.example as RichText).trim() : ''
   const research = article.research
   const subtopics = research?.commonSubtopics?.map((s) => `- ${s.text}`).join('\n') || '(none)'
   const questions = research?.relatedQuestions?.map((q) => `- ${q.text}`).join('\n') || '(none)'
@@ -152,6 +157,11 @@ export function buildPrompt(
     `## Dos\n${dos}`,
     `## Don'ts\n${donts}`,
     `## SEO spec\n${JSON.stringify(template.seoSpec ?? {}, null, 2)}`,
+    ...(example
+      ? [
+          `## Example\nA finished piece in this template's shape, about a different subject. Follow its structure, section order, and register. Do not reuse its wording, and do not carry over any of its facts — they belong to that article, not this one.\n\n${example}`,
+        ]
+      : []),
     ...(samples ? [samples] : []),
     `# SERP research`,
     `## Ranking pages\n${research?.rankingPagesSummary || '(none)'}`,
