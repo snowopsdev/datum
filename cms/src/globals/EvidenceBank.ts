@@ -1,4 +1,4 @@
-import type { GlobalBeforeValidateHook, GlobalConfig } from 'payload'
+import { APIError, type GlobalBeforeValidateHook, type GlobalConfig } from 'payload'
 
 import { auditGlobalChange } from '../lib/governanceAudit'
 import { CLEARED_SURFACES, nextRef, VERIFICATION_DEPTHS } from '../lib/tenant/evidenceBank'
@@ -25,6 +25,25 @@ const rowsOf = (value: unknown): Row[] =>
 
 const ARRAYS = ['verifiedClaims', 'facts', 'rejectedClaims'] as const
 
+type ArrayField = (typeof ARRAYS)[number]
+
+type Prefix = 'E' | 'F' | 'R'
+
+/** Which letter each list's refs carry, so a ref says which list it came from. */
+const PREFIX: Record<ArrayField, Prefix> = {
+  verifiedClaims: 'E',
+  facts: 'F',
+  rejectedClaims: 'R',
+}
+
+const shapedFor = (prefix: Prefix): RegExp => new RegExp(`^${prefix}\\d+$`)
+
+/** Postgres array rows carry a uuid; a hand-written one may carry a number. */
+const idOf = (row: Row): string =>
+  typeof row.id === 'string' || typeof row.id === 'number' ? String(row.id).trim() : ''
+
+const refOf = (row: Row): string => (typeof row.ref === 'string' ? row.ref.trim().toUpperCase() : '')
+
 /** Postgres hands a `numeric` column back as a string often enough to matter. */
 const counterOf = (value: unknown): number => {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -37,7 +56,7 @@ const highestRefIn = (doc: unknown): number => {
   let highest = 0
   for (const field of ARRAYS) {
     for (const row of rowsOf(record[field])) {
-      const match = /^[EFR](\d+)$/.exec(typeof row.ref === 'string' ? row.ref.trim() : '')
+      const match = /^[EFR](\d+)$/.exec(refOf(row))
       if (match) highest = Math.max(highest, Number(match[1]))
     }
   }
@@ -45,7 +64,28 @@ const highestRefIn = (doc: unknown): number => {
 }
 
 /**
- * Give every new row a stable, human-readable ref.
+ * The ref every saved row owns, keyed by the array-row id Payload gave it.
+ *
+ * This is what makes a ref immutable rather than merely sticky. The row id is
+ * the only thing about a row that the operator cannot type, so it is the only
+ * thing that can say "this is still the same claim" when everything else about
+ * the row has been edited.
+ */
+const savedRefsById = (doc: unknown): Map<string, string> => {
+  const record = (doc ?? {}) as Record<string, unknown>
+  const byId = new Map<string, string>()
+  for (const field of ARRAYS) {
+    for (const row of rowsOf(record[field])) {
+      const id = idOf(row)
+      const ref = refOf(row)
+      if (id !== '' && shapedFor(PREFIX[field]).test(ref)) byId.set(id, ref)
+    }
+  }
+  return byId
+}
+
+/**
+ * Give every row a stable, human-readable ref, and never let one move.
  *
  * Payload's array-row ids are uuids, which are useless in a prompt and in an
  * audit row: a writer cites `[E3]`, and a reviewer reading a six-month-old
@@ -56,35 +96,81 @@ const highestRefIn = (doc: unknown): number => {
  * have to be unique and stable, and one number is simpler to keep honest than
  * three.
  *
- * The starting point is the highest of three numbers, not just the stored
- * counter, because a partial update — `updateGlobal` with only `verifiedClaims`
- * in it, which is how the demo fixture and any script writes — carries no
- * `refCounter` at all. Falling back to the saved document, and then to the refs
- * actually present, means the worst a drifted counter can do is skip a number.
+ * That promise is only as good as what happens when a write disagrees with it,
+ * so a supplied ref is never simply believed. A row the saved document already
+ * knows by id keeps the ref it was given, whatever this write calls it — that
+ * is what stops an edit, an import, or a hand-made API call from renaming `E3`
+ * to `E5` and silently re-pointing every article that cited either. A row the
+ * document has never seen may declare its own ref, because whole-array writes
+ * are how the demo fixture and any script put a bank in place and their refs
+ * are the ones the prompt fixtures and the seed agree on; but only if it is
+ * shaped right, carries its list's own letter, and nothing else has claimed it.
+ * Everything left over is minted.
+ *
+ * The counter's starting point is the highest of four numbers, not just the
+ * stored one, because a partial update — `updateGlobal` with only
+ * `verifiedClaims` in it — carries no `refCounter` at all. Falling back to the
+ * saved document, and then to the refs actually present, means the worst a
+ * drifted counter can do is skip a number.
  */
 export const assignEvidenceRefs: GlobalBeforeValidateHook = ({ data, originalDoc }) => {
   if (!data) return data
-  const stored = Math.max(
+  const saved = savedRefsById(originalDoc)
+  let counter = Math.max(
     counterOf(data.refCounter),
     counterOf((originalDoc as Record<string, unknown> | undefined)?.refCounter),
     highestRefIn(originalDoc),
     highestRefIn(data),
   )
-  let counter = stored
-  const assign = (field: (typeof ARRAYS)[number], prefix: 'E' | 'F' | 'R') => {
+
+  // Only the arrays this write actually carries. A partial update that names
+  // one list must not blank the other two.
+  const slots: { row: Row; prefix: Prefix; ref: string }[] = []
+  for (const field of ARRAYS) {
+    if (!Array.isArray(data[field])) continue
     const rows = rowsOf(data[field])
-    if (rows.length === 0) return
-    for (const row of rows) {
-      const ref = typeof row.ref === 'string' ? row.ref.trim() : ''
-      if (ref !== '') continue
-      counter += 1
-      row.ref = nextRef(prefix, counter)
-    }
     data[field] = rows
+    for (const row of rows) slots.push({ row, prefix: PREFIX[field], ref: '' })
   }
-  assign('verifiedClaims', 'E')
-  assign('facts', 'F')
-  assign('rejectedClaims', 'R')
+
+  const claimed = new Set<string>()
+  for (const slot of slots) {
+    const id = idOf(slot.row)
+    const owned = id === '' ? undefined : saved.get(id)
+    if (owned === undefined || claimed.has(owned)) continue
+    slot.ref = owned
+    claimed.add(owned)
+  }
+  for (const slot of slots) {
+    if (slot.ref !== '') continue
+    const declared = refOf(slot.row)
+    if (declared === '' || claimed.has(declared)) continue
+    if (!shapedFor(slot.prefix).test(declared)) continue
+    slot.ref = declared
+    claimed.add(declared)
+  }
+  for (const slot of slots) {
+    if (slot.ref !== '') continue
+    counter += 1
+    slot.ref = nextRef(slot.prefix, counter)
+    claimed.add(slot.ref)
+  }
+
+  // The invariant the rest of the system is entitled to assume, checked rather
+  // than hoped for: a citation resolves to exactly one row, or the write is
+  // refused while the operator still has the edit in front of them.
+  const seen = new Set<string>()
+  for (const slot of slots) {
+    if (!shapedFor(slot.prefix).test(slot.ref)) {
+      throw new APIError(`Evidence ref "${slot.ref}" is not a valid ${slot.prefix} ref.`, 400)
+    }
+    if (seen.has(slot.ref)) {
+      throw new APIError(`Evidence ref "${slot.ref}" is used by more than one row.`, 400)
+    }
+    seen.add(slot.ref)
+    slot.row.ref = slot.ref
+  }
+
   if (counter !== counterOf(data.refCounter)) data.refCounter = counter
   return data
 }

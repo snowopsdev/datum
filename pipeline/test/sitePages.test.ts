@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 
 import {
   candidatePagePaths,
+  isSameSite,
   MAX_DISCOVERED_PAGES,
   MAX_SITE_PAGES,
   SITE_PAGE_PATH_PATTERN,
@@ -165,6 +166,40 @@ describe('toSitePage', () => {
     assert.equal(page.url, 'https://acme.example/about')
     assert.equal(page.title, null)
     assert.equal(page.text, 'short')
+  })
+})
+
+describe('isSameSite', () => {
+  it('accepts the domain itself, either scheme, and the www variant either way', () => {
+    for (const [url, domain] of [
+      ['https://acme.example/', 'acme.example'],
+      ['http://acme.example/about', 'acme.example'],
+      ['https://www.acme.example/about', 'acme.example'],
+      ['https://acme.example/about', 'www.acme.example'],
+      ['https://ACME.example./about', 'acme.example'],
+      // The workspace stores a bare domain, but somebody will paste a URL.
+      ['https://acme.example/', 'https://acme.example/pricing'],
+    ] as const) {
+      assert.equal(isSameSite(url, domain), true, `${url} vs ${domain}`)
+    }
+  })
+
+  it('refuses another company, a sub-domain, and anything unreadable', () => {
+    for (const [url, domain] of [
+      ['https://parked-domains.example/for-sale', 'acme.example'],
+      ['https://acme.example.evil.test/', 'acme.example'],
+      // A sub-domain is a different site: `blog.acme.example` may be a hosted
+      // service the company does not write, and its copy is not theirs.
+      ['https://blog.acme.example/about', 'acme.example'],
+      ['ftp://acme.example/about', 'acme.example'],
+      ['not a url', 'acme.example'],
+      ['', 'acme.example'],
+      ['https://acme.example/', ''],
+    ] as const) {
+      assert.equal(isSameSite(url, domain), false, `${url} vs ${domain}`)
+    }
+    assert.equal(isSameSite(null, 'acme.example'), false)
+    assert.equal(isSameSite(undefined, 'acme.example'), false)
   })
 })
 

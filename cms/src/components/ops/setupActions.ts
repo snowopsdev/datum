@@ -30,6 +30,7 @@ import {
 import { positioningContentOf, positioningStatus } from '../../lib/tenant/positioning'
 import {
   candidatePagePaths,
+  isSameSite,
   MAX_SITE_PAGES,
   toSitePage,
 } from '../../lib/tenant/sitePages'
@@ -101,11 +102,12 @@ function pageWarning(url: string, reason: string | null): string {
  * from: the home page, plus up to seven marketing pages linked from it.
  *
  * Everything below the home page is best-effort. A page that 404s, redirects
- * off-host, serves a PDF, or resolves to a private address is a warning and not
+ * off-site, serves a PDF, or resolves to a private address is a warning and not
  * a failure — a site with a broken `/customers` link should still get an ICP
- * drafted from the four pages that did load. Only two things end the run: no
- * target domain to fetch, and a home page that could not be read at all, since
- * without it there is nothing to discover from.
+ * drafted from the four pages that did load. Three things end the run: no
+ * target domain to fetch, a home page that could not be read at all, and a home
+ * page that turns out to belong to somebody else. The first two leave nothing
+ * to discover from; the third would quietly describe the wrong company.
  *
  * The crawl reuses `fetchPage`, so the SSRF guard, the redirect handling, the
  * byte ceiling, and the mock mode all come for free.
@@ -149,8 +151,27 @@ export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> 
     return { ok: false, error: `Could not read ${homeUrl} — ${home.reason ?? 'fetch failed'}.` }
   }
 
+  // A home page that redirects off the workspace's own domain ends the run
+  // without storing anything. A parked domain, a stale DNS record, or a domain
+  // sold since somebody typed it into the workspace all answer politely with
+  // somebody else's marketing, and these pages are the material the assistant
+  // drafts an audience, a position, and an evidence bank from. Half a stranger's
+  // site is worse than no site: nothing downstream would say where it came from.
+  const homeFinalUrl = home.finalUrl || homeUrl
+  if (!isSameSite(homeFinalUrl, domain)) {
+    return {
+      ok: false,
+      error:
+        `${homeUrl} redirects to ${homeFinalUrl}, which is not on ${domain}. ` +
+        'Nothing was stored. Set the target domain to the site you want read.',
+    }
+  }
+
   const pages: SitePage[] = [toSitePage(home)]
-  const candidates = candidatePagePaths(homeHtml || home.text, home.finalUrl || homeUrl)
+  // Safe to discover against the redirected address: the check above is what
+  // proves it is still this site, so `https://acme.com` → `https://www.acme.com`
+  // resolves its relative links against the host that served them.
+  const candidates = candidatePagePaths(homeHtml || home.text, homeFinalUrl)
 
   let skipped = 0
   const fetched = await mapWithConcurrency(candidates, SITE_PAGE_CONCURRENCY, async (url) => {
@@ -163,11 +184,20 @@ export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> 
 
   for (const [index, page] of fetched.entries()) {
     if (!page) continue
+    const requested = candidates[index] ?? page.url
     if (page.status === 'ok') {
+      const finalUrl = page.finalUrl || page.url
+      // A sub-page that leaves the site is dropped rather than fatal: one
+      // marketing path pointing at a partner or a status page is ordinary, and
+      // the pages that did load are still worth having.
+      if (!isSameSite(finalUrl, domain)) {
+        warnings.push(pageWarning(requested, `redirects to ${finalUrl}, which is not on ${domain}`))
+        continue
+      }
       pages.push(toSitePage(page))
       continue
     }
-    warnings.push(pageWarning(candidates[index] ?? page.url, page.reason))
+    warnings.push(pageWarning(requested, page.reason))
   }
   if (skipped > 0) {
     warnings.push(

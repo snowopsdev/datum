@@ -108,6 +108,41 @@ export function candidatePagePaths(homeHtmlOrText: string, homeUrl: string): str
   return urls
 }
 
+/** `www.acme.com` and `acme.com` are one site; `blog.acme.com` is not. */
+const siteKey = (hostname: string): string => hostKey(hostname).replace(/^www\./, '')
+
+/**
+ * Whether a URL we actually read is still on the workspace's own site.
+ *
+ * A redirect is the one thing in the crawl that can quietly change the subject.
+ * A parked domain, a stale DNS record, or a domain sold since somebody typed it
+ * into the workspace all answer a request for the home page with somebody
+ * else's marketing, and stored as site pages that becomes the material the
+ * assistant drafts an ICP, a position, and an evidence bank from. So the page
+ * we read has to be on the domain we asked for.
+ *
+ * `www.` either way is the same site, because it is a hosting choice rather
+ * than a different company, and both schemes count: a site that upgrades http
+ * to https has not changed the subject. Anything else — a different host, a
+ * sub-domain, a URL that will not parse — is not this site.
+ */
+export function isSameSite(url: string | null | undefined, targetDomain: string): boolean {
+  const target = siteKey(
+    String(targetDomain ?? '')
+      .trim()
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+      .split('/')[0] ?? '',
+  )
+  if (target === '') return false
+  try {
+    const parsed = new URL(String(url ?? ''))
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    return siteKey(parsed.hostname) === target
+  } catch {
+    return false
+  }
+}
+
 /** As much of a fetch result as a stored page needs. */
 export interface FetchedPageLike {
   url: string

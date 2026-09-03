@@ -61,6 +61,30 @@ the demo workspace" on `/admin` fills them in from the fixtures in
 `cms/src/lib/tenant/fixtures.ts` in one click, and `npm run seed --
 --with-brand-voice` writes the same records.
 
+That button is **create-only**, and pressing it twice is safe. It fills a
+workspace-profile field only where it is still blank, writes the position only
+when nothing has been saved, writes the evidence bank only when it is empty, and
+creates an audience or a brand voice only when nothing carries the fixture's
+name — it never updates, re-activates, or moves `primary` on a record that is
+already there. The audiences and the voice it does create claim `active` (and
+`primary`) only when nothing is active, because the single-active and
+single-primary cascades would otherwise retire the operator's own.
+
+## The site crawl
+
+"Fetch site pages" reads the workspace's own home page plus up to seven
+marketing paths linked from it (`cms/src/lib/tenant/sitePages.ts`), and stores
+them on the profile for the setup assistant to draft from.
+
+Redirects are checked against the target domain by `isSameSite`, which counts
+the domain itself, either scheme, and the `www.` variant either way as one site,
+and a sub-domain as a different one. If the **home page** lands somewhere else —
+a parked domain, a stale DNS record, a domain sold since somebody typed it in —
+the action fails and stores nothing, because these pages become the material an
+audience, a position, and an evidence bank are drafted from, and half a
+stranger's site is worse than no site. A **sub-page** that redirects off-site is
+dropped with a warning; one marketing path pointing at a partner is ordinary.
+
 Editing an audience moves `configFingerprint`, so it stales a verification run
 the way editing the brand voice does.
 
@@ -152,11 +176,28 @@ Three rules make it work, and they are stated in the field descriptions as well
 as here:
 
 - **Proof travels with the claim.** A row with no source and no limits is an
-  assertion, and the writer cannot tell the difference.
+  assertion, and the writer cannot tell the difference — so an unfinished row is
+  not sent to the writer at all.
 - **A softened version of an unsupported claim is still unsupported.** Hedging
   removes the evidence, not the claim.
 - **Rejected claims stay visible.** A row nobody can see is a claim that comes
   back in the next draft.
+
+### What makes a claim usable
+
+A verified claim is **usable** when it is complete, cleared for the surface, and
+unexpired. Complete means all of: claim text, a named primary source, the date
+the source was produced, a `verificationDepth` stronger than `self_reported`,
+and a `recheckAt`. `verifiedClaimProblems()` returns what is still missing, in
+the words the operator needs; `isClaimComplete()` is the same test as a boolean.
+
+`self_reported` is a recordable depth, not a sufficient one. It is what the
+setup assistant stamps on every row it proposes, and those rows must not walk
+into a draft on their own.
+
+An unfinished row never reaches the generate prompt, is `unusable` in the QA
+check with the reason `incomplete evidence`, is counted as `incomplete` in the
+summary, and is tagged **Unverified — not sent to the writer** in the editor.
 
 ### Refs
 
@@ -166,6 +207,19 @@ hidden `refCounter`. Refs are monotonic and **never reused**, including after a
 row is deleted: a published article's `evidenceCitations` may still point at
 `E4`, and re-pointing that citation at a different claim would rewrite history
 silently. One counter serves all three prefixes.
+
+Refs are also **immutable**. A row the saved document already knows by its
+array-row id keeps the ref it was given, whatever a write calls it, so an
+import, a script, or a hand-made API call cannot rename `E3` to `E5`. A row the
+document has never seen may declare its own ref — that is how the demo fixture
+and any whole-array script write puts a bank in place — but only when it is
+well-formed, carries its list's letter, and nothing else has claimed it;
+otherwise it is minted. Moving a saved row into another list is refused with a
+400, because `[F4]` in a published article cannot be allowed to start naming a
+claim.
+
+A citation is matched case-insensitively: `[e3]` and `[E3]` are one entry, and
+the ref is normalised to upper case before it is stored or checked.
 
 The writer is told to put the ref in square brackets at the end of any sentence
 stating a first-party fact. `generateStage` finds those markers in every
@@ -196,7 +250,11 @@ and needs no search, which makes it a cheaper model and lets half the verdict be
 deterministic.
 
 - **Deterministic half** (`checkEvidenceRefs`, no model): every ref the draft
-  declared must exist and still be usable as of `asOf`.
+  declared must exist and still be usable as of `asOf` **on the article's
+  surface** (`web`). A ref naming a real row that is not cleared for the surface
+  is `unusable` with the reason `not cleared for web`, and one naming an
+  unfinished row is `unusable` with `incomplete evidence` — reporting either as
+  a hallucination would send a reviewer looking for something that is not there.
 - **Model half**: judges every first-party sentence against the uncapped bank.
 
 | Outcome | Meaning | Effect |
@@ -205,11 +263,16 @@ deterministic.
 | `unbacked` | no entry supports it | **flagged**, article still passes |
 | `overreach` | goes past an entry's stated limits or changes a number | **fails** |
 | `rejected` | states or paraphrases a "never state" row | **fails** |
-| `unusable` | cited a ref that does not exist or has expired | **fails** |
+| `unusable` | cited a ref that does not exist, has expired, is unfinished, or is not cleared for this surface | **fails** |
 
 `unbacked` only flags because plenty of true sentences are not in the bank yet,
 and failing them would make the bank a precondition for writing rather than a
 guarantee about what is written.
+
+The evidence check reads the same meta block the qualitative review does — title
+tag, meta description, OG title, OG description — before the body. A title tag
+is the shortest place in the article and the likeliest place for an unbacked
+superlative to survive a careful body.
 
 The verdict is stored on `qaResults.evidenceCheck` (`passed`, `notes`, `claims`)
 with the model on `qaModels.evidenceCheck`, and `allPassed` includes it, so a
@@ -224,8 +287,9 @@ verbatim through `# Revision notes`. The article review page shows them under an
 The generate prompt carries at most `MAX_PROMPT_CLAIMS` (40) usable claims,
 newest `recheckAt` first, plus every fact and every never-use row. The cap is a
 prompt-size limit only: the evidence check sends the whole bank, so a claim past
-the cap is still enforced — the writer simply was not offered it. Claims with no
-re-check date sort last, since they never expire and are the safest to lose.
+the cap is still enforced — the writer simply was not offered it. A usable claim
+always carries a re-check date, so the undated branch of the sort only keeps the
+ordering total.
 
 ### Information gain
 
@@ -237,11 +301,13 @@ counted against the draft.
 
 ### Readiness
 
-`tenant.evidenceBank` reports `{ status, verified, usable, expired, facts,
-rejected }`. `status` is `ready` when there is at least one unexpired claim or
-one fact, `missing` otherwise. It **never gates a run** — an empty bank simply
-means the writer may state nothing about the workspace. `Add an evidence bank`
-and `Re-check N expired claims` appear in `tenant.recommendations`. Saving the
+`tenant.evidenceBank` reports `{ status, verified, usable, expired, incomplete,
+facts, rejected }`. `status` is `ready` when there is at least one **usable**
+claim or one fact, `missing` otherwise — a bank of unfinished rows is not ready,
+because the writer is offered none of them. It **never gates a run** — an empty
+bank simply means the writer may state nothing about the workspace. `Add an
+evidence bank`, `Re-check N expired claims`, and `Complete N unverified claims`
+appear in `tenant.recommendations`. Saving the
 global moves `configFingerprint`, so it stales a verification run.
 
 ## AI assist
@@ -278,7 +344,9 @@ into a paraphrase.
   levels.
 - **It never cites.** Evidence rows come back with no `ref` (the global's hook
   assigns those on save), `verificationDepth: 'self_reported'`, an empty
-  `recheckAt`, and a `sourceUrl` only when that exact URL appears in the notes or
+  `recheckAt` — which makes every proposed row **incomplete**, so it is visibly
+  unverified in the editor and reaches no draft until a person finishes it — and
+  a `sourceUrl` only when that exact URL appears in the notes or
   on one of the fetched pages. A core claim's `evidenceRef` is dropped for the
   same reason: the assistant cannot see the bank's ids, so any ref it proposes is
   a citation nobody checked.

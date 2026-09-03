@@ -282,10 +282,44 @@ test('the evidence check receives the workspace block, the uncapped bank, and th
     /Refs the writer declared:\nE1 \(A reviewer approves the brief before drafting is paid for\.\)\nF4 \(Datum runs on Payload CMS and Postgres\.\)/,
   )
   assert.match(prompt, /Article "How to stream games":/)
+  // The meta fields are audited too, and in the same block the reviewer gets.
+  // A title tag is the shortest place in the article and the likeliest place
+  // for an unbacked superlative to survive a careful body.
+  assert.match(
+    prompt,
+    /Article "How to stream games":\n\nTitle tag: How to stream games\nMeta description: A short guide\.\nOG title: \(none\)\nOG description: \(none\)\n\n/,
+  )
   assert.match(prompt, /FAQ entries \(structured data for search engines/)
   assert.match(systems.evidenceCheck, /You audit an article for first-party claims\./)
   assert.match(systems.evidenceCheck, /any statement about Datum, its product/)
   assert.match(systems.evidenceCheck, /"status": "backed"\|"overreach"\|"unbacked"\|"rejected"/)
+})
+
+test('a claim cited on a surface nobody cleared it for is reported as a clearance problem', async () => {
+  // The check runs for `web`, and this claim is cleared for sales only. It is a
+  // real entry with real proof behind it, so reporting it as an unknown ref
+  // would send a reviewer hunting for a hallucination that is not there; the
+  // finding has to name the actual problem.
+  const salesOnly = {
+    ...EVIDENCE_BANK_FIXTURE,
+    verifiedClaims: EVIDENCE_BANK_FIXTURE.verifiedClaims.map((row) =>
+      row.ref === 'E1' ? { ...row, clearedSurfaces: ['sales' as const] } : row,
+    ),
+  }
+  const { llm } = capturingLlm()
+  const base = ctxWithBank(llm)
+  const outcome = await qaStage.run(
+    citing(SOUND_BODY, [{ ref: 'E1', excerpt: 'A reviewer approves the brief.' }]),
+    { ...base, tenant: { ...base.tenant, evidenceBank: salesOnly } } as StageContext,
+  )
+
+  const qa = (outcome.data as { qaResults: Record<string, Record<string, unknown>> }).qaResults
+  const claims = qa.evidenceCheck.claims as { ref: string; status: string; note: string }[]
+  const finding = claims.find((c) => c.ref === 'E1')
+  assert.ok(finding, JSON.stringify(claims, null, 2))
+  assert.equal(finding.status, 'unusable')
+  assert.match(finding.note, /not cleared for web/)
+  assert.equal(qa.evidenceCheck.passed, false)
 })
 
 test('the evidence check still runs for a workspace with no bank, and says so', async () => {

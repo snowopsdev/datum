@@ -209,6 +209,73 @@ describe('refreshSitePagesAction', () => {
     expect(fetchPageMock).toHaveBeenCalledTimes(1)
   })
 
+  it('fails without storing anything when the home page redirects off the domain', async () => {
+    const startedAt = new Date().toISOString()
+    const before = ((await readGlobal()) as WorkspaceProfileDoc).sitePages
+    // A parked domain, a stale DNS record, or a domain sold since somebody
+    // typed it in: the request is answered politely, by somebody else.
+    fetchPageMock.mockImplementation(async (url: string) => ({
+      ...okPage(url, homeLinking('/about'), 'Buy this domain'),
+      finalUrl: 'https://parked-domains.example/for-sale',
+    }))
+
+    const result = await refreshSitePagesAction()
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('https://parked-domains.example/for-sale')
+    expect(result.error).toContain(DOMAIN)
+    expect(result.error).toContain('Nothing was stored')
+    // Nothing written, and no sub-page fetched: half a stranger's site is worse
+    // than no site, because nothing downstream would say where it came from.
+    expect(fetchPageMock).toHaveBeenCalledTimes(1)
+    const after = (await readGlobal()) as WorkspaceProfileDoc
+    expect(after.sitePages).toEqual(before)
+    expect(await latestAuditRow(startedAt)).toBeUndefined()
+  })
+
+  it('drops a sub-page that redirects off the domain, with a warning', async () => {
+    fetchPageMock.mockImplementation(async (url: string) => {
+      if (url === HOME) return okPage(url, homeLinking('/about', '/pricing'))
+      if (url === `${HOME}pricing`) {
+        return { ...okPage(url, 'Buy now.'), finalUrl: 'https://partner.example/pricing' }
+      }
+      return okPage(url, 'About us.')
+    })
+
+    const result = await refreshSitePagesAction()
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // One marketing path pointing at a partner or a status page is ordinary,
+    // so the pages that did load are still worth having.
+    expect(result.pages).toBe(2)
+    expect(result.warnings).toEqual([
+      `${HOME}pricing: redirects to https://partner.example/pricing, which is not on ${DOMAIN}`,
+    ])
+    const pages = ((await readGlobal()) as WorkspaceProfileDoc).sitePages as SitePage[]
+    expect(pages.map((page) => page.url)).toEqual([HOME, `${HOME}about`])
+  })
+
+  it('follows a redirect to the www host and keeps discovering from it', async () => {
+    const wwwHome = `https://www.${DOMAIN}/`
+    fetchPageMock.mockImplementation(async (url: string) =>
+      url === HOME
+        ? { ...okPage(url, `Datum builds content. ${wwwHome}about.`), finalUrl: wwwHome }
+        : okPage(url, 'About us.'),
+    )
+
+    const result = await refreshSitePagesAction()
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // `www.` is a hosting choice, not a different company, so this is the same
+    // site and its relative links resolve against the host that served them.
+    expect(result.warnings).toEqual([])
+    const pages = ((await readGlobal()) as WorkspaceProfileDoc).sitePages as SitePage[]
+    expect(pages.map((page) => page.url)).toEqual([wwwHome, `${wwwHome}about`])
+  })
+
   it('refuses when the workspace has no target domain anywhere', async () => {
     await setDomain(null)
     // Only a live run has no domain: mock mode always falls back to the demo

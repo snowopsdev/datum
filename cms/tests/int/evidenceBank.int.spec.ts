@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
 import config from '@/payload.config'
-import { EvidenceBank } from '@/globals/EvidenceBank'
+import { assignEvidenceRefs, EvidenceBank } from '@/globals/EvidenceBank'
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
+import { loadSetupChecklistData } from '@/components/ops/setupChecklistData'
 import { evidenceBankContentOf, isEvidenceBankEmpty } from '@/lib/tenant'
 import { evidenceBankFixtureDoc } from '@/lib/tenant/fixtures'
 import { getPayload, type Payload } from 'payload'
@@ -190,6 +191,81 @@ describe('evidence bank global', () => {
     expect(after.counter).toBe(base + 2)
   })
 
+  it('ignores a ref renamed on a saved row', async () => {
+    const base = await startFresh()
+    await write({ verifiedClaims: [{ claim: 'One' }, { claim: 'Two' }] })
+    const saved = (await readGlobal()) as { verifiedClaims: { id: string; ref: string }[] }
+
+    // The whole document back, with one row's ref rewritten — the shape a
+    // careless script, an import, or a hand-made API call takes. A published
+    // article citing `E1` must not quietly start meaning a different claim.
+    await write({
+      verifiedClaims: saved.verifiedClaims.map((row, index) => ({
+        ...row,
+        ref: index === 0 ? `E${base + 900}` : row.ref,
+        claim: 'Edited, which is allowed',
+      })),
+    })
+
+    const after = await refsOf()
+    expect(after.claims).toEqual([`E${base + 1}`, `E${base + 2}`])
+    // And the edit itself went through: the ref is pinned, not the row.
+    const reread = (await readGlobal()) as { verifiedClaims: { claim: string }[] }
+    expect(reread.verifiedClaims[0]?.claim).toBe('Edited, which is allowed')
+  })
+
+  it('re-mints a new row that arrives carrying a ref another row owns', async () => {
+    const base = await startFresh()
+    await write({ verifiedClaims: [{ claim: 'One' }] })
+    const saved = (await readGlobal()) as { verifiedClaims: { id: string; ref: string }[] }
+    const taken = saved.verifiedClaims[0]!.ref
+
+    await write({
+      verifiedClaims: [...saved.verifiedClaims, { claim: 'Two', ref: taken }],
+    })
+
+    const after = await refsOf()
+    expect(after.claims[0]).toBe(taken)
+    // The newcomer does not get to take a ref that is already spoken for, and
+    // it does not fail the save either: it is simply given the next number.
+    expect(after.claims[1]).toBe(`E${base + 2}`)
+    expect(new Set(after.claims).size).toBe(2)
+  })
+
+  it('refuses to move a saved row into another list and keep its ref', () => {
+    // `F4` says "a fact", and a fact that became a claim is a different kind of
+    // statement with different rules — but a published article citing `[F4]`
+    // does not know that. Re-minting would orphan the citation and keeping the
+    // ref would lie about what it names, so the write is refused instead.
+    const original = { facts: [{ id: 'row-1', ref: 'F4', fact: 'Founded in 2021' }] }
+    expect(() =>
+      assignEvidenceRefs({
+        data: { verifiedClaims: [{ id: 'row-1', claim: 'Founded in 2021' }], facts: [] },
+        originalDoc: original,
+      } as never),
+    ).toThrow(/not a valid E ref/)
+  })
+
+  it('leaves no two rows sharing a ref, even when a write asks for it', async () => {
+    // The invariant every stored citation depends on: one ref, one row. The
+    // hook heals what it can rather than refusing an operator's edit, so this
+    // asserts the outcome rather than an error.
+    await startFresh()
+    await write({ verifiedClaims: [{ claim: 'One' }, { claim: 'Two' }] })
+    const saved = (await readGlobal()) as { verifiedClaims: { id: string; ref: string }[] }
+    const first = saved.verifiedClaims[0]!.ref
+    await write({
+      verifiedClaims: [
+        ...saved.verifiedClaims.map((row) => ({ ...row, ref: first })),
+        { claim: 'Three', ref: first },
+      ],
+    })
+    const after = await refsOf()
+    expect(after.claims).toHaveLength(3)
+    expect(new Set(after.claims).size).toBe(3)
+    expect(after.claims.every((ref) => /^E\d+$/.test(ref ?? ''))).toBe(true)
+  })
+
   it('writes an audit row carrying the before and after of every changed field', async () => {
     await startFresh()
     const startedAt = new Date().toISOString()
@@ -256,10 +332,36 @@ describe('evidence bank global', () => {
     expect(ready.readiness.tenant.evidenceBank.status).toBe('ready')
     expect(ready.readiness.tenant.evidenceBank.usable).toBe(3)
     expect(ready.readiness.tenant.evidenceBank.facts).toBe(2)
+    // Every demo claim carries its source, its date, a verification stronger
+    // than somebody's word, and a re-check date, so the demo bank is one a
+    // draft may actually cite.
+    expect(ready.readiness.tenant.evidenceBank.incomplete).toBe(0)
     expect(ready.readiness.tenant.recommendations).not.toContain('Add an evidence bank')
     // Saving it moves the fingerprint, so a verification run done before the
     // bank existed is correctly reported as stale.
     expect(ready.readiness.configFingerprint).not.toBe(missing.readiness.configFingerprint)
+  })
+
+  it('shows unfinished rows on the setup hub instead of counting them as evidence', async () => {
+    await startFresh()
+    const fixture = evidenceBankFixtureDoc()
+    await write({
+      ...fixture,
+      // The shape the assistant leaves behind: proposed rows nobody finished.
+      verifiedClaims: (fixture.verifiedClaims as Record<string, unknown>[]).map((row) => ({
+        ...row,
+        primarySource: '',
+        verificationDepth: 'self_reported',
+        recheckAt: null,
+      })),
+    })
+
+    const data = await loadSetupChecklistData(payload)
+    expect(data.evidence.usable).toBe(0)
+    expect(data.evidence.incomplete).toBe(3)
+    // Facts keep the row done — there is still something a draft may cite — but
+    // the three claims must not be counted among what it may cite.
+    expect(data.evidence.facts).toBe(2)
   })
 
   it('reads an unsaved global as an empty bank rather than throwing', async () => {

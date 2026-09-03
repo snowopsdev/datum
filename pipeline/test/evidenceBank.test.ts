@@ -11,6 +11,8 @@ import {
   evidenceRefsIn,
   evidenceRules,
   expiredClaims,
+  incompleteClaims,
+  isClaimComplete,
   isEvidenceBankEmpty,
   MAX_PROMPT_CLAIMS,
   neverUseClaims,
@@ -19,18 +21,25 @@ import {
   stripEvidenceRefs,
   usableClaims,
   type VerifiedClaim,
+  verifiedClaimProblems,
 } from '../src/tenant'
 
+/**
+ * A complete claim unless a test says otherwise: a source, the date it was
+ * produced, a verification stronger than somebody's word, and a date to look at
+ * it again. A blank-by-default fixture would make every assertion below an
+ * accidental test of incompleteness, since an unfinished row is never usable.
+ */
 const claim = (over: Partial<VerifiedClaim> & { ref: string }): VerifiedClaim => ({
   claim: 'Something measurable happened',
-  primarySource: '',
+  primarySource: 'Benchmark report',
   sourceUrl: '',
-  sourceDate: '',
+  sourceDate: '2026-01-15',
   sampleOrMethod: '',
-  verificationDepth: '',
+  verificationDepth: 'primary_document',
   limits: '',
   clearedSurfaces: [],
-  recheckAt: '',
+  recheckAt: '2099-12-31',
   ...over,
 })
 
@@ -89,6 +98,75 @@ test('evidenceBankContentOf never throws on garbage, and isEvidenceBankEmpty agr
 })
 
 // ---------------------------------------------------------------------------
+// Completeness
+// ---------------------------------------------------------------------------
+
+test('verifiedClaimProblems names everything a row still needs', () => {
+  assert.deepEqual(verifiedClaimProblems(claim({ ref: 'E1' })), [])
+  assert.equal(isClaimComplete(claim({ ref: 'E1' })), true)
+
+  const bare: VerifiedClaim = {
+    ref: 'E2',
+    claim: '',
+    primarySource: '',
+    sourceUrl: '',
+    sourceDate: '',
+    sampleOrMethod: '',
+    verificationDepth: '',
+    limits: '',
+    clearedSurfaces: [],
+    recheckAt: '',
+  }
+  assert.deepEqual(verifiedClaimProblems(bare), [
+    'Write the claim',
+    'Name the primary source',
+    'Give the date the source was produced',
+    'Record how it was verified',
+    'Set a re-check date',
+  ])
+  assert.equal(isClaimComplete(bare), false)
+})
+
+test('a self-reported claim is not evidence yet, however else it is filled in', () => {
+  const own = claim({ ref: 'E1', verificationDepth: 'self_reported' })
+  assert.deepEqual(verifiedClaimProblems(own), [
+    'Verify it beyond self-reported, or file it as rejected',
+  ])
+  // This is exactly the row the setup assistant proposes, and the reason it
+  // cannot walk into a draft on its own: nobody has checked anything yet.
+  assert.equal(isClaimComplete(own), false)
+})
+
+test('an unfinished claim is never usable, is counted, and is never rendered', () => {
+  const half = bank({
+    verifiedClaims: [
+      claim({ ref: 'E1' }),
+      claim({ ref: 'E2', claim: 'Our customers save four hours a week', primarySource: '' }),
+    ],
+  })
+  assert.deepEqual(
+    usableClaims(half, { asOf: '2026-09-02', surface: 'web' }).map((c) => c.ref),
+    ['E1'],
+  )
+  assert.deepEqual(incompleteClaims(half).map((c) => c.ref), ['E2'])
+  assert.deepEqual(evidenceBankSummary(half, '2026-09-02'), {
+    verified: 2,
+    usable: 1,
+    expired: 0,
+    incomplete: 1,
+    facts: 0,
+    rejected: 0,
+  })
+  const rendered = evidenceBankToPrompt(half, { asOf: '2026-09-02', surface: 'web' })!
+  assert.ok(/\[E1\]/.test(rendered))
+  assert.ok(
+    !/save four hours a week/.test(rendered),
+    'an unfinished claim is not offered to the writer at all',
+  )
+  assert.deepEqual(incompleteClaims(null), [])
+})
+
+// ---------------------------------------------------------------------------
 // Expiry and surfaces
 // ---------------------------------------------------------------------------
 
@@ -101,16 +179,19 @@ const dated = bank({
 })
 
 test('a claim is expired only once asOf has passed its recheck date', () => {
-  assert.deepEqual(
-    usableClaims(dated, { asOf: '2026-09-02', surface: 'web' }).map((c) => c.ref),
-    ['E1', 'E3'],
-  )
   assert.deepEqual(expiredClaims(dated, '2026-09-02').map((c) => c.ref), ['E2'])
   // The re-check date itself is still usable: the claim expires the day after.
   assert.deepEqual(expiredClaims(dated, '2026-06-30'), [])
   assert.deepEqual(expiredClaims(dated, '2026-07-01').map((c) => c.ref), ['E2'])
-  // A claim with no re-check date never expires.
+  // A claim with no re-check date never expires — it is never complete either,
+  // so the two questions are asked separately and answered separately.
   assert.deepEqual(expiredClaims(dated, '2099-01-01').map((c) => c.ref), ['E1', 'E2'])
+  // Only E1 reaches a writer: E2 has gone stale, and E3 has no re-check date,
+  // which is one of the things a claim needs before it counts as evidence.
+  assert.deepEqual(
+    usableClaims(dated, { asOf: '2026-09-02', surface: 'web' }).map((c) => c.ref),
+    ['E1'],
+  )
 })
 
 test('an empty clearedSurfaces list means cleared everywhere', () => {
@@ -158,6 +239,7 @@ test('evidenceBankSummary counts what the hub and readiness report', () => {
     verified: 2,
     usable: 1,
     expired: 1,
+    incomplete: 0,
     facts: 1,
     rejected: 1,
   })
@@ -165,6 +247,7 @@ test('evidenceBankSummary counts what the hub and readiness report', () => {
     verified: 0,
     usable: 0,
     expired: 0,
+    incomplete: 0,
     facts: 0,
     rejected: 0,
   })
@@ -183,6 +266,26 @@ test('evidenceRefsIn finds every marker once, in order, wherever it sits', () =>
   assert.deepEqual(evidenceRefsIn('No refs here [1] [note] [EE3] [E].'), [])
 })
 
+test('a ref is the same ref whichever case the model typed it in', () => {
+  // The model is copying a ref out of the prompt by eye, and half the time it
+  // lower-cases one. `[e3]` naming a different entry from `[E3]` would turn a
+  // correct citation into a hallucinated one.
+  assert.deepEqual(evidenceRefsIn('Latency is 38 ms [e3].'), ['E3'])
+  assert.deepEqual(evidenceRefsIn('Both hold [E1] and [e1] and [f2].'), ['E1', 'F2'])
+  assert.deepEqual(evidenceRefsIn('Filed under [r7].'), ['R7'])
+  assert.equal(stripEvidenceRefs('Latency is 38 ms [e3].'), 'Latency is 38 ms.')
+  assert.equal(stripEvidenceRefs('Both hold [E1][f2] today.'), 'Both hold today.')
+  // And a lower-cased ref reaches the bank the same way an upper-cased one does.
+  const checked = bank({ verifiedClaims: [claim({ ref: 'E1' })] })
+  assert.deepEqual(
+    checkEvidenceRefs(evidenceRefsIn('It holds [e1].'), checked, {
+      asOf: '2026-09-02',
+      surface: 'web',
+    }).ok,
+    ['E1'],
+  )
+})
+
 test('stripEvidenceRefs removes the marker and its leading space, and nothing else', () => {
   assert.equal(stripEvidenceRefs('Latency is 38 ms [E3].'), 'Latency is 38 ms.')
   assert.equal(stripEvidenceRefs('Both hold [E1][F2] today.'), 'Both hold today.')
@@ -196,19 +299,43 @@ test('stripEvidenceRefs removes the marker and its leading space, and nothing el
 
 test('checkEvidenceRefs separates usable, unknown, and unusable refs', () => {
   const checked = bank({
-    verifiedClaims: [claim({ ref: 'E1' }), claim({ ref: 'E2', recheckAt: '2026-06-30' })],
+    verifiedClaims: [
+      claim({ ref: 'E1' }),
+      claim({ ref: 'E2', recheckAt: '2026-06-30' }),
+      claim({ ref: 'E5', clearedSurfaces: ['sales'] }),
+      claim({ ref: 'E6', verificationDepth: 'self_reported' }),
+    ],
     facts: [{ ref: 'F3', fact: 'Founded 2021', source: '', owner: '', lastConfirmedAt: '' }],
     rejectedClaims: [{ ref: 'R4', claim: 'x', status: 'rejected', reason: 'unverifiable', replacement: '' }],
   })
-  const result = checkEvidenceRefs(['E1', 'F3', 'E2', 'R4', 'E9'], checked, '2026-09-02')
+  const result = checkEvidenceRefs(['E1', 'F3', 'E2', 'R4', 'E5', 'E6', 'E9'], checked, {
+    asOf: '2026-09-02',
+    surface: 'web',
+  })
   assert.deepEqual(result.ok, ['E1', 'F3'])
   assert.deepEqual(result.unknown, ['E9'])
   assert.deepEqual(result.unusable, [
     { ref: 'E2', reason: 'expired: re-check was due 2026-06-30' },
     { ref: 'R4', reason: 'rejected: unverifiable' },
+    // A real row with real proof behind it, cited on the wrong surface. Calling
+    // that a hallucination would send a reviewer hunting for nothing.
+    { ref: 'E5', reason: 'not cleared for web' },
+    { ref: 'E6', reason: 'incomplete evidence' },
   ])
+  // The same restricted claim is fine on the surface it was cleared for.
+  assert.deepEqual(
+    checkEvidenceRefs(['E5'], checked, { asOf: '2026-09-02', surface: 'sales' }).ok,
+    ['E5'],
+  )
+  // An empty clearedSurfaces list still means everywhere.
+  assert.deepEqual(
+    checkEvidenceRefs(['E1'], checked, { asOf: '2026-09-02', surface: 'pr' }).ok,
+    ['E1'],
+  )
   // With no bank at all, every declared ref is a hallucinated citation.
-  assert.deepEqual(checkEvidenceRefs(['E1'], null, '2026-09-02').unknown, ['E1'])
+  assert.deepEqual(checkEvidenceRefs(['E1'], null, { asOf: '2026-09-02', surface: 'web' }).unknown, [
+    'E1',
+  ])
 })
 
 // ---------------------------------------------------------------------------
@@ -314,7 +441,7 @@ test('usable claims are capped newest-first, and facts and never-use rows are no
   )
 })
 
-test('a claim with no re-check date sorts after the dated ones', () => {
+test('a claim with no re-check date is not offered at all', () => {
   const undated = bank({
     verifiedClaims: [
       claim({ ref: 'E1', recheckAt: '' }),
@@ -322,7 +449,10 @@ test('a claim with no re-check date sorts after the dated ones', () => {
     ],
   })
   const rendered = evidenceBankToPrompt(undated, { asOf: '2026-01-01', surface: 'web' })!
-  assert.ok(rendered.indexOf('[E2]') < rendered.indexOf('[E1]'))
+  // A claim nobody has agreed to look at again cannot go stale, which is the
+  // problem rather than the reassurance: it would be cited for ever.
+  assert.ok(rendered.includes('[E2]'))
+  assert.ok(!rendered.includes('[E1]'))
 })
 
 // ---------------------------------------------------------------------------

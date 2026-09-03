@@ -258,7 +258,11 @@ export const EVIDENCE_BANK_FIXTURE: EvidenceBankContent = {
       sourceUrl: '',
       sourceDate: '2026-07-01',
       sampleOrMethod: 'Median of all cost-log rows grouped by article across one quarter, mock runs excluded',
-      verificationDepth: 'self_reported',
+      // Every demo claim is verified past self-reported on purpose: a bank row
+      // that is only somebody's word is incomplete, and the writer is never
+      // offered one. A demo whose claims did not reach the draft would teach
+      // the wrong lesson about what the bank is for.
+      verificationDepth: 'primary_document',
       limits: 'Median, not typical: a regenerated article costs several times this. Excludes Ahrefs and hosting',
       clearedSurfaces: ['web', 'blog', 'sales'],
       recheckAt: '2027-01-31',

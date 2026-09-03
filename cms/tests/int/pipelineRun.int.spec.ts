@@ -143,7 +143,15 @@ describe('pipeline run launch', () => {
       // Counts, not claims: a snapshot carrying the bank's text would grow
       // without bound and duplicate the audit trail, and the counts are enough
       // to explain what a draft was allowed to state when this run wrote it.
-      evidenceBank: { status: 'ready', verified: 3, usable: 3, expired: 0, facts: 2, rejected: 1 },
+      evidenceBank: {
+        status: 'ready',
+        verified: 3,
+        usable: 3,
+        expired: 0,
+        incomplete: 0,
+        facts: 2,
+        rejected: 1,
+      },
     })
   })
 

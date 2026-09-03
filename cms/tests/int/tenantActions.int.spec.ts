@@ -44,6 +44,7 @@ vi.mock('payload', async (importOriginal) => {
 })
 
 const {
+  activateDefaultTenantAction,
   activateIcpAction,
   archiveIcpAction,
   createIcpAction,
@@ -57,6 +58,7 @@ const {
 
 const { emptyIcpContent } = await import('@/lib/tenant/icp')
 const { emptyPositioningContent } = await import('@/lib/tenant/positioning')
+const { ICP_FIXTURE, ICP_FIXTURE_SECONDARY } = await import('@/lib/tenant/fixtures')
 
 const createdIcpIds: number[] = []
 
@@ -255,6 +257,145 @@ describe('audience lifecycle', () => {
     expect(refused.ok).toBe(false)
     if (refused.ok) return
     expect(refused.error).toContain('Only draft audiences can be deleted')
+  })
+})
+
+/**
+ * "Start with the demo workspace" fills the gaps and touches nothing else.
+ *
+ * The button exists so a new workspace can make its first piece without filling
+ * in four forms, and an operator who has done some of that work will press it
+ * for the rest. Everything it writes has to be create-only: an audience is the
+ * most considered thing in the workspace, and one overwritten by a demo fixture
+ * is gone.
+ */
+describe('activateDefaultTenantAction', () => {
+  const findByName = async (name: string) => {
+    const { docs } = await payload.find({
+      collection: 'icps',
+      where: { name: { equals: name } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    return docs[0]
+  }
+
+  const removeFixtureIcps = async () => {
+    for (const name of [ICP_FIXTURE.name, ICP_FIXTURE_SECONDARY.name]) {
+      const doc = await findByName(name)
+      if (!doc) continue
+      await payload
+        .update({
+          collection: 'icps',
+          id: doc.id,
+          data: { status: 'draft', primary: false },
+          overrideAccess: true,
+        })
+        .catch(() => undefined)
+      await payload.delete({ collection: 'icps', id: doc.id, overrideAccess: true }).catch(() => undefined)
+    }
+  }
+
+  it('leaves an edited audience of the same name exactly as it was', async () => {
+    await removeFixtureIcps()
+    // The demo audience, taken over and rewritten: same name, the operator's
+    // words, and archived because they are not using it this quarter.
+    const mine = await payload.create({
+      collection: 'icps',
+      overrideAccess: true,
+      data: {
+        ...completeIcp(ICP_FIXTURE.name),
+        who: 'My own words about my own buyer.',
+        status: 'draft',
+        primary: false,
+      } as never,
+    })
+    createdIcpIds.push(mine.id)
+
+    // And a real, active, primary audience of their own that the cascade must
+    // not be allowed to demote.
+    const theirs = await createIcpAction(completeIcp(`Mine ${randomUUID().slice(0, 8)}`))
+    expect(theirs.ok).toBe(true)
+    if (!theirs.ok) return
+    createdIcpIds.push(theirs.id)
+    await activateIcpAction(theirs.id)
+    await setPrimaryIcpAction(theirs.id)
+
+    expect(await activateDefaultTenantAction()).toEqual({ ok: true })
+
+    const after = await payload.findByID({ collection: 'icps', id: mine.id, depth: 0, overrideAccess: true })
+    expect(after.who).toBe('My own words about my own buyer.')
+    expect(after.status).toBe('draft')
+    expect(after.primary).toBe(false)
+
+    const stillPrimary = await payload.findByID({
+      collection: 'icps',
+      id: theirs.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(stillPrimary.status).toBe('active')
+    expect(stillPrimary.primary).toBe(true)
+
+    // The audience it did create goes in as a draft, because activating it
+    // would have moved `primary` off the one they chose.
+    const secondary = await findByName(ICP_FIXTURE_SECONDARY.name)
+    expect(secondary?.status).toBe('draft')
+    expect(secondary?.primary).toBe(false)
+    if (secondary) createdIcpIds.push(secondary.id)
+  })
+
+  it('creates both demo audiences, active and primary, when nothing is active', async () => {
+    await removeFixtureIcps()
+    // Park every audience this suite has made, so the workspace really has
+    // nothing live — the state a brand-new install is in.
+    const { docs: live } = await payload.find({
+      collection: 'icps',
+      where: { status: { equals: 'active' } },
+      depth: 0,
+      pagination: false,
+      overrideAccess: true,
+    })
+    for (const doc of live) {
+      await payload.update({
+        collection: 'icps',
+        id: doc.id,
+        data: { status: 'draft', primary: false },
+        overrideAccess: true,
+      })
+    }
+
+    expect(await activateDefaultTenantAction()).toEqual({ ok: true })
+
+    const primary = await findByName(ICP_FIXTURE.name)
+    const secondary = await findByName(ICP_FIXTURE_SECONDARY.name)
+    if (primary) createdIcpIds.push(primary.id)
+    if (secondary) createdIcpIds.push(secondary.id)
+    expect(primary?.status).toBe('active')
+    expect(primary?.primary).toBe(true)
+    expect(secondary?.status).toBe('active')
+    expect(secondary?.primary).toBe(false)
+
+    // Pressing it twice changes nothing, which is the point of create-only.
+    await payload.update({
+      collection: 'icps',
+      id: primary!.id,
+      data: { who: 'Edited after the first press.' },
+      overrideAccess: true,
+    })
+    expect(await activateDefaultTenantAction()).toEqual({ ok: true })
+    const again = await findByName(ICP_FIXTURE.name)
+    expect(again?.id).toBe(primary?.id)
+    expect(again?.who).toBe('Edited after the first press.')
+    const { totalDocs } = await payload.find({
+      collection: 'icps',
+      where: { name: { equals: ICP_FIXTURE.name } },
+      depth: 0,
+      limit: 0,
+      overrideAccess: true,
+    })
+    expect(totalDocs).toBe(1)
   })
 })
 

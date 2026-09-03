@@ -432,14 +432,27 @@ async function upsertWorkspaceProfile(payload: Payload): Promise<void> {
 }
 
 /** The fixture as the `icps` collection stores it: arrays of rows, not bare strings. */
-const icpDocData = (icp: IcpContent, primary: boolean) => ({
+const icpDocData = (icp: IcpContent, opts: { active: boolean; primary: boolean }) => ({
   ...icpFields(icp),
-  status: 'active' as const,
-  primary,
+  status: opts.active ? ('active' as const) : ('draft' as const),
+  primary: opts.primary,
 })
 
-async function upsertIcp(payload: Payload, icp: IcpContent, primary: boolean): Promise<void> {
-  const data = icpDocData(icp, primary)
+/**
+ * Create the fixture audience, and never touch one that is already there.
+ *
+ * The name is the identity here, and an operator who took the demo audience and
+ * rewrote it into their own — same name, every field theirs — must be able to
+ * press "start with the demo workspace" again for the parts they have not done
+ * without losing the part they have. So this creates or does nothing: no update,
+ * no re-activation, no change of `primary`. Anything else would silently
+ * overwrite the most expensive thing in the workspace to write.
+ */
+async function createIcpIfMissing(
+  payload: Payload,
+  icp: IcpContent,
+  opts: { active: boolean; primary: boolean },
+): Promise<boolean> {
   const existing = await payload.find({
     collection: 'icps',
     where: { name: { equals: icp.name } },
@@ -447,11 +460,65 @@ async function upsertIcp(payload: Payload, icp: IcpContent, primary: boolean): P
     depth: 0,
     overrideAccess: true,
   })
-  if (existing.docs[0]) {
-    await payload.update({ collection: 'icps', id: existing.docs[0].id, data, overrideAccess: true })
-  } else {
-    await payload.create({ collection: 'icps', data, overrideAccess: true })
-  }
+  if (existing.docs[0]) return false
+  await payload.create({ collection: 'icps', data: icpDocData(icp, opts), overrideAccess: true })
+  return true
+}
+
+/**
+ * Put the demo audiences in, without disturbing a workspace that has its own.
+ *
+ * Creating an active, primary audience is not a neutral act: the collection's
+ * single-primary cascade would move `primary` off whatever the operator made
+ * primary, and their pipeline would start writing for somebody else. So the
+ * demo rows only claim `active` and `primary` when nothing is active — that is,
+ * when there is nothing of the operator's to move the flag away from.
+ */
+async function fillDemoIcps(payload: Payload): Promise<void> {
+  const active = await payload.find({
+    collection: 'icps',
+    where: { status: { equals: 'active' } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const nothingActive = active.docs.length === 0
+  // Primary first: the single-primary cascade clears the others, so the
+  // secondary must not be able to claim the flag on the way past.
+  const createdPrimary = await createIcpIfMissing(payload, ICP_FIXTURE, {
+    active: nothingActive,
+    primary: nothingActive,
+  })
+  await createIcpIfMissing(payload, ICP_FIXTURE_SECONDARY, {
+    active: nothingActive,
+    primary: false,
+  })
+  if (!createdPrimary || !nothingActive) return
+  // Belt and braces: a run that meant to leave an active primary behind has to
+  // have left one, or the button did not do what it says it does.
+  const stillNone = await payload.find({
+    collection: 'icps',
+    where: { status: { equals: 'active' } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (stillNone.docs.length > 0) return
+  const created = await payload.find({
+    collection: 'icps',
+    where: { name: { equals: ICP_FIXTURE.name } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const id = created.docs[0]?.id
+  if (id === undefined) return
+  await payload.update({
+    collection: 'icps',
+    id,
+    data: { status: 'active', primary: true },
+    overrideAccess: true,
+  })
 }
 
 /**
@@ -499,32 +566,45 @@ async function upsertEvidenceBank(payload: Payload): Promise<void> {
 }
 
 /**
- * Activate the demo brand voice so a new workspace can make its first piece
- * without writing a voice guide first. Same upsert the `--with-brand-voice`
- * seed runs; the single-active cascade on the collection keeps it the only
- * active one. The editor can replace it from the Brand voice page any time.
+ * Put the demo brand voice in so a new workspace can make its first piece
+ * without writing a voice guide first.
+ *
+ * Create-only, for the same reason the audiences are: a voice carrying the
+ * fixture's name may be one the operator rewrote word by word, and overwriting
+ * it with the demo copy would throw away the most considered writing in the
+ * workspace. It is also only created *active* when nothing else is — the
+ * collection archives the previous active record when a new one activates, so
+ * an unconditional active create would silently retire the operator's voice
+ * mid-pipeline. With a voice already governing runs, the demo goes in as a
+ * draft the operator can promote from the Brand voice page.
  */
 export async function activateDefaultBrandVoiceAction(): Promise<TenantActionResult> {
   try {
     const { payload } = await requireUser()
-    // Same shape the seed writes; `source`/`onboardingStep` are what the
-    // collection type requires beyond the voice content itself.
-    const data = {
-      ...BRAND_VOICE_FIXTURE,
-      status: 'active' as const,
-      source: 'onboarding' as const,
-      onboardingStep: 9,
-    }
     const existing = await payload.find({
       collection: 'brand-voices',
-      where: { name: { equals: data.name } },
+      where: { name: { equals: BRAND_VOICE_FIXTURE.name } },
       limit: 1,
       depth: 0,
     })
-    if (existing.docs[0]) {
-      await payload.update({ collection: 'brand-voices', id: existing.docs[0].id, data })
-    } else {
-      await payload.create({ collection: 'brand-voices', data })
+    if (!existing.docs[0]) {
+      const active = await payload.find({
+        collection: 'brand-voices',
+        where: { status: { equals: 'active' } },
+        limit: 1,
+        depth: 0,
+      })
+      // Same shape the seed writes; `source`/`onboardingStep` are what the
+      // collection type requires beyond the voice content itself.
+      await payload.create({
+        collection: 'brand-voices',
+        data: {
+          ...BRAND_VOICE_FIXTURE,
+          status: active.docs.length === 0 ? ('active' as const) : ('draft' as const),
+          source: 'onboarding' as const,
+          onboardingStep: 9,
+        },
+      })
     }
     revalidatePath('/admin')
     revalidatePath(HUB_PATH)
@@ -560,18 +640,17 @@ export async function runtimeStatusAction(): Promise<{
  * Slice 2 gates content runs on a target domain and an active audience, which
  * would strand every existing workspace behind two forms it has never seen.
  * This writes the demo workspace instead: the profile where it is still blank,
- * both audience fixtures, the position when there is none, and the default
- * brand voice. Everything it writes is
- * an ordinary record the operator can edit or archive.
+ * the audience fixtures that are not there yet, the position when there is
+ * none, the evidence bank when it is empty, and the default brand voice.
+ * Everything it writes is an ordinary record the operator can edit or archive,
+ * and nothing it writes replaces anything they have already written — the
+ * button fills gaps, and pressing it twice is safe.
  */
 export async function activateDefaultTenantAction(): Promise<TenantActionResult> {
   try {
     const { payload } = await requireUser()
     await upsertWorkspaceProfile(payload)
-    // Primary first: the single-primary cascade clears the others, so the
-    // secondary must not be able to claim the flag on the way past.
-    await upsertIcp(payload, ICP_FIXTURE, true)
-    await upsertIcp(payload, ICP_FIXTURE_SECONDARY, false)
+    await fillDemoIcps(payload)
     await upsertPositioning(payload)
     await upsertEvidenceBank(payload)
     // Reused rather than copied: the single-active cascade means two upserts

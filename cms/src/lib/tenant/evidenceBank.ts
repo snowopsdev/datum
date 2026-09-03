@@ -12,7 +12,8 @@
  * as well as here, because they are the ones operators get wrong:
  *
  * - Proof travels with the claim. An entry without a source and its limits is
- *   an assertion, and the writer cannot tell the difference.
+ *   an assertion, and the writer cannot tell the difference — which is why an
+ *   unfinished row is not sent to the writer at all.
  * - A softened version of an unsupported claim is still unsupported. "Roughly
  *   the fastest" is the same claim as "the fastest" with the evidence removed,
  *   which is why rejected claims stay visible instead of being deleted: a row
@@ -257,6 +258,38 @@ function expired(claim: VerifiedClaim, asOf: string): boolean {
 }
 
 /**
+ * What is still missing before this claim may be cited, in the words the
+ * operator needs to act on.
+ *
+ * Proof travels with the claim, and a half-filled row is the shape that breaks
+ * that rule quietly: it looks like evidence in the admin list and reads to the
+ * writer as a checked fact. So a row without a source, a source date, a
+ * verification stronger than somebody's word, or a date it has to be looked at
+ * again is not evidence yet — it is a note about a claim somebody would like to
+ * make. `self_reported` is listed as a depth because an operator has to be able
+ * to record where a claim came from, not because it is enough to publish on:
+ * the assistant stamps every row it proposes with exactly that value, and those
+ * rows must not walk into a draft on their own.
+ */
+export function verifiedClaimProblems(claim: VerifiedClaim): string[] {
+  const problems: string[] = []
+  if (!claim.claim.trim()) problems.push('Write the claim')
+  if (!claim.primarySource.trim()) problems.push('Name the primary source')
+  if (!claim.sourceDate) problems.push('Give the date the source was produced')
+  if (claim.verificationDepth === '') problems.push('Record how it was verified')
+  else if (claim.verificationDepth === 'self_reported') {
+    problems.push('Verify it beyond self-reported, or file it as rejected')
+  }
+  if (!claim.recheckAt) problems.push('Set a re-check date')
+  return problems
+}
+
+/** A claim carrying everything a writer and a checker need. */
+export function isClaimComplete(claim: VerifiedClaim): boolean {
+  return verifiedClaimProblems(claim).length === 0
+}
+
+/**
  * A claim cleared for this surface. An empty `clearedSurfaces` means nobody
  * restricted it, which is cleared everywhere — the alternative reading, that an
  * unfilled field bans the claim, would make an operator who has not heard of
@@ -266,14 +299,32 @@ function cleared(claim: VerifiedClaim, surface: string): boolean {
   return claim.clearedSurfaces.length === 0 || claim.clearedSurfaces.includes(surface as ClearedSurface)
 }
 
+/**
+ * The claims a writer may be handed: complete, cleared for this surface, and
+ * not expired.
+ *
+ * Completeness is part of usability rather than a separate warning, because
+ * the only consumer that matters is the prompt, and a claim the writer can see
+ * is a claim the writer will use. An unfinished row reaching a draft is exactly
+ * the failure the bank exists to prevent — it arrives wearing the authority of
+ * the checked rows beside it, with nothing behind it.
+ */
 export function usableClaims(
   bank: EvidenceBankContent | null | undefined,
   opts: { asOf: string; surface: string },
 ): VerifiedClaim[] {
   if (!bank) return []
   return bank.verifiedClaims.filter(
-    (claim) => cleared(claim, opts.surface) && !expired(claim, opts.asOf),
+    (claim) => isClaimComplete(claim) && cleared(claim, opts.surface) && !expired(claim, opts.asOf),
   )
+}
+
+/** Verified rows that are not evidence yet, whatever else is true of them. */
+export function incompleteClaims(
+  bank: EvidenceBankContent | null | undefined,
+): VerifiedClaim[] {
+  if (!bank) return []
+  return bank.verifiedClaims.filter((claim) => !isClaimComplete(claim))
 }
 
 export function expiredClaims(
@@ -324,11 +375,13 @@ export function neverUseClaims(
 }
 
 export interface EvidenceBankSummary {
-  /** Every verified claim, expired or not. */
+  /** Every verified claim, complete or not, expired or not. */
   verified: number
-  /** Verified claims that have not expired, on any surface. */
+  /** Verified claims a writer may be handed on some surface: complete and unexpired. */
   usable: number
   expired: number
+  /** Verified rows still missing a source, a date, real verification, or a re-check date. */
+  incomplete: number
   facts: number
   rejected: number
 }
@@ -344,12 +397,14 @@ export function evidenceBankSummary(
   bank: EvidenceBankContent | null | undefined,
   asOf: string,
 ): EvidenceBankSummary {
-  const verified = bank?.verifiedClaims.length ?? 0
-  const stale = expiredClaims(bank, asOf).length
+  const claims = bank?.verifiedClaims ?? []
   return {
-    verified,
-    usable: verified - stale,
-    expired: stale,
+    verified: claims.length,
+    // Counted the same way the prompt picks them, minus the surface: a row that
+    // reaches no draft must not be reported to the operator as evidence.
+    usable: claims.filter((claim) => isClaimComplete(claim) && !expired(claim, asOf)).length,
+    expired: expiredClaims(bank, asOf).length,
+    incomplete: incompleteClaims(bank).length,
     facts: bank?.facts.length ?? 0,
     rejected: bank?.rejectedClaims.length ?? 0,
   }
@@ -359,7 +414,13 @@ export function evidenceBankSummary(
 // Refs in generated text
 // ---------------------------------------------------------------------------
 
-const REF_PATTERN = /\[([EFR]\d+)\]/g
+/**
+ * Case-insensitive, because the model is copying a ref out of the prompt by
+ * eye and `[e3]` is the same citation as `[E3]` to everyone but a regex. The
+ * captured ref is normalised to upper case before it goes anywhere, so the
+ * stored citation, the QA check, and the bank all spell it one way.
+ */
+const REF_PATTERN = /\[([EFR]\d+)\]/gi
 
 /** Every evidence ref cited in a piece of generated text, de-duplicated in order. */
 export function evidenceRefsIn(text: string | null | undefined): string[] {
@@ -367,7 +428,7 @@ export function evidenceRefsIn(text: string | null | undefined): string[] {
   const seen = new Set<string>()
   const refs: string[] = []
   for (const match of text.matchAll(REF_PATTERN)) {
-    const ref = match[1]
+    const ref = normaliseEvidenceRef(match[1])
     if (seen.has(ref)) continue
     seen.add(ref)
     refs.push(ref)
@@ -383,10 +444,12 @@ export function evidenceRefsIn(text: string | null | undefined): string[] {
  * text — a markdown link, `[sic]`, an array index in a code sample — and a
  * greedy strip would silently mangle the article. The markers are an internal
  * protocol between the prompt and QA, and no reader should ever see one, so
- * this runs on every generated string field before anything is stored.
+ * this runs on every generated string field before anything is stored — in
+ * either case, since a model that types `[e3]` must not leave the marker in the
+ * published text just because it shouted less than the prompt did.
  */
 export function stripEvidenceRefs(text: string): string {
-  return text.replace(/[ \t]*\[([EFR]\d+)\]/g, '')
+  return text.replace(/[ \t]*\[([EFR]\d+)\]/gi, '')
 }
 
 /** What the deterministic half of the evidence check found about one ref. */
@@ -401,29 +464,34 @@ export interface EvidenceRefCheck {
 
 /**
  * The half of the evidence check that needs no model: every ref the writer
- * cited must exist and still be usable.
+ * cited must exist and still be usable *on the surface this draft is for*.
  *
- * Deliberately not surface-aware. The writer was handed the claims cleared for
- * its surface, so a ref outside that set is a hallucinated citation rather than
- * a clearance question, and it is caught here as unknown or — if it names a
- * real but restricted row — reported by the model half against the claim's own
- * limits.
+ * Surface-aware, because the check has to answer the same question the prompt
+ * did. A claim cleared for sales only is a real row with real proof behind it,
+ * so reporting it as an unknown ref would send a reviewer looking for a
+ * hallucination that is not there; it is a clearance problem, and it says so.
+ * The same goes for a row nobody finished: the draft cited something that was
+ * never evidence, and "incomplete evidence" is the sentence that gets it fixed.
  */
 export function checkEvidenceRefs(
   refs: string[],
   bank: EvidenceBankContent | null | undefined,
-  asOf: string,
+  opts: { asOf: string; surface: string },
 ): EvidenceRefCheck {
   const result: EvidenceRefCheck = { ok: [], unknown: [], unusable: [] }
   for (const raw of refs) {
     const ref = normaliseEvidenceRef(raw)
     const claim = bank?.verifiedClaims.find((row) => row.ref === ref)
     if (claim) {
-      if (expired(claim, asOf)) {
+      if (expired(claim, opts.asOf)) {
         result.unusable.push({
           ref,
           reason: `expired: re-check was due ${claim.recheckAt}`,
         })
+      } else if (!isClaimComplete(claim)) {
+        result.unusable.push({ ref, reason: 'incomplete evidence' })
+      } else if (!cleared(claim, opts.surface)) {
+        result.unusable.push({ ref, reason: `not cleared for ${opts.surface}` })
       } else {
         result.ok.push(ref)
       }
@@ -496,10 +564,10 @@ function renderNeverUse(row: NeverUseEntry): string {
  * Usable claims are capped (`MAX_PROMPT_CLAIMS` by default, `Infinity` for the
  * QA call which must see everything) and ordered by re-check date, newest
  * first, so the cap drops the claims closest to going stale rather than an
- * arbitrary slice. Claims with no re-check date sort last: they never expire,
- * which makes them the safest thing to lose. Facts and never-use rows are never
- * capped — the never-use list in particular has to be complete, because a
- * missing row is a claim that comes back.
+ * arbitrary slice. Undated claims sort last; a usable claim always carries a
+ * re-check date, so that branch is only what keeps the ordering total. Facts
+ * and never-use rows are never capped — the never-use list in particular has to
+ * be complete, because a missing row is a claim that comes back.
  */
 export function evidenceBankToPrompt(
   bank: EvidenceBankContent | null | undefined,

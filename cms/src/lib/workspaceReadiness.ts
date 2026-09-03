@@ -299,6 +299,12 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     ...(bank.expired > 0
       ? [`Re-check ${bank.expired} expired claim${bank.expired === 1 ? '' : 's'}`]
       : []),
+    // And separate again from "re-check": these rows have never been evidence.
+    // They are the ones the assistant proposed and nobody finished, and without
+    // a line here they sit in the bank looking like claims a draft may cite.
+    ...(bank.incomplete > 0
+      ? [`Complete ${bank.incomplete} unverified claim${bank.incomplete === 1 ? '' : 's'}`]
+      : []),
   ]
 
   return {

@@ -24,7 +24,14 @@ export type SetupChecklistData = {
   }
   audiences: { ready: boolean; count: number; primaryName: string | null }
   positioning: { status: 'missing' | 'partial' | 'ready'; problems: string[] }
-  evidence: { status: 'missing' | 'ready'; usable: number; expired: number; rejected: number; facts: number }
+  evidence: {
+    status: 'missing' | 'ready'
+    usable: number
+    expired: number
+    incomplete: number
+    rejected: number
+    facts: number
+  }
 }
 
 type Row = {
@@ -65,6 +72,9 @@ function evidenceState(evidence: SetupChecklistData['evidence']): string {
   if (evidence.status === 'missing') return 'Nothing a draft may cite yet'
   const parts = [plural(evidence.usable, 'usable claim'), plural(evidence.facts, 'fact')]
   if (evidence.expired > 0) parts.push(`${evidence.expired} expired`)
+  // Named on the row rather than left to the editor, because an unfinished
+  // claim looks like evidence in every list until somebody says it is not.
+  if (evidence.incomplete > 0) parts.push(`${evidence.incomplete} unverified`)
   if (evidence.rejected > 0) parts.push(`${evidence.rejected} rejected`)
   return parts.join(' · ')
 }

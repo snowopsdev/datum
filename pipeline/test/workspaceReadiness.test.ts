@@ -488,6 +488,7 @@ describe('evidence bank readiness', () => {
       verified: 0,
       usable: 0,
       expired: 0,
+      incomplete: 0,
       facts: 0,
       rejected: 0,
     })
@@ -501,6 +502,7 @@ describe('evidence bank readiness', () => {
       verified: 3,
       usable: 3,
       expired: 0,
+      incomplete: 0,
       facts: 2,
       rejected: 1,
     })
@@ -517,6 +519,47 @@ describe('evidence bank readiness', () => {
       },
     })
     assert.equal(factsOnly.tenant.evidenceBank.status, 'ready')
+  })
+
+  it('will not call a bank of unfinished rows ready, and says what they need', () => {
+    // Every claim without a source: the shape the setup assistant leaves behind
+    // when nobody goes back to finish it. The counts have to show that nothing
+    // in here is citable, or the hub reports three claims and the writer is
+    // given none.
+    const unfinished = {
+      verifiedClaims: EVIDENCE_BANK_FIXTURE.verifiedClaims.map((claim) => ({
+        ...claim,
+        primarySource: '',
+        verificationDepth: 'self_reported' as const,
+      })),
+      facts: [],
+      rejectedClaims: [],
+    }
+    const readiness = evaluateWorkspaceReadiness({
+      ...baseInput(),
+      evidenceBank: { content: unfinished, updatedAt: '2026-09-01T00:00:00.000Z', asOf: '2026-09-02' },
+    })
+    assert.equal(readiness.tenant.evidenceBank.status, 'missing')
+    assert.equal(readiness.tenant.evidenceBank.verified, 3)
+    assert.equal(readiness.tenant.evidenceBank.usable, 0)
+    assert.equal(readiness.tenant.evidenceBank.incomplete, 3)
+    assert.deepEqual(readiness.tenant.recommendations, [
+      'Add positioning',
+      'Add an evidence bank',
+      'Complete 3 unverified claims',
+    ])
+    // Still never a blocker, whatever state the rows are in.
+    assert.equal(readiness.governance.ready, true)
+
+    const one = evaluateWorkspaceReadiness({
+      ...baseInput(),
+      evidenceBank: {
+        content: { ...unfinished, verifiedClaims: unfinished.verifiedClaims.slice(0, 1) },
+        updatedAt: '2026-09-01T00:00:00.000Z',
+        asOf: '2026-09-02',
+      },
+    })
+    assert.ok(one.tenant.recommendations.includes('Complete 1 unverified claim'))
   })
 
   it('asks for a re-check separately from asking for a bank', () => {

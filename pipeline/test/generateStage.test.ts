@@ -186,6 +186,34 @@ test('a workspace with no bank records no citations and stores the draft unchang
   assert.deepEqual([...new Set(citations.map((c) => c.ref))].sort(), ['E1', 'E2'])
 })
 
+test('a lower-cased marker is stripped and recorded as the entry it names', async () => {
+  // Models copy the ref out of the prompt by eye and lower-case it often
+  // enough to matter. A citation stored as `e1` would look to QA like a
+  // hallucination, and a marker left in the body is one a reader sees.
+  const shouted = { ...GENERATED, bodyMarkdown: 'A reviewer approves the brief [e1]. It holds [f4].' }
+  const { ctx } = ctxWith()
+  const outcome = await generateStage.run(article, {
+    ...ctx,
+    llm: {
+      async completeJSON() {
+        return {
+          json: JSON.parse(JSON.stringify(shouted)),
+          provider: 'mock',
+          model: 'mock-generate',
+          usage: { inputTokens: 0, outputTokens: 0, webSearchRequests: 0 },
+        }
+      },
+    },
+  } as unknown as StageContext)
+  const data = outcome.data as Record<string, unknown>
+  const body = lexicalToMarkdown(data.body as RichText)
+  assert.ok(!/\[[EFRefr]\d+\]/.test(body), `a marker survived into the body: ${body}`)
+  // `E2` comes from the meta fields, which this case leaves as they were.
+  const citations = data.evidenceCitations as { ref: string; excerpt: string }[]
+  assert.deepEqual([...new Set(citations.map((c) => c.ref))].sort(), ['E1', 'E2', 'F4'])
+  assert.ok(citations.some((c) => c.ref === 'F4' && c.excerpt === 'It holds.'))
+})
+
 test('extractEvidenceCitations caps an excerpt and de-duplicates identical rows', () => {
   const long = `${'word '.repeat(200)}[E1]`
   const [only] = extractEvidenceCitations([long])
@@ -194,6 +222,10 @@ test('extractEvidenceCitations caps an excerpt and de-duplicates identical rows'
 
   const repeated = extractEvidenceCitations(['Same sentence [E1].', 'Same sentence [E1].'])
   assert.equal(repeated.length, 1)
+
+  // One entry, cited twice in two cases, is one entry.
+  const shouted = extractEvidenceCitations(['Same sentence [E1].', 'Same sentence [e1].'])
+  assert.deepEqual(shouted, [{ ref: 'E1', excerpt: 'Same sentence.' }])
 
   assert.deepEqual(extractEvidenceCitations([null, undefined, '', 'No refs here.']), [])
 })

@@ -71,6 +71,7 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
       status: tenant.evidenceBank.status,
       usable: tenant.evidenceBank.usable,
       expired: tenant.evidenceBank.expired,
+      incomplete: tenant.evidenceBank.incomplete,
       rejected: tenant.evidenceBank.rejected,
       facts: tenant.evidenceBank.facts,
     },

@@ -207,7 +207,11 @@ export const qaStage: Stage = {
         workspaceBlock,
         bankBlock,
         declaredRefsBlock(article.evidenceCitations),
-        `Article "${article.title}":\n\n${bodyText}`,
+        // The meta fields go to the auditor for the same reason they go to the
+        // reviewer: they are generated text about the company, they are the
+        // first thing a reader sees, and a title tag is where an unbacked
+        // superlative is likeliest to survive a careful body.
+        `Article "${article.title}":\n\n${metaText}\n\n${bodyText}`,
         faqBlock,
       ]
         .filter((block) => block.trim().length > 0)
@@ -221,7 +225,9 @@ export const qaStage: Stage = {
           .map((row) => (row as { ref?: unknown })?.ref)
           .filter((ref): ref is string => typeof ref === 'string'),
         ctx.tenant.evidenceBank,
-        ctx.tenant.asOf,
+        // The surface the writer was given, so a ref cleared for sales only is
+        // reported as a clearance problem rather than as a hallucination.
+        { asOf: ctx.tenant.asOf, surface: 'web' },
       ),
     )
     const evidenceFindings = withReplacements(evidence.findings, ctx.tenant.evidenceBank)

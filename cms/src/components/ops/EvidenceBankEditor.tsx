@@ -7,12 +7,14 @@ import React, { useState, useTransition } from 'react'
 import {
   CLEARED_SURFACES,
   type ClearedSurface,
+  type VerifiedClaim,
   type VerificationDepth,
   VERIFICATION_DEPTHS,
+  verifiedClaimProblems,
 } from '../../lib/tenant/evidenceBank'
 import { assistAction } from './setupActions'
 import { Field, RowsEditor } from './setupFields'
-import { type EvidenceBankDraft, emptyEvidenceBankDraft } from './setupTypes'
+import { type EvidenceBankDraft, emptyEvidenceBankDraft, type NewRow } from './setupTypes'
 import { saveEvidenceBankAction } from './tenantActions'
 import './ops.css'
 
@@ -30,6 +32,15 @@ const DEPTH_LABEL: Record<VerificationDepth, string> = {
   third_party_audit: 'Third-party audit',
   self_reported: 'Self-reported',
 }
+
+/**
+ * What is still missing on a row the operator is typing, judged by the rule the
+ * prompt uses rather than a second one written here. A row that fails it is
+ * shown as unverified, because the alternative — leaving it looking like every
+ * other claim — is how a half-finished note ends up read as a checked fact.
+ */
+const claimProblems = (row: NewRow<VerifiedClaim>): string[] =>
+  verifiedClaimProblems({ ...row, ref: row.ref ?? '' })
 
 const SURFACE_LABEL: Record<ClearedSurface, string> = {
   web: 'Web',
@@ -75,6 +86,7 @@ export function EvidenceBankEditor({
   const expiredCount = draft.verifiedClaims.filter(
     (row) => row.recheckAt && row.recheckAt.slice(0, 10) < today,
   ).length
+  const unverifiedCount = draft.verifiedClaims.filter((row) => claimProblems(row).length > 0).length
   const unsaved =
     draft.verifiedClaims.filter((row) => !row.ref).length +
     draft.facts.filter((row) => !row.ref).length +
@@ -230,6 +242,11 @@ export function EvidenceBankEditor({
                   ? `${expiredCount} claim${expiredCount === 1 ? '' : 's'} past its re-check date — the writer is told never to state ${expiredCount === 1 ? 'it' : 'them'}.`
                   : 'Nothing has expired.'}
               </span>
+              {unverifiedCount > 0 ? (
+                <span className="datum-ops__hint">
+                  {`${unverifiedCount} unverified — ${unverifiedCount === 1 ? 'it is' : 'they are'} not sent to the writer until the source, the date, and the re-check date are filled in.`}
+                </span>
+              ) : null}
             </div>
             <RowsEditor<EvidenceBankDraft['verifiedClaims'][number]>
               id="eb-claims"
@@ -269,6 +286,11 @@ export function EvidenceBankEditor({
                     {row.ref ? `Cited as [${row.ref}]` : 'New — a ref is assigned when you save'}
                     {row.recheckAt && row.recheckAt.slice(0, 10) < today ? ' · expired' : ''}
                   </p>
+                  {claimProblems(row).length > 0 ? (
+                    <p className="datum-ops__warn">
+                      Unverified — not sent to the writer. {claimProblems(row).join('; ')}.
+                    </p>
+                  ) : null}
                   <Field
                     id={`${rowId}-claim`}
                     label="Claim"
