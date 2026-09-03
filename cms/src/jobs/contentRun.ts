@@ -45,6 +45,10 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
     // audiences. It decides which site the gap report compares against, how the
     // crawler identifies itself, and who every draft is written for.
     const tenant = await loadTenantContext(payload, { mode: run.mode })
+    const models = await loadStageModels(payload, {
+      env: process.env,
+      mockMode: run.mode === 'mock',
+    })
     const fetchContext: FetchContext = {
       payload,
       runId: run.runId,
@@ -116,7 +120,7 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
     const stageContext: StageContext = {
       ...fetchContext,
       styleGuide: loadStyleGuide(),
-      models: await loadStageModels(payload),
+      models,
       brandVoice,
       policy: await loadInformationGainPolicy(payload),
       evidenceSources: await loadEvidenceSources(payload),
