@@ -40,6 +40,7 @@ Research ends at **`brief_review`**: Datum writes a brief from the template, the
 
 Editorial rules live in three places in the admin, all under the **Governance** nav group:
 
+- **Workspace and audiences** (`/admin/globals/workspace-profile`, `/admin/collections/icps`) — which site you publish for, who you measure yourself against, and who each piece is written for. A content run needs a target domain and at least one active audience alongside the brand voice, and the audience reaches the writing and review prompts as a block of statements, each tagged with how sure you are of it. See [`docs/tenant-context.md`](docs/tenant-context.md).
 - **Brand voice** (`/admin/ops/governance/brand-voice`) — a workspace-wide voice every generated title, description, FAQ, and body follows, layered on top of `docs/style-guide.md`. Set it up with a nine-step onboarding stepper or by uploading an existing brand guide (`.md`/`.txt`/`.pdf`/`.docx`) for one-call extraction into a draft you review before activating. An active voice is required for content runs. Seed a demo voice with `npm run seed -- --with-brand-voice`.
 - **Models** (`/admin/globals/llm-settings`) — which model runs generate, fact-check, qualitative review, and brand-voice extraction. Pick a model here, or leave it blank to fall back to the matching `PIPELINE_MODEL_*` / `BRAND_VOICE_EXTRACT_MODEL` env var, or to `claude-opus-5` if neither is set. Each model needs its provider's API key (`ANTHROPIC_API_KEY` for `claude-*`, `OPENAI_API_KEY` for `gpt-*`/`o3`/`o4-mini`) wherever that call runs; see the env var split below. A `codex/*` model (for example `codex/gpt-5.6-terra`) needs no key. It runs through your own Codex CLI login on that host instead; see [Using your ChatGPT plan (Codex)](#using-your-chatgpt-plan-codex).
 - **Source review** (`/admin/ops/governance/source-review`) — the domains the pipeline cited or saw ranking that nobody has rated yet. An unrated domain can't back a claim nobody else is making, so an article resting on one gets blocked; rate the ones you trust here and the next run counts them. See [`docs/information-gain.md`](docs/information-gain.md).
@@ -103,7 +104,7 @@ npm run jobs:run --workspace cms
 
 That command processes one queued content run. Schedule it repeatedly for continuous production processing.
 
-For live API calls, set `MOCK_MODE=false` and provide the key for each chosen model's provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). A `codex login` on the host is the third way to satisfy this, for `codex/*` models. Ahrefs also needs `AHREFS_API_KEY`, `TARGET_DOMAIN`, and `COMPETITOR_DOMAINS`. See [`.env.example`](.env.example).
+For live API calls, set `MOCK_MODE=false` and provide the key for each chosen model's provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). A `codex login` on the host is the third way to satisfy this, for `codex/*` models. Ahrefs also needs `AHREFS_API_KEY` plus a target domain and competitors, which come from the **Workspace** global (`/admin/globals/workspace-profile`); `TARGET_DOMAIN` and `COMPETITOR_DOMAINS` are its fallback. See [`.env.example`](.env.example).
 
 ### Using your ChatGPT plan (Codex)
 
@@ -135,12 +136,13 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) �
 | `ANTHROPIC_API_KEY` | Claude models (`claude-*`). Not required in mock mode. |
 | `OPENAI_API_KEY` | OpenAI models (`gpt-*`, `o3`, `o4-mini`). Not required in mock mode. |
 | `AHREFS_API_KEY` | Keyword and SERP research. Not required in mock mode. |
-| `TARGET_DOMAIN` | Domain that will publish the articles |
-| `COMPETITOR_DOMAINS` | Comma-separated competitors for content-gap fetch |
+| `TARGET_DOMAIN` | Fallback for the Workspace global's target domain. The admin field wins; a mock run falls back again to a demo domain. |
+| `COMPETITOR_DOMAINS` | Comma-separated fallback for the Workspace global's competitor list, same rule |
 | `MOCK_MODE` | `true` to use fixtures instead of paid APIs |
 | `SEED_ADMIN_PASSWORD` | Password for the seeded admin user |
-| `PIPELINE_MODEL_GENERATE` / `_FACT_CHECK` / `_QUALITATIVE_REVIEW` | Fallback model per pipeline stage when the [Models](#governance-brand-voice-and-model-choice) admin field is blank |
+| `PIPELINE_MODEL_GENERATE` / `_FACT_CHECK` / `_QUALITATIVE_REVIEW` / `_EVIDENCE_CHECK` | Fallback model per pipeline stage when the [Models](#governance-brand-voice-and-model-choice) admin field is blank |
 | `BRAND_VOICE_EXTRACT_MODEL` | Fallback model for brand-guide upload extraction, same rule |
+| `SETUP_ASSIST_MODEL` | Fallback model for the setup assistant. Falls back to `BRAND_VOICE_EXTRACT_MODEL` before the platform default. |
 | `CODEX_PATH` | Overrides the Codex CLI binary used by `codex/*` models. Not required in mock mode. |
 | `CODEX_REASONING_EFFORT` | Reasoning effort passed to the Codex CLI for `codex/*` models (default `medium`). Not required in mock mode. |
 | `CODEX_TIMEOUT_MS` | Per-call timeout for `codex/*` models, in milliseconds (default `600000`). Not required in mock mode. |
@@ -166,6 +168,7 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) �
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - [CLAUDE.md](CLAUDE.md) documents the architecture for contributors and coding agents.
 - [docs/style-guide.md](docs/style-guide.md) contains the editorial rules and banned phrases checked by QA.
+- [docs/tenant-context.md](docs/tenant-context.md) explains the workspace profile and audiences, how they gate a run, and how they reach the prompts.
 - [docs/open-source-checklist.md](docs/open-source-checklist.md) lists the maintainer steps for making the repository public.
 
 Agent helpers live under `.claude/` and `vendor/claude-plugins/`. Datum runs without them.

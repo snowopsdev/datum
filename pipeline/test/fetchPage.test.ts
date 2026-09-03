@@ -714,4 +714,105 @@ describe('USER_AGENT', () => {
     assert.ok(USER_AGENT.startsWith('DatumBot/1.0'))
     assert.ok(!USER_AGENT.includes('(+https://)'), 'an unset TARGET_DOMAIN must not leak through')
   })
+
+  it('sends the caller\'s identity when the run knows its workspace', async () => {
+    let seen: unknown = null
+    const stub: typeof fetch = async (url, init) => {
+      seen = { url: String(url), init }
+      return responseOf({ chunks: ['<html><body><article><p>Text here.</p></article></body></html>'] })
+    }
+
+    await fetchPage('https://example.com/page', {
+      mock: false,
+      fetchImpl: stub,
+      lookupImpl: publicLookup,
+      userAgent: 'DatumBot/1.0 (+https://acme.example)',
+    })
+
+    const headers = (seen as { init: RequestInit }).init.headers as Record<string, string>
+    assert.equal(headers['User-Agent'], 'DatumBot/1.0 (+https://acme.example)')
+  })
+
+  it('falls back to the module default when none is passed', async () => {
+    let seen: unknown = null
+    const stub: typeof fetch = async (url, init) => {
+      seen = { url: String(url), init }
+      return responseOf({ chunks: ['<html><body><article><p>Text here.</p></article></body></html>'] })
+    }
+
+    // A blank one is not an identity either, so it falls back too.
+    await fetchPage('https://example.com/page', {
+      mock: false,
+      fetchImpl: stub,
+      lookupImpl: publicLookup,
+      userAgent: '   ',
+    })
+
+    const headers = (seen as { init: RequestInit }).init.headers as Record<string, string>
+    assert.equal(headers['User-Agent'], USER_AGENT)
+  })
+})
+
+describe('fetchPage onHtml', () => {
+  const page = articleHtml(`${padding}The grinder matters more than the machine.`)
+
+  it('hands the raw markup over, links and all, before Readability strips them', async () => {
+    let seen: string | null = null
+    const result = await fetchPage('https://example.com/page', {
+      mock: false,
+      fetchImpl: stubFetch(responseOf({ chunks: [page] })),
+      lookupImpl: publicLookup,
+      onHtml: (html) => {
+        seen = html
+      },
+    })
+
+    assert.equal(result.status, 'ok')
+    assert.equal(seen, page)
+    // The point of the callback: the anchors are gone from the text.
+    assert.ok(!result.text.includes('Nav Link One'))
+  })
+
+  it('offers the markup even when there is no readable text to extract', async () => {
+    let seen: string | null = null
+    const result = await fetchPage('https://example.com/empty', {
+      mock: false,
+      fetchImpl: stubFetch(responseOf({ chunks: ['<html><body><a href="/about"></a></body></html>'] })),
+      lookupImpl: publicLookup,
+      onHtml: (html) => {
+        seen = html
+      },
+    })
+
+    assert.equal(result.status, 'failed')
+    assert.equal(result.reason, 'no readable text')
+    assert.ok(seen !== null && (seen as string).includes('href="/about"'))
+  })
+
+  it('is not called in mock mode, where there is no markup', async () => {
+    let calls = 0
+    const result = await fetchPage('https://competitor-one.com/x', {
+      mock: true,
+      onHtml: () => {
+        calls += 1
+      },
+    })
+
+    assert.equal(result.status, 'ok')
+    assert.equal(calls, 0)
+  })
+
+  it('does not let a throwing callback sink the fetch', async () => {
+    const result = await fetchPage('https://example.com/page', {
+      mock: false,
+      fetchImpl: stubFetch(responseOf({ chunks: [page] })),
+      lookupImpl: publicLookup,
+      onHtml: () => {
+        throw new Error('caller exploded')
+      },
+    })
+
+    assert.equal(result.status, 'ok')
+    assert.ok(result.text.includes('The grinder matters more than the machine.'))
+  })
 })

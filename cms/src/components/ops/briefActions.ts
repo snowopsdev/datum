@@ -8,7 +8,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
-import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { type IcpOption, loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 export type BriefActionResult = { ok: true; message: string } | { ok: false; error: string }
 
@@ -18,6 +18,8 @@ export interface BriefEdits {
   audience: string
   sections: { heading: string; notes: string; source: 'template' | 'research' | 'editor' }[]
   notes: string
+  /** The audience this piece is for; null leaves whatever the article already points at. */
+  icpId: number | null
 }
 
 async function requireUser() {
@@ -51,6 +53,38 @@ const cleanEdits = (edits: BriefEdits) => ({
     .filter((s) => s.heading.length > 0),
 })
 
+const icpIdOf = (value: unknown): number | null => {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id: unknown }).id
+    if (typeof id === 'number') return id
+  }
+  return null
+}
+
+/**
+ * Switching the audience rewrites the audience line — but only when nobody has
+ * touched it.
+ *
+ * The line is derived from the ICP, so leaving the old one in place after a
+ * switch would tell the writer to aim at the audience the editor just rejected.
+ * An edited line is the editor's own words about this piece, though, and
+ * silently replacing those is worse than a stale default. So the swap happens
+ * only when the stored text is still exactly what the previous ICP derives.
+ */
+function resolveAudience(
+  edits: ReturnType<typeof cleanEdits>,
+  previousIcpId: number | null,
+  nextIcpId: number | null,
+  icps: IcpOption[],
+): string {
+  if (nextIcpId === previousIcpId) return edits.audience
+  const previousLine = icps.find((icp) => icp.id === previousIcpId)?.audienceLine ?? ''
+  const nextLine = icps.find((icp) => icp.id === nextIcpId)?.audienceLine ?? ''
+  const untouched = edits.audience === previousLine || edits.audience === ''
+  return untouched && nextLine ? nextLine : edits.audience
+}
+
 /** Save edits to a brief that is waiting for approval. */
 export async function saveBriefAction(
   articleId: number,
@@ -63,10 +97,17 @@ export async function saveBriefAction(
       return { ok: false, error: 'This brief has already been approved; the piece has moved on.' }
     }
     const next = cleanEdits(edits)
+    const { icps } = await loadWorkspaceSetup(payload)
+    const previousIcpId = icpIdOf(article.icp)
+    const nextIcpId = edits.icpId ?? previousIcpId
+    next.audience = resolveAudience(next, previousIcpId, nextIcpId, icps)
     await payload.update({
       collection: 'articles',
       id: articleId,
-      data: { brief: { ...(article.brief ?? {}), ...next } },
+      data: {
+        brief: { ...(article.brief ?? {}), ...next },
+        ...(nextIcpId !== previousIcpId ? { icp: nextIcpId } : {}),
+      },
       user,
       overrideAccess: false,
       context: {
@@ -75,7 +116,11 @@ export async function saveBriefAction(
           actorType: 'user' as const,
           event: 'brief_edited',
           summary: 'Brief edited before approval',
-          details: { sections: next.sections.length, hasNotes: next.notes.length > 0 },
+          details: {
+            sections: next.sections.length,
+            hasNotes: next.notes.length > 0,
+            ...(nextIcpId !== previousIcpId ? { icp: nextIcpId } : {}),
+          },
         },
       },
     })
@@ -117,20 +162,33 @@ export async function approveBriefAction(
       }
     }
     if (!readiness.governance.ready) {
-      return { ok: false, error: 'Activate a brand voice before writing.' }
+      return {
+        ok: false,
+        error: `Finish setup before writing: ${readiness.governance.problems.join('; ')}.`,
+      }
     }
 
     const approvedAt = new Date().toISOString()
+    const cleaned = edits ? cleanEdits(edits) : null
+    const previousIcpId = icpIdOf(article.icp)
+    const nextIcpId = edits?.icpId ?? previousIcpId
+    if (cleaned) {
+      cleaned.audience = resolveAudience(cleaned, previousIcpId, nextIcpId, setup.icps)
+    }
     const brief = {
       ...(article.brief ?? {}),
-      ...(edits ? cleanEdits(edits) : {}),
+      ...(cleaned ?? {}),
       approvedAt,
       approvedBy: actorOf(user),
     }
     await payload.update({
       collection: 'articles',
       id: articleId,
-      data: { status: 'researched', brief },
+      data: {
+        status: 'researched',
+        brief,
+        ...(nextIcpId !== previousIcpId ? { icp: nextIcpId } : {}),
+      },
       user,
       overrideAccess: false,
       context: {

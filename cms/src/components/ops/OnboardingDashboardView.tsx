@@ -4,11 +4,14 @@ import type { AdminViewServerProps } from 'payload'
 import React from 'react'
 
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
-import { FirstRun } from './FirstRun'
+import { SetupChecklist } from './SetupChecklist'
+import { loadSetupChecklistData } from './setupChecklistData'
 
 /**
- * `/admin`. A workspace with a voice and any content goes straight to the
- * list; otherwise the first-run screen, which is one decision long.
+ * `/admin`. A workspace that has finished setup and has any content goes
+ * straight to the list; otherwise the setup hub, which says what each of the
+ * five assets holds right now. The same hub stays reachable at
+ * `/admin/ops/setup` afterwards.
  */
 export async function OnboardingDashboardView(props: AdminViewServerProps) {
   const { initPageResult } = props
@@ -19,12 +22,13 @@ export async function OnboardingDashboardView(props: AdminViewServerProps) {
     loadWorkspaceSetup(req.payload),
     req.payload.count({ collection: 'articles', where: { archived: { not_equals: true } } }),
   ])
-  const hasVoice = setup.readiness.governance.ready
-  if (hasVoice && pieces.totalDocs > 0) redirect('/admin/ops/content')
+  if (setup.readiness.governance.ready && pieces.totalDocs > 0) redirect('/admin/ops/content')
+
+  const data = await loadSetupChecklistData(req.payload)
 
   return (
     <Gutter>
-      <FirstRun hasVoice={hasVoice} mode={setup.readiness.mode} />
+      <SetupChecklist {...data} />
     </Gutter>
   )
 }

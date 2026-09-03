@@ -33,6 +33,12 @@ import { ReportsView as ReportsView_4e12243a45054e6b16c5796533624330 } from '../
 import { TemplateConfigView as TemplateConfigView_4cfa7707bf0c3bd28485eb6f1967a638 } from '../../../components/ops/TemplateConfigView'
 import { BrandVoiceView as BrandVoiceView_188651a7efa8bbbb01f96beb46ed8216 } from '../../../components/ops/BrandVoiceView'
 import { SourceReviewView as SourceReviewView_1e701deaec04ca9bc7ac8c89a98d90fa } from '../../../components/ops/SourceReviewView'
+import { SetupView as SetupView_6edf44270e0ed26b9aef6110b204da4c } from '../../../components/ops/SetupView'
+import { SetupWorkspaceView as SetupWorkspaceView_37e7dc9b31a22de8b3446a483e9f0421 } from '../../../components/ops/SetupWorkspaceView'
+import { IcpListView as IcpListView_e908811152a09123901186da2bd8e8ba } from '../../../components/ops/IcpListView'
+import { IcpEditorView as IcpEditorView_f33f9a72518680e8ab31027a16a44272 } from '../../../components/ops/IcpEditorView'
+import { PositioningView as PositioningView_0fe14c5d614592f9f0f3b6d033d30812 } from '../../../components/ops/PositioningView'
+import { EvidenceBankView as EvidenceBankView_89c63e7bfd4bc987819dfb6186421ec3 } from '../../../components/ops/EvidenceBankView'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -72,5 +78,11 @@ export const importMap = {
   "/components/ops/TemplateConfigView#TemplateConfigView": TemplateConfigView_4cfa7707bf0c3bd28485eb6f1967a638,
   "/components/ops/BrandVoiceView#BrandVoiceView": BrandVoiceView_188651a7efa8bbbb01f96beb46ed8216,
   "/components/ops/SourceReviewView#SourceReviewView": SourceReviewView_1e701deaec04ca9bc7ac8c89a98d90fa,
+  "/components/ops/SetupView#SetupView": SetupView_6edf44270e0ed26b9aef6110b204da4c,
+  "/components/ops/SetupWorkspaceView#SetupWorkspaceView": SetupWorkspaceView_37e7dc9b31a22de8b3446a483e9f0421,
+  "/components/ops/IcpListView#IcpListView": IcpListView_e908811152a09123901186da2bd8e8ba,
+  "/components/ops/IcpEditorView#IcpEditorView": IcpEditorView_f33f9a72518680e8ab31027a16a44272,
+  "/components/ops/PositioningView#PositioningView": PositioningView_0fe14c5d614592f9f0f3b6d033d30812,
+  "/components/ops/EvidenceBankView#EvidenceBankView": EvidenceBankView_89c63e7bfd4bc987819dfb6186421ec3,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

@@ -11,6 +11,7 @@ import { createLlmClient } from '../../../pipeline/src/llm'
 import { loadStageModels } from '../../../pipeline/src/models'
 import { runPipeline, type StageContext } from '../../../pipeline/src/stages'
 import { loadStyleGuide } from '../../../pipeline/src/styleGuide'
+import { loadTenantContext } from '../../../pipeline/src/tenant'
 import type { PipelineRun } from '../payload-types'
 
 type ContentRunTask = {
@@ -39,11 +40,16 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
   try {
     const templateId = typeof run.template === 'object' ? run.template.id : run.template
     let articleIds: number[]
+    // The workspace this run writes for: the `workspace-profile` global (with
+    // TARGET_DOMAIN / COMPETITOR_DOMAINS as the fallback) plus the active
+    // audiences. It decides which site the gap report compares against, how the
+    // crawler identifies itself, and who every draft is written for.
+    const tenant = await loadTenantContext(payload, { mode: run.mode })
     const fetchContext: FetchContext = {
       payload,
       runId: run.runId,
       mode: run.mode,
-      ahrefs: createAhrefsClient(run.mode),
+      ahrefs: createAhrefsClient(run.mode, tenant.profile),
     }
 
     if (run.source === 'selected') {
@@ -64,6 +70,9 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
           keyword: `governed content pipeline demo ${run.runId.slice(0, 8)}`,
           template: templateId,
           status: 'topic_selected',
+          ...(tenant.icps.find((icp) => icp.primary)
+            ? { icp: tenant.icps.find((icp) => icp.primary)!.id as number }
+            : {}),
         },
         context: {
           articleAudit: {
@@ -80,6 +89,7 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       const fetched = await fetchTopics(fetchContext, {
         count: run.requestedCount,
         templateId,
+        icpId: (tenant.icps.find((icp) => icp.primary)?.id as number | undefined) ?? null,
       })
       articleIds = fetched.createdIds
       if (articleIds.length === 0) {
@@ -95,7 +105,14 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
     })
 
     const brandVoice = await loadActiveBrandVoice(payload)
-    if (!brandVoice) throw new Error('Activate a brand voice before running the pipeline.')
+    // Belt and braces: every caller already checks readiness before creating
+    // the run row, but a job queued before an audience was archived would
+    // otherwise write a whole batch against nobody.
+    if (!brandVoice || !tenant.profile.targetDomain || tenant.icps.length === 0) {
+      throw new Error(
+        'Finish setup: brand voice, target domain, and at least one active audience (ICP) are required.',
+      )
+    }
     const stageContext: StageContext = {
       ...fetchContext,
       styleGuide: loadStyleGuide(),
@@ -103,6 +120,7 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       brandVoice,
       policy: await loadInformationGainPolicy(payload),
       evidenceSources: await loadEvidenceSources(payload),
+      tenant,
       llm: createLlmClient(run.mode),
       // The onboarding run is a smoke test with nobody at the keyboard; every
       // other run stops at the brief for a person to approve.

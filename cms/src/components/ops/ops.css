@@ -2775,6 +2775,35 @@
   margin-top: 20px;
 }
 
+/* What is still missing before a run, one row per governance problem. */
+.datum-first__todo {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.datum-first__todo li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 6px;
+}
+
+.datum-first__optional {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-elevation-500);
+  margin-right: 8px;
+}
+
 .datum-first__cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -2878,4 +2907,143 @@
 .datum-ops__table th {
   font-weight: 600;
   opacity: 0.7;
+}
+
+/* ── Setup hub ─────────────────────────────────────────────────────────── */
+
+.datum-setup {
+  max-width: 860px;
+  margin: 48px auto;
+}
+
+.datum-setup h1 {
+  margin: 4px 0 10px;
+  font-size: 28px;
+}
+
+.datum-setup__rows {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.datum-setup__row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: start;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--ops-hairline, var(--theme-elevation-150));
+  border-radius: var(--ops-radius-lg, 8px);
+  background: var(--ops-canvas, transparent);
+}
+
+.datum-setup__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--theme-elevation-500);
+}
+
+.datum-setup__mark.is-done {
+  border-color: var(--theme-success-500, #2e7d32);
+  color: var(--theme-success-500, #2e7d32);
+}
+
+.datum-setup__mark.is-optional {
+  border-style: dashed;
+}
+
+.datum-setup__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.datum-setup__title strong {
+  font-size: 16px;
+}
+
+.datum-setup__state {
+  margin: 4px 0 2px;
+  font-size: 14px;
+}
+
+.datum-setup__body .datum-ops__hint {
+  margin: 0;
+}
+
+.datum-setup__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.datum-setup__footer .datum-ops__hint {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+/* ── Setup editors: assist panel, text rows, checkbox grids ────────────── */
+
+.datum-ops__assist {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border: 1px dashed var(--theme-elevation-200);
+  border-radius: 8px;
+}
+
+.datum-ops__assist-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.datum-ops__assist .datum-ops__hint {
+  margin-top: 0;
+}
+
+.datum-ops__textrows {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.datum-ops__textrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.datum-ops__textrow input[type='text'] {
+  flex: 1;
+}
+
+.datum-ops__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.datum-ops__checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.datum-ops__table th {
+  white-space: nowrap;
 }

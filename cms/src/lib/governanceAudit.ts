@@ -13,7 +13,7 @@ type AuditRequestContext = {
 }
 
 /** Collections whose changes are recorded in `governance-audit`. Extend the union (and the collection's `relationTo`) to audit more. */
-export type GovernanceSubject = 'brand-voices' | 'evidence-sources'
+export type GovernanceSubject = 'brand-voices' | 'evidence-sources' | 'icps'
 
 const humanize = (event: string): string => event.replace(/_/g, ' ')
 

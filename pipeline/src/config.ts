@@ -21,7 +21,13 @@ export interface PipelineConfig {
   anthropicApiKey: string | undefined
   openaiApiKey: string | undefined
   codexAuthPresent: boolean
-  targetDomain: string
+  /**
+   * `TARGET_DOMAIN` verbatim. The workspace profile owns the policy now
+   * (`cms/src/lib/tenant/workspaceProfile.ts`); this is only its env fallback,
+   * so it is undefined rather than defaulted and never throws here.
+   */
+  targetDomain: string | undefined
+  /** `COMPETITOR_DOMAINS` verbatim; `[]` when unset. Same story as `targetDomain`. */
   competitorDomains: string[]
   ahrefsApiKey: string | undefined
   ahrefsCountry: string
@@ -55,20 +61,16 @@ function buildConfig(): PipelineConfig {
   }
 
   const ahrefsApiKey = process.env.AHREFS_API_KEY || undefined
-  const targetDomain = process.env.TARGET_DOMAIN || (mockMode || !ahrefsApiKey ? 'datum.example.com' : '')
-  if (!targetDomain) {
-    throw new Error('TARGET_DOMAIN is required when AHREFS_API_KEY is set')
-  }
-  const competitorDomains = (
-    process.env.COMPETITOR_DOMAINS ||
-    (mockMode || !ahrefsApiKey ? 'competitor-one.com,competitor-two.com' : '')
-  )
+  // Domain and competitors are workspace facts, not deployment facts: the
+  // `workspace-profile` global owns them and these env vars are its fallback.
+  // Config therefore stays synchronous and opinion-free — the "you need a
+  // target domain" check moved to `loadWorkspaceProfile`, which is the first
+  // place that can see both the global and the env.
+  const targetDomain = process.env.TARGET_DOMAIN?.trim() || undefined
+  const competitorDomains = (process.env.COMPETITOR_DOMAINS || '')
     .split(',')
     .map((d) => d.trim())
     .filter((d) => d.length > 0)
-  if (competitorDomains.length === 0) {
-    throw new Error('COMPETITOR_DOMAINS is required when AHREFS_API_KEY is set')
-  }
 
   return {
     mockMode,

@@ -125,10 +125,67 @@ export type BoardArticle = {
   revisionCount: number | null
   /** The brief as stored; `parseBrief` (pipeline) / the editor normalise it. */
   brief: Article['brief'] | null
+  /** The audience this piece is written for, resolved from the relationship. */
+  icpId: number | null
+  icpName: string | null
+  /** Evidence-bank entries the draft cited, as the generate stage recorded them. */
+  evidenceCitations: EvidenceCitationRow[]
+}
+
+/** One `{ref, excerpt}` row off `article.evidenceCitations`, shape-checked. */
+export type EvidenceCitationRow = { ref: string; excerpt: string }
+
+/** `evidenceCitations` is a JSON column, so trust nothing about its shape. */
+export function evidenceCitationsOf(value: unknown): EvidenceCitationRow[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((row) => {
+    const entry = row as { ref?: unknown; excerpt?: unknown } | null
+    if (!entry || typeof entry.ref !== 'string' || entry.ref === '') return []
+    return [{ ref: entry.ref, excerpt: typeof entry.excerpt === 'string' ? entry.excerpt : '' }]
+  })
+}
+
+/** One finding off `qaResults.evidenceCheck.claims`, shape-checked for the review view. */
+export type EvidenceFindingRow = {
+  excerpt: string
+  kind: string
+  status: string
+  ref: string | null
+  note: string
+}
+
+const FINDING_STATUSES: readonly string[] = [
+  'backed',
+  'overreach',
+  'unbacked',
+  'rejected',
+  'unusable',
+]
+
+export function evidenceFindingsOf(value: unknown): EvidenceFindingRow[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((row) => {
+    const entry = row as Record<string, unknown> | null
+    if (!entry || typeof entry.excerpt !== 'string' || entry.excerpt === '') return []
+    const status = typeof entry.status === 'string' ? entry.status : ''
+    if (!FINDING_STATUSES.includes(status)) return []
+    return [
+      {
+        excerpt: entry.excerpt,
+        kind: typeof entry.kind === 'string' ? entry.kind : 'first_party',
+        status,
+        ref: typeof entry.ref === 'string' && entry.ref !== '' ? entry.ref : null,
+        note: typeof entry.note === 'string' ? entry.note : '',
+      },
+    ]
+  })
 }
 
 export function toBoardArticle(doc: Article): BoardArticle {
   const template = doc.template && typeof doc.template === 'object' ? doc.template : null
+  // Populated at depth 1, a bare id at depth 0; the name is only shown when it
+  // is there, rather than fetched a second time to fill a subtitle.
+  const icp = doc.icp && typeof doc.icp === 'object' ? doc.icp : null
   return {
     id: doc.id,
     title: doc.title ?? null,
@@ -146,6 +203,9 @@ export function toBoardArticle(doc: Article): BoardArticle {
     revisionNotes: doc.revisionNotes ?? null,
     revisionCount: doc.revisionCount ?? null,
     brief: doc.brief ?? null,
+    icpId: icp?.id ?? (typeof doc.icp === 'number' ? doc.icp : null),
+    icpName: icp?.name ?? null,
+    evidenceCitations: evidenceCitationsOf(doc.evidenceCitations),
   }
 }
 
@@ -187,7 +247,7 @@ export function formatAuditTimestamp(iso: string): string {
 /** One QA failure, said in words, with the instruction that would fix it. */
 export type QaFailure = {
   /** Which check produced it, for grouping in the UI. */
-  check: 'structural' | 'factCheck' | 'qualitativeReview'
+  check: 'structural' | 'factCheck' | 'qualitativeReview' | 'evidenceCheck'
   /** Plain-language statement of what is wrong, with the real numbers in it. */
   what: string
   /** What the next draft must do differently. This is what regeneration sends. */
@@ -347,6 +407,7 @@ export const QA_CHECK_LABEL: Record<QaFailure['check'], string> = {
   structural: 'Structure',
   factCheck: 'Fact check',
   qualitativeReview: 'Style',
+  evidenceCheck: 'Evidence',
 }
 
 export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFailure[] {
@@ -392,6 +453,20 @@ export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFai
       fix: 'Rewrite to address this, keeping everything the review did not object to.',
     })
   }
+  // The evidence check's notes already carry one "Remove or replace: …" line per
+  // failing sentence, written by `evidenceRevisionNotes` in the pipeline, so
+  // the regeneration prompt gets the excerpts verbatim rather than a summary
+  // the next draft has to guess its way back from.
+  if (qa?.evidenceCheck?.passed === false && qa.evidenceCheck.notes) {
+    out.push({
+      check: 'evidenceCheck',
+      code: null,
+      what: qa.evidenceCheck.notes,
+      fix:
+        'Cut each of these sentences or restate them within an evidence-bank entry’s limits, ' +
+        'citing that entry. Do not soften an unsupported claim — a hedged version of it is still unsupported.',
+    })
+  }
   return out
 }
 
@@ -417,6 +492,9 @@ export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): s
   }
   if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
     lines.push(`Style: ${qa.qualitativeReview.notes}`)
+  }
+  if (qa?.evidenceCheck?.passed === false && qa.evidenceCheck.notes) {
+    lines.push(`Evidence: ${qa.evidenceCheck.notes}`)
   }
   return lines
 }

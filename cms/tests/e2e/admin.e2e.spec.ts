@@ -23,12 +23,32 @@ test.describe('Admin Panel', () => {
     await expect(page).toHaveURL(/\/admin$/)
     const dashboardArtifact = page.locator('span[title="Dashboard"]').first()
     await expect(dashboardArtifact).toBeVisible()
-    // The dashboard is the onboarding stepper, whose h1 changes with workspace
-    // state ("Set up your content pipeline", "How should Datum sound?", "Your
-    // governed pipeline is ready", ...). Pinning specific copy made the test
-    // fail on any database mid-onboarding, so assert a rendered heading
-    // instead of a particular step's wording.
+    // The dashboard is the setup hub, whose h1 changes with workspace state
+    // ("Set up your workspace" / "Your workspace"), and which redirects to the
+    // content list once setup is finished and anything has been written.
+    // Pinning specific copy made the test fail on any database mid-onboarding,
+    // so assert a rendered heading instead of a particular state's wording.
     await expect(page.getByRole('heading', { level: 1 }).first()).not.toBeEmpty()
+  })
+
+  test('the setup hub lists the five workspace assets', async () => {
+    await page.goto('/admin/ops/setup')
+    await expect(page.getByRole('heading', { level: 1 }).first()).not.toBeEmpty()
+    for (const title of ['Workspace', 'Brand voice', 'Audiences', 'Positioning', 'Evidence bank']) {
+      await expect(page.locator('.datum-setup__title', { hasText: title }).first()).toBeVisible()
+    }
+  })
+
+  test('each setup editor renders', async () => {
+    for (const [path, heading] of [
+      ['/admin/ops/setup/workspace', 'Workspace'],
+      ['/admin/ops/setup/audiences', 'Audiences'],
+      ['/admin/ops/setup/positioning', 'Positioning'],
+      ['/admin/ops/setup/evidence', 'Evidence bank'],
+    ] as const) {
+      await page.goto(path)
+      await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible()
+    }
   })
 
   test('can navigate to list view', async () => {

@@ -1,7 +1,7 @@
 import type { GlobalConfig } from 'payload'
 
 import { LLM_MODEL_OPTIONS } from '../lib/llmCatalog'
-import { EXTRACTION_ENV_VAR, STAGE_ENV_VAR } from '../lib/llmSettings'
+import { EXTRACTION_ENV_VAR, SETUP_ASSIST_ENV_VAR, STAGE_ENV_VAR } from '../lib/llmSettings'
 
 const modelField = (name: string, label: string, envVar: string, purpose: string) => ({
   name,
@@ -70,10 +70,22 @@ export const LlmSettings: GlobalConfig = {
       'Web-searches evidence for materially novel claims during information-gain review.',
     ),
     modelField(
+      'evidenceCheckModel',
+      'Evidence check',
+      STAGE_ENV_VAR.evidenceCheck,
+      'Checks first-party claims against the evidence bank during QA.',
+    ),
+    modelField(
       'brandVoiceExtractModel',
       'Brand voice extraction',
       EXTRACTION_ENV_VAR,
       'Turns an uploaded brand guide into a brand voice draft.',
+    ),
+    modelField(
+      'setupAssistModel',
+      'Setup assistant',
+      SETUP_ASSIST_ENV_VAR,
+      'Drafts and refines onboarding steps (audiences, positioning, evidence bank) from your notes and site.',
     ),
   ],
 }

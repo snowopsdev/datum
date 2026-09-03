@@ -14,6 +14,7 @@ import { buildPrompt, buildSystemPrompt } from '../src/generatePrompt'
 import { runStructuralChecks } from '../src/qa/structuralChecks'
 import { markdownToLexical } from '../src/richtext'
 import { loadStyleGuide } from '../src/styleGuide'
+import { emptyTenantContext } from '../src/tenant'
 
 const styleGuide = loadStyleGuide()
 
@@ -68,19 +69,22 @@ test('brandVoiceToPrompt is deterministic and omits empty sections', () => {
 
 test('generate prompts carry the brand voice and samples only when one is active', () => {
   const article = makeArticle({})
-  const withVoice = buildPrompt(article, template, BRAND_VOICE_FIXTURE)
+  const withVoice = buildPrompt(article, template, BRAND_VOICE_FIXTURE, emptyTenantContext())
   assert.ok(withVoice.includes('# On-voice writing samples'))
   assert.ok(withVoice.includes('Every field must follow the brand voice'))
   assert.equal(brandVoiceSamplesToPrompt(emptyBrandVoiceContent()), null)
 
-  const without = buildPrompt(article, template, null)
+  const without = buildPrompt(article, template, null, emptyTenantContext())
   assert.ok(!without.includes('# On-voice writing samples'))
   assert.ok(!without.includes('Every field must follow the brand voice'))
 
-  const system = buildSystemPrompt(styleGuide.text, BRAND_VOICE_FIXTURE)
+  const tenant = emptyTenantContext()
+  const system = buildSystemPrompt(styleGuide.text, BRAND_VOICE_FIXTURE, tenant, null)
   assert.ok(system.startsWith('You are a senior content writer.'))
   assert.ok(system.includes('# Brand voice (tenant)'))
-  assert.ok(!buildSystemPrompt(styleGuide.text, null).includes('# Brand voice (tenant)'))
+  assert.ok(
+    !buildSystemPrompt(styleGuide.text, null, tenant, null).includes('# Brand voice (tenant)'),
+  )
 })
 
 test('brand banned words are flagged in body and metaDescription with source brand', () => {

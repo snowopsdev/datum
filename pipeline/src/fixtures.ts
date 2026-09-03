@@ -673,6 +673,18 @@ const evidenceVerificationFixture = {
   ],
 }
 
+/**
+ * The evidence check has nothing to find in mock mode: the mock corpus is about
+ * espresso and the demo tenant is a content pipeline, so no draft a mock run
+ * produces makes a first-party claim about the workspace. The failing paths are
+ * covered with an injected client instead of a second fixture, because a
+ * fixture that always failed would make every mock run end in needs_revision.
+ */
+const evidenceCheckFixture = {
+  claims: [],
+  notes: 'No first-party claims found.',
+}
+
 type FixtureTable = Record<LlmStage, unknown | Record<string, unknown>>
 
 const fixtures: FixtureTable = {
@@ -686,6 +698,7 @@ const fixtures: FixtureTable = {
   },
   informationGainJudge: informationGainJudgeFixture,
   evidenceVerification: evidenceVerificationFixture,
+  evidenceCheck: evidenceCheckFixture,
 }
 
 /**
@@ -716,4 +729,7 @@ export const mockUsage: Record<
   claimExtraction: { inputTokens: 5200, outputTokens: 1400, webSearchRequests: 0 },
   informationGainJudge: { inputTokens: 3600, outputTokens: 1200, webSearchRequests: 0 },
   evidenceVerification: { inputTokens: 2900, outputTokens: 900, webSearchRequests: 3 },
+  // Closed-book: the whole bank plus the draft goes in, a short verdict comes
+  // out, and nothing is searched.
+  evidenceCheck: { inputTokens: 2400, outputTokens: 400, webSearchRequests: 0 },
 }

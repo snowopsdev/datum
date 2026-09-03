@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildBrief, parseBrief } from '../src/brief'
+import { emptyIcpContent } from '../src/tenant'
 
 const facets = [
   { label: 'Cleaning cycle', description: 'Daily backflush.', mustHave: true, docCount: 3 },
@@ -23,6 +24,7 @@ test('buildBrief puts template sections first, then one section per research gap
     facets,
     gaps,
     brandVoice: null,
+    icp: null,
   })
   assert.equal(
     brief.angle,
@@ -54,6 +56,7 @@ test('buildBrief takes the audience from the brand voice when there is one', () 
     brandVoice: {
       audience: { description: 'Home baristas.', needs: 'Fewer wasted shots.', interests: '', languageLevel: null },
     } as never,
+    icp: null,
   })
   assert.equal(brief.audience, 'Home baristas. Needs: Fewer wasted shots.')
   // No intent on the template still yields a usable angle.
@@ -88,4 +91,56 @@ test('parseBrief drops malformed rows and defaults an unknown source to editor',
 test('parseBrief returns null for nothing at all', () => {
   assert.equal(parseBrief(null), null)
   assert.equal(parseBrief('x'), null)
+})
+
+/**
+ * The audience line.
+ *
+ * The brand voice's audience describes everyone the brand talks to; the ICP
+ * describes the one group this piece is aimed at. When both exist the ICP wins,
+ * because a brief that says "home baristas" for a piece aimed at café owners is
+ * a brief the editor has to correct by hand every time.
+ */
+const ICP = {
+  ...emptyIcpContent('Café owners'),
+  id: 3,
+  who: 'Owners of one or two independent cafés',
+  pains: [
+    { statement: 'Staff pull inconsistent shots', evidence: [], confidence: null },
+    { statement: 'A second pain that is not the headline', evidence: [], confidence: null },
+  ],
+}
+
+const voice = {
+  audience: {
+    description: 'Home baristas.',
+    needs: 'Fewer wasted shots.',
+    interests: '',
+    languageLevel: null,
+  },
+} as never
+
+const briefWith = (icp: Parameters<typeof buildBrief>[0]['icp'], brandVoice: never | null) =>
+  buildBrief({
+    keyword: 'x',
+    templateIntent: null,
+    requiredSections: [],
+    facets: [],
+    gaps: [],
+    brandVoice,
+    icp,
+  })
+
+test('buildBrief takes the audience from the ICP when there is one', () => {
+  assert.equal(
+    briefWith(ICP, voice).audience,
+    'Owners of one or two independent cafés. Main pain: Staff pull inconsistent shots.',
+  )
+})
+
+test('buildBrief falls back to the brand voice, then to nothing at all', () => {
+  assert.equal(briefWith(null, voice).audience, 'Home baristas. Needs: Fewer wasted shots.')
+  assert.equal(briefWith(null, null).audience, '')
+  // An ICP with nothing usable in it is the same as no ICP: the voice answers.
+  assert.equal(briefWith(emptyIcpContent('Nameless'), voice).audience, 'Home baristas. Needs: Fewer wasted shots.')
 })

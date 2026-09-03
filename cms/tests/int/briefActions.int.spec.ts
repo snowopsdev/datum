@@ -5,15 +5,21 @@ const authMock = vi.fn(async () => ({ user: { id: 7, email: 'editor@example.com'
 const findByIDMock = vi.fn(async (_args: unknown) => ({}) as never)
 const updateMock = vi.fn(async (_args: unknown) => ({}) as never)
 const createRunMock = vi.fn(async (_payload: unknown, _user: unknown, _input: unknown) => undefined)
+/** Two active audiences, so a brief has something to switch between. */
+const ICPS = [
+  { id: 11, name: 'Marketing lead', primary: true, audienceLine: 'A marketing lead. Main pain: briefs.' },
+  { id: 12, name: 'Founder', primary: false, audienceLine: 'A founder. Main pain: time.' },
+]
 const setupMock = vi.fn(async () => ({
   readiness: {
     mode: 'mock',
     runtime: { ready: true, missing: [] },
-    governance: { ready: true, activeVoiceId: 1 },
+    governance: { ready: true, activeVoiceId: 1, problems: [] },
     content: { ready: true, templateCount: 3, models: [] },
     configFingerprint: 'x',
   },
   templates: [],
+  icps: ICPS,
   latestRun: null,
 }))
 
@@ -53,6 +59,7 @@ const edits = {
     { heading: '  ', notes: 'dropped: blank heading', source: 'editor' as const },
   ],
   notes: 'Lead with the routine.',
+  icpId: null,
 }
 
 beforeEach(() => {
@@ -79,6 +86,40 @@ describe('saveBriefAction', () => {
     expect(result.ok).toBe(false)
     expect(updateMock).not.toHaveBeenCalled()
   })
+
+  // Switching the audience is the one edit that rewrites another field, so the
+  // rule that decides when it may is pinned from both sides.
+  it('replaces the audience line when it is still the previous audience’s own', async () => {
+    findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
+    const result = await saveBriefAction(1, {
+      ...edits,
+      audience: ICPS[0].audienceLine,
+      icpId: 12,
+    })
+    expect(result.ok).toBe(true)
+    const call = updateMock.mock.calls[0]?.[0] as unknown as {
+      data: { icp: number; brief: { audience: string } }
+    }
+    expect(call.data.icp).toBe(12)
+    expect(call.data.brief.audience).toBe(ICPS[1].audienceLine)
+  })
+
+  it('leaves an edited audience line alone when the audience changes', async () => {
+    findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
+    await saveBriefAction(1, { ...edits, audience: 'Whoever buys the thing', icpId: 12 })
+    const call = updateMock.mock.calls[0]?.[0] as unknown as {
+      data: { icp: number; brief: { audience: string } }
+    }
+    expect(call.data.icp).toBe(12)
+    expect(call.data.brief.audience).toBe('Whoever buys the thing')
+  })
+
+  it('does not touch the relationship when the audience did not change', async () => {
+    findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
+    await saveBriefAction(1, { ...edits, icpId: 11 })
+    const call = updateMock.mock.calls[0]?.[0] as unknown as { data: Record<string, unknown> }
+    expect('icp' in call.data).toBe(false)
+  })
 })
 
 describe('approveBriefAction', () => {
@@ -101,6 +142,21 @@ describe('approveBriefAction', () => {
     const runInput = createRunMock.mock.calls[0]?.[2] as unknown as { source: string; articleIds: number[] }
     expect(runInput.source).toBe('selected')
     expect(runInput.articleIds).toEqual([1])
+  })
+
+  it('writes the chosen audience and its derived line through the approval', async () => {
+    findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
+    const result = await approveBriefAction(1, {
+      ...edits,
+      audience: ICPS[0].audienceLine,
+      icpId: 12,
+    })
+    expect(result.ok).toBe(true)
+    const call = updateMock.mock.calls[0]?.[0] as unknown as {
+      data: { icp: number; brief: { audience: string } }
+    }
+    expect(call.data.icp).toBe(12)
+    expect(call.data.brief.audience).toBe(ICPS[1].audienceLine)
   })
 
   it('refuses without a template, before touching anything', async () => {

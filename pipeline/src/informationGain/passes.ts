@@ -30,6 +30,7 @@ import {
 import { JUDGE_SYSTEM, judgeUser, VERIFIER_SYSTEM, verifierUser } from './prompts'
 import {
   deriveJudgeSignals,
+  firstPartyOutcome,
   verifiedOutcome,
   type JudgeDerived,
   type VerificationOutcome,
@@ -72,11 +73,48 @@ export async function runJudge(
   return derived
 }
 
+/** Letters and digits only, lower-cased: the comparison unit for overlap. */
+const normalise = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+/**
+ * Which draft claims the workspace's own evidence bank already backs.
+ *
+ * A normalised substring match in either direction, because the writer's
+ * sentence and the claim extractor's paraphrase of it are rarely identical:
+ * the extractor drops subordinate clauses, so the claim is usually contained in
+ * the cited sentence, and occasionally the reverse. Anything shorter than a
+ * clause is ignored, since a short string is contained in almost everything.
+ *
+ * Deliberately conservative — a missed match costs a web verification the run
+ * was going to pay for anyway, while a false match would mark an unrelated
+ * sentence as verified by evidence that says nothing about it.
+ */
+export function firstPartyMatches(
+  draftClaims: DraftClaim[],
+  citations: { ref: string; excerpt: string }[],
+): Map<string, string> {
+  const matches = new Map<string, string>()
+  const cited = citations
+    .map((citation) => ({ ref: citation.ref, text: normalise(citation.excerpt) }))
+    .filter((citation) => citation.text.length >= 40)
+  if (cited.length === 0) return matches
+  for (const claim of draftClaims) {
+    const text = normalise(claim.text)
+    if (text.length < 40) continue
+    const hit = cited.find(
+      (citation) => citation.text.includes(text) || text.includes(citation.text),
+    )
+    if (hit) matches.set(claim.id, hit.ref)
+  }
+  return matches
+}
+
 /**
  * Web-search verification for the materially novel, checkable claims only.
  * Claims left out keep the neutral values `unverifiedOutcome` gives them —
  * absence of a check is not evidence of a problem, and only a `verified` claim
- * can be blocked.
+ * can be blocked. Claims the evidence bank already backs are settled before the
+ * selection, so they never spend a search.
  */
 export async function runVerifier(
   ctx: StageContext,
@@ -85,14 +123,27 @@ export async function runVerifier(
   draftClaims: DraftClaim[],
   judged: Map<string, JudgeDerived>,
   policy: InformationGainPolicy,
+  /**
+   * The evidence-bank entries the draft declared, from `article.evidenceCitations`.
+   * A claim that restates one is settled here rather than searched for on the
+   * web, where by construction it cannot be found. See R6 in the design.
+   */
+  firstParty: { ref: string; excerpt: string }[] = [],
 ): Promise<Map<string, VerificationOutcome>> {
-  const candidates = draftClaims.map((claim) => ({
-    claim,
-    novelty: judged.get(claim.id)?.novelty ?? 0,
-  }))
+  const outcomes = new Map<string, VerificationOutcome>()
+  const backed = firstPartyMatches(draftClaims, firstParty)
+  for (const [claimId, ref] of backed) {
+    const claim = draftClaims.find((row) => row.id === claimId)
+    if (claim) outcomes.set(claimId, firstPartyOutcome(ref, claim.text))
+  }
+  const candidates = draftClaims
+    .filter((claim) => !backed.has(claim.id))
+    .map((claim) => ({
+      claim,
+      novelty: judged.get(claim.id)?.novelty ?? 0,
+    }))
   const selected = pickForVerification(candidates, policy)
   const byId = new Map(draftClaims.map((claim) => [claim.id, claim]))
-  const outcomes = new Map<string, VerificationOutcome>()
 
   for (const batch of verifierBatches(selected)) {
     const result = await completeJSONLogged(ctx, 'evidenceVerification', articleId, {

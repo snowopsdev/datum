@@ -75,6 +75,7 @@ export interface Config {
     'article-audit': ArticleAudit;
     'brand-voices': BrandVoice;
     'brand-voice-files': BrandVoiceFile;
+    icps: Icp;
     'governance-audit': GovernanceAudit;
     'evidence-sources': EvidenceSource;
     'evidence-source-candidates': EvidenceSourceCandidate;
@@ -98,6 +99,7 @@ export interface Config {
     'article-audit': ArticleAuditSelect<false> | ArticleAuditSelect<true>;
     'brand-voices': BrandVoicesSelect<false> | BrandVoicesSelect<true>;
     'brand-voice-files': BrandVoiceFilesSelect<false> | BrandVoiceFilesSelect<true>;
+    icps: IcpsSelect<false> | IcpsSelect<true>;
     'governance-audit': GovernanceAuditSelect<false> | GovernanceAuditSelect<true>;
     'evidence-sources': EvidenceSourcesSelect<false> | EvidenceSourcesSelect<true>;
     'evidence-source-candidates': EvidenceSourceCandidatesSelect<false> | EvidenceSourceCandidatesSelect<true>;
@@ -116,12 +118,18 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
+    'workspace-profile': WorkspaceProfile;
+    positioning: Positioning;
+    'evidence-bank': EvidenceBank;
     'llm-settings': LlmSetting;
     'information-gain-policy': InformationGainPolicy;
     'webhook-settings': WebhookSetting;
     'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
+    'workspace-profile': WorkspaceProfileSelect<false> | WorkspaceProfileSelect<true>;
+    positioning: PositioningSelect<false> | PositioningSelect<true>;
+    'evidence-bank': EvidenceBankSelect<false> | EvidenceBankSelect<true>;
     'llm-settings': LlmSettingsSelect<false> | LlmSettingsSelect<true>;
     'information-gain-policy': InformationGainPolicySelect<false> | InformationGainPolicySelect<true>;
     'webhook-settings': WebhookSettingsSelect<false> | WebhookSettingsSelect<true>;
@@ -310,6 +318,10 @@ export interface Article {
       }[]
     | null;
   template?: (number | null) | Template;
+  /**
+   * The audience this piece is written for. Defaults to the primary ICP; change it in the brief.
+   */
+  icp?: (number | null) | Icp;
   research?: {
     rankingPagesSummary?: string | null;
     commonSubtopics?:
@@ -447,6 +459,18 @@ export interface Article {
    * Publish automatically at this time. Leave blank to publish by hand.
    */
   publishAt?: string | null;
+  /**
+   * Evidence-bank entries this draft cited ({ref, excerpt}[]), recorded when the citation markers were stripped. Read-only: a citation is earned by the draft, not typed in.
+   */
+  evidenceCitations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   qaResults?: {
     structural?: {
       passed?: boolean | null;
@@ -485,6 +509,22 @@ export interface Article {
        * Clear breaches of a "what we are NOT" trait ({trait, excerpt, explanation}[]). Any entry fails QA.
        */
       notTraitViolations?:
+        | {
+            [k: string]: unknown;
+          }
+        | unknown[]
+        | string
+        | number
+        | boolean
+        | null;
+    };
+    evidenceCheck?: {
+      passed?: boolean | null;
+      notes?: string | null;
+      /**
+       * Every first-party claim the check found ({excerpt, kind, status, ref, note}[]). A rejected, unusable, or overreaching claim fails QA; an unbacked one is flagged only.
+       */
+      claims?:
         | {
             [k: string]: unknown;
           }
@@ -535,6 +575,168 @@ export interface Article {
    */
   revisionCount?: number | null;
   publishedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Who each piece is written for. The primary audience is used for new pieces; the brief can change it per piece.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icps".
+ */
+export interface Icp {
+  id: number;
+  /**
+   * How the team refers to this audience, e.g. "Growth marketer at a Series B SaaS".
+   */
+  name: string;
+  /**
+   * Only active audiences count towards setup and can be picked in a brief. Activating needs a name, who they are, one pain, and how we solve it.
+   */
+  status: 'draft' | 'active' | 'archived';
+  /**
+   * The default audience for new pieces. Exactly one active audience is primary; setting it here clears the others.
+   */
+  primary?: boolean | null;
+  activatedAt?: string | null;
+  activatedBy?: string | null;
+  /**
+   * One line: their role, the kind of company, and what they are measured on.
+   */
+  who?: string | null;
+  /**
+   * What hurts, most important first. The first one becomes the brief’s audience line.
+   */
+  pains?:
+    | {
+        statement: string;
+        /**
+         * Where this came from: a URL, an interview set, a quote.
+         */
+        evidence?:
+          | {
+              ref: string;
+              note?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * How sure are you that this pain is real? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+         */
+        confidence?:
+          | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What they are actually trying to do, beneath the pain.
+   */
+  motivation?: {
+    text?: string | null;
+    /**
+     * Marked in the prompt so the writer never states it as a finding.
+     */
+    hypothesis?: boolean | null;
+    /**
+     * How sure are you about this motivation? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+     */
+    confidence?:
+      | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+      | null;
+  };
+  /**
+   * The mechanism, not the benefit: what actually happens that fixes the pain.
+   */
+  solution?: {
+    mechanism?: string | null;
+    /**
+     * Phrasings that land. The writer may reuse these verbatim.
+     */
+    sampleLines?:
+      | {
+          text: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * How sure are you that this is what fixes it? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+     */
+    confidence?:
+      | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+      | null;
+  };
+  /**
+   * What the alternatives claim to this audience, and when they were seen claiming it. A claim with no date ages without anyone noticing.
+   */
+  competition?:
+    | {
+        /**
+         * Usually a name from the Workspace competitor list; free text is fine.
+         */
+        competitor: string;
+        claim?: string | null;
+        claimedAt?: string | null;
+        source?: string | null;
+        /**
+         * How sure are you they still claim this? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+         */
+        confidence?:
+          | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Why this audience should pick us over those claims.
+   */
+  whyUs?: {
+    text?: string | null;
+    /**
+     * How sure are you about this? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+     */
+    confidence?:
+      | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+      | null;
+  };
+  /**
+   * Where this audience already is, and what they do there.
+   */
+  channels?:
+    | {
+        channel: string;
+        note?: string | null;
+        /**
+         * How sure are you they are there? Verified and strong directional state it plainly; qualitative pattern and cultural signal state it as a tendency, not a fact; inference and hypothesis attribute it to us, never as fact.
+         */
+        confidence?:
+          | ('verified' | 'strong_directional' | 'qualitative_pattern' | 'cultural_signal' | 'inference' | 'hypothesis')
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What makes this audience leave.
+   */
+  churnTriggers?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Who looks like this audience but is not, so the writer does not aim at them.
+   */
+  notOurUser?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Working notes and raw material for the setup assistant. Never sent to the writer.
+   */
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -794,7 +996,9 @@ export interface CostLog {
         | 'claimExtraction'
         | 'informationGainJudge'
         | 'evidenceVerification'
+        | 'evidenceCheck'
         | 'brandVoiceExtract'
+        | 'setupAssist'
       )
     | null;
   provider?: string | null;
@@ -1028,6 +1232,10 @@ export interface GovernanceAudit {
     | ({
         relationTo: 'evidence-sources';
         value: number | EvidenceSource;
+      } | null)
+    | ({
+        relationTo: 'icps';
+        value: number | Icp;
       } | null);
   /**
    * Slug of the audited Global, set instead of subject when the record has no id.
@@ -1380,6 +1588,10 @@ export interface PayloadLockedDocument {
         value: number | BrandVoiceFile;
       } | null)
     | ({
+        relationTo: 'icps';
+        value: number | Icp;
+      } | null)
+    | ({
         relationTo: 'governance-audit';
         value: number | GovernanceAudit;
       } | null)
@@ -1546,6 +1758,7 @@ export interface ArticlesSelect<T extends boolean = true> {
         id?: T;
       };
   template?: T;
+  icp?: T;
   research?:
     | T
     | {
@@ -1601,6 +1814,7 @@ export interface ArticlesSelect<T extends boolean = true> {
       };
   status?: T;
   publishAt?: T;
+  evidenceCitations?: T;
   qaResults?:
     | T
     | {
@@ -1625,6 +1839,13 @@ export interface ArticlesSelect<T extends boolean = true> {
               voiceScore?: T;
               voiceNotes?: T;
               notTraitViolations?: T;
+            };
+        evidenceCheck?:
+          | T
+          | {
+              passed?: T;
+              notes?: T;
+              claims?: T;
             };
       };
   informationGain?:
@@ -1798,6 +2019,90 @@ export interface BrandVoiceFilesSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icps_select".
+ */
+export interface IcpsSelect<T extends boolean = true> {
+  name?: T;
+  status?: T;
+  primary?: T;
+  activatedAt?: T;
+  activatedBy?: T;
+  who?: T;
+  pains?:
+    | T
+    | {
+        statement?: T;
+        evidence?:
+          | T
+          | {
+              ref?: T;
+              note?: T;
+              id?: T;
+            };
+        confidence?: T;
+        id?: T;
+      };
+  motivation?:
+    | T
+    | {
+        text?: T;
+        hypothesis?: T;
+        confidence?: T;
+      };
+  solution?:
+    | T
+    | {
+        mechanism?: T;
+        sampleLines?:
+          | T
+          | {
+              text?: T;
+              id?: T;
+            };
+        confidence?: T;
+      };
+  competition?:
+    | T
+    | {
+        competitor?: T;
+        claim?: T;
+        claimedAt?: T;
+        source?: T;
+        confidence?: T;
+        id?: T;
+      };
+  whyUs?:
+    | T
+    | {
+        text?: T;
+        confidence?: T;
+      };
+  channels?:
+    | T
+    | {
+        channel?: T;
+        note?: T;
+        confidence?: T;
+        id?: T;
+      };
+  churnTriggers?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  notOurUser?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2057,6 +2362,308 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * The site this workspace writes for and the competitors it is measured against. Leave the domain fields blank to use the TARGET_DOMAIN / COMPETITOR_DOMAINS environment variables.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "workspace-profile".
+ */
+export interface WorkspaceProfile {
+  id: number;
+  /**
+   * How the company is named in prose. Anything said about it counts as a first-party claim.
+   */
+  companyName?: string | null;
+  /**
+   * The site we publish to, as a bare host (example.com). Blank uses TARGET_DOMAIN.
+   */
+  targetDomain?: string | null;
+  /**
+   * Sites the content-gap report is measured against. Blank uses COMPETITOR_DOMAINS.
+   */
+  competitors?:
+    | {
+        /**
+         * Bare host, as with the target domain.
+         */
+        domain: string;
+        /**
+         * What prose calls them. Blank uses the domain.
+         */
+        name?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Anything about the company the setup assistant should know. Never sent to the writer on its own.
+   */
+  siteNotes?: string | null;
+  /**
+   * Pages fetched from the site for the setup assistant. Written by the fetch action.
+   */
+  sitePages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * When those pages were last fetched.
+   */
+  sitePagesFetchedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * What this company is to the reader: the category it competes in, the slot it wants to own, and the words it claims them in. Recommended, not required — anything you fill in reaches the writer and the reviewer; anything you leave blank is simply left out.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "positioning".
+ */
+export interface Positioning {
+  id: number;
+  /**
+   * What kind of company this is, in the words a buyer would use. The frame everything else is judged inside.
+   */
+  category?: string | null;
+  /**
+   * The one thing this positioning is for. One goal, not a list.
+   */
+  goal?: string | null;
+  /**
+   * What the customer gets, stated as a promise you would be embarrassed to break.
+   */
+  promise?: string | null;
+  /**
+   * The mental slot to own: the short phrase you want to be the answer to, in the reader’s head, before they think of anyone else.
+   */
+  activePosition?: string | null;
+  /**
+   * The full statement: for <who> who <need>, <company> is the <category> that <benefit>, unlike <alternative>.
+   */
+  statement?: string | null;
+  /**
+   * The bigger shift this rides on — what is changing in the world that makes the position true now.
+   */
+  macroFrame?: string | null;
+  /**
+   * How the market is arranged around you: the groups of alternatives and what each stands for.
+   */
+  landscape?: string | null;
+  /**
+   * Exactly three claims the position rests on. Three, because a position with a dozen claims has none.
+   */
+  coreClaims?:
+    | {
+        claim: string;
+        /**
+         * Optional: the evidence-bank entry that backs it, e.g. E4. The writer is told to cite it.
+         */
+        evidenceRef?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * The few themes every piece of communication stands on. Each one should carry a job the position needs done.
+   */
+  pillars?:
+    | {
+        name: string;
+        /**
+         * The pillar in one line, as you would say it out loud.
+         */
+        oneLine?: string | null;
+        /**
+         * What this pillar is there to carry: trust, price defence, urgency.
+         */
+        carries?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What the customer is fighting — a habit, a cost, a way of working. Never a named rival on a customer surface: naming one advertises them and dates the copy.
+   */
+  enemy?: string | null;
+  /**
+   * The character the brand plays, e.g. the Sage, the Outlaw, the Caregiver.
+   */
+  archetype?: string | null;
+  /**
+   * Two or three words for how it should feel to deal with you.
+   */
+  essence?: string | null;
+  /**
+   * How to describe the company, broad to specific — the row order is the ladder. Start where a stranger can follow, end where a buyer can choose.
+   */
+  descriptorLadder?:
+    | {
+        descriptor: string;
+        /**
+         * When to use this rung. For your team; never sent to the writer.
+         */
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Words that carry the position. The writer is told to reach for these.
+   */
+  vocabularyReachFor?:
+    | {
+        term: string;
+        /**
+         * Why this word, in a few words.
+         */
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Words that blur the position. Advisory only: the reviewer notes them, nothing fails on them. Words that must never appear belong in the brand voice’s banned list, which is checked structurally.
+   */
+  vocabularyAvoid?:
+    | {
+        term: string;
+        /**
+         * Why to avoid it, in a few words.
+         */
+        note?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Questions the company has not settled. Open ones are sent to the writer as “take no position on this”, which is what stops a draft deciding them by accident.
+   */
+  openRulings?:
+    | {
+        question: string;
+        /**
+         * Ruled questions leave the writer’s prompt; the ruling is yours to apply.
+         */
+        status?: ('open' | 'ruled') | null;
+        ruling?: string | null;
+        ruledAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Anything the setup assistant should know while drafting this. Never sent to the writer.
+   */
+  notes?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Everything this company may say about itself. A draft may state a first-party fact only if it is in here, and must cite the row’s ref. Proof travels with the claim: a row with no source and no limits is an assertion. A softened version of an unsupported claim is still unsupported.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-bank".
+ */
+export interface EvidenceBank {
+  id: number;
+  /**
+   * Claims somebody has actually checked, each with the source, the method, and the limits it may not be stretched past. The writer cites these as [E1], [E2] and so on.
+   */
+  verifiedClaims?:
+    | {
+        /**
+         * Assigned on save and never reused. This is what a draft cites.
+         */
+        ref?: string | null;
+        /**
+         * The claim in one sentence, as you would be happy to see it printed.
+         */
+        claim: string;
+        /**
+         * The document a checker could open: “Q2 2026 benchmark report”, “billing export, 2026-08-01”. Not “our data”.
+         */
+        primarySource?: string | null;
+        sourceUrl?: string | null;
+        /**
+         * When the source was produced. Sent to the writer with the claim.
+         */
+        sourceDate?: string | null;
+        /**
+         * How it was measured, and over what. A number with no method behind it cannot be defended when somebody asks.
+         */
+        sampleOrMethod?: string | null;
+        /**
+         * How hard it was checked, strongest first: a primary document, a reproduced result, a third-party audit, or self-reported.
+         */
+        verificationDepth?: ('primary_document' | 'reproduced' | 'third_party_audit' | 'self_reported') | null;
+        /**
+         * What this claim does NOT say — the generalisation a reader would make that the evidence does not support. QA fails a draft that goes past this.
+         */
+        limits?: string | null;
+        /**
+         * Where legal or leadership has cleared this claim. Leave empty when it is cleared everywhere.
+         */
+        clearedSurfaces?: ('web' | 'blog' | 'ads' | 'sales' | 'social' | 'pr')[] | null;
+        /**
+         * The date this stops being usable. After it the claim is treated as expired and moves into the writer’s “never state” list until somebody re-verifies it.
+         */
+        recheckAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Plain facts that need no hedging and no limits: founding year, headquarters, integrations that exist. Cited as [F1], [F2].
+   */
+  facts?:
+    | {
+        /**
+         * Assigned on save and never reused. This is what a draft cites.
+         */
+        ref?: string | null;
+        fact: string;
+        source?: string | null;
+        /**
+         * Who keeps this true. A fact with no owner goes stale unnoticed.
+         */
+        owner?: string | null;
+        lastConfirmedAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Claims that may never be stated, and why. Keep them here rather than deleting them: a claim nobody can see is one that comes back in the next draft. Cited as [R1] in the writer’s “never state” list.
+   */
+  rejectedClaims?:
+    | {
+        /**
+         * Assigned on save and never reused. This is what a draft cites.
+         */
+        ref?: string | null;
+        claim: string;
+        /**
+         * Rejected: it was never supportable. Expired: it was true and the evidence has aged out.
+         */
+        status?: ('rejected' | 'expired') | null;
+        /**
+         * Why, in the words you would use to explain it to the writer.
+         */
+        reason?: string | null;
+        /**
+         * What to say instead: an evidence ref such as E1, or a sentence. The writer is told to use it.
+         */
+        replacement?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Monotonic ref counter. Never decremented: a deleted ref is never reused.
+   */
+  refCounter?: number | null;
+  /**
+   * Anything the setup assistant should know while drafting this. Never sent to the writer.
+   */
+  notes?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * Which model handles each step. Each model needs its provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) in the environment; a codex/ model needs `codex login` on the host instead of a key. Prices are USD per 1M tokens and feed the cost log; codex prices are estimates at API rates, not what your ChatGPT plan charges.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2227,9 +2834,63 @@ export interface LlmSetting {
       )
     | null;
   /**
+   * Checks first-party claims against the evidence bank during QA. Leave blank to use PIPELINE_MODEL_EVIDENCE_CHECK from the environment, or the platform default (Claude Opus 5).
+   */
+  evidenceCheckModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
+      )
+    | null;
+  /**
    * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the platform default (Claude Opus 5).
    */
   brandVoiceExtractModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+        | 'codex/gpt-5.6-sol'
+        | 'codex/gpt-5.6-terra'
+        | 'codex/gpt-5.6-luna'
+        | 'codex/gpt-5.5'
+        | 'codex/gpt-5.4'
+        | 'codex/gpt-5.4-mini'
+      )
+    | null;
+  /**
+   * Drafts and refines onboarding steps (audiences, positioning, evidence bank) from your notes and site. Leave blank to use SETUP_ASSIST_MODEL from the environment, or the platform default (Claude Opus 5).
+   */
+  setupAssistModel?:
     | (
         | 'claude-fable-5'
         | 'claude-opus-5'
@@ -2354,6 +3015,138 @@ export interface PayloadJobsStat {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "workspace-profile_select".
+ */
+export interface WorkspaceProfileSelect<T extends boolean = true> {
+  companyName?: T;
+  targetDomain?: T;
+  competitors?:
+    | T
+    | {
+        domain?: T;
+        name?: T;
+        id?: T;
+      };
+  siteNotes?: T;
+  sitePages?: T;
+  sitePagesFetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "positioning_select".
+ */
+export interface PositioningSelect<T extends boolean = true> {
+  category?: T;
+  goal?: T;
+  promise?: T;
+  activePosition?: T;
+  statement?: T;
+  macroFrame?: T;
+  landscape?: T;
+  coreClaims?:
+    | T
+    | {
+        claim?: T;
+        evidenceRef?: T;
+        id?: T;
+      };
+  pillars?:
+    | T
+    | {
+        name?: T;
+        oneLine?: T;
+        carries?: T;
+        id?: T;
+      };
+  enemy?: T;
+  archetype?: T;
+  essence?: T;
+  descriptorLadder?:
+    | T
+    | {
+        descriptor?: T;
+        note?: T;
+        id?: T;
+      };
+  vocabularyReachFor?:
+    | T
+    | {
+        term?: T;
+        note?: T;
+        id?: T;
+      };
+  vocabularyAvoid?:
+    | T
+    | {
+        term?: T;
+        note?: T;
+        id?: T;
+      };
+  openRulings?:
+    | T
+    | {
+        question?: T;
+        status?: T;
+        ruling?: T;
+        ruledAt?: T;
+        id?: T;
+      };
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evidence-bank_select".
+ */
+export interface EvidenceBankSelect<T extends boolean = true> {
+  verifiedClaims?:
+    | T
+    | {
+        ref?: T;
+        claim?: T;
+        primarySource?: T;
+        sourceUrl?: T;
+        sourceDate?: T;
+        sampleOrMethod?: T;
+        verificationDepth?: T;
+        limits?: T;
+        clearedSurfaces?: T;
+        recheckAt?: T;
+        id?: T;
+      };
+  facts?:
+    | T
+    | {
+        ref?: T;
+        fact?: T;
+        source?: T;
+        owner?: T;
+        lastConfirmedAt?: T;
+        id?: T;
+      };
+  rejectedClaims?:
+    | T
+    | {
+        ref?: T;
+        claim?: T;
+        status?: T;
+        reason?: T;
+        replacement?: T;
+        id?: T;
+      };
+  refCounter?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings_select".
  */
 export interface LlmSettingsSelect<T extends boolean = true> {
@@ -2363,7 +3156,9 @@ export interface LlmSettingsSelect<T extends boolean = true> {
   claimExtractionModel?: T;
   informationGainJudgeModel?: T;
   evidenceVerificationModel?: T;
+  evidenceCheckModel?: T;
   brandVoiceExtractModel?: T;
+  setupAssistModel?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

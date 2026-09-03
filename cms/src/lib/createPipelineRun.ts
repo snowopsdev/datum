@@ -90,6 +90,21 @@ export async function createPipelineRun(
           requiredEnvironment: input.readiness.runtime.missing,
           activeVoiceId: input.readiness.governance.activeVoiceId,
           templateId: input.templateId,
+          // The workspace this run wrote for. Kept on the row because the
+          // audience and the target domain decide what every prompt said, and
+          // an article's output stops being explainable the moment they change.
+          tenant: {
+            targetDomain: input.readiness.tenant.profile.targetDomain,
+            competitorCount: input.readiness.tenant.profile.competitorCount,
+            icpId: input.readiness.tenant.icps.primaryId,
+            icpCount: input.readiness.tenant.icps.count,
+            positioning: input.readiness.tenant.positioning.status,
+            // The counts, not the claims: a snapshot that carried the bank's
+            // text would grow without bound and duplicate the audit trail. The
+            // counts are enough to explain why a draft could or could not state
+            // a first-party fact when this run wrote it.
+            evidenceBank: input.readiness.tenant.evidenceBank,
+          },
           models: input.readiness.content.models.map(
             ({ stage, model, source, provider, requirement, envVar, configured }) => ({
               stage,

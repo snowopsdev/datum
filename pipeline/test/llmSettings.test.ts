@@ -7,7 +7,15 @@ import {
   LLM_CATALOG,
   LLM_MODEL_OPTIONS,
 } from '../../cms/src/lib/llmCatalog'
-import { resolveExtractionModel, resolveModel, resolveStageModels } from '../../cms/src/lib/llmSettings'
+import {
+  PIPELINE_STAGES,
+  resolveExtractionModel,
+  resolveModel,
+  resolveSetupAssistModel,
+  resolveStageModels,
+  STAGE_ENV_VAR,
+  STAGE_SETTING_FIELD,
+} from '../../cms/src/lib/llmSettings'
 import { codexModelId, providerForModel } from '../src/llmProvider'
 import { costUsd } from '../src/pricing'
 
@@ -43,10 +51,68 @@ describe('resolveModel precedence', () => {
     assert.equal(resolved.claimExtraction.source, 'env')
   })
 
+  it('resolves the evidence check from its own admin field and env override', () => {
+    assert.equal(
+      resolveStageModels({ evidenceCheckModel: 'claude-haiku-4-5' }, {}).evidenceCheck.model,
+      'claude-haiku-4-5',
+    )
+    const fromEnv = resolveStageModels(null, { PIPELINE_MODEL_EVIDENCE_CHECK: 'gpt-5.4-mini' })
+      .evidenceCheck
+    assert.equal(fromEnv.model, 'gpt-5.4-mini')
+    assert.equal(fromEnv.source, 'env')
+    // The QA sibling is untouched: the two calls are priced and chosen apart.
+    assert.equal(resolveStageModels(null, { PIPELINE_MODEL_EVIDENCE_CHECK: 'gpt-5.4-mini' }).factCheck.model, 'claude-opus-5')
+  })
+
+  it('gives every stage its own env var and settings field, with no collisions', () => {
+    const envVars = PIPELINE_STAGES.map((stage) => STAGE_ENV_VAR[stage])
+    const fields = PIPELINE_STAGES.map((stage) => STAGE_SETTING_FIELD[stage])
+    assert.equal(new Set(envVars).size, PIPELINE_STAGES.length)
+    assert.equal(new Set(fields).size, PIPELINE_STAGES.length)
+    assert.ok(PIPELINE_STAGES.includes('evidenceCheck'))
+  })
+
   it('resolves the brand-voice extraction model the same way', () => {
     assert.equal(resolveExtractionModel({ brandVoiceExtractModel: 'gpt-5.6-luna' }, {}).model, 'gpt-5.6-luna')
     assert.equal(resolveExtractionModel(null, { BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' }).model, 'gpt-5')
     assert.equal(resolveExtractionModel(null, {}).model, 'claude-opus-5')
+  })
+
+  /**
+   * The setup assistant borrows the brand-voice extractor's model before the
+   * platform default: both read a workspace's own words back to it, and a
+   * workspace that has picked a cheap model for one must not silently pay
+   * flagship prices for the other.
+   */
+  it('resolves the setup assistant through its own field, then the extractor, then the default', () => {
+    assert.deepEqual(
+      resolveSetupAssistModel({ setupAssistModel: 'gpt-5.4-mini' }, { SETUP_ASSIST_MODEL: 'gpt-5' }),
+      { model: 'gpt-5.4-mini', source: 'admin' },
+    )
+    assert.deepEqual(resolveSetupAssistModel(null, { SETUP_ASSIST_MODEL: 'gpt-5' }), {
+      model: 'gpt-5',
+      source: 'env',
+    })
+    assert.deepEqual(resolveSetupAssistModel({ brandVoiceExtractModel: 'claude-haiku-4-5' }, {}), {
+      model: 'claude-haiku-4-5',
+      source: 'admin',
+    })
+    assert.deepEqual(resolveSetupAssistModel(null, { BRAND_VOICE_EXTRACT_MODEL: 'gpt-5-mini' }), {
+      model: 'gpt-5-mini',
+      source: 'env',
+    })
+    assert.deepEqual(resolveSetupAssistModel(null, {}), {
+      model: 'claude-opus-5',
+      source: 'default',
+    })
+    // Its own env var beats the extractor's admin choice: the more specific
+    // answer wins wherever both are given.
+    assert.equal(
+      resolveSetupAssistModel({ brandVoiceExtractModel: 'claude-haiku-4-5' }, {
+        SETUP_ASSIST_MODEL: 'gpt-5',
+      }).model,
+      'gpt-5',
+    )
   })
 })
 

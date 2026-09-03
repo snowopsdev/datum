@@ -14,6 +14,7 @@
  */
 
 import { hostnameOf } from '../informationGain/lib'
+import { MOCK_TARGET_DOMAIN } from '../tenant'
 
 const BUDGET = 'Most beginners spend between $500 and $1,500 on a first espresso setup.'
 const EQUIPMENT = 'The grinder matters more than the machine.'
@@ -210,8 +211,111 @@ const PAGES_BY_HOST: Record<string, MockPage> = {
   'industry-mag.example.com': industryMag,
 }
 
+/**
+ * The workspace's own site, for the setup assistant rather than the corpus.
+ *
+ * These four are the only mock pages keyed by path, because the setup fetch is
+ * the only thing that asks one host for several pages. The prose is the demo
+ * company described in `cms/src/lib/brandVoiceFixture.ts`, so a mock setup run
+ * drafts an ICP and a positioning statement about the same fictional business
+ * the demo brand voice speaks for.
+ *
+ * The home page names its own links as absolute URLs in the running text on
+ * purpose: mock mode returns readable text and never HTML, so prose is the only
+ * place `candidatePagePaths` can find them.
+ */
+const workspaceHome: MockPage = {
+  title: 'Datum — search content that ranks, without an agency',
+  text: paragraph(
+    'Datum helps small teams publish search content that ranks without hiring an agency.',
+    'You give it a topic, it researches the question, drafts to your brand voice, and holds the',
+    'draft at a review gate until a person approves it.',
+    'Teams of three to fifty use it to publish two to eight articles a month without adding a',
+    'writer to headcount.',
+    'Nothing is published automatically: every article stops for a human at the brief and again',
+    'before it ships.',
+    'Read what we believe at https://datum.example.com/about, see how the pipeline works at',
+    'https://datum.example.com/product, and check what it costs at https://datum.example.com/pricing.',
+    'Customers tell us the first draft lands about 80 percent of the way there, which is the',
+    'part that used to take a freelancer a week.',
+  ),
+}
+
+const workspaceAbout: MockPage = {
+  title: 'About Datum',
+  text: paragraph(
+    'We started Datum after watching three founders in a row pay an agency $6,000 a month for',
+    'content nobody read.',
+    'The problem was never the writing. It was that nobody had time to decide what to write, and',
+    'the agency had no idea what the product actually did.',
+    'So we built the decision half first: research the question, check who already answers it,',
+    'and only then write.',
+    'We are a team of six, based across three time zones, and we have published on our own site',
+    'with this tool since the first month it worked.',
+    'If a sentence does not help the reader do something, we cut it, and we hold the product to',
+    'the same rule.',
+    'We say what we know, what we guessed, and what we did not test.',
+  ),
+}
+
+const workspaceProduct: MockPage = {
+  title: 'How Datum works',
+  text: paragraph(
+    'Datum runs one article through five stages: research, brief, draft, quality check, and',
+    'review.',
+    'Research pulls the questions people actually search, checks what the top results already',
+    'cover, and reports the gaps worth writing into.',
+    'The brief is where you steer: the angle, the sections, and the notes are yours to edit',
+    'before a single paragraph is written.',
+    'Drafting applies your brand voice — the words you prefer, the ones you ban, and the tone',
+    'you set — rather than a generic house style.',
+    'The quality check reads the draft back against the brief, the banned words, and the',
+    'evidence you have on file, and refuses anything it cannot support.',
+    'Nothing reaches your CMS until a person clicks approve.',
+    'Everything the pipeline spends is logged per article, so you can see what a piece cost',
+    'before you decide to write the next one.',
+  ),
+}
+
+const workspacePricing: MockPage = {
+  title: 'Datum pricing',
+  text: paragraph(
+    'Three plans, all billed monthly, all cancellable in the product without an email.',
+    'Starter is $99 a month for four published articles, one brand voice, and one site.',
+    'Team is $299 a month for twenty articles, five brand voices, and three sites, and it adds',
+    'the content-gap report against competitors you name.',
+    'Scale is $899 a month for unlimited articles, unlimited sites, and a shared review queue',
+    'with per-editor approval rights.',
+    'Model usage is included at every tier; there is no per-token bill to reconcile at the end',
+    'of the month.',
+    'Every plan has the same review gates, because publishing something nobody checked is not a',
+    'premium feature.',
+  ),
+}
+
+/** The workspace's pages, by path. Any other path on that host gets the home page. */
+const WORKSPACE_PAGES: Record<string, MockPage> = {
+  '/': workspaceHome,
+  '/about': workspaceAbout,
+  '/product': workspaceProduct,
+  '/pricing': workspacePricing,
+}
+
+/** `/About/` and `/about` are the same mock page. */
+function pathOf(url: string): string {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, '').toLowerCase()
+    return path || '/'
+  } catch {
+    return '/'
+  }
+}
+
 /** The canned body for a mock URL; hosts we have no page for get the generic one. */
 export function mockPageText(url: string): MockPage {
   const host = hostnameOf(url)
+  if (host === MOCK_TARGET_DOMAIN) {
+    return WORKSPACE_PAGES[pathOf(url)] ?? workspaceHome
+  }
   return (host && PAGES_BY_HOST[host]) || genericPage
 }

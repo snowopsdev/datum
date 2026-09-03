@@ -84,6 +84,21 @@ export const Articles: CollectionConfig = {
       relationTo: 'templates',
     },
     {
+      // Which audience this piece is written for. Set at creation from the
+      // primary audience, backfilled by the research stage when it is null,
+      // and changeable in the brief — where the person deciding the angle is
+      // also the person who knows who it is for.
+      name: 'icp',
+      type: 'relationship',
+      relationTo: 'icps',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description:
+          'The audience this piece is written for. Defaults to the primary ICP; change it in the brief.',
+      },
+    },
+    {
       name: 'research',
       type: 'group',
       fields: [
@@ -256,6 +271,19 @@ export const Articles: CollectionConfig = {
       },
     },
     {
+      // Written by the generate stage after it strips the `[E3]` markers out of
+      // the draft: the markers are an internal protocol and no reader may see
+      // one, but which bank entries a piece leaned on has to survive, or QA and
+      // the reviewer are left guessing which sentence claimed what.
+      name: 'evidenceCitations',
+      type: 'json',
+      admin: {
+        readOnly: true,
+        description:
+          'Evidence-bank entries this draft cited ({ref, excerpt}[]), recorded when the citation markers were stripped. Read-only: a citation is earned by the draft, not typed in.',
+      },
+    },
+    {
       name: 'qaResults',
       type: 'group',
       fields: [
@@ -320,6 +348,28 @@ export const Articles: CollectionConfig = {
               admin: {
                 description:
                   'Clear breaches of a "what we are NOT" trait ({trait, excerpt, explanation}[]). Any entry fails QA.',
+              },
+            },
+          ],
+        },
+        {
+          name: 'evidenceCheck',
+          type: 'group',
+          fields: [
+            {
+              name: 'passed',
+              type: 'checkbox',
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+            },
+            {
+              name: 'claims',
+              type: 'json',
+              admin: {
+                description:
+                  'Every first-party claim the check found ({excerpt, kind, status, ref, note}[]). A rejected, unusable, or overreaching claim fails QA; an unbacked one is flagged only.',
               },
             },
           ],

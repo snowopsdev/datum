@@ -8,6 +8,10 @@ import * as migration_20260827_214532_brief_checkpoint from './20260827_214532_b
 import * as migration_20260831_190025_webhook_settings_and_delivery_task from './20260831_190025_webhook_settings_and_delivery_task';
 import * as migration_20260831_191144_scheduled_publishing from './20260831_191144_scheduled_publishing';
 import * as migration_20260902_210000_codex_model_options from './20260902_210000_codex_model_options';
+import * as migration_20260903_020919_workspace_profile_global from './20260903_020919_workspace_profile_global';
+import * as migration_20260903_022301_icps_collection_and_article_icp from './20260903_022301_icps_collection_and_article_icp';
+import * as migration_20260903_024506_positioning_global_and_llm_stage_schema from './20260903_024506_positioning_global_and_llm_stage_schema';
+import * as migration_20260903_030748_evidence_bank_global_and_qa from './20260903_030748_evidence_bank_global_and_qa';
 
 export const migrations = [
   {
@@ -53,11 +57,31 @@ export const migrations = [
   {
     up: migration_20260831_191144_scheduled_publishing.up,
     down: migration_20260831_191144_scheduled_publishing.down,
-    name: '20260831_191144_scheduled_publishing'
+    name: '20260831_191144_scheduled_publishing',
   },
   {
     up: migration_20260902_210000_codex_model_options.up,
     down: migration_20260902_210000_codex_model_options.down,
     name: '20260902_210000_codex_model_options',
+  },
+  {
+    up: migration_20260903_020919_workspace_profile_global.up,
+    down: migration_20260903_020919_workspace_profile_global.down,
+    name: '20260903_020919_workspace_profile_global',
+  },
+  {
+    up: migration_20260903_022301_icps_collection_and_article_icp.up,
+    down: migration_20260903_022301_icps_collection_and_article_icp.down,
+    name: '20260903_022301_icps_collection_and_article_icp',
+  },
+  {
+    up: migration_20260903_024506_positioning_global_and_llm_stage_schema.up,
+    down: migration_20260903_024506_positioning_global_and_llm_stage_schema.down,
+    name: '20260903_024506_positioning_global_and_llm_stage_schema',
+  },
+  {
+    up: migration_20260903_030748_evidence_bank_global_and_qa.up,
+    down: migration_20260903_030748_evidence_bank_global_and_qa.down,
+    name: '20260903_030748_evidence_bank_global_and_qa'
   },
 ];

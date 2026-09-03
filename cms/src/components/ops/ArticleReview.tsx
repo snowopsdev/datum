@@ -14,12 +14,13 @@ import {
   resetToDraftedAction,
   sendBackAction,
 } from './actions'
-import { BriefEditor } from './BriefEditor'
+import { type BriefIcpOption, BriefEditor } from './BriefEditor'
 import { revisitBriefAction } from './briefActions'
 import { runSelectedArticlesAction } from './boardActions'
 import { Stepper } from './Stepper'
 import {
   OWNER_LABEL,
+  evidenceFindingsOf,
   qaFailures,
   STAGE_LABEL,
   stageOf,
@@ -34,6 +35,8 @@ import './ops.css'
 type Props = {
   article: BoardArticle
   mode: 'mock' | 'live'
+  /** Active audiences the brief may switch between. */
+  icps: BriefIcpOption[]
   templates: TemplateOption[]
   editHref: string
   bodyHtml: string
@@ -56,7 +59,7 @@ const QUALITY_SOURCE_LABEL: Record<string, string> = {
 }
 
 /** The stored brief, in the shape the editor edits. Rows without a heading are dropped. */
-function briefInitial(raw: BoardArticle['brief']) {
+function briefInitial(raw: BoardArticle['brief'], icpId: number | null) {
   const strings = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
   return {
@@ -76,6 +79,7 @@ function briefInitial(raw: BoardArticle['brief']) {
     mustCover: strings(raw?.mustCover),
     opportunities: strings(raw?.opportunities),
     notes: raw?.notes ?? '',
+    icpId,
   }
 }
 
@@ -421,6 +425,7 @@ function ScorecardSection({
 export function ArticleReview({
   article,
   mode,
+  icps,
   templates,
   editHref,
   bodyHtml,
@@ -460,6 +465,7 @@ export function ArticleReview({
 
   const qa = article.qaResults
   const failures = qaFailures(article)
+  const evidenceFindings = evidenceFindingsOf(qa?.evidenceCheck?.claims)
   const summaryRun = article.informationGain?.run
   const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
   const runIsCurrent = run != null && summaryRunId === run.id
@@ -486,12 +492,14 @@ export function ArticleReview({
           <p className="datum-ops__sub">
             {article.keyword}
             {article.templateName ? ` · ${article.templateName}` : ''}
+            {article.icpName ? ` · for ${article.icpName}` : ''}
             {article.totalCostUsd != null ? ` · $${article.totalCostUsd.toFixed(2)}` : ''}
           </p>
           {article.status === 'brief_review' ? (
             <BriefEditor
               articleId={article.id}
-              initial={briefInitial(article.brief)}
+              icps={icps}
+              initial={briefInitial(article.brief, article.icpId)}
               keyword={article.keyword}
               mode={mode}
               templateName={article.templateName}
@@ -668,6 +676,7 @@ export function ArticleReview({
                 <CheckRow label="Structural" passed={qa?.structural?.passed} />
                 <CheckRow label="Fact check" passed={qa?.factCheck?.passed} />
                 <CheckRow label="Qualitative" passed={qa?.qualitativeReview?.passed} />
+                <CheckRow label="Evidence" passed={qa?.evidenceCheck?.passed} />
               </div>
               {failures.length > 0 ? (
                 <div className="datum-ops__block">
@@ -707,6 +716,50 @@ export function ArticleReview({
                     along with the original brief. It rewrites against the same research, so the new
                     draft is comparable to this one.
                   </p>
+                </div>
+              ) : null}
+              {evidenceFindings.length > 0 || article.evidenceCitations.length > 0 ? (
+                <div className="datum-ops__block">
+                  <h3>Evidence</h3>
+                  <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                    What the draft said about this company, judged against the evidence bank.
+                    Rejected, unusable, and overreaching claims fail the article; unbacked ones are
+                    flagged only.
+                  </p>
+                  {evidenceFindings.length > 0 ? (
+                    <ul className="datum-ops__qa-fails">
+                      {evidenceFindings.map((finding, index) => (
+                        <li key={`evidence-${index}`}>
+                          <p className="datum-ops__qa-what">
+                            <code className="datum-ops__qa-code">{finding.status}</code>{' '}
+                            {finding.excerpt}
+                          </p>
+                          {finding.note ? (
+                            <p className="datum-ops__qa-fix">
+                              {finding.ref ? <strong>[{finding.ref}] </strong> : null}
+                              {finding.note}
+                            </p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="datum-ops__hint">No first-party claims were found to judge.</p>
+                  )}
+                  {article.evidenceCitations.length > 0 ? (
+                    <details className="datum-ops__audit-details" style={{ marginTop: 10 }}>
+                      <summary>
+                        Entries the draft cited ({article.evidenceCitations.length})
+                      </summary>
+                      <ul className="datum-ops__list">
+                        {article.evidenceCitations.map((citation, index) => (
+                          <li key={`citation-${citation.ref}-${index}`}>
+                            <code>{citation.ref}</code> {citation.excerpt}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                 </div>
               ) : null}
               {run && run.reasons.length > 0 ? (

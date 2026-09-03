@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeViolation, qaFailures } from '@/components/ops/articleStatus'
+import {
+  describeViolation,
+  evidenceCitationsOf,
+  evidenceFindingsOf,
+  QA_CHECK_LABEL,
+  qaFailureLines,
+  qaFailures,
+} from '@/components/ops/articleStatus'
 
 describe('describeViolation', () => {
   it('states the limit and the actual value, not just the code', () => {
@@ -141,5 +148,119 @@ describe('qaFailures', () => {
     expect(failures).toHaveLength(2)
     expect(failures[0].what).toContain('grade 14.2')
     expect(failures.every((f) => f.check === 'structural')).toBe(true)
+  })
+})
+
+/**
+ * A failing evidence check has to survive the round trip into the article and
+ * back out as instructions the next draft can act on.
+ *
+ * The pipeline never writes `revisionNotes` — that field belongs to the
+ * reviewer's regenerate action, which builds it from `qaFailures` — so the
+ * failing excerpts travel inside `qaResults.evidenceCheck.notes` and are picked
+ * up here. Without this the article goes back to `needs_revision` with nothing
+ * telling the writer which sentence to cut.
+ */
+describe('the evidence check as a QA failure', () => {
+  const failing = {
+    qaResults: {
+      structural: { passed: true, violations: [] },
+      factCheck: { passed: true, notes: 'all good' },
+      qualitativeReview: { passed: true, notes: 'fine' },
+      evidenceCheck: {
+        passed: false,
+        notes:
+          'One rejected claim.\n\nRemove or replace: Datum guarantees your articles will rank. (rejected, use E1)',
+        claims: [
+          {
+            excerpt: 'Datum guarantees your articles will rank.',
+            kind: 'first_party',
+            status: 'rejected',
+            ref: 'R6',
+            note: 'Paraphrases a rejected claim.',
+          },
+        ],
+      },
+    },
+  }
+
+  it('sends the failing excerpts to the rewrite, with a fix that forbids hedging', () => {
+    const failures = qaFailures(failing as never)
+    expect(failures).toHaveLength(1)
+    expect(failures[0].check).toBe('evidenceCheck')
+    expect(failures[0].what).toContain(
+      'Remove or replace: Datum guarantees your articles will rank. (rejected, use E1)',
+    )
+    // A softened version of an unsupported claim is still unsupported, and the
+    // instruction has to say so or the next draft simply hedges it.
+    expect(failures[0].fix).toContain('a hedged version of it is still unsupported')
+  })
+
+  it('labels the check for the regeneration prompt', () => {
+    expect(QA_CHECK_LABEL.evidenceCheck).toBe('Evidence')
+    expect(qaFailureLines(failing as never).some((line) => line.startsWith('Evidence: '))).toBe(true)
+  })
+
+  it('adds nothing when the check passed', () => {
+    expect(
+      qaFailures({
+        qaResults: {
+          ...failing.qaResults,
+          evidenceCheck: { passed: true, notes: 'No first-party claims found.', claims: [] },
+        },
+      } as never),
+    ).toEqual([])
+  })
+})
+
+/**
+ * `qaResults.evidenceCheck.claims` is a JSON column written by a model-shaped
+ * pipeline, so the review view trusts nothing about its shape.
+ */
+describe('evidenceFindingsOf', () => {
+  it('keeps well-formed findings and drops the rest', () => {
+    expect(
+      evidenceFindingsOf([
+        { excerpt: 'Backed.', kind: 'first_party', status: 'backed', ref: 'E1', note: 'ok' },
+        { excerpt: 'Deterministic.', status: 'unusable', ref: 'E9', note: 'no such entry' },
+        { excerpt: '', status: 'rejected' },
+        { excerpt: 'Unknown status.', status: 'probably_fine' },
+        null,
+        'not an object',
+      ]),
+    ).toEqual([
+      { excerpt: 'Backed.', kind: 'first_party', status: 'backed', ref: 'E1', note: 'ok' },
+      {
+        excerpt: 'Deterministic.',
+        kind: 'first_party',
+        status: 'unusable',
+        ref: 'E9',
+        note: 'no such entry',
+      },
+    ])
+  })
+
+  it('reads a missing or malformed column as no findings', () => {
+    for (const value of [null, undefined, 'text', 42, {}]) {
+      expect(evidenceFindingsOf(value)).toEqual([])
+    }
+  })
+})
+
+describe('evidenceCitationsOf', () => {
+  it('keeps rows that name an entry and drops the rest', () => {
+    expect(
+      evidenceCitationsOf([
+        { ref: 'E1', excerpt: 'A reviewer approves the brief.' },
+        { ref: 'F2' },
+        { excerpt: 'no ref' },
+        { ref: '', excerpt: 'blank ref' },
+        null,
+      ]),
+    ).toEqual([
+      { ref: 'E1', excerpt: 'A reviewer approves the brief.' },
+      { ref: 'F2', excerpt: '' },
+    ])
+    expect(evidenceCitationsOf(null)).toEqual([])
   })
 })

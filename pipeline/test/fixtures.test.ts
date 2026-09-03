@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { mockFixture } from '../src/fixtures'
+import { PIPELINE_STAGES } from '../../cms/src/lib/llmSettings'
+import { mockFixture, mockUsage } from '../src/fixtures'
 import { createLlmClient } from '../src/llm'
 
 describe('createLlmClient (mock mode)', () => {
@@ -58,6 +59,27 @@ describe('mockFixture', () => {
       () => mockFixture('claimExtraction', 'nonexistent'),
       /no mock fixture for claimExtraction\/nonexistent/,
     )
+  })
+
+  /**
+   * The mock evidence check finds nothing, on purpose: the mock corpus is about
+   * espresso and the demo tenant is a content pipeline, so no mock draft makes a
+   * first-party claim. A fixture that reported findings would end every mock run
+   * in needs_revision.
+   */
+  it('answers the evidence check with an empty, parseable verdict', () => {
+    const fixture = mockFixture('evidenceCheck') as { claims: unknown[]; notes: string }
+    assert.deepEqual(fixture.claims, [])
+    assert.equal(fixture.notes, 'No first-party claims found.')
+  })
+
+  it('has a fixture and a usage row for every stage the pipeline can call', () => {
+    for (const stage of PIPELINE_STAGES) {
+      assert.doesNotThrow(() => mockFixture(stage), stage)
+      assert.ok(mockUsage[stage], `${stage} has no mock usage row`)
+    }
+    // The evidence check is closed-book, so it must never claim a web search.
+    assert.equal(mockUsage.evidenceCheck.webSearchRequests, 0)
   })
 
   it('leaves the whole-stage generate fixture unchanged', () => {

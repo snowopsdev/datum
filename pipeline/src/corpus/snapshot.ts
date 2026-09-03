@@ -46,6 +46,7 @@ import {
 } from '../informationGain/lib'
 import { completeJSONLogged } from '../llm'
 import type { StageContext } from '../stages'
+import { userAgentFor } from '../tenant'
 
 import { mapWithConcurrency } from './concurrency'
 import { fetchPage, type FetchedPage } from './fetchPage'
@@ -244,7 +245,12 @@ export async function getOrBuildSnapshot(
 
   // Crawl the ranking pages.
   const serpPages = serp.pages.slice(0, SERP_PAGE_CAP)
-  const fetched = await mapWithConcurrency(serpPages, CONCURRENCY, (page) => fetchPage(page.url))
+  // The crawler identifies itself with the workspace's own domain so a site
+  // owner who sees the hit has somewhere to complain to.
+  const userAgent = userAgentFor(ctx.tenant.profile.targetDomain)
+  const fetched = await mapWithConcurrency(serpPages, CONCURRENCY, (page) =>
+    fetchPage(page.url, { userAgent }),
+  )
   const crawled = serpPages.map((page, index) => ({ page, fetched: fetched[index] as FetchedPage }))
   const okPages = crawled.filter((entry) => entry.fetched.status === 'ok')
   // A skipped page (a PDF, say) is as unusable as a failed one for the baseline.

@@ -6,6 +6,7 @@ import type { Payload } from 'payload'
 import type { Article, Template } from '../../cms/src/payload-types'
 import type { AhrefsClient } from '../src/ahrefs'
 import { loadStyleGuide } from '../src/styleGuide'
+import { emptyTenantContext } from '../src/tenant'
 import { resolvePolicy } from '../src/informationGain/lib'
 import { runPipeline, type StageContext } from '../src/stages'
 
@@ -159,6 +160,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
       claimExtraction: 'claude-opus-5',
       informationGainJudge: 'claude-opus-5',
       evidenceVerification: 'claude-opus-5',
+      evidenceCheck: 'claude-opus-5',
     },
     brandVoice: null,
     // The mock verifier fixture cites these three domains; without the rules
@@ -170,6 +172,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
       { domain: 'homegrounds.co', qualityClass: 'primary', active: true },
     ],
     policy: { ...resolvePolicy(null, {}), version: 'ig-test' },
+    tenant: emptyTenantContext(),
   }
 
   const result = await runPipeline(ctx, { articleIds: [1] })

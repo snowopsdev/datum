@@ -11,7 +11,7 @@
 - `cms/`: Payload CMS 3, Next.js 16, Postgres, admin UI, and content-run jobs.
 - `pipeline/`: in-process TypeScript CLI for research, generation, QA, and information gain.
 - Both workspaces use `cms/src/payload.config.ts`, one database, and `cms/src/payload-types.ts`.
-- Start with `README.md`; use `docs/information-gain.md` for scoring and corpus behavior.
+- Start with `README.md`; use `docs/information-gain.md` for scoring and corpus behavior, and `docs/tenant-context.md` for the workspace profile, audiences, and the setup gate.
 
 ## Commands
 

@@ -28,6 +28,7 @@ import {
   relevanceFromQueries,
   resolveSourceQuality,
   scoreClaim,
+  SOURCE_QUALITY_SCORE,
   utilityFromRubric,
   type ClaimRecord,
   type ClaimSignals,
@@ -134,6 +135,45 @@ export function unverifiedOutcome(kind: ClaimType, baselineAvailable = true): Ve
     evidence: [],
     exactnessMismatches: [],
     verifierNotes: null,
+  }
+}
+
+/**
+ * A first-party claim the workspace's own evidence bank already backs.
+ *
+ * The web verifier cannot corroborate a statement about a private company —
+ * the whole point of the evidence bank is that this workspace is the source —
+ * so sending one to a search-backed verifier costs money to learn nothing and
+ * then scores the claim down for the silence. The bank *is* the citation, and
+ * the claim was already checked twice before it got here: by the evidence
+ * check, against the entry's limits, and by whoever put the entry in the bank.
+ *
+ * `first_party_dataset` rather than a new source class, because that is
+ * literally what it is, and it already scores 1 in `SOURCE_QUALITY_SCORE`.
+ */
+export function firstPartyOutcome(ref: string, excerpt: string): VerificationOutcome {
+  return {
+    evidenceSupport: 1,
+    sourceQuality: SOURCE_QUALITY_SCORE.first_party_dataset,
+    // Not asserted: exactness compares a claim's numbers against a quoted
+    // excerpt, and here the excerpt *is* the claim, so there is nothing
+    // independent to compare it with.
+    exactness: 1,
+    contradictionProbability: 0,
+    verificationMode: 'verified',
+    evidence: [
+      {
+        url: '',
+        excerpt,
+        publisher: 'Evidence bank',
+        sourceKind: 'first_party_dataset',
+        domain: '',
+        qualityScore: SOURCE_QUALITY_SCORE.first_party_dataset,
+        qualitySource: 'rubric',
+      },
+    ],
+    exactnessMismatches: [],
+    verifierNotes: `Backed by evidence-bank entry ${ref}; not sent to the web verifier.`,
   }
 }
 

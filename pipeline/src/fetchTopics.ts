@@ -7,6 +7,12 @@ export type FetchContext = Pick<StageContext, 'ahrefs' | 'payload' | 'runId' | '
 export interface FetchTopicsOptions {
   count: number
   templateId: number
+  /**
+   * The primary audience, so a discovered topic starts pointed at somebody.
+   * The research stage backfills it when this is null, but setting it here
+   * means the board shows the audience before research has run.
+   */
+  icpId?: number | null
 }
 
 export interface FetchTopicsResult {
@@ -49,6 +55,7 @@ export async function fetchTopics(
         title: sentenceCase(gap.keyword),
         status: 'topic_selected',
         template: options.templateId,
+        ...(options.icpId != null ? { icp: options.icpId } : {}),
       },
       context: {
         articleAudit: {

@@ -5,10 +5,11 @@ import { randomUUID } from 'node:crypto'
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 import { config as pipelineConfig } from '../../../../pipeline/src/config'
+import { resolveWorkspaceProfile } from '../../../../pipeline/src/tenant'
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import type {
@@ -44,6 +45,20 @@ async function requireUser() {
   const { user } = await payload.auth({ headers })
   if (!user) throw new Error('Sign in to discover topics.')
   return { payload, user }
+}
+
+/**
+ * The workspace the Ahrefs client works for. Matching-terms lookups do not need
+ * a domain, but the client is built the same way everywhere so a country or
+ * competitor change lands in one place rather than three.
+ */
+async function workspaceProfile(payload: Payload, mode: 'mock' | 'live') {
+  const doc = await payload.findGlobal({
+    slug: 'workspace-profile',
+    depth: 0,
+    overrideAccess: true,
+  })
+  return resolveWorkspaceProfile(doc, process.env, { mockDefault: mode === 'mock' })
 }
 
 function errorMessage(e: unknown, fallback: string): string {
@@ -82,11 +97,12 @@ export async function discoverTopicsAction(
         ? (cachedRow.candidates as DiscoveredKeyword[])
         : null
 
+    // Discovery has no pipeline-runs row to carry a mode, so the ambient config
+    // decides — the same signal the run bar shows the operator.
+    const mode = pipelineConfig.mockMode ? 'mock' : 'live'
     const candidates =
       usableCache ??
-      // Discovery has no pipeline-runs row to carry a mode, so the ambient
-      // config decides — the same signal the run bar shows the operator.
-      (await createAhrefsClient(pipelineConfig.mockMode ? 'mock' : 'live').discoverKeywords(
+      (await createAhrefsClient(mode, await workspaceProfile(payload, mode)).discoverKeywords(
         term,
         25,
       ))
@@ -201,6 +217,10 @@ export async function createTopicsAction(input: {
     // `wanted` arrives in the order the panel listed it, which is already sorted
     // by opportunity, so the first surviving pick is the strongest one.
     const [primary, ...secondaries] = free
+    // Loaded before the create so the piece starts pointed at an audience; the
+    // same call answers whether research can start at all, a few lines down.
+    const setup = await loadWorkspaceSetup(payload)
+    const primaryIcpId = setup.icps.find((icp) => icp.primary)?.id ?? null
     const created = await payload.create({
       collection: 'articles',
       data: {
@@ -209,6 +229,7 @@ export async function createTopicsAction(input: {
         status: 'topic_selected',
         template: input.templateId,
         secondaryKeywords: secondaries.map((keyword) => ({ keyword })),
+        ...(primaryIcpId != null ? { icp: primaryIcpId } : {}),
       },
       user,
       overrideAccess: false,
@@ -231,7 +252,7 @@ export async function createTopicsAction(input: {
     // ready (no brand voice, missing keys) the piece still exists and the
     // list says what it is waiting on.
     let researchQueued = false
-    const { readiness } = await loadWorkspaceSetup(payload)
+    const { readiness } = setup
     if (readiness.runtime.ready && readiness.governance.ready) {
       try {
         await createPipelineRun(payload, user, {

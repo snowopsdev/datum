@@ -14,6 +14,7 @@ import type { StageModels } from './models'
 import type { StyleGuide } from './styleGuide'
 import type { EvidenceSourceRule } from './informationGain/lib'
 import type { LlmClient } from './llm'
+import type { TenantContext } from './tenant'
 
 export type ArticleStatus = Article['status']
 
@@ -31,6 +32,13 @@ export interface StageContext {
   policy: RunPolicy
   /** The admin's active evidence-domain rules, used to score cited sources. */
   evidenceSources: EvidenceSourceRule[]
+  /**
+   * The workspace this run writes for: its profile, its active audiences, and
+   * (from slices 3 and 4) its positioning and evidence bank. Required, so no
+   * stage has to decide what to do without one; tests use
+   * `emptyTenantContext()`.
+   */
+  tenant: TenantContext
   /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
   llm?: LlmClient
   /**

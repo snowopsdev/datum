@@ -36,7 +36,10 @@ export async function startContentRunAction(
     }
   }
   if (!readiness.governance.ready) {
-    return { ok: false, error: 'Activate a brand voice before starting a content run.' }
+    return {
+      ok: false,
+      error: `Finish setup before starting a content run: ${readiness.governance.problems.join('; ')}.`,
+    }
   }
   if (!setup.templates.some((template) => template.id === input.templateId)) {
     return { ok: false, error: 'Choose an existing content template.' }
