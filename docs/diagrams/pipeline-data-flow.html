@@ -54,9 +54,9 @@
     <p class="eyebrow">Data flow</p>
     <h1>Datum pipeline and data integration seam</h1>
 
-    <svg width="1520" height="720" viewBox="0 0 1520 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pipeline-data-flow-title pipeline-data-flow-desc">
+    <svg width="1520" height="768" viewBox="0 0 1520 768" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pipeline-data-flow-title pipeline-data-flow-desc">
       <title id="pipeline-data-flow-title">Datum pipeline and data integration seam</title>
-      <desc id="pipeline-data-flow-desc">External keyword data enters through the AhrefsClient provider seam and the open web supplies competitor pages and search results, feeding a run that fetches topics, researches, writes, checks and scores an article. Every model call is routed through one provider adapter chosen from the model id. The run pauses twice for a person: once to approve the brief, which gates the writing and review spend, and once to review the finished draft before it is published.</desc>
+      <desc id="pipeline-data-flow-desc">External keyword data enters through the AhrefsClient provider seam and the open web supplies competitor pages and search results, feeding a run that fetches topics, researches, writes, checks and scores an article. Every model call, research included, is routed through one provider adapter chosen from the model id. The run pauses twice for a person: once to approve the brief, which gates the writing and review spend, and once to review the finished draft before it is published.</desc>
       <defs>
         <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
         <marker id="pipeline-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -70,7 +70,7 @@
         </marker>
       </defs>
 
-      <rect width="1520" height="720" fill="#f7f7f5"/>
+      <rect width="1520" height="768" fill="#f7f7f5"/>
 
       <!-- Lanes -->
       <rect x="0" y="48" width="1520" height="96" fill="#171717" opacity="0.018"/>
@@ -85,7 +85,8 @@
       <line x1="0" y1="408" x2="1520" y2="408" stroke="#c8c8c4" stroke-width="0.8"/>
       <line x1="0" y1="504" x2="1520" y2="504" stroke="#c8c8c4" stroke-width="0.8"/>
       <line x1="0" y1="600" x2="1520" y2="600" stroke="#c8c8c4" stroke-width="0.8"/>
-      <line x1="144" y1="48" x2="144" y2="600" stroke="#c8c8c4" stroke-width="0.8"/>
+      <line x1="144" y1="48" x2="144" y2="664" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="24" y="644" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">MODELS</text>
       <text x="24" y="100" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">EXTERNAL</text>
       <text x="24" y="232" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">CONTRACT</text>
       <text x="24" y="364" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">PIPELINE</text>
@@ -133,9 +134,10 @@
       <path d="M 560 516 V 420 Q 560 412 568 412 H 668 Q 676 412 676 404 V 396" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
       <path d="M 1208 360 H 1240 Q 1248 360 1248 368 V 516" fill="none" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
       <path d="M 1344 552 H 1400 Q 1408 552 1408 544 V 396" fill="none" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
-      <line x1="700" y1="432" x2="700" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
-      <line x1="896" y1="432" x2="896" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
-      <line x1="1132" y1="432" x2="1132" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
+      <line x1="340" y1="616" x2="340" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
+      <line x1="700" y1="616" x2="700" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
+      <line x1="896" y1="616" x2="896" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
+      <line x1="1132" y1="616" x2="1132" y2="398" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
 
       <!-- Connector labels -->
       <rect x="276" y="158" width="56" height="12" rx="2" fill="#f7f7f5"/>
@@ -211,10 +213,10 @@
       <text x="1436" y="384" fill="#d8d8d4" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">webhook · cache purge</text>
 
       <!-- Model providers -->
-      <rect x="616" y="432" width="576" height="48" rx="8" fill="#f7f7f5"/>
-      <rect x="616" y="432" width="576" height="48" rx="8" fill="#f0f0ee" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="4,3"/>
-      <text x="904" y="454" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Model providers</text>
-      <text x="904" y="470" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Anthropic · OpenAI · your Codex CLI — chosen per stage by model id; mock mode uses fixtures</text>
+      <rect x="312" y="616" width="896" height="48" rx="8" fill="#f7f7f5"/>
+      <rect x="312" y="616" width="896" height="48" rx="8" fill="#f0f0ee" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="760" y="638" fill="#171717" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Model providers</text>
+      <text x="760" y="654" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Anthropic · OpenAI · your Codex CLI — chosen per stage by model id; mock mode uses fixtures</text>
 
       <!-- People -->
       <rect x="464" y="516" width="120" height="72" rx="8" fill="#f7f7f5"/>
@@ -229,16 +231,16 @@
       <text x="1284" y="574" fill="#666666" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">or send it back</text>
 
       <!-- Legend -->
-      <line x1="24" y1="648" x2="1496" y2="648" stroke="#c8c8c4" stroke-width="0.8"/>
-      <text x="24" y="680" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">FLOW</text>
-      <line x1="120" y1="676" x2="160" y2="676" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
-      <text x="176" y="680" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">A PIPELINE RUN</text>
-      <line x1="320" y1="676" x2="360" y2="676" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
-      <text x="376" y="680" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">A PERSON</text>
-      <line x1="520" y1="676" x2="560" y2="676" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
-      <text x="576" y="680" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">A MODEL CALL</text>
-      <rect x="736" y="668" width="16" height="16" rx="4" fill="#ffffff" stroke="#171717" stroke-width="1.6"/>
-      <text x="764" y="680" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">SWAP A PROVIDER HERE — IMPLEMENT AhrefsClient AND INJECT IT THROUGH StageContext</text>
+      <line x1="24" y1="696" x2="1496" y2="696" stroke="#c8c8c4" stroke-width="0.8"/>
+      <text x="24" y="728" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">FLOW</text>
+      <line x1="120" y1="724" x2="160" y2="724" stroke="#666666" stroke-width="1" marker-end="url(#pipeline-arrow)"/>
+      <text x="176" y="728" fill="#666666" font-size="8" font-family="'Geist Mono', monospace">A PIPELINE RUN</text>
+      <line x1="320" y1="724" x2="360" y2="724" stroke="#171717" stroke-width="1.2" marker-end="url(#pipeline-arrow-accent)"/>
+      <text x="376" y="728" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">A PERSON</text>
+      <line x1="520" y1="724" x2="560" y2="724" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#pipeline-arrow-soft)"/>
+      <text x="576" y="728" fill="#8a8a8a" font-size="8" font-family="'Geist Mono', monospace">A MODEL CALL</text>
+      <rect x="736" y="716" width="16" height="16" rx="4" fill="#ffffff" stroke="#171717" stroke-width="1.6"/>
+      <text x="764" y="728" fill="#171717" font-size="8" font-family="'Geist Mono', monospace">SWAP A PROVIDER HERE — IMPLEMENT AhrefsClient AND INJECT IT THROUGH StageContext</text>
     </svg>
 
     <p class="note">External SEO data is isolated behind the <code>AhrefsClient</code> contract. To add another provider, implement that interface and inject it through <code>StageContext</code>; topic discovery and SERP research consume the normalised results. Every model call is routed through one adapter, so a stage never has to choose one. What a run reads from the workspace and what it writes back is a separate picture.</p>
