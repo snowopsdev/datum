@@ -26,19 +26,19 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 
 ## Pipeline and data integration
 
-![Datum data flow: external SEO sources and the open web feed a run through the AhrefsClient seam, topic discovery, research, the brief gate, generation, QA and scoring, then editor review and publication](docs/diagrams/pipeline-data-flow.svg)
+![Datum data flow: external SEO sources and the open web feed the pipeline through the AhrefsClient seam, topic discovery, research, the brief gate, generation, QA and scoring, then editor review and publication](docs/diagrams/pipeline-data-flow.svg)
 
 External SEO data is isolated behind the `AhrefsClient` contract, which has three methods: `contentGapKeywords` and `discoverKeywords` find topics, and `serpResearch` reads a keyword's live results page. To add another provider, implement that interface and inject it through `StageContext`; topic discovery and SERP research consume the normalized results. Model calls are routed through one adapter of their own, picked per stage from the model id, so no stage has to choose one. The editable [diagram source](docs/diagrams/pipeline-data-flow.html) lives beside the SVG.
 
 ### What a run reads and writes
 
-![What a pipeline run reads and writes: ten workspace assets loaded once, the four stages that share them, and the append-only records the run leaves behind](docs/diagrams/run-inputs-and-records.svg)
+![What a pipeline run reads and writes: the workspace assets it resolves when it starts, the stages that share them, and the records it leaves behind](docs/diagrams/run-inputs-and-records.svg)
 
 A run resolves your workspace's own facts once, before the first stage, so activating an audience halfway through a batch cannot change what the second article was written against. Templates are the exception: each stage re-reads the one attached to the article it is working on. Three of these gate the run — without an active brand voice, a target domain and at least one active audience it refuses to start. As it goes it writes append-only rows for model costs, stage audits and information-gain scores, a corpus snapshot it may re-cluster later, and a review-queue row for every domain it cited that nobody has rated yet, updated in place when the same domain turns up again. The editable [diagram source](docs/diagrams/run-inputs-and-records.html) lives beside the SVG.
 
 ## Article status flow
 
-![Article status flow across five stages, showing which statuses a pipeline run advances and which wait on a person](docs/diagrams/article-status-flow.svg)
+![Article status flow across five stages, showing which statuses a pipeline run advances, which wait on a person, and the one the scheduler moves](docs/diagrams/article-status-flow.svg)
 
 Research ends at **`brief_review`**: Datum writes a brief from the template, the research gaps and your brand voice, and waits. Approving the brief is what starts writing, checks and scoring, so the decision lands before the expensive half rather than after it. Research is not free — it makes a paid SERP request and extracts claims from what already ranks — but the brief is where you stop the far larger writing and review spend. The pipeline never picks up `brief_review`, `needs_revision`, `needs_review` or `blocked` on its own; those are yours. Publishing is yours too, unless you set a `publishAt` date on an approved article, in which case the scheduler publishes it through the same gates and audit trail. Its cache purge is the one difference: a manual publish purges in process, while a scheduled one rides the revalidate webhook, so point `WEBHOOK_URL` at `<SITE_URL>/hooks/revalidate` or the reader page can serve stale for up to 300 seconds. See [`docs/operations.md`](docs/operations.md). The editable [diagram source](docs/diagrams/article-status-flow.html) lives beside the SVG.
 
