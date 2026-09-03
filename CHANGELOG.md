@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/snowopsdev/datum/compare/v0.5.0...v0.6.0) (2026-09-03)
+
+
+### Features
+
+* **onboarding:** add tenant context assets and AI-assisted setup ([42b7c20](https://github.com/snowopsdev/datum/commit/42b7c20388074d74ba1e7c461e91d960604efdd5))
+* **onboarding:** add tenant context assets and AI-assisted setup ([e3275f3](https://github.com/snowopsdev/datum/commit/e3275f316fa7a9bc6389b810000cef10fdf555c3))
+
+
+### Bug Fixes
+
+* **evidence:** harden evidence bank, site crawl, and demo fill after review ([e489593](https://github.com/snowopsdev/datum/commit/e489593dbdcd0daed6ba4e19dfa1555b09d5ebdf))
+
 ## [0.5.0](https://github.com/snowopsdev/datum/compare/v0.4.0...v0.5.0) (2026-09-03)
 
 
