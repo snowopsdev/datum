@@ -59,7 +59,7 @@
     "eslint-config-next": "16.3.2",
     "jsdom": "30.0.1",
     "prettier": "^3.4.2",
-    "tsx": "4.23.12",
+    "tsx": "4.23.13",
     "typescript": "5.7.3",
     "typescript-eslint": "^8.68.0",
     "vite-tsconfig-paths": "6.1.1",
