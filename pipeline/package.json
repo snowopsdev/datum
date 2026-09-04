@@ -30,7 +30,7 @@
     "@openai/codex-sdk": "0.152.1",
     "dotenv": "17.4.2",
     "linkedom": "^0.18.13",
-    "openai": "^7.5.0",
+    "openai": "^7.8.0",
     "payload": "3.88.0",
     "undici": "^8.10.0"
   },
