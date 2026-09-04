@@ -56,6 +56,9 @@ Configured in the admin **Webhooks** global, each field falling back to `WEBHOOK
 | Revalidate signature window | 5 min | `cms/src/app/hooks/revalidate/route.ts` |
 | Publish-due cron | every 5 min | `cms/src/jobs/publishDue.ts` |
 | Public page ISR window | 300 s | `cms/src/app/(frontend)/articles/[slug]/page.tsx` |
-| Reports queries | 500 articles, 5000 cost rows, 500 runs | `cms/src/components/ops/ReportsView.tsx` |
+| Content page | 50 articles; search and tab counts cover all non-archived articles | `cms/src/components/ops/contentListData.ts` |
+| Reports queries | All articles and period runs; cost logs accumulated in batches of 1000 | `cms/src/lib/reportQueries.ts` |
+| Article audit timeline | Latest 100 article events and 100 model calls; evidence fetched when opened | `cms/src/components/ops/ArticleReviewView.tsx` |
+| Run status polling | 3 seconds active, 15 seconds idle, measured after each response; paused in hidden tabs | `cms/src/components/ops/runPolling.ts` |
 | Rendered scorecard claims | 60 | `cms/src/components/ops/articleStatus.ts` |
 | Read-only statuses | `drafted`, `qa_passed` | `cms/src/lib/articleStatusMeta.ts` |

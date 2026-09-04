@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, TypedUser } from 'payload'
 
 import { codexAuthFilePresent } from './codexAuth'
 import type { LlmSettingsDoc } from './llmSettings'
@@ -68,44 +68,43 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     positioningDoc,
     evidenceBankDoc,
     runs,
-  ] =
-    await Promise.all([
-      payload.find({
-        collection: 'brand-voices',
-        where: { status: { equals: 'active' } },
-        limit: 1,
-        depth: 0,
-        sort: '-activatedAt',
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'templates',
-        limit: 100,
-        pagination: false,
-        depth: 0,
-        sort: 'name',
-        overrideAccess: true,
-      }),
-      payload.findGlobal({ slug: 'llm-settings', depth: 0, overrideAccess: true }),
-      payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
-      payload.find({
-        collection: 'icps',
-        where: { status: { equals: 'active' } },
-        pagination: false,
-        depth: 0,
-        sort: ['-primary', 'name'],
-        overrideAccess: true,
-      }),
-      payload.findGlobal({ slug: 'positioning', depth: 0, overrideAccess: true }),
-      payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
-      payload.find({
-        collection: 'pipeline-runs',
-        limit: 1,
-        depth: 0,
-        sort: '-createdAt',
-        overrideAccess: true,
-      }),
-    ])
+  ] = await Promise.all([
+    payload.find({
+      collection: 'brand-voices',
+      where: { status: { equals: 'active' } },
+      limit: 1,
+      depth: 0,
+      sort: '-activatedAt',
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'templates',
+      limit: 100,
+      pagination: false,
+      depth: 0,
+      sort: 'name',
+      overrideAccess: true,
+    }),
+    payload.findGlobal({ slug: 'llm-settings', depth: 0, overrideAccess: true }),
+    payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+    payload.find({
+      collection: 'icps',
+      where: { status: { equals: 'active' } },
+      pagination: false,
+      depth: 0,
+      sort: ['-primary', 'name'],
+      overrideAccess: true,
+    }),
+    payload.findGlobal({ slug: 'positioning', depth: 0, overrideAccess: true }),
+    payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
+    payload.find({
+      collection: 'pipeline-runs',
+      limit: 1,
+      depth: 0,
+      sort: '-createdAt',
+      overrideAccess: true,
+    }),
+  ])
 
   const activeVoice = voices.docs[0]
   const templates = templatesResult.docs.map((template) => ({
@@ -198,4 +197,27 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     icps,
     latestRun,
   }
+}
+
+/** Audience options without loading the full workspace checklist. */
+export async function loadActiveAudienceOptions(
+  payload: Payload,
+  user: TypedUser,
+): Promise<IcpOption[]> {
+  const { docs } = await payload.find({
+    collection: 'icps',
+    where: { status: { equals: 'active' } },
+    depth: 0,
+    pagination: false,
+    sort: ['-primary', 'name'],
+    user,
+    overrideAccess: false,
+    select: { name: true, primary: true, who: true, pains: true },
+  })
+  return docs.map((doc) => ({
+    id: doc.id,
+    name: doc.name,
+    primary: doc.primary === true,
+    audienceLine: icpAudienceLine(icpsFromDocs([doc])[0]),
+  }))
 }

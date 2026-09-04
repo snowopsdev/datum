@@ -186,7 +186,9 @@ function fingerprint(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
-export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): WorkspaceReadiness {
+export function evaluateRuntimeReadiness(
+  input: Pick<WorkspaceReadinessInput, 'env' | 'models' | 'profile' | 'codexLoggedIn'>,
+): { mode: PipelineMode; models: ModelReadiness[]; runtime: WorkspaceReadiness['runtime'] } {
   const mode = modeFromEnv(input.env)
   const codexLoggedIn = input.codexLoggedIn ?? false
   const resolved = resolveStageModels(input.models, input.env)
@@ -232,6 +234,29 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     }
   }
 
+  return {
+    mode,
+    models,
+    runtime: {
+      ready: missing.size === 0 && !needsCodexLogin && unsupportedModels.length === 0,
+      missing: [...missing].sort(),
+      needsCodexLogin,
+      unsupportedModels,
+      blockers: [
+        ...[...missing].sort(),
+        ...(needsCodexLogin ? ['`codex login` on this host'] : []),
+        ...(unsupportedModels.length > 0
+          ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
+          : []),
+      ],
+    },
+  }
+}
+
+export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): WorkspaceReadiness {
+  const { mode, models, runtime } = evaluateRuntimeReadiness(input)
+  const codexLoggedIn = input.codexLoggedIn ?? false
+  const profile = input.profile
   const configFingerprint = fingerprint({
     mode,
     runtime: {
@@ -275,7 +300,6 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const verificationCurrent = input.verification?.configFingerprint === configFingerprint
   const verificationReady =
     input.verification?.status === 'succeeded' && terminalArticle && verificationCurrent
-  const runtimeReady = missing.size === 0 && !needsCodexLogin && unsupportedModels.length === 0
   const primaryIcp = input.icps.find((icp) => icp.primary) ?? input.icps[0] ?? null
   const icpsReady = input.icps.length > 0
   const profileReady = profile.targetDomain !== null
@@ -304,9 +328,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const bankReady = bank.usable > 0 || bank.facts > 0
   const recommendations = [
     ...(positioning === 'missing' ? ['Add positioning'] : []),
-    ...(positioning === 'partial'
-      ? [`Finish positioning: ${positioningProblems.join('; ')}`]
-      : []),
+    ...(positioning === 'partial' ? [`Finish positioning: ${positioningProblems.join('; ')}`] : []),
     ...(bankReady ? [] : ['Add an evidence bank']),
     // Separate from "add one", because a workspace with expired claims has done
     // the work once and needs a different, smaller thing done to it.
@@ -343,19 +365,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       evidenceBank: { status: bankReady ? 'ready' : 'missing', ...bank },
       recommendations,
     },
-    runtime: {
-      ready: runtimeReady,
-      missing: [...missing].sort(),
-      needsCodexLogin,
-      unsupportedModels,
-      blockers: [
-        ...[...missing].sort(),
-        ...(needsCodexLogin ? ['`codex login` on this host'] : []),
-        ...(unsupportedModels.length > 0
-          ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
-          : []),
-      ],
-    },
+    runtime,
     governance: {
       ready: governanceReady,
       activeVoiceId: input.activeVoice?.id ?? null,

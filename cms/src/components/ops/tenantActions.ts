@@ -6,7 +6,6 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload, type Payload } from 'payload'
 
 import { BRAND_VOICE_FIXTURE } from '../../lib/brandVoiceFixture'
-import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import {
   evidenceBankFixtureDoc,
   ICP_FIXTURE,
@@ -29,7 +28,7 @@ import {
   resolveWorkspaceProfile,
   workspaceProfileProblems,
 } from '../../lib/tenant'
-import { modeFromEnv } from '../../lib/workspaceReadiness'
+import { evaluateRuntimeReadiness, modeFromEnv } from '../../lib/workspaceReadiness'
 import type { EvidenceBankInput, WorkspaceProfileInput } from './setupTypes'
 
 export type TenantActionResult = { ok: true } | { ok: false; error: string }
@@ -624,7 +623,17 @@ export async function runtimeStatusAction(): Promise<{
 }> {
   try {
     const { payload } = await requireUser()
-    const { readiness } = await loadWorkspaceSetup(payload)
+    const [models, profile] = await Promise.all([
+      payload.findGlobal({ slug: 'llm-settings', depth: 0 }),
+      payload.findGlobal({ slug: 'workspace-profile', depth: 0 }),
+    ])
+    const readiness = evaluateRuntimeReadiness({
+      env: process.env,
+      models,
+      profile: resolveWorkspaceProfile(profile, process.env, {
+        mockDefault: modeFromEnv(process.env) === 'mock',
+      }),
+    })
     return {
       mode: readiness.mode,
       missing: readiness.runtime.missing,

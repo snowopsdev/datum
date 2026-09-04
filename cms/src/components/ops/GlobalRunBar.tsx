@@ -2,16 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import { latestRunAction } from './boardActions'
+import { startRunPolling } from './runPolling'
 import { callLabel, runProgress, STAGE_PROGRESS, type RunStatusDTO } from './boardTypes'
 import './ops.css'
 
-/** Tight enough to feel live while a run is going. */
-const ACTIVE_POLL_MS = 3000
-/** Slow enough to be free, but still notices a run started in another tab. */
-const IDLE_POLL_MS = 15000
 /**
  * How long a finished run stays on screen, measured from when it actually
  * completed — not from when this client first saw it. Timing it from page load
@@ -48,47 +45,50 @@ export function GlobalRunBar() {
 
   const active = run?.status === 'queued' || run?.status === 'running'
 
-  const poll = useCallback(async () => {
-    const next = await latestRunAction()
-    // Compared against a ref rather than inside a `setRun` updater: React runs
-    // updaters during render, so calling `router.refresh()` in one updates the
-    // Router while this component is rendering.
-    const prev = seen.current
-    seen.current = next ? { runId: next.runId, status: next.status } : null
-    // A run that just settled is worth one route refresh, so the page behind
-    // the bar catches up — but exactly one, or the poll would refresh forever.
-    const wasActive = prev?.status === 'queued' || prev?.status === 'running'
-    const nowSettled = next && next.status !== 'queued' && next.status !== 'running'
-    if (wasActive && nowSettled && prev?.runId === next.runId) router.refresh()
-    setRun(next)
+  useEffect(() => {
+    let mounted = true
+    const stop = startRunPolling({
+      visibility: document,
+      poll: async () => {
+        const next = await latestRunAction()
+        if (!mounted) return false
+        const prev = seen.current
+        seen.current = next ? { runId: next.runId, status: next.status } : null
+        const wasActive = prev?.status === 'queued' || prev?.status === 'running'
+        const nextActive = next?.status === 'queued' || next?.status === 'running'
+        if (wasActive && next && !nextActive && prev?.runId === next.runId) router.refresh()
+        setRun(next)
+        setNow(Date.now())
+        return nextActive
+      },
+    })
+    return () => {
+      mounted = false
+      stop()
+    }
   }, [router])
 
+  const finishedAt = run?.completedAtIso ? new Date(run.completedAtIso).getTime() : NaN
+  const visible =
+    !!run &&
+    dismissed !== run.runId &&
+    (active || (Number.isFinite(finishedAt) && now - finishedAt <= SETTLED_LINGER_MS))
   useEffect(() => {
-    // Deferred rather than called in the effect body: polling is a subscription
-    // to an external system, and a synchronous first call would land its
-    // setState inside the same commit that started it.
-    const first = setTimeout(() => void poll(), 0)
-    const id = setInterval(() => void poll(), active ? ACTIVE_POLL_MS : IDLE_POLL_MS)
-    return () => {
-      clearTimeout(first)
-      clearInterval(id)
+    if (!visible) return
+    let timer: ReturnType<typeof setInterval> | undefined
+    const updateClock = () => {
+      clearInterval(timer)
+      if (!document.hidden) timer = setInterval(() => setNow(Date.now()), 1000)
     }
-  }, [poll, active])
+    updateClock()
+    document.addEventListener('visibilitychange', updateClock)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', updateClock)
+    }
+  }, [visible])
 
-  // Drives the elapsed counter and the linger timeout without a second poller.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-
-  if (!run) return null
-  if (dismissed === run.runId) return null
-  // A finished run says its piece and then gets out of the way. The board keeps
-  // the full record, so nothing is lost by hiding it here.
-  if (!active) {
-    const finishedAt = run.completedAtIso ? new Date(run.completedAtIso).getTime() : NaN
-    if (!Number.isFinite(finishedAt) || now - finishedAt > SETTLED_LINGER_MS) return null
-  }
+  if (!run || !visible) return null
 
   const progress = active ? runProgress(run.articles) : 1
   const onBoard = pathname === '/admin/ops/content'
@@ -101,12 +101,16 @@ export function GlobalRunBar() {
   const current = [...run.articles].sort(
     (a, b) => (STAGE_PROGRESS[a.status]?.step ?? 99) - (STAGE_PROGRESS[b.status]?.step ?? 99),
   )[0]
-  const stageLabel = current ? (STAGE_PROGRESS[current.status]?.label ?? 'Finishing up') : 'Starting'
+  const stageLabel = current
+    ? (STAGE_PROGRESS[current.status]?.label ?? 'Finishing up')
+    : 'Starting'
   const stageStep = current ? (STAGE_PROGRESS[current.status]?.step ?? 3) + 1 : 1
 
   // What the model is doing *right now*, which article status cannot say: a
   // draft sits at one status for the whole ninety seconds a `generate` takes.
-  const doing = activity?.lastCallStage ? callLabel(activity.lastCallStage, current?.status ?? null) : null
+  const doing = activity?.lastCallStage
+    ? callLabel(activity.lastCallStage, current?.status ?? null)
+    : null
   const sinceCall = activity?.lastCallAtIso
     ? Math.floor((now - new Date(activity.lastCallAtIso).getTime()) / 1000)
     : null
@@ -148,9 +152,7 @@ export function GlobalRunBar() {
             ))}
           </ul>
           <p>
-            {run.articles.length > 1
-              ? `${run.articles.length} articles in this run. `
-              : ''}
+            {run.articles.length > 1 ? `${run.articles.length} articles in this run. ` : ''}
             Each article goes through research, writing, QA and information-gain scoring. Counts are
             model calls billed to this run so far.
           </p>
@@ -189,7 +191,10 @@ export function GlobalRunBar() {
             className="datum-runbar__track"
             role="progressbar"
           >
-            <span className="datum-runbar__fill" style={{ width: `${Math.round(progress * 100)}%` }} />
+            <span
+              className="datum-runbar__fill"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
           </div>
         ) : null}
 
@@ -221,7 +226,6 @@ export function GlobalRunBar() {
           ) : null}
         </div>
       </div>
-
     </div>
   )
 }

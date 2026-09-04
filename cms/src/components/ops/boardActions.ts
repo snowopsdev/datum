@@ -11,12 +11,7 @@ import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipel
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 import { isRunnableStatus } from './articleStatus'
-import {
-  type RunActivityDTO,
-  type RunArticleDTO,
-  type RunStatusDTO,
-  toRunFailures,
-} from './boardTypes'
+import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/content'
 
@@ -31,7 +26,8 @@ async function requireUser() {
 }
 
 function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
+    return e.message
   return fallback
 }
 
@@ -203,9 +199,24 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
  */
 export async function latestRunAction(): Promise<RunStatusDTO | null> {
   try {
-    const { payload } = await requireUser()
+    const { payload, user } = await requireUser()
     const { docs } = await payload.find({
       collection: 'pipeline-runs',
+      user,
+      overrideAccess: false,
+      select: {
+        runId: true,
+        status: true,
+        mode: true,
+        source: true,
+        startedAt: true,
+        createdAt: true,
+        completedAt: true,
+        articles: true,
+        finalStatuses: true,
+        warnings: true,
+        errorSummary: true,
+      },
       sort: '-createdAt',
       limit: 1,
       depth: 0,
@@ -220,31 +231,38 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
     const ids = Array.isArray(run.articles)
       ? run.articles.flatMap((a) => (typeof a === 'number' ? [a] : a?.id ? [a.id] : []))
       : []
-    let articles: RunArticleDTO[] = []
-    if (active && ids.length > 0) {
-      const found = await payload.find({
-        collection: 'articles',
-        where: { id: { in: ids } },
-        pagination: false,
-        limit: ids.length,
-        depth: 0,
-      })
-      articles = found.docs.map((d) => ({ id: d.id, keyword: d.keyword, status: d.status }))
-    }
+    const [found, calls] = await Promise.all([
+      active && ids.length > 0
+        ? payload.find({
+            collection: 'articles',
+            where: { id: { in: ids } },
+            pagination: false,
+            limit: ids.length,
+            depth: 0,
+            select: { keyword: true, status: true },
+            user,
+            overrideAccess: false,
+          })
+        : null,
+      active
+        ? payload.find({
+            collection: 'cost-log',
+            where: { pipelineRunId: { equals: run.runId } },
+            sort: '-createdAt',
+            pagination: false,
+            limit: 500,
+            depth: 0,
+            select: { stage: true, costUsd: true, createdAt: true },
+            user,
+            overrideAccess: false,
+          })
+        : null,
+    ])
+    const articles =
+      found?.docs.map((d) => ({ id: d.id, keyword: d.keyword, status: d.status })) ?? []
 
-    // Every LLM call writes a `cost-log` row, so counting them is the only way
-    // to tell "the model is working" from "the stage has hung" — the article's
-    // status does not change for the whole ninety seconds a draft takes.
     let activity: RunActivityDTO | null = null
-    if (active) {
-      const calls = await payload.find({
-        collection: 'cost-log',
-        where: { pipelineRunId: { equals: run.runId } },
-        sort: '-createdAt',
-        pagination: false,
-        limit: 500,
-        depth: 0,
-      })
+    if (calls) {
       const byStage = new Map<string, { calls: number; costUsd: number }>()
       let totalCostUsd = 0
       for (const row of calls.docs) {
@@ -276,13 +294,15 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       completedAtIso: run.completedAt ? new Date(run.completedAt).toISOString() : null,
       activity,
       finalStatuses:
-        run.finalStatuses && typeof run.finalStatuses === 'object' && !Array.isArray(run.finalStatuses)
+        run.finalStatuses &&
+        typeof run.finalStatuses === 'object' &&
+        !Array.isArray(run.finalStatuses)
           ? (run.finalStatuses as Record<string, number>)
           : {},
       failures: toRunFailures(run.warnings),
       errorSummary: run.errorSummary ?? null,
     }
   } catch {
-    return null
+    throw new Error('Could not load run status.')
   }
 }
