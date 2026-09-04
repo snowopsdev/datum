@@ -33,6 +33,8 @@ export async function loadReportCosts(
       where: { and: [where, { id: { greater_than: cursor, less_than_equal: upper } }] },
       sort: 'id',
       limit: 1000,
+      // Payload 3.88's Postgres adapter still applies LIMIT with pagination off.
+      // The ID cursor does not need a COUNT of the remaining rows on each batch.
       pagination: false,
       depth: 0,
       select: { costUsd: true, stage: true, model: true, inputTokens: true, outputTokens: true },

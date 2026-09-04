@@ -6,7 +6,7 @@ import {
   type PayloadRequest,
   type TypedUser,
 } from 'payload'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import config from '@/payload.config'
 import { loadContentPage } from '@/components/ops/contentListData'
 import { readAuditDetails } from '@/lib/readAuditDetails'
@@ -155,11 +155,31 @@ describe('admin queries against Postgres', () => {
         ),
       )
     }
-    const result = await loadReportCosts(req, { pipelineRunId: { equals: prefix } })
-    expect(result.aggregate.rowCount).toBe(5026)
-    expect(result.aggregate.totalUsd).toBe(5026 * 0.25)
-    expect(result.stages[0]).toMatchObject({ calls: 5026, inputTokens: 10052, outputTokens: 5026 })
-    expect(JSON.stringify(result)).not.toContain('UNUSED_COST_REQUEST')
+    // Observe real query results, not mocked pagination. Correct totals alone
+    // would also pass if an adapter accidentally returned all rows at once.
+    const find = vi.spyOn(payload, 'find')
+    try {
+      const result = await loadReportCosts(req, { pipelineRunId: { equals: prefix } })
+      expect(result.aggregate.rowCount).toBe(5026)
+      expect(result.aggregate.totalUsd).toBe(5026 * 0.25)
+      expect(result.stages[0]).toMatchObject({
+        calls: 5026,
+        inputTokens: 10052,
+        outputTokens: 5026,
+      })
+      expect(JSON.stringify(result)).not.toContain('UNUSED_COST_REQUEST')
+      const batchSizes: number[] = []
+      for (const [index, [options]] of find.mock.calls.entries()) {
+        if (options.collection === 'cost-log' && options.limit === 1000) {
+          const batch = await find.mock.results[index].value
+          batchSizes.push(batch.docs.length)
+          expect(JSON.stringify(batch.docs)).not.toContain('UNUSED_COST_REQUEST')
+        }
+      }
+      expect(batchSizes).toEqual([1000, 1000, 1000, 1000, 1000, 26])
+    } finally {
+      find.mockRestore()
+    }
     const empty = await loadReportCosts(req, { pipelineRunId: { equals: `${prefix}-empty` } })
     expect(empty.aggregate.rowCount).toBe(0)
   }, 120000)
