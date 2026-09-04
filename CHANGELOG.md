@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1](https://github.com/snowopsdev/datum/compare/v0.6.0...v0.6.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **cms:** Validate models before content discovery ([715bbf8](https://github.com/snowopsdev/datum/commit/715bbf878037f1e48c029e535e565febe66c632a))
+* **security:** Disable live local Codex execution ([f15f5a2](https://github.com/snowopsdev/datum/commit/f15f5a2e50ef70a217de2c1bfa18b0b63cec3e40))
+* **security:** Disable live local Codex execution ([f9fb74b](https://github.com/snowopsdev/datum/commit/f9fb74b0ea5ac7d69151b112d602716f7bc52afb))
+
 ## [0.6.0](https://github.com/snowopsdev/datum/compare/v0.5.0...v0.6.0) (2026-09-03)
 
 
