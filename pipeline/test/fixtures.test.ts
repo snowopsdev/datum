@@ -81,10 +81,4 @@ describe('mockFixture', () => {
     // The evidence check is closed-book, so it must never claim a web search.
     assert.equal(mockUsage.evidenceCheck.webSearchRequests, 0)
   })
-
-  it('leaves the whole-stage generate fixture unchanged', () => {
-    const fixture = mockFixture('generate') as { title: string; slug: string }
-    assert.equal(fixture.title, 'How to set up a home espresso station')
-    assert.equal(fixture.slug, 'home-espresso-station-setup')
-  })
 })

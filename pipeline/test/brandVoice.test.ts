@@ -3,13 +3,7 @@ import test from 'node:test'
 
 import { BRAND_VOICE_FIXTURE } from '../../cms/src/lib/brandVoiceFixture'
 import type { Article, Template } from '../../cms/src/payload-types'
-import {
-  bannedWordsOf,
-  brandVoiceSamplesToPrompt,
-  brandVoiceToPrompt,
-  emptyBrandVoiceContent,
-  parseBrandVoiceContent,
-} from '../src/brandVoice'
+import { bannedWordsOf } from '../src/brandVoice'
 import { buildPrompt, buildSystemPrompt } from '../src/generatePrompt'
 import { runStructuralChecks } from '../src/qa/structuralChecks'
 import { markdownToLexical } from '../src/richtext'
@@ -45,34 +39,11 @@ function makeArticle(overrides: Partial<Article>): Article {
   }
 }
 
-test('bannedWordsOf lower-cases, trims, and de-duplicates', () => {
-  const bv = parseBrandVoiceContent({
-    bannedWords: [{ word: ' Synergy ' }, { word: 'synergy' }, { word: 'Disrupt' }, { word: '' }],
-  }).content
-  assert.deepEqual(bannedWordsOf(bv), ['synergy', 'disrupt'])
-})
-
-test('brandVoiceToPrompt is deterministic and omits empty sections', () => {
-  const a = brandVoiceToPrompt(BRAND_VOICE_FIXTURE)
-  const b = brandVoiceToPrompt(BRAND_VOICE_FIXTURE)
-  assert.equal(a, b)
-  assert.match(a, /^# Brand voice \(tenant\)/)
-  assert.ok(a.includes('## Never use these words'))
-  assert.ok(a.includes('## What we are NOT'))
-
-  const bare = brandVoiceToPrompt(emptyBrandVoiceContent('Bare'))
-  assert.ok(!bare.includes('## Core values'))
-  assert.ok(!bare.includes('## Never use these words'))
-  assert.ok(!bare.includes('## How we sound'))
-  assert.ok(bare.includes('## Tone dials'))
-})
-
 test('generate prompts carry the brand voice and samples only when one is active', () => {
   const article = makeArticle({})
   const withVoice = buildPrompt(article, template, BRAND_VOICE_FIXTURE, emptyTenantContext())
   assert.ok(withVoice.includes('# On-voice writing samples'))
   assert.ok(withVoice.includes('Every field must follow the brand voice'))
-  assert.equal(brandVoiceSamplesToPrompt(emptyBrandVoiceContent()), null)
 
   const without = buildPrompt(article, template, null, emptyTenantContext())
   assert.ok(!without.includes('# On-voice writing samples'))

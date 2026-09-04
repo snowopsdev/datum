@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { InformationGainPolicy, OUTCOME_COPY } from '@/globals/InformationGainPolicy'
 import { POLICY_FIELDS } from '@/lib/informationGain'
@@ -84,7 +84,46 @@ describe('Information-gain policy global', () => {
     ).toBe(true)
   })
 
-  it('audits every change', () => {
-    expect(typeof InformationGainPolicy.hooks?.afterChange?.[0]).toBe('function')
+  it('audits policy updates with the actor and before/after values', async () => {
+    const create = vi.fn().mockResolvedValue({ id: 99 })
+    const req = { user: { id: 7, email: 'editor@example.com' }, payload: { create } }
+    const previousDoc = { minConsensusCoverage: 0.5 }
+    const doc = { minConsensusCoverage: 0.7, updatedAt: '2026-09-04T00:00:00Z' }
+    const hook = InformationGainPolicy.hooks!.afterChange![0]
+
+    const result = await hook({ context: {}, data: doc, doc, previousDoc, req } as never)
+
+    expect(result).toBe(doc)
+    expect(create).toHaveBeenCalledExactlyOnceWith({
+      collection: 'governance-audit',
+      data: {
+        subjectGlobal: 'information-gain-policy',
+        event: 'information_gain_policy_updated',
+        summary: 'information gain policy updated',
+        actorType: 'user',
+        actor: 'editor@example.com',
+        details: {
+          changedFields: ['minConsensusCoverage'],
+          before: { minConsensusCoverage: 0.5 },
+          after: { minConsensusCoverage: 0.7 },
+        },
+      },
+      overrideAccess: true,
+      req,
+    })
+  })
+
+  it('does not audit an unchanged policy save', async () => {
+    const create = vi.fn()
+    const doc = { minConsensusCoverage: 0.5 }
+    const hook = InformationGainPolicy.hooks!.afterChange![0]
+    await hook({
+      context: {},
+      data: doc,
+      doc,
+      previousDoc: doc,
+      req: { payload: { create } },
+    } as never)
+    expect(create).not.toHaveBeenCalled()
   })
 })

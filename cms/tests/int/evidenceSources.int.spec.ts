@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { EvidenceSources } from '@/collections/EvidenceSources'
 import { SOURCE_QUALITY_CLASSES } from '@/lib/informationGain'
@@ -44,7 +44,35 @@ describe('evidence sources collection', () => {
     }
   })
 
-  it('audits every change', () => {
-    expect(typeof EvidenceSources.hooks?.afterChange?.[0]).toBe('function')
+  it.each(['create', 'update'] as const)('audits a source %s with its actor and changed fields', async (operation) => {
+    const create = vi.fn().mockResolvedValue({ id: 99 })
+    const req = { user: { id: 7, email: 'editor@example.com' }, payload: { create } }
+    const doc = { id: 12, domain: 'example.com', qualityClass: 'primary' }
+    const hook = EvidenceSources.hooks!.afterChange![0]
+
+    const result = await hook({
+      context: {},
+      data: { qualityClass: 'primary', updatedAt: '2026-09-04T00:00:00Z' },
+      doc,
+      previousDoc: operation === 'update' ? { ...doc, qualityClass: 'secondary' } : undefined,
+      operation,
+      req,
+    } as never)
+
+    expect(result).toBe(doc)
+    expect(create).toHaveBeenCalledExactlyOnceWith({
+      collection: 'governance-audit',
+      data: {
+        subject: { relationTo: 'evidence-sources', value: 12 },
+        event: `evidence_source_${operation === 'create' ? 'created' : 'updated'}`,
+        summary: `evidence source ${operation === 'create' ? 'created' : 'updated'}`,
+        actorType: 'user',
+        actor: 'editor@example.com',
+        ...(operation === 'create' ? { toStatus: undefined } : {}),
+        details: { changedFields: ['qualityClass'] },
+      },
+      overrideAccess: true,
+      req,
+    })
   })
 })

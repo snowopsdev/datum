@@ -188,9 +188,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
           completedAt: latestRun.completedAt,
         }
       : null,
-    // The file check, not `checkCodexLogin`: this runs on every admin page
-    // load, and spawning a CLI per render is too costly for a banner. The
-    // authoritative login check runs once per pipeline run.
+    // Presence only: never reads credentials or launches the local CLI.
     codexLoggedIn: codexAuthFilePresent(process.env),
   })
 

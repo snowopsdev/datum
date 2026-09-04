@@ -119,6 +119,8 @@ For live API calls, set `MOCK_MODE=false` and provide the key for each chosen mo
 
 ### Codex model choices
 
+The shared completion boundary also rejects direct live calls without launching a CLI or creating a managed Codex home. Tests inject mock completions at the CMS and pipeline callers, not a local-agent runner.
+
 Legacy `codex/*` choices remain available for deterministic mock fixtures, but live local Codex execution is disabled. Application prompts can contain uploaded, authenticated, or externally fetched text, and the local agent cannot be isolated from reusable host credentials and unrelated readable files. Select an Anthropic or OpenAI API-backed model for live runs. Readiness and pipeline preflight reject a live `codex/*` selection before a run is queued or processed.
 
 ## Environment variables

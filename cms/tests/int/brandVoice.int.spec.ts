@@ -69,7 +69,13 @@ describe('brand voice content helpers', () => {
 
   it('exposes lower-cased, de-duplicated banned words and flags short ones', () => {
     const bv = parseBrandVoiceContent({
-      bannedWords: [{ word: 'Just' }, { word: 'JUST' }, { word: 'Synergy' }, { word: 'so' }],
+      bannedWords: [
+        { word: ' Just ' },
+        { word: 'JUST' },
+        { word: 'Synergy' },
+        { word: 'so' },
+        { word: '' },
+      ],
     }).content
     expect(bannedWordsOf(bv)).toEqual(['just', 'synergy', 'so'])
     expect(shortBannedWords(bv)).toEqual(['so'])
@@ -87,6 +93,7 @@ describe('brand voice content helpers', () => {
 
     const bare = brandVoiceToPrompt(emptyBrandVoiceContent('Bare'))
     expect(bare).not.toContain('## Core values')
+    expect(bare).not.toContain('## How we sound')
     expect(bare).not.toContain('Never use these words')
     expect(bare).toContain('## Tone dials')
   })

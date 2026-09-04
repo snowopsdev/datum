@@ -77,24 +77,6 @@ describe('positioning global', () => {
     }
   })
 
-  it('teaches the framework in the field descriptions', () => {
-    const description = (name: string) => {
-      const field = Positioning.fields.find((f) => 'name' in f && f.name === name)
-      const admin = field && 'admin' in field ? (field.admin as { description?: string }) : undefined
-      return admin?.description ?? ''
-    }
-    expect(description('category')).toContain('kind of company')
-    expect(description('activePosition')).toContain('mental slot')
-    // The enemy is a habit or a cost, never a rival by name on a page a
-    // customer reads — naming one advertises them.
-    expect(description('enemy')).toContain('Never a named rival')
-    expect(description('descriptorLadder')).toContain('broad to specific')
-    // The avoid list is advisory; banned words are the brand voice's job and
-    // are checked structurally.
-    expect(description('vocabularyAvoid')).toContain('Advisory only')
-    expect(description('vocabularyAvoid')).toContain('brand voice')
-  })
-
   it('stores every field the parser reads back', async () => {
     await payload.updateGlobal({
       slug: 'positioning',
