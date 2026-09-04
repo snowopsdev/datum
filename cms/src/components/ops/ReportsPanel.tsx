@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import React from 'react'
 
 import type { RunHealth, StageKpiRow } from '../../lib/opsKpis'
-import type { BoardArticle } from './articleStatus'
+import type { ArticleReportSummary } from '../../lib/articleReportSummary'
 import { ARTICLE_STATUSES } from './articleStatus'
+import { IG_DECISIONS, IG_DECISION_LABEL } from '../../lib/articleReportSummary'
 import './ops.css'
 
 export type SpendRow = { label: string; usd: number }
@@ -21,70 +22,10 @@ export type CostReport = {
 }
 
 type Props = {
-  articles: BoardArticle[]
+  summary: ArticleReportSummary
   costs: CostReport
   stages: StageKpiRow[]
   runs: RunHealth
-}
-
-function failureDetails(a: BoardArticle): { fails: string[]; details: string[] } {
-  const fails: string[] = []
-  const details: string[] = []
-  const qa = a.qaResults
-  if (qa?.structural?.passed === false) {
-    fails.push('structural')
-    const raw = qa.structural.violations
-    if (Array.isArray(raw)) {
-      for (const v of raw) {
-        if (typeof v === 'string') details.push(v)
-        else if (v && typeof v === 'object' && 'code' in v) {
-          details.push(String((v as { code: unknown }).code))
-        }
-      }
-    }
-  }
-  if (qa?.factCheck?.passed === false) {
-    fails.push('factCheck')
-    if (qa.factCheck.notes) details.push(qa.factCheck.notes)
-  }
-  if (qa?.qualitativeReview?.passed === false) {
-    fails.push('qualitative')
-    if (qa.qualitativeReview.notes) details.push(qa.qualitativeReview.notes)
-  }
-  return { fails, details }
-}
-
-type IgDecision = 'PASS' | 'REVISE' | 'HUMAN_REVIEW' | 'BLOCK'
-
-const IG_DECISIONS: IgDecision[] = ['PASS', 'REVISE', 'HUMAN_REVIEW', 'BLOCK']
-
-const IG_DECISION_LABEL: Record<IgDecision, string> = {
-  PASS: 'Pass',
-  REVISE: 'Revise',
-  HUMAN_REVIEW: 'Human review',
-  BLOCK: 'Block',
-}
-
-/**
- * Rolls the articles' denormalised `informationGain` summaries up into the
- * decision mix. Deliberately reads only the summary group and never mixes it
- * with `status`: an article whose summary was cleared (reset, sent back,
- * queued for regeneration) has no decision at all, and counting its status as
- * one would report a verdict nobody scored. The review queue is the reverse —
- * it is a *status* question ("who is waiting on a human"), so it comes from
- * `status` alone.
- */
-function informationGainMix(articles: BoardArticle[]) {
-  const counts = Object.fromEntries(IG_DECISIONS.map((d) => [d, 0])) as Record<IgDecision, number>
-  let scored = 0
-  for (const a of articles) {
-    const decision = a.informationGain?.decision
-    if (decision && IG_DECISIONS.includes(decision)) {
-      counts[decision] += 1
-      scored += 1
-    }
-  }
-  return { counts, scored }
 }
 
 function BarList({ rows }: { rows: SpendRow[] }) {
@@ -111,33 +52,23 @@ function BarList({ rows }: { rows: SpendRow[] }) {
   )
 }
 
-export function ReportsPanel({ articles, costs, stages, runs }: Props) {
+export function ReportsPanel({ summary, costs, stages, runs }: Props) {
   const router = useRouter()
-  const byStatus = Object.fromEntries(ARTICLE_STATUSES.map((s) => [s, 0])) as Record<string, number>
-  for (const a of articles) byStatus[a.status] = (byStatus[a.status] ?? 0) + 1
-
-  const withQa = articles.filter((a) => a.qaResults?.structural?.passed != null)
-  const rate = (key: 'structural' | 'factCheck' | 'qualitativeReview') => {
-    const rows = articles.filter((a) => {
-      const block = a.qaResults?.[key]
-      return block && typeof block === 'object' && 'passed' in block && block.passed != null
-    })
-    const passed = rows.filter((a) => a.qaResults?.[key]?.passed === true).length
-    return { t: rows.length, p: passed }
-  }
-  const st = rate('structural')
-  const fc = rate('factCheck')
-  const qu = rate('qualitativeReview')
-  const failures = articles.filter((a) => a.status === 'needs_revision')
-  const ig = informationGainMix(articles)
-  const igReviewQueue = articles.filter(
-    (a) => a.status === 'needs_review' || a.status === 'blocked',
-  )
-  const igAwaitingScore = articles.filter((a) => a.status === 'qa_passed')
-  const published = articles.filter((a) => a.status === 'published')
-  const publishedSpend = published.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
-  const allSpend = articles.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
-  const waste = Math.max(0, allSpend - publishedSpend)
+  const {
+    byStatus,
+    articleCount,
+    withQaCount,
+    st,
+    fc,
+    qu,
+    failures,
+    ig,
+    igReviewQueue,
+    igAwaitingScoreCount,
+    publishedCount,
+    publishedSpend,
+    waste,
+  } = summary
 
   const setPeriod = (period: CostReport['period']) => {
     router.push(`/admin/ops/reports?period=${period}`)
@@ -182,7 +113,7 @@ export function ReportsPanel({ articles, costs, stages, runs }: Props) {
       <div className="datum-ops__metrics">
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Articles</div>
-          <div className="datum-ops__metric-value">{articles.length}</div>
+          <div className="datum-ops__metric-value">{articleCount}</div>
         </div>
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Period spend</div>
@@ -220,7 +151,7 @@ export function ReportsPanel({ articles, costs, stages, runs }: Props) {
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Cost / published</div>
           <div className="datum-ops__metric-value">
-            {published.length ? `$${(publishedSpend / published.length).toFixed(2)}` : 'n/a'}
+            {publishedCount ? `$${(publishedSpend / publishedCount).toFixed(2)}` : 'n/a'}
           </div>
         </div>
         <div className="datum-ops__metric">
@@ -229,7 +160,7 @@ export function ReportsPanel({ articles, costs, stages, runs }: Props) {
         </div>
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">With QA</div>
-          <div className="datum-ops__metric-value">{withQa.length}</div>
+          <div className="datum-ops__metric-value">{withQaCount}</div>
         </div>
       </div>
 
@@ -242,7 +173,7 @@ export function ReportsPanel({ articles, costs, stages, runs }: Props) {
             </p>
           ) : (
             failures.map((a) => {
-              const { fails, details } = failureDetails(a)
+              const { fails, details } = a
               return (
                 <div className="datum-ops__fail-card" key={a.id}>
                   <h3>{a.title || a.keyword}</h3>
@@ -299,10 +230,10 @@ export function ReportsPanel({ articles, costs, stages, runs }: Props) {
             </ul>
           )}
           <p className="datum-ops__sub" style={{ marginTop: 10, marginBottom: 0 }}>
-            {igAwaitingScore.length} at <code>qa_passed</code> awaiting scoring. Decisions are
-            counted from each article&apos;s current <code>informationGain</code> summary; an
-            article reset or sent back since it was scored carries none and is not counted. The
-            scores behind them are uncalibrated model estimates.
+            {igAwaitingScoreCount} at <code>qa_passed</code> awaiting scoring. Decisions are counted
+            from each article&apos;s current <code>informationGain</code> summary; an article reset
+            or sent back since it was scored carries none and is not counted. The scores behind them
+            are uncalibrated model estimates.
           </p>
           {igReviewQueue.length > 0 ? (
             <ul className="datum-ops__list" style={{ marginTop: 10 }}>

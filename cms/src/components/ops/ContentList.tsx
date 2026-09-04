@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import React, { useMemo, useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 
-import type { BoardArticle } from './articleStatus'
+import type { ContentFilter, ContentPage } from './contentListData'
 import { OWNER_LABEL, STAGE_LABEL, stageOf } from './articleStatus'
 import { removeTopicsAction } from './boardActions'
 import type { RunStatusDTO } from './boardTypes'
@@ -12,10 +12,10 @@ import { RunStatusPanel } from './RunStatusPanel'
 import { Stepper } from './Stepper'
 import './ops.css'
 
-type Filter = 'you' | 'working' | 'done' | 'all'
+type Filter = ContentFilter
 
 type Props = {
-  articles: BoardArticle[]
+  content: ContentPage
   latestRun: RunStatusDTO | null
   mode: 'mock' | 'live'
 }
@@ -35,43 +35,89 @@ const FILTER_LABEL: Record<Filter, string> = {
   all: 'All',
 }
 
-const matches = (filter: Filter, a: BoardArticle): boolean => {
-  const owner = stageOf(a.status).owner
-  if (filter === 'you') return owner === 'you'
-  if (filter === 'working') return owner === 'run'
-  if (filter === 'done') return owner === 'done'
-  return true
-}
-
 /**
  * The primary content screen: every piece, where it is, and who it is waiting
  * on. One row per piece, a stepper instead of ten status columns, and the
  * first tab is the work that needs a person — because that is what someone
  * opening this page is here to find.
  */
-export function ContentList({ articles, latestRun, mode }: Props) {
+export function ContentList({ content, latestRun, mode }: Props) {
   const router = useRouter()
-  const counts = useMemo(
-    () => ({
-      you: articles.filter((a) => matches('you', a)).length,
-      working: articles.filter((a) => matches('working', a)).length,
-      done: articles.filter((a) => matches('done', a)).length,
-      all: articles.length,
-    }),
-    [articles],
-  )
-  const [filter, setFilter] = useState<Filter>(counts.you > 0 ? 'you' : 'all')
-  const [query, setQuery] = useState('')
+  const { articles, counts, filter, q, page, totalDocs, totalPages } = content
+  const [query, setQuery] = useState(q)
+  const [requestedFilter, setRequestedFilter] = useState(filter)
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [pending, startTransition] = useTransition()
-
-  const visible = articles.filter((a) => {
-    if (!matches(filter, a)) return false
-    if (!query.trim()) return true
-    const q = query.trim().toLowerCase()
-    return (a.title ?? '').toLowerCase().includes(q) || a.keyword.toLowerCase().includes(q)
-  })
+  const [navigating, startNavigation] = useTransition()
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stateKey = `${filter}:${q}:${page}`
+  // Responses commit separately from typing. A response to our own search must
+  // not replace a draft the editor has continued typing in the meantime.
+  const [requestedQueries, setRequestedQueries] = useState<string[]>([])
+  const [committed, setCommitted] = useState({ key: stateKey, external: false })
+  if (committed.key !== stateKey) {
+    const requestIndex = requestedQueries.indexOf(q)
+    const external = requestIndex < 0
+    setCommitted({ key: stateKey, external })
+    if (external) {
+      setQuery(q)
+      setRequestedFilter(filter)
+    }
+    setRequestedQueries(external ? [] : requestedQueries.slice(requestIndex + 1))
+    setPicked(new Set())
+  }
+  useEffect(() => {
+    if (committed.external && timer.current) clearTimeout(timer.current)
+  }, [committed])
+  useEffect(() => {
+    const onHistory = () => {
+      if (timer.current) clearTimeout(timer.current)
+      const restored = new URLSearchParams(window.location.search)
+      const restoredQuery = restored.get('q') ?? ''
+      const restoredFilter = restored.get('filter')
+      setRequestedFilter(
+        restoredFilter === 'you' ||
+          restoredFilter === 'working' ||
+          restoredFilter === 'done' ||
+          restoredFilter === 'all'
+          ? restoredFilter
+          : counts.you > 0
+            ? 'you'
+            : 'all',
+      )
+      setQuery(restoredQuery)
+      setRequestedQueries([restoredQuery.trim()])
+      setPicked(new Set())
+    }
+    window.addEventListener('popstate', onHistory)
+    return () => window.removeEventListener('popstate', onHistory)
+  }, [counts.you])
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    [],
+  )
+  const navigate = (nextFilter: Filter, nextQuery: string, nextPage: number) => {
+    if (timer.current) clearTimeout(timer.current)
+    setPicked(new Set())
+    setRequestedFilter(nextFilter)
+    setRequestedQueries((queries) => [...queries, nextQuery.trim()])
+    const params = new URLSearchParams({
+      filter: nextFilter,
+      q: nextQuery.trim(),
+      page: String(nextPage),
+    })
+    startNavigation(() => router.push(`/admin/ops/content?${params}`, { scroll: false }))
+  }
+  const search = (value: string) => {
+    setQuery(value)
+    setPicked(new Set())
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => navigate(requestedFilter, value, 1), 300)
+  }
+  const visible = articles
 
   const removable = articles.filter((a) => a.status === 'topic_selected' && picked.has(a.id))
 
@@ -88,7 +134,7 @@ export function ContentList({ articles, latestRun, mode }: Props) {
   }
 
   return (
-    <div className="datum-ops">
+    <div className="datum-ops" aria-busy={navigating}>
       <div className="datum-ops__header">
         <h1>Content</h1>
         <Link className="datum-ops__btn datum-ops__btn--primary" href="/admin/ops/new">
@@ -107,10 +153,10 @@ export function ContentList({ articles, latestRun, mode }: Props) {
         <div className="datum-ops__tabs datum-ops__tabs--pills" role="tablist">
           {(['you', 'working', 'done', 'all'] as Filter[]).map((f) => (
             <button
-              aria-selected={filter === f}
-              className={filter === f ? 'is-active' : undefined}
+              aria-selected={requestedFilter === f}
+              className={requestedFilter === f ? 'is-active' : undefined}
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => navigate(f, query, 1)}
               role="tab"
               type="button"
             >
@@ -121,22 +167,34 @@ export function ContentList({ articles, latestRun, mode }: Props) {
         <input
           aria-label="Search content"
           className="datum-content__search"
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => search(e.target.value)}
           placeholder="Search by title or keyword"
           type="search"
           value={query}
         />
       </div>
 
+      <p role="status" aria-live="polite">
+        {navigating
+          ? 'Loading content…'
+          : `${totalDocs} matching pieces · Page ${page} of ${totalPages}`}
+      </p>
       {removable.length > 0 ? (
         <div className="datum-content__bulk">
           <span>
             {removable.length} topic{removable.length === 1 ? '' : 's'} selected
           </span>
-          <button className="datum-ops__btn datum-ops__btn--danger" disabled={pending} onClick={remove} type="button">
+          <button
+            className="datum-ops__btn datum-ops__btn--danger"
+            disabled={pending || navigating}
+            onClick={remove}
+            type="button"
+          >
             Remove from content
           </button>
-          <span className="datum-ops__hint">Only topics research has not started can be removed.</span>
+          <span className="datum-ops__hint">
+            Only topics research has not started can be removed.
+          </span>
         </div>
       ) : null}
       {message ? (
@@ -147,12 +205,12 @@ export function ContentList({ articles, latestRun, mode }: Props) {
 
       {visible.length === 0 ? (
         <div className="datum-content__empty">
-          {articles.length === 0 ? (
+          {counts.all === 0 ? (
             <>
               <h2>Nothing here yet</h2>
               <p>
-                Start with <Link href="/admin/ops/new">New content</Link>: pick the kind of piece, pick
-                a topic, and Datum researches it while you wait.
+                Start with <Link href="/admin/ops/new">New content</Link>: pick the kind of piece,
+                pick a topic, and Datum researches it while you wait.
               </p>
             </>
           ) : filter === 'you' ? (
@@ -180,7 +238,7 @@ export function ContentList({ articles, latestRun, mode }: Props) {
                     aria-label={`Select ${a.title || a.keyword}`}
                     checked={picked.has(a.id)}
                     className="datum-content__pick"
-                    disabled={pending}
+                    disabled={pending || navigating}
                     onChange={() =>
                       setPicked((prev) => {
                         const next = new Set(prev)
@@ -233,6 +291,27 @@ export function ContentList({ articles, latestRun, mode }: Props) {
           })}
         </ul>
       )}
+      <nav aria-label="Content pages" className="datum-ops__actions">
+        <button
+          className="datum-ops__btn"
+          type="button"
+          disabled={navigating || page <= 1}
+          onClick={() => navigate(filter, query, page - 1)}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          className="datum-ops__btn"
+          type="button"
+          disabled={navigating || page >= totalPages}
+          onClick={() => navigate(filter, query, page + 1)}
+        >
+          Next
+        </button>
+      </nav>
       {mode === 'live' ? (
         <p className="datum-ops__hint" style={{ marginTop: 16 }}>
           Live mode: writing, checks and scoring call paid providers. Approving a brief is what

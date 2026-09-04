@@ -4,17 +4,12 @@ import { Gutter } from '@payloadcms/ui'
 import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
-import type {
-  Article,
-  ArticleAudit,
-  CostLog,
-  InformationGainRun,
-  Template,
-} from '../../payload-types'
+import type { Article, InformationGainRun, Template } from '../../payload-types'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
-import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { loadActiveAudienceOptions } from '../../lib/loadWorkspaceReadiness'
+import { modeFromEnv } from '../../lib/workspaceReadiness'
 import { ArticleReview } from './ArticleReview'
-import type { AuditTimelineEntry } from './articleStatus'
+import type { AuditSummary } from './auditTypes'
 import { formatAuditTimestamp, toBoardArticle, toRunView } from './articleStatus'
 
 export async function ArticleReviewView(props: AdminViewServerProps) {
@@ -49,10 +44,11 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }, setup] =
+  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }, icps] =
     await Promise.all([
       req.payload.find({
         collection: 'templates',
+        select: { name: true },
         depth: 0,
         limit: 50,
         pagination: false,
@@ -62,6 +58,17 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       }),
       req.payload.find({
         collection: 'article-audit',
+        select: {
+          actor: true,
+          actorType: true,
+          createdAt: true,
+          event: true,
+          fromStatus: true,
+          pipelineRunId: true,
+          stage: true,
+          summary: true,
+          toStatus: true,
+        },
         where: { article: { equals: article.id } },
         depth: 0,
         limit: 100,
@@ -71,6 +78,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       }),
       req.payload.find({
         collection: 'cost-log',
+        select: { provider: true, model: true, createdAt: true, pipelineRunId: true, stage: true },
         where: { article: { equals: article.id } },
         depth: 0,
         limit: 100,
@@ -92,20 +100,20 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         user: req.user,
         overrideAccess: false,
       }),
-      loadWorkspaceSetup(req.payload),
+      loadActiveAudienceOptions(req.payload, req.user),
     ])
 
   const latestRun = (runDocs as InformationGainRun[])[0] ?? null
 
   const templates = (templateDocs as Template[]).map((t) => ({ id: t.id, name: t.name }))
-  const auditEntries: AuditTimelineEntry[] = [
-    ...(auditDocs as ArticleAudit[]).map((entry) => ({
+  const auditEntries: AuditSummary[] = [
+    ...auditDocs.map((entry): AuditSummary => ({
       id: `audit-${entry.id}`,
       actor: entry.actor,
       actorType: entry.actorType,
       createdAt: entry.createdAt,
       createdAtLabel: formatAuditTimestamp(entry.createdAt),
-      details: entry.details,
+      source: { kind: 'audit', recordId: entry.id },
       event: entry.event,
       fromStatus: entry.fromStatus ?? null,
       pipelineRunId: entry.pipelineRunId ?? null,
@@ -113,20 +121,13 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       summary: entry.summary,
       toStatus: entry.toStatus ?? null,
     })),
-    ...(costDocs as CostLog[]).map((entry) => ({
+    ...costDocs.map((entry): AuditSummary => ({
       id: `cost-${entry.id}`,
       actor: [entry.provider, entry.model].filter(Boolean).join(' / ') || 'model',
       actorType: 'pipeline' as const,
       createdAt: entry.createdAt,
       createdAtLabel: formatAuditTimestamp(entry.createdAt),
-      details: {
-        inputTokens: entry.inputTokens,
-        outputTokens: entry.outputTokens,
-        webSearchRequests: entry.webSearchRequests,
-        costUsd: entry.costUsd,
-        request: entry.request,
-        response: entry.response,
-      },
+      source: { kind: 'cost', recordId: entry.id },
       event: 'model_call_completed',
       fromStatus: null,
       pipelineRunId: entry.pipelineRunId,
@@ -150,8 +151,8 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       <Gutter>
         <ArticleReview
           article={toBoardArticle(article)}
-          mode={setup.readiness.mode}
-          icps={setup.icps}
+          mode={modeFromEnv(process.env)}
+          icps={icps}
           templates={templates}
           editHref={`/admin/collections/articles/${article.id}`}
           bodyHtml={lexicalBodyToHtml(article.body)}

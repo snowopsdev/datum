@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { EVIDENCE_BANK_FIXTURE, POSITIONING_FIXTURE } from '../../cms/src/lib/tenant/fixtures'
 import { emptyPositioningContent, resolveWorkspaceProfile } from '../../cms/src/lib/tenant'
 import {
+  evaluateRuntimeReadiness,
   evaluateWorkspaceReadiness,
   modeFromEnv,
   type WorkspaceReadinessInput,
@@ -132,6 +133,35 @@ describe('workspace readiness', () => {
     assert.equal(loggedIn.runtime.needsCodexLogin, false)
     assert.equal(loggedIn.runtime.ready, false)
     assert.equal(loggedIn.configFingerprint, blocked.configFingerprint)
+  })
+
+  it('runtime-only readiness keeps live Codex disabled without inspecting login state', () => {
+    const input = baseInput()
+    input.env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      ANTHROPIC_API_KEY: 'configured',
+      TARGET_DOMAIN: 'example.com',
+      COMPETITOR_DOMAINS: 'competitor.example',
+    }
+    input.profile = envProfile(input.env)
+    input.models = { generateModel: 'codex/gpt-5.6-terra' }
+    // This is the reduced input used by runtimeStatusAction.
+    const runtimeInput = { env: input.env, models: input.models, profile: input.profile }
+    const omitted = evaluateRuntimeReadiness(runtimeInput)
+    assert.equal(omitted.runtime.needsCodexLogin, false)
+    assert.equal(omitted.runtime.ready, false)
+    assert.deepEqual(omitted.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
+    for (const codexLoggedIn of [false, true]) {
+      assert.deepEqual(
+        evaluateRuntimeReadiness({ ...runtimeInput, codexLoggedIn }).runtime,
+        omitted.runtime,
+      )
+      assert.deepEqual(
+        evaluateWorkspaceReadiness({ ...input, codexLoggedIn }).runtime,
+        omitted.runtime,
+      )
+    }
   })
 
   it('treats a Codex stage as configured in mock mode, logged in or not', () => {

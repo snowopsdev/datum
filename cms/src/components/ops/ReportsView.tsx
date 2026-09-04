@@ -4,29 +4,10 @@ import { Gutter } from '@payloadcms/ui'
 import { redirect } from 'next/navigation'
 import React from 'react'
 
-import type { Article, CostLog, PipelineRun } from '../../payload-types'
-import { runHealth, stageKpis } from '../../lib/opsKpis'
-import { toBoardArticle } from './articleStatus'
-import { ReportsPanel, type CostReport, type SpendRow } from './ReportsPanel'
-
-function aggregate(rows: CostLog[]): Pick<CostReport, 'totalUsd' | 'byStage' | 'byModel'> {
-  const byStage = new Map<string, number>()
-  const byModel = new Map<string, number>()
-  let totalUsd = 0
-  for (const row of rows) {
-    const usd = row.costUsd ?? 0
-    totalUsd += usd
-    const stage = row.stage ?? '(unknown)'
-    const model = row.model ?? '(unknown)'
-    byStage.set(stage, (byStage.get(stage) ?? 0) + usd)
-    byModel.set(model, (byModel.get(model) ?? 0) + usd)
-  }
-  const toRows = (m: Map<string, number>): SpendRow[] =>
-    [...m.entries()]
-      .map(([label, usd]) => ({ label, usd }))
-      .sort((a, b) => b.usd - a.usd)
-  return { totalUsd, byStage: toRows(byStage), byModel: toRows(byModel) }
-}
+import { runHealth } from '../../lib/opsKpis'
+import { summarizeReportArticles } from '../../lib/articleReportSummary'
+import { loadReportCosts } from '../../lib/reportQueries'
+import { ReportsPanel, type CostReport } from './ReportsPanel'
 
 export async function ReportsView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -51,30 +32,36 @@ export async function ReportsView(props: AdminViewServerProps) {
     costWhere.createdAt = { greater_than_equal: periodStart }
   }
 
-  const [{ docs: articleDocs }, { docs: costDocs }, { docs: runDocs }] = await Promise.all([
+  const [{ docs: articleDocs }, costData, { docs: runDocs }] = await Promise.all([
     req.payload.find({
       collection: 'articles',
+      select: {
+        title: true,
+        keyword: true,
+        status: true,
+        template: true,
+        totalCostUsd: true,
+        qaResults: {
+          structural: { passed: true, violations: true },
+          factCheck: { passed: true, notes: true },
+          qualitativeReview: { passed: true, notes: true },
+        },
+        informationGain: { decision: true },
+      },
+      populate: { templates: { name: true } },
       depth: 1,
-      limit: 500,
+      limit: 0,
       pagination: false,
       sort: '-updatedAt',
       user: req.user,
       overrideAccess: false,
     }),
-    req.payload.find({
-      collection: 'cost-log',
-      depth: 0,
-      limit: 5000,
-      pagination: false,
-      sort: '-createdAt',
-      where: costWhere,
-      user: req.user,
-      overrideAccess: false,
-    }),
+    loadReportCosts(req, costWhere),
     req.payload.find({
       collection: 'pipeline-runs',
+      select: { runId: true, status: true, errorSummary: true, completedAt: true },
       depth: 0,
-      limit: 500,
+      limit: 0,
       pagination: false,
       sort: '-createdAt',
       // Same period window as spend, keyed on createdAt like cost rows.
@@ -84,16 +71,23 @@ export async function ReportsView(props: AdminViewServerProps) {
     }),
   ])
 
-  const articles = (articleDocs as Article[]).map(toBoardArticle)
-  const costsAgg = aggregate(costDocs as CostLog[])
+  const summary = summarizeReportArticles(
+    articleDocs.map((doc) => ({
+      ...doc,
+      qaResults: doc.qaResults,
+      informationGain: doc.informationGain,
+      title: doc.title ?? null,
+      totalCostUsd: doc.totalCostUsd ?? null,
+      templateName: typeof doc.template === 'object' && doc.template ? doc.template.name : null,
+    })),
+  )
   const costs: CostReport = {
     period,
     periodStart: periodStart ? periodStart.slice(0, 10) : null,
-    rowCount: costDocs.length,
-    ...costsAgg,
+    ...costData.aggregate,
   }
-  const stages = stageKpis(costDocs as CostLog[])
-  const runs = runHealth(runDocs as PipelineRun[])
+  const stages = costData.stages
+  const runs = runHealth(runDocs)
 
   return (
     <DefaultTemplate
@@ -107,7 +101,7 @@ export async function ReportsView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <ReportsPanel articles={articles} costs={costs} stages={stages} runs={runs} />
+        <ReportsPanel summary={summary} costs={costs} stages={stages} runs={runs} />
       </Gutter>
     </DefaultTemplate>
   )

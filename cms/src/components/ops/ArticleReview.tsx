@@ -18,13 +18,14 @@ import { type BriefIcpOption, BriefEditor } from './BriefEditor'
 import { revisitBriefAction } from './briefActions'
 import { runSelectedArticlesAction } from './boardActions'
 import { Stepper } from './Stepper'
+import { AuditEvidence } from './AuditEvidence'
+import type { AuditSummary } from './auditTypes'
 import {
   OWNER_LABEL,
   evidenceFindingsOf,
   qaFailures,
   STAGE_LABEL,
   stageOf,
-  type AuditTimelineEntry,
   type BoardArticle,
   type InformationGainRunView,
   type ScorecardClaim,
@@ -40,7 +41,7 @@ type Props = {
   templates: TemplateOption[]
   editHref: string
   bodyHtml: string
-  auditEntries: AuditTimelineEntry[]
+  auditEntries: AuditSummary[]
   run: InformationGainRunView | null
 }
 
@@ -61,7 +62,9 @@ const QUALITY_SOURCE_LABEL: Record<string, string> = {
 /** The stored brief, in the shape the editor edits. Rows without a heading are dropped. */
 function briefInitial(raw: BoardArticle['brief'], icpId: number | null) {
   const strings = (v: unknown): string[] =>
-    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      : []
   return {
     angle: raw?.angle ?? '',
     audience: raw?.audience ?? '',
@@ -479,9 +482,11 @@ export function ArticleReview({
         </Link>
         <div className="datum-ops__stage-header">
           <Stepper current={stageOf(article.status)} size="full" />
-          <span className={`datum-content__owner datum-content__owner--${stageOf(article.status).owner}`}>
-            {OWNER_LABEL[stageOf(article.status).owner]} · {STAGE_LABEL[stageOf(article.status).stage]}:{' '}
-            {stageOf(article.status).label}
+          <span
+            className={`datum-content__owner datum-content__owner--${stageOf(article.status).owner}`}
+          >
+            {OWNER_LABEL[stageOf(article.status).owner]} ·{' '}
+            {STAGE_LABEL[stageOf(article.status).stage]}: {stageOf(article.status).label}
           </span>
         </div>
       </div>
@@ -570,12 +575,7 @@ export function ArticleReview({
                           <span>run {entry.pipelineRunId.slice(0, 8)}</span>
                         ) : null}
                       </div>
-                      {entry.details != null ? (
-                        <details className="datum-ops__audit-details">
-                          <summary>Evidence</summary>
-                          <pre>{JSON.stringify(entry.details, null, 2)}</pre>
-                        </details>
-                      ) : null}
+                      <AuditEvidence articleId={article.id} source={entry.source} />
                     </div>
                   </li>
                 ))}
