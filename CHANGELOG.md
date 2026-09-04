@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/snowopsdev/datum/compare/v0.6.1...v0.6.2) (2026-09-04)
+
+
+### Performance Improvements
+
+* **cms:** speed up content lists and reduce admin data loading ([#85](https://github.com/snowopsdev/datum/issues/85)) ([6e9cc1c](https://github.com/snowopsdev/datum/commit/6e9cc1c7e73b34804b4d769baf47188e4c8b5498))
+
 ## [0.6.1](https://github.com/snowopsdev/datum/compare/v0.6.0...v0.6.1) (2026-09-04)
 
 
