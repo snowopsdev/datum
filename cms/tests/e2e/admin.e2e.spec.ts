@@ -1,17 +1,29 @@
 import { test, expect, Page } from '@playwright/test'
+import { getPayload } from 'payload'
+import config from '../../src/payload.config.js'
+import { loadWorkspaceSetup } from '../../src/lib/loadWorkspaceReadiness'
 import { login } from '../helpers/login'
 import { seedTestUser, cleanupTestUser, testUser } from '../helpers/seedUser'
 
 test.describe('Admin Panel', () => {
   let page: Page
+  let dashboardPath: '/admin' | '/admin/ops/content'
 
   test.beforeAll(async ({ browser }) => {
     await seedTestUser()
 
+    const payload = await getPayload({ config })
+    const [setup, articles] = await Promise.all([
+      loadWorkspaceSetup(payload),
+      payload.count({ collection: 'articles', where: { archived: { not_equals: true } } }),
+    ])
+    dashboardPath =
+      setup.readiness.governance.ready && articles.totalDocs > 0 ? '/admin/ops/content' : '/admin'
+
     const context = await browser.newContext()
     page = await context.newPage()
 
-    await login({ page, user: testUser })
+    await login({ dashboardPath, page, user: testUser })
   })
 
   test.afterAll(async () => {
@@ -20,14 +32,9 @@ test.describe('Admin Panel', () => {
 
   test('can navigate to dashboard', async () => {
     await page.goto('/admin')
-    await expect(page).toHaveURL(/\/admin(?:\/ops\/content)?$/)
-    // The dashboard is the setup hub, whose h1 changes with workspace state
-    // ("Set up your workspace" / "Your workspace"), and which redirects to the
-    // content list once setup is finished and anything has been written.
-    // Pinning specific copy made the test fail on any database mid-onboarding,
-    // so assert a rendered heading instead of a particular state's wording.
+    expect(new URL(page.url()).pathname).toBe(dashboardPath)
     const heading = page.getByRole('heading', { level: 1 }).first()
-    if (new URL(page.url()).pathname === '/admin/ops/content') {
+    if (dashboardPath === '/admin/ops/content') {
       await expect(heading).toHaveText('Content')
     } else {
       await expect(page.locator('span[title="Dashboard"]').first()).toBeVisible()
