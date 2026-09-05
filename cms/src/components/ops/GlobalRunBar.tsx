@@ -56,7 +56,9 @@ export function GlobalRunBar() {
         seen.current = next ? { runId: next.runId, status: next.status } : null
         const wasActive = prev?.status === 'queued' || prev?.status === 'running'
         const nextActive = next?.status === 'queued' || next?.status === 'running'
-        if (wasActive && next && !nextActive && prev?.runId === next.runId) router.refresh()
+        // A short run can finish between idle polls (or before the first poll).
+        // Refresh each newly observed completion even if we never saw it active.
+        if (next && !nextActive && (wasActive || prev?.runId !== next.runId)) router.refresh()
         setRun(next)
         setNow(Date.now())
         return nextActive
