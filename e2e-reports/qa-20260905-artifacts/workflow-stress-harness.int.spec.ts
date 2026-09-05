@@ -8,6 +8,28 @@ import { evaluateWorkspaceReadiness } from '@/lib/workspaceReadiness'
 import { getPayload, type TypedUser } from 'payload'
 import { expect, it } from 'vitest'
 
+const STRESS_DEADLINE_MS = 300_000
+
+async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<T> {
+  const remainingMs = deadlineAt - performance.now()
+  if (remainingMs <= 0) throw new Error('Workflow stress deadline exceeded')
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Workflow stress deadline exceeded')),
+          Math.ceil(remainingMs),
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 it('runs bounded workflow launch stress', async () => {
   const payload = await getPayload({ config: await config })
   const template = await payload.create({
@@ -18,6 +40,7 @@ it('runs bounded workflow launch stress', async () => {
   const latencies: number[] = []
   const errors: string[] = []
   const start = performance.now()
+  const deadlineAt = start + STRESS_DEADLINE_MS
   let peakInFlight = 0
   let inFlight = 0
   const article = await payload.create({
@@ -36,10 +59,10 @@ it('runs bounded workflow launch stress', async () => {
   })
   try {
     for (const concurrency of [1, 2, 5, 10, 20]) {
-      if (performance.now() - start > 300_000 || runIds.length + concurrency > 500) break
+      if (performance.now() >= deadlineAt || runIds.length + concurrency > 500) break
       const batch = Array.from({ length: concurrency }, () => randomUUID())
       runIds.push(...batch)
-      await Promise.all(batch.map(async (runId) => {
+      await beforeDeadline(Promise.all(batch.map(async (runId) => {
         const began = performance.now()
         inFlight += 1
         peakInFlight = Math.max(peakInFlight, inFlight)
@@ -54,7 +77,7 @@ it('runs bounded workflow launch stress', async () => {
           latencies.push(performance.now() - began)
           inFlight -= 1
         }
-      }))
+      })), deadlineAt)
       if (errors.length) break
     }
     const elapsed = performance.now() - start
@@ -83,4 +106,4 @@ it('runs bounded workflow launch stress', async () => {
     // The article's append-only audit record retains its relationship. Keep
     // the article and template, as the other database-backed suites do.
   }
-})
+}, STRESS_DEADLINE_MS + 15_000)

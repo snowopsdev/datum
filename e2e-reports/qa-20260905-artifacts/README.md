@@ -14,3 +14,32 @@ These files provide durable, repository-relative evidence for the 2026-09-05 ful
 - `lane08-integration.log`: focused integration verification for E2E-002.
 
 The campaign used mock mode, configured test credentials, and isolated databases. These artifacts contain no live API credentials.
+
+## Running the preserved harnesses
+
+Run these commands from the repository root. Use a migration-built isolated test database and the configured ignored environment file. Remove each copied test after its run so the campaign harnesses do not become part of the permanent test suite.
+
+```bash
+cp e2e-reports/qa-20260905-artifacts/pipeline-persistence-regression.test.ts pipeline/test/qaPersistence.test.ts
+npx tsx --test pipeline/test/qaPersistence.test.ts
+rm pipeline/test/qaPersistence.test.ts
+
+cp e2e-reports/qa-20260905-artifacts/pipeline-expansion.test.ts pipeline/test/qaExpansion.test.ts
+npx tsx --test pipeline/test/qaExpansion.test.ts
+rm pipeline/test/qaExpansion.test.ts
+
+cp e2e-reports/qa-20260905-artifacts/workflow-stress-harness.int.spec.ts cms/tests/int/qaWorkflowStress.int.spec.ts
+QA_STRESS_OUTPUT=e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json npm run test:int --workspace cms -- tests/int/qaWorkflowStress.int.spec.ts
+rm cms/tests/int/qaWorkflowStress.int.spec.ts
+
+cp e2e-reports/qa-20260905-artifacts/queue-expansion.int.spec.ts cms/tests/int/qaQueueExpansion.int.spec.ts
+npm run test:int --workspace cms -- tests/int/qaQueueExpansion.int.spec.ts
+rm cms/tests/int/qaQueueExpansion.int.spec.ts
+```
+
+The HTTP harnesses accept the target URL and output path as arguments. Provide the configured test password through the environment:
+
+```bash
+SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs http://127.0.0.1:3000 e2e-reports/qa-20260905-artifacts/lane05-http.json
+SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs http://127.0.0.1:3000 e2e-reports/qa-20260905-artifacts/lane09-http.json
+```
