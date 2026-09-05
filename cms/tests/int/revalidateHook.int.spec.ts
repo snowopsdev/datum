@@ -115,4 +115,23 @@ describe('revalidate webhook consumer', () => {
     const response = await post('{}', {})
     expect(response.status).toBe(401)
   })
+
+  it.each(['not-a-timestamp', 'NaN', 'Infinity'])('rejects a non-finite timestamp %s', async (timestamp) => {
+    const rawBody = JSON.stringify({ event: ARTICLE_STATUS_EVENT, articleId: 1, to: 'published' })
+    const response = await post(rawBody, signedHeaders(rawBody, timestamp))
+    expect(response.status).toBe(401)
+    expect(revalidated).toEqual([])
+  })
+
+  it.each([
+    null,
+    [],
+    { event: ARTICLE_STATUS_EVENT, articleId: 1, to: 'published', slug: 42 },
+    { event: ARTICLE_STATUS_EVENT, articleId: {}, to: 'published' },
+  ].map((body) => ({ body })))('rejects malformed event data without purging paths: $body', async ({ body }) => {
+    const rawBody = JSON.stringify(body)
+    const response = await post(rawBody, signedHeaders(rawBody))
+    expect(response.status).toBe(400)
+    expect(revalidated).toEqual([])
+  })
 })

@@ -36,21 +36,30 @@ export async function POST(request: Request): Promise<Response> {
   if (!verifyWebhookSignature(settings.secret, timestamp, rawBody, signature)) {
     return Response.json({ error: 'bad signature' }, { status: 401 })
   }
-  if (Math.abs(Date.now() - Number(timestamp)) > MAX_AGE_MS) {
+  const timestampMs = Number(timestamp)
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > MAX_AGE_MS) {
     return Response.json({ error: 'stale timestamp' }, { status: 401 })
   }
 
-  let body: {
-    event?: string
-    articleId?: number
-    slug?: string | null
-    previousSlug?: string | null
-    from?: string
-    to?: string
-  }
+  let parsed: unknown
   try {
-    body = JSON.parse(rawBody)
+    parsed = JSON.parse(rawBody)
   } catch {
+    return Response.json({ error: 'malformed body' }, { status: 400 })
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return Response.json({ error: 'malformed body' }, { status: 400 })
+  }
+  const body = parsed as Record<string, unknown>
+  // Validate before invalidating any path: JSON parsing alone does not enforce
+  // the delivery contract, and a bad slug must not cause a partial purge.
+  if (
+    (body.articleId != null &&
+      (typeof body.articleId !== 'number' || !Number.isSafeInteger(body.articleId) || body.articleId <= 0)) ||
+    ['event', 'from', 'to', 'slug', 'previousSlug'].some(
+      (key) => body[key] != null && typeof body[key] !== 'string',
+    )
+  ) {
     return Response.json({ error: 'malformed body' }, { status: 400 })
   }
 
@@ -62,11 +71,11 @@ export async function POST(request: Request): Promise<Response> {
     body.articleId != null &&
     (body.from === 'published' || body.to === 'published')
   if (touchesPublished) {
-    revalidatePublishedArticle({ id: body.articleId as number, slug: body.slug })
+    revalidatePublishedArticle({ id: body.articleId as number, slug: body.slug as string | null | undefined })
     // A save that renamed the slug while unpublishing cached the article under
     // the old slug; purge that path too or it serves until ISR expiry.
     if (body.previousSlug && body.previousSlug !== body.slug) {
-      revalidatePublishedArticle({ id: body.articleId as number, slug: body.previousSlug })
+      revalidatePublishedArticle({ id: body.articleId as number, slug: body.previousSlug as string })
     }
   }
   return Response.json({ revalidated: touchesPublished })
