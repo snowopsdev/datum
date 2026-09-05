@@ -134,7 +134,7 @@ describe('admin queries against Postgres', () => {
     ).toBe(false)
   })
 
-  it('accumulates all cost rows beyond 5,000 without reading request bodies', async () => {
+  it('aggregates all cost rows beyond 5,000 without hydrating individual logs', async () => {
     // Real inserts exercise Payload's stored numeric types and pagination.
     for (let offset = 0; offset < 5025; offset += 25) {
       await Promise.all(
@@ -155,11 +155,11 @@ describe('admin queries against Postgres', () => {
         ),
       )
     }
-    // Observe real query results, not mocked pagination. Correct totals alone
-    // would also pass if an adapter accidentally returned all rows at once.
+    // Totals must remain correct without transferring thousands of Payload
+    // documents into the report request, regardless of machine speed.
     const find = vi.spyOn(payload, 'find')
     try {
-      const result = await loadReportCosts(req, { pipelineRunId: { equals: prefix } })
+      const result = await loadReportCosts(req, { pipelineRunId: prefix })
       expect(result.aggregate.rowCount).toBe(5026)
       expect(result.aggregate.totalUsd).toBe(5026 * 0.25)
       expect(result.stages[0]).toMatchObject({
@@ -168,21 +168,49 @@ describe('admin queries against Postgres', () => {
         outputTokens: 5026,
       })
       expect(JSON.stringify(result)).not.toContain('UNUSED_COST_REQUEST')
-      const batchSizes: number[] = []
-      for (const [index, [options]] of find.mock.calls.entries()) {
-        if (options.collection === 'cost-log' && options.limit === 1000) {
-          const batch = await find.mock.results[index].value
-          batchSizes.push(batch.docs.length)
-          expect(JSON.stringify(batch.docs)).not.toContain('UNUSED_COST_REQUEST')
-        }
-      }
-      expect(batchSizes).toEqual([1000, 1000, 1000, 1000, 1000, 26])
+      expect(find.mock.calls.filter(([options]) => options.collection === 'cost-log')).toHaveLength(0)
     } finally {
       find.mockRestore()
     }
-    const empty = await loadReportCosts(req, { pipelineRunId: { equals: `${prefix}-empty` } })
+    const empty = await loadReportCosts(req, { pipelineRunId: `${prefix}-empty` })
     expect(empty.aggregate.rowCount).toBe(0)
   }, 120000)
+
+  it('preserves stage/model totals, null buckets, and inclusive period filters', async () => {
+    const pipelineRunId = `${prefix}-quoted'run`
+    const rows = [
+      { stage: 'generate' as const, model: 'alpha', costUsd: 0.5, inputTokens: 5, createdAt: '2026-01-01T00:00:00.000Z' },
+      { stage: 'generate' as const, model: 'alpha', costUsd: 0.25, outputTokens: 2 },
+      { stage: 'factCheck' as const, model: 'beta', costUsd: 1, inputTokens: 8, outputTokens: 3 },
+      {},
+      { model: '(unknown)', costUsd: 0.125 },
+    ]
+    for (const row of rows) {
+      await payload.create({
+        collection: 'cost-log',
+        overrideAccess: true,
+        data: { pipelineRunId, createdAt: '2026-02-01T00:00:00.000Z', ...row },
+      })
+    }
+    const all = await loadReportCosts(req, { pipelineRunId })
+    expect(all.aggregate).toEqual({
+      rowCount: 5,
+      totalUsd: 1.875,
+      byStage: [{ label: 'factCheck', usd: 1 }, { label: 'generate', usd: 0.75 }, { label: '(unknown)', usd: 0.125 }],
+      byModel: [{ label: 'beta', usd: 1 }, { label: 'alpha', usd: 0.75 }, { label: '(unknown)', usd: 0.125 }],
+    })
+    expect(all.stages).toEqual([
+      { stage: 'factCheck', calls: 1, costUsd: 1, inputTokens: 8, outputTokens: 3 },
+      { stage: 'generate', calls: 2, costUsd: 0.75, inputTokens: 5, outputTokens: 2 },
+      { stage: '(unknown)', calls: 2, costUsd: 0.125, inputTokens: 0, outputTokens: 0 },
+    ])
+    const recent = await loadReportCosts(req, { pipelineRunId, createdAtFrom: '2026-02-01T00:00:00.000Z' })
+    expect(recent.aggregate.rowCount).toBe(4)
+    expect(recent.aggregate.totalUsd).toBe(1.375)
+    const empty = await loadReportCosts(req, { pipelineRunId, createdAtFrom: '2026-03-01T00:00:00.000Z' })
+    expect(empty.aggregate).toEqual({ rowCount: 0, totalUsd: 0, byStage: [], byModel: [] })
+    expect(empty.stages).toEqual([])
+  })
 })
 
 it('report summaries preserve missing decisions, QA denominators, and spend', () => {
