@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.3](https://github.com/snowopsdev/datum/compare/v0.6.2...v0.6.3) (2026-09-05)
+
+
+### Bug Fixes
+
+* **cms:** aggregate report costs in Postgres ([#93](https://github.com/snowopsdev/datum/issues/93)) ([27d6923](https://github.com/snowopsdev/datum/commit/27d692363673b855389d6a3821a9f9a60267e2f3))
+* **cms:** queue concurrent selected content runs reliably ([#89](https://github.com/snowopsdev/datum/issues/89)) ([aba9d4f](https://github.com/snowopsdev/datum/commit/aba9d4f64191e11e04725c66af173ff53f92e67b))
+* **cms:** refresh articles when short runs finish between polls ([#90](https://github.com/snowopsdev/datum/issues/90)) ([b68a0fd](https://github.com/snowopsdev/datum/commit/b68a0fd073865e4470fc5a9649948b6cf88b818f))
+* **cms:** restore GraphQL with valid policy enum options ([#96](https://github.com/snowopsdev/datum/issues/96)) ([d57f27c](https://github.com/snowopsdev/datum/commit/d57f27c4c57e27317b0d06cd8646d3a084b9665e))
+* **cms:** support keyboard selection of content templates ([#91](https://github.com/snowopsdev/datum/issues/91)) ([bda8404](https://github.com/snowopsdev/datum/commit/bda840481703b8855d3c782f5cd2e55f8dd454d4))
+* **cms:** validate signed cache invalidation requests ([#95](https://github.com/snowopsdev/datum/issues/95)) ([94b0a8c](https://github.com/snowopsdev/datum/commit/94b0a8c13e18d3a1ff656b3905736473941ee920))
+* **pipeline:** report progress only after article writes succeed ([#87](https://github.com/snowopsdev/datum/issues/87)) ([f07b44c](https://github.com/snowopsdev/datum/commit/f07b44c640f10014d4ef1b119822f5e685fed879))
+* **pipeline:** report saved results without research setup ([#88](https://github.com/snowopsdev/datum/issues/88)) ([bf30442](https://github.com/snowopsdev/datum/commit/bf304424f52827d270339e431a03725151752e7d))
+
 ## [0.6.2](https://github.com/snowopsdev/datum/compare/v0.6.1...v0.6.2) (2026-09-04)
 
 
