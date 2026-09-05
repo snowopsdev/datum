@@ -22,12 +22,12 @@
       "updated_at": "2026-09-05T04:13:14Z"
     },
     "integration": {
-      "evidence": "Final combined migrated head da866db contains all nine application repairs plus the dashboard harness repair. Migration 20260905_232800 completed in 2 ms. Pipeline 803 of 803, CMS integration 460 of 460, API and GraphQL HTTP 28 of 28, signed webhook HTTP 9 of 9, Chromium 16 of 16, typecheck, lint with zero errors and 30 pre-existing warnings, and production build passed.",
+      "evidence": "Final combined migrated head 2b474b7 contains all nine application repairs, the reviewed dashboard harness changes and the migration snapshot. The earlier full run passed pipeline 803 of 803, CMS integration 460 of 460, API and GraphQL HTTP 28 of 28, signed webhook HTTP 9 of 9, typecheck, lint with zero errors and 30 pre-existing warnings, and production build. After the review commits, both typechecks, focused lint, GraphQL and policy integration 9 of 9, and the full serialized Chromium suite 16 of 16 passed.",
       "outcome": "passed",
       "updated_at": "2026-09-05T03:37:15Z"
     },
     "stress": {
-      "evidence": "Workflow ramp measured 38 launches at concurrency 1, 2, 5, 10 and 20 with zero errors, 101.01 operations per second, p95 131.10 ms and exact run-job integrity. Service ramp sent 250 read-only requests at the same concurrency ceiling with zero errors, 351.93 operations per second, p95 85.32 ms, successful recovery and unchanged users, articles, runs, jobs and costs counts.",
+      "evidence": "Workflow ramp measured 38 launches at concurrency 1, 2, 5, 10 and 20 with zero errors, 101.01 operations per second, p95 131.10 ms and exact run-job integrity. Service ramp sent 250 read-only account-status requests at the same concurrency ceiling with zero errors, 351.93 operations per second, p95 85.32 ms and a successful recovery request. The service run did not preserve before/after database counts, so no database-count claim is made.",
       "outcome": "passed",
       "updated_at": "2026-09-05T03:13:58Z"
     }
@@ -54,7 +54,7 @@
       "preconditions": "Stage computes outcome and Payload article update rejects",
       "regression": "pipeline/test/runPipeline.test.ts: reports only persisted progress; keeps last persisted status; base fail2/2, fix file pass13/13",
       "reproduction": "Inject rejected first write and rejected later-stage write; deterministic2/2 on base",
-      "residual_risk": "Combined integration pending; failure after DB commit but before response is outside this repair",
+      "residual_risk": "Combined integration passed at 2b474b7; failure after DB commit but before response remains outside this repair",
       "root_cause": "runPipeline updated processed IDs, final statuses and warnings before awaiting the article persistence call",
       "severity": "major",
       "status": "verified",
@@ -159,7 +159,7 @@
       "preconditions": "Two valid selected-source launches for an attached article begin concurrently",
       "regression": "cms/tests/int/selectedRunConcurrency.int.spec.ts real database test fails base and passes fix; launch suite4/4",
       "reproduction": "Promise.allSettled two createPipelineRun calls; deterministic one rejection SQLSTATE40001 on base",
-      "residual_risk": "Combined integration pending; stress covers launch transactions, not model generation throughput",
+      "residual_risk": "Combined integration passed at 2b474b7; stress covers launch transactions, not model generation throughput",
       "root_cause": "SERIALIZABLE snapshot is established by advisory-lock SELECT before waiting, so the waiter keeps a stale snapshot after lock acquisition",
       "severity": "major",
       "status": "verified",
@@ -200,7 +200,7 @@
       "created_at": "2026-09-05T03:22:29Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "cms/tests/int/revalidateHook.int.spec.ts",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
         "e2e-reports/qa-20260905-artifacts/lane05-http.json"
       ],
       "expected": "Reject with 401 because freshness cannot be established; perform no purge",
@@ -226,7 +226,7 @@
       "created_at": "2026-09-05T03:22:32Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "cms/tests/int/revalidateHook.int.spec.ts",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
         "e2e-reports/qa-20260905-artifacts/lane05-http.json"
       ],
       "expected": "Return 400 before any cache mutation",
@@ -254,7 +254,7 @@
       "evidence": [
         "e2e-reports/qa-20260905-artifacts/api-lanes.md",
         "e2e-reports/qa-20260905-artifacts/lane09-http.json",
-        "cms/tests/int/graphqlSchema.int.spec.ts"
+        "https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts"
       ],
       "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
       "fix": "Rename policy select values to enabled and disabled, add a reversible PostgreSQL enum-label migration, accept new and legacy parser values, normalize legacy REST and Local API inputs, and regenerate Payload types",
@@ -341,7 +341,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4251,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/lane05-http.json; cms/tests/int/revalidateHook.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/lane05-http.json; https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane05",
       "callback": 4252,
@@ -406,7 +406,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4291,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http.json; cms/tests/int/accessBoundaries.int.spec.ts; cms/tests/int/graphqlSchema.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http.json; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/accessBoundaries.int.spec.ts; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
@@ -461,7 +461,7 @@
       "session": "32881 and integration 30183 stopped exit 0; port 4311 closed",
       "startup": "220 ms lane app; 230 ms integration app",
       "status": "completed",
-      "summary": "E2E-007 fixed report aggregation and verified under high volume; 250 read-only service requests at concurrency up to 20 had zero errors and unchanged database counts; combined Chromium 16 of 16 passed",
+      "summary": "E2E-007 fixed report aggregation and verified under high volume; 250 read-only service requests at concurrency up to 20 had zero errors and recovery passed; database count evidence was not retained, so no count claim is made; combined Chromium 16 of 16 passed",
       "updated_at": "2026-09-05T03:13:51Z",
       "worktree": "<qa-worktree>/integration"
     },
@@ -840,7 +840,11 @@
     {
       "at": "2026-09-05T04:13:14Z",
       "message": "Review correction: reconstructed the actual 6/6/3 scenario expansion matrix, removed the unsupported nine-per-pass claim, and recorded an expansion-budget stop without claiming coverage exhaustion."
+    },
+    {
+      "at": "2026-09-05T04:20:14Z",
+      "message": "Review correction: linked cross-PR regression sources immutably, narrowed the service-stress integrity claim to preserved evidence, and refreshed combined integration and finding residual-risk status."
     }
   ],
-  "updated_at": "2026-09-05T04:13:14Z"
+  "updated_at": "2026-09-05T04:20:14Z"
 }

@@ -15,7 +15,7 @@ Source checkout was clean and remains excluded from campaign mutations.
 | 08 | pipeline_lanes | Failures, timeout/retry, cancellation/restart, idempotency and batch isolation |
 | 09 | api_lanes | Anonymous/authenticated access matrix, protected fields, input boundaries and privacy |
 | 10 | pipeline_lanes | Mock/live configuration guards, provider selection, callbacks, process lifecycle |
-| 11 | api_lanes | Local API ramp from concurrency 1, read/burst/recovery/integrity assertions |
+| 11 | api_lanes | Local API ramp from concurrency 1, read/burst, error capture, and recovery |
 | 12 | pipeline_lanes | Local workflow races, overlapping launches, replay, integrity and regression auditing |
 
 This app has one workspace per deployment. Cross-tenant SaaS accounts, payments,

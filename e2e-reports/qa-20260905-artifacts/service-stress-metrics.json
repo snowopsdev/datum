@@ -51,5 +51,9 @@
     "bodyValid": true,
     "latencyMs": 2.8321670000000267
   },
-  "stopConditionTriggered": false
+  "stopConditionTriggered": false,
+  "databaseCountComparison": {
+    "status": "not-recorded",
+    "note": "The original before/after database counts were not preserved, so this artifact makes no database-count integrity claim."
+  }
 }
