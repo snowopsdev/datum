@@ -2,29 +2,29 @@
   "base_commit": "56c073175f12f38b6c861b382a8f197df71b416c",
   "checkpoints": {
     "cleanup": {
-      "evidence": "All exact app sessions stopped normally; ports 4211, 4231, 4271 and 4311 have no listeners; the clean temporary harness worktree was removed. The source checkout remains clean at base 56c0731. Lane worktrees, isolated databases, append-only evidence and one integration lockfile stash are intentionally retained for review and resume.",
+      "evidence": "All exact API retry app and harness sessions plus final integration session 5438 stopped normally. Campaign ports have no listeners. The source checkout remains clean at base 56c0731; report, integration, lane05 and lane09 worktrees are clean. Isolated databases, dependencies, evidence and the integration lockfile stash are intentionally retained for review.",
       "outcome": "passed",
-      "updated_at": "2026-09-05T03:14:12Z"
+      "updated_at": "2026-09-05T03:37:21Z"
     },
     "convergence": {
-      "evidence": "Draft PRs 87 through 93 all point at their verified heads with CI, title, GitGuardian and CodeQL checks green. No reviews or comments were pending and no PR was merged.",
+      "evidence": "Application repair draft PRs 87 through 91, 93, 95 and 96 plus harness PR92 all point at verified heads with CI, title, GitGuardian and CodeQL checks green. No reviews or comments are pending and no PR was merged.",
       "outcome": "passed",
-      "updated_at": "2026-09-05T03:14:09Z"
+      "updated_at": "2026-09-05T03:37:18Z"
     },
     "coverage": {
-      "evidence": "All 12 lane records were exercised or accounted for: 10 completed and lanes 05 and 09 blocked by a platform rejection. Six unique application defects were reproduced and verified against a discovery target of 100; whole-application exhaustion cannot be claimed without the blocked API and access-boundary coverage.",
-      "outcome": "blocked",
-      "updated_at": "2026-09-05T03:13:56Z"
+      "evidence": "All 12 lanes completed after the explicit retry. Lane05 verified signed webhook freshness and malformed-body behavior; lane09 verified 15 private collections, six private globals, public media, five internal-create denials, append-only records, REST authentication, GraphQL authorization, token tampering and logout revocation. Nine unique application defects were reproduced and verified against the discovery target of 100; the target is a discovery guide rather than a quota.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:10Z"
     },
     "expansion": {
-      "evidence": "Bounded expansion stopped within the three-pass limit after three pipeline passes and two browser passes, including two consecutive fully covered zero-new-root browser passes. The API and access-boundary rejection prevents an honest whole-application exhaustion claim.",
-      "outcome": "blocked",
-      "updated_at": "2026-09-05T03:14:03Z"
+      "evidence": "The campaign used the bounded maximum of three expansion passes plus two browser passes that ended after two fully covered zero-new-root passes. The retried API and access inventories then closed the remaining primary coverage gap and found three additional roots. No further expansion pass is permitted by the configured cap.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:12Z"
     },
     "integration": {
-      "evidence": "Combined head 2cee2bc includes all six application repairs plus the dashboard harness repair. Typecheck, lint with zero errors and 30 pre-existing warnings, production build, pipeline 803 of 803, CMS integration 408 of 408, focused Reports 5 of 5 and Chromium 16 of 16 passed. One bare-URL assertion failed once, passed alone, then the full suite passed on its bounded second attempt.",
+      "evidence": "Final combined migrated head da866db contains all nine application repairs plus the dashboard harness repair. Migration 20260905_232800 completed in 2 ms. Pipeline 803 of 803, CMS integration 460 of 460, API and GraphQL HTTP 28 of 28, signed webhook HTTP 9 of 9, Chromium 16 of 16, typecheck, lint with zero errors and 30 pre-existing warnings, and production build passed.",
       "outcome": "passed",
-      "updated_at": "2026-09-05T03:14:06Z"
+      "updated_at": "2026-09-05T03:37:15Z"
     },
     "stress": {
       "evidence": "Workflow ramp measured 38 launches at concurrency 1, 2, 5, 10 and 20 with zero errors, 101.01 operations per second, p95 131.10 ms and exact run-job integrity. Service ramp sent 250 read-only requests at the same concurrency ceiling with zero errors, 351.93 operations per second, p95 85.32 ms, successful recovery and unchanged users, articles, runs, jobs and costs counts.",
@@ -32,7 +32,7 @@
       "updated_at": "2026-09-05T03:13:58Z"
     }
   },
-  "coverage": "12 lanes accounted; explicit retry reopened blocked lanes 05 and 09; 6 unique application defects verified against target 100",
+  "coverage": "All 12 lanes completed; 9 unique application defects verified against discovery target 100; bounded stress and expansion limits honored",
   "created_at": "2026-09-05T01:46:38Z",
   "findings": [
     {
@@ -250,22 +250,28 @@
     {
       "actual": "Returns HTTP 500 with an empty body; server logs GraphQLError that enum values cannot be named true",
       "affected": "Entire GraphQL API schema, including unrelated queries",
+      "commit": "1615ff9833cf599890925f4b68040b4385c0696f",
       "created_at": "2026-09-05T03:27:15Z",
       "environment": "Local isolated lane09 database, mock CMS, authenticated GraphQL request",
       "evidence": [
-        "/tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/src/globals/InformationGainPolicy.ts"
+        "/tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/src/globals/InformationGainPolicy.ts",
+        "/tmp/qa-20260905-api-lanes-evidence.md; /tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/tests/int/graphqlSchema.int.spec.ts"
       ],
       "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
+      "fix": "Rename policy select values to enabled and disabled, add a reversible PostgreSQL enum-label migration, accept new and legacy parser values, normalize legacy REST and Local API inputs, and regenerate Payload types",
       "id": "E2E-010",
       "lane": "09",
+      "pr": "https://github.com/snowopsdev/datum/pull/96",
       "preconditions": "CMS configured with the Information Gain Policy global in the GraphQL schema",
+      "regression": "Direct complete-schema construction and introspection query, legacy Local API writes, stored enum reads, effective policy resolution, and access-boundary HTTP GraphQL checks",
       "reproduction": "POST a valid Users query to /api/graphql and observe schema construction before resolver authorization",
-      "residual_risk": "Schema migration, type regeneration and verification in progress",
+      "residual_risk": "Deployment must run the committed migration before serving the new schema; legacy REST and Local API strings are normalized, while the previously broken GraphQL enum had no usable client value to preserve",
       "root_cause": "InformationGainPolicy defines boolean select values as the strings true and false, which Payload maps to invalid GraphQL enum identifiers",
       "severity": "major",
-      "status": "reproduced",
+      "status": "verified",
       "title": "Invalid select values crash the GraphQL schema",
-      "updated_at": "2026-09-05T03:27:15Z"
+      "updated_at": "2026-09-05T03:37:03Z",
+      "validation": "Migration preserved enabled, disabled and unset choices. Lane09 nine suites 164 of 164, pipeline policy 37 of 37, HTTP boundary 28 of 28, both workspace typechecks, scoped ESLint and diff checks passed. Combined migrated head da866db passed pipeline 803 of 803, CMS 460 of 460, HTTP API and GraphQL 28 of 28, signed webhook 9 of 9, Chromium 16 of 16, typecheck, lint and production build."
     }
   ],
   "lanes": [
@@ -401,7 +407,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4291,
-      "artifacts": "/tmp/qa-20260905-lane09-http.json; /tmp/qa-20260905-lane09-http.mjs; cms/tests/int/accessBoundaries.int.spec.ts",
+      "artifacts": "/tmp/qa-20260905-api-lanes-evidence.md; /tmp/qa-20260905-lane09-http.json; /tmp/qa-20260905-lane09-http.mjs; cms/tests/int/accessBoundaries.int.spec.ts; cms/tests/int/graphqlSchema.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
@@ -411,12 +417,13 @@
       "lane": "09",
       "namespace": "qa_20260905_lane09",
       "previous_sessions": [
-        "install 95374 completed or reconciling"
+        "install 95374 completed or reconciling",
+        "Next 24641 running on 4291; HTTP 84340 completed or reconciling"
       ],
-      "session": "Next 24641 running on 4291; HTTP 84340 completed or reconciling",
-      "status": "running",
-      "summary": "Collection, global, internal-create, append-only and REST boundary coverage passes; 153 tests and 24 HTTP requests green. Authenticated GraphQL request reproduced E2E-010 schema-construction crash; repair in progress.",
-      "updated_at": "2026-09-05T03:27:19Z",
+      "session": "Next 24641 and 4033 stopped exit 0; HTTP 84340 and 10633 completed exit 0",
+      "status": "completed",
+      "summary": "Verified local access boundaries plus E2E-010 GraphQL repair at 1615ff9: nine suites 164 of 164, pipeline policy 37 of 37 and HTTP 28 of 28 pass; draft PR96 green",
+      "updated_at": "2026-09-05T03:37:07Z",
       "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane09"
     },
     {
@@ -477,10 +484,10 @@
   ],
   "mode": "repair",
   "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 passes with 9 scenarios each, stopping after 2 fully covered zero-new passes. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
-  "phase": "functional",
+  "phase": "completed",
   "repo": "/Users/snow/.codex/worktrees/171f/datum",
   "run_id": "qa-20260905",
-  "status": "running",
+  "status": "completed",
   "target": 100,
   "timeline": [
     {
@@ -790,7 +797,47 @@
     {
       "at": "2026-09-05T03:27:19Z",
       "message": "Lane 09 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:37:03Z",
+      "message": "E2E-010 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:37:07Z",
+      "message": "Lane 09 updated to completed"
+    },
+    {
+      "at": "2026-09-05T03:37:10Z",
+      "message": "Checkpoint coverage: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:12Z",
+      "message": "Checkpoint expansion: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:15Z",
+      "message": "Checkpoint integration: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:18Z",
+      "message": "Checkpoint convergence: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:21Z",
+      "message": "Checkpoint cleanup: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:24Z",
+      "message": "Explicit retry completed lanes05 and09. E2E-008 and E2E-009 published in draft PR95 head4a78ff7; E2E-010 published in draft PR96 head1615ff9. Both PRs have all checks green and no reviews or comments. No merge."
+    },
+    {
+      "at": "2026-09-05T03:37:27Z",
+      "message": "Final combined migrated head da866db passed pipeline803, CMS460, API and GraphQL HTTP28, signed webhook HTTP9, Chromium16, both typechecks, lint and production build. Final integration session5438 stopped exit0."
+    },
+    {
+      "at": "2026-09-05T03:37:29Z",
+      "message": "Campaign completed after the user-requested retry closed lanes05 and09. All terminal checkpoints now pass; all repair PRs remain draft and unmerged."
     }
   ],
-  "updated_at": "2026-09-05T03:27:19Z"
+  "updated_at": "2026-09-05T03:37:29Z"
 }
