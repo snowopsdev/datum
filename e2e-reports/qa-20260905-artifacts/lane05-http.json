@@ -1,0 +1,65 @@
+[
+  {
+    "path": "/api/users/me",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/login",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/webhook-settings",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/hooks/revalidate",
+    "method": "POST",
+    "status": 400,
+    "expected": 400,
+    "passed": true
+  },
+  {
+    "path": "/hooks/revalidate",
+    "method": "POST",
+    "status": 400,
+    "expected": 400,
+    "passed": true
+  },
+  {
+    "path": "/hooks/revalidate",
+    "method": "POST",
+    "status": 400,
+    "expected": 400,
+    "passed": true
+  },
+  {
+    "path": "/hooks/revalidate",
+    "method": "POST",
+    "status": 401,
+    "expected": 401,
+    "passed": true
+  },
+  {
+    "path": "/hooks/revalidate",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/webhook-settings",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  }
+]

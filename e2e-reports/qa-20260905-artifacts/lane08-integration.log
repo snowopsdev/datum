@@ -1,0 +1,16 @@
+
+> cms@1.0.0 test:int
+> cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts tests/int/webhookDeliver.int.spec.ts tests/int/publishDue.int.spec.ts tests/int/pipelineRun.int.spec.ts
+
+
+ RUN  v4.1.11 <qa-worktree>/lane08/cms
+
+[21:51:26] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+[21:51:27] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+[21:51:28] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+
+ Test Files  3 passed (3)
+      Tests  13 passed (13)
+   Start at  21:51:25
+   Duration  3.38s (transform 296ms, setup 27ms, import 1.93s, tests 417ms, environment 789ms)
+

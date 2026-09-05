@@ -1,0 +1,15 @@
+
+> cms@1.0.0 test:int
+> cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts tests/int/selectedRunConcurrency.int.spec.ts tests/int/pipelineRun.int.spec.ts
+
+
+ RUN  v4.1.11 <qa-worktree>/lane12/cms
+
+[21:58:47] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+[21:58:48] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+
+ Test Files  2 passed (2)
+      Tests  4 passed (4)
+   Start at  21:58:46
+   Duration  1.95s (transform 219ms, setup 16ms, import 1.13s, tests 275ms, environment 423ms)
+

@@ -1,0 +1,25 @@
+
+> datum@0.6.2 pipeline:report
+> npm run report --workspace pipeline -- --period week
+
+
+> pipeline@1.0.0 report
+> tsx src/index.ts report --period week
+
+◇ injected env (6) from ../cms/.env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from ../.env // tip: ⌘ enable debugging { debug: true }
+[21:54:04] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+[pipeline] report — run 88c9dc06-aecb-412b-99e1-010e356a7aea (live mode)
+Error: A target domain is required when AHREFS_API_KEY is set. Set it on the Workspace global or in TARGET_DOMAIN.
+    at loadWorkspaceProfile (<qa-worktree>/lane10/pipeline/src/tenant.ts:45:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 0)
+    at async loadTenantContext (<qa-worktree>/lane10/pipeline/src/tenant.ts:76:65)
+    at async main (<qa-worktree>/lane10/pipeline/src/index.ts:98:18)
+npm error Lifecycle script `report` failed with error:
+npm error code 1
+npm error path <qa-worktree>/lane10/pipeline
+npm error workspace pipeline@1.0.0
+npm error location <qa-worktree>/lane10/pipeline
+npm error command failed
+npm error command sh -c tsx src/index.ts report --period week

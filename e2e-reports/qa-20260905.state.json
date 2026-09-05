@@ -1,0 +1,862 @@
+{
+  "base_commit": "56c073175f12f38b6c861b382a8f197df71b416c",
+  "checkpoints": {
+    "cleanup": {
+      "evidence": "All exact API retry app and harness sessions plus final integration session 5438 stopped normally. Campaign ports have no listeners. The source checkout remains clean at base 56c0731; report, integration, lane05 and lane09 worktrees are clean. Isolated databases, dependencies, evidence and the integration lockfile stash are intentionally retained for review.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:21Z"
+    },
+    "convergence": {
+      "evidence": "Application repair PRs 87 through 91, 93, 95 and 96 plus harness PR92 are ready for review at verified heads with CI, title, GitGuardian and CodeQL checks green. Their Codex reviews completed with zero unresolved conversations. Report PR94 is the publication vehicle and runs its own check and review cycle after each evidence correction. No PR had been merged at this checkpoint.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:18Z"
+    },
+    "coverage": {
+      "evidence": "All 12 lanes completed after the explicit retry. Lane05 verified signed webhook freshness and malformed-body behavior; lane09 verified 15 private collections, six private globals, public media, five internal-create denials, append-only records, REST authentication, GraphQL authorization, token tampering and logout revocation. Nine unique application defects were reproduced and verified against the discovery target of 100; the target is a discovery guide rather than a quota.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:10Z"
+    },
+    "expansion": {
+      "outcome": "passed",
+      "evidence": "The configured maximum of three campaign-wide expansion passes ran 6, 6, and 3 preselected scenarios respectively, with every pass covering pairwise, boundary/recovery, and concurrency/historical-risk classes; see e2e-reports/qa-20260905-artifacts/expansion-matrix.md. All 15 scenarios passed with zero new roots. The discovery target of 100 was not reached and explicit coverage gaps remain, so no exhaustion is claimed; the run stopped at its expansion budget.",
+      "updated_at": "2026-09-05T04:13:14Z"
+    },
+    "integration": {
+      "evidence": "Final combined migrated head 2b474b7 contains all nine application repairs, the reviewed dashboard harness changes and the migration snapshot. The earlier full run passed pipeline 803 of 803, CMS integration 460 of 460, API and GraphQL HTTP 28 of 28, signed webhook HTTP 9 of 9, typecheck, lint with zero errors and 30 pre-existing warnings, and production build. After the review commits, both typechecks, focused lint, GraphQL and policy integration 9 of 9, and the full serialized Chromium suite 16 of 16 passed.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:37:15Z"
+    },
+    "stress": {
+      "evidence": "Workflow ramp measured 38 launches at concurrency 1, 2, 5, 10 and 20 with zero errors, 101.01 operations per second, p95 131.10 ms and exact run-job integrity. Service ramp sent 250 read-only account-status requests at the same concurrency ceiling with zero errors, 351.93 operations per second, p95 85.32 ms and a successful recovery request. The service run did not preserve before/after database counts, so no database-count claim is made.",
+      "outcome": "passed",
+      "updated_at": "2026-09-05T03:13:58Z"
+    }
+  },
+  "coverage": "All 12 lanes completed; 9 unique application defects verified against discovery target 100; stress limits honored; expansion stopped at the configured three-pass budget",
+  "created_at": "2026-09-05T01:46:38Z",
+  "findings": [
+    {
+      "actual": "Base reports an unpersisted article ID and drafted final status",
+      "affected": "All pipeline stages sharing runPipeline; first and later writes; ContentRunTask success accounting",
+      "commit": "bbafe1d52fc26989c804a58c986c39419d67fb2c",
+      "created_at": "2026-09-05T01:51:34Z",
+      "environment": "Base56c0731; fix bbafe1d; Node22 isolated mock lane08",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/e2e-002-before.tap",
+        "e2e-reports/qa-20260905-artifacts/e2e-002-after.tap",
+        "e2e-reports/qa-20260905-artifacts/lane08-integration.log"
+      ],
+      "expected": "Only successfully persisted stages count as advanced and final status remains last stored value",
+      "fix": "Move processed/status/warning accounting after successful Payload update",
+      "id": "E2E-002",
+      "lane": "08",
+      "pr": "https://github.com/snowopsdev/datum/pull/87",
+      "preconditions": "Stage computes outcome and Payload article update rejects",
+      "regression": "pipeline/test/runPipeline.test.ts: reports only persisted progress; keeps last persisted status; base fail2/2, fix file pass13/13",
+      "reproduction": "Inject rejected first write and rejected later-stage write; deterministic2/2 on base",
+      "residual_risk": "Combined integration passed at 2b474b7; failure after DB commit but before response remains outside this repair",
+      "root_cause": "runPipeline updated processed IDs, final statuses and warnings before awaiting the article persistence call",
+      "severity": "major",
+      "status": "verified",
+      "title": "Pipeline reports successful advancement when article persistence fails",
+      "updated_at": "2026-09-05T01:54:44Z",
+      "validation": "At bbafe1d: full pipeline803/803; focused pipeline64/64; affected CMS13/13; both workspace typechecks; git diff check. Remote branch verified at the same SHA; combined integration passed at 2b474b7."
+    },
+    {
+      "actual": "Article page remains at Research although persisted status is brief_review",
+      "affected": "Run completion while idle polling, completion before first poll, and a different newly completed run",
+      "commit": "11e81b663da522c1cdb2a6780e9edd66150eac80",
+      "created_at": "2026-09-05T01:51:34Z",
+      "environment": "Base56c0731 local Chromium4211 qa_20260905_lane01; fix11e81b6 Chromium4231 qa_20260905_lane03",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+        "e2e-reports/qa-20260905-artifacts/writing-stage.png"
+      ],
+      "expected": "New brief and Approve and write action appear after run completion without manual reload",
+      "fix": "Refresh each newly observed settled run once even if its active state was missed",
+      "id": "E2E-003",
+      "lane": "03",
+      "pr": "https://github.com/snowopsdev/datum/pull/90",
+      "preconditions": "Run starts and completes within the 15-second idle polling interval while article page is open",
+      "regression": "cms/tests/int/runBar.int.spec.ts adds three fail-before refresh cases; current focused runbar/polling8/8",
+      "reproduction": "Create a manual-keyword article; wait for mock research. Database reaches brief_review while UI remains Research for60 seconds",
+      "residual_risk": "Live provider duration and non-Chromium browser behavior were not exercised",
+      "root_cause": "GlobalRunBar refreshed only when its preceding poll had observed the same run active",
+      "severity": "major",
+      "status": "verified",
+      "title": "Finished short runs leave the article view on its old stage",
+      "updated_at": "2026-09-05T02:51:07Z",
+      "validation": "At11e81b6: focused8/8, CMS typecheck and scoped lint; original Chromium create-research-brief-edit-approve-writing journey passes. Full Chromium16/16 after harness repair on descendant commit."
+    },
+    {
+      "actual": "CLI throws target-domain error before printReport",
+      "affected": "All report periods under incomplete live research configuration",
+      "commit": "800906f69569834d92ad616c19b0daf1fdefa2f1",
+      "created_at": "2026-09-05T02:49:55Z",
+      "environment": "Base56c0731 and fix800906f Node22 isolated qa_20260905_lane10; live-mode dummy keys; no provider calls",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/e2e-004-live-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-004-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-004-after.log"
+      ],
+      "expected": "Read-only report prints persisted results without requiring a research workspace or Ahrefs client",
+      "fix": "Dispatch report immediately after Payload/config startup, before research-only prerequisites",
+      "id": "E2E-004",
+      "lane": "10",
+      "pr": "https://github.com/snowopsdev/datum/pull/88",
+      "preconditions": "MOCK_MODE=false, Ahrefs key configured, target domain blank, migrated database with saved results",
+      "regression": "cms/tests/int/pipelineReportCli.int.spec.ts subprocess case fails on base and passes at fix within15s",
+      "reproduction": "Run pipeline:report -- --period week with blank target domain; deterministic CLI exit1 on base",
+      "residual_risk": "Live provider calls were intentionally not executed; report branch performs none",
+      "root_cause": "Command dispatch loads tenant context and constructs research client before checking the report command",
+      "severity": "minor",
+      "status": "verified",
+      "title": "Saved reports fail when live research setup is incomplete",
+      "updated_at": "2026-09-05T02:49:55Z",
+      "validation": "At800906f: subprocess fail-before/pass-after, provider/config matrix58/58, full pipeline801/801, both workspace typechecks, scoped ESLint and diff check"
+    },
+    {
+      "actual": "ArrowRight changes neither focus nor selection and every card has tabIndex0",
+      "affected": "Arrow keys, Home, End and Tab traversal across content templates",
+      "commit": "7e7f3b9504d5a8142f4a3372d84f808e6c55e4e0",
+      "created_at": "2026-09-05T02:49:58Z",
+      "environment": "Base Chromium4231; fix7e7f3b9 Chromium4271 qa_20260905_lane07",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/browser-lanes.md"
+      ],
+      "expected": "One tab stop; arrow keys move focus and selection; Home and End reach boundaries",
+      "fix": "Add roving tabindex and wrapping arrow/Home/End selection with focus synchronization",
+      "id": "E2E-005",
+      "lane": "07",
+      "pr": "https://github.com/snowopsdev/datum/pull/91",
+      "preconditions": "New content contains multiple template cards declared as a radiogroup",
+      "regression": "cms/tests/int/newContentKeyboard.int.spec.ts fails base tabindex expectation then passes all keyboard transitions",
+      "reproduction": "Focus first template radio and press ArrowRight; all cards are also tab stops on base",
+      "residual_risk": "Screen-reader announcements and non-Chromium platforms remain untested",
+      "root_cause": "Custom radio buttons lacked roving tabindex and radiogroup keyboard handlers",
+      "severity": "minor",
+      "status": "verified",
+      "title": "Template radio cards ignore standard keyboard navigation",
+      "updated_at": "2026-09-05T02:51:09Z",
+      "validation": "At7e7f3b9: focused1/1, CMS typecheck, scoped lint, diff check; original Chromium true/true focus-selection; full Chromium16/16"
+    },
+    {
+      "actual": "Second transaction aborts with serialization dependency and queues nothing",
+      "affected": "Concurrent selected-source launch transactions; ordinary admin one-active behavior remains serialized",
+      "commit": "116a212e54d2cbc2ed98de20627edb89ff3a58d2",
+      "created_at": "2026-09-05T02:50:00Z",
+      "environment": "Base56c0731 and fix116a212 Node22 Postgres qa_20260905_lane12 mock configuration",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/e2e-006-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-006-after.log",
+        "e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json"
+      ],
+      "expected": "Selected runs are exempt from one-active-run rule and both run/job pairs commit",
+      "fix": "Use READ COMMITTED while retaining the same transaction-scoped advisory lock and atomic run/job writes",
+      "id": "E2E-006",
+      "lane": "12",
+      "pr": "https://github.com/snowopsdev/datum/pull/89",
+      "preconditions": "Two valid selected-source launches for an attached article begin concurrently",
+      "regression": "cms/tests/int/selectedRunConcurrency.int.spec.ts real database test fails base and passes fix; launch suite4/4",
+      "reproduction": "Promise.allSettled two createPipelineRun calls; deterministic one rejection SQLSTATE40001 on base",
+      "residual_risk": "Combined integration passed at 2b474b7; stress covers launch transactions, not model generation throughput",
+      "root_cause": "SERIALIZABLE snapshot is established by advisory-lock SELECT before waiting, so the waiter keeps a stale snapshot after lock acquisition",
+      "severity": "major",
+      "status": "verified",
+      "title": "Concurrent selected article runs lose a valid launch",
+      "updated_at": "2026-09-05T02:51:12Z",
+      "validation": "At116a212: focused launch4/4, both typechecks, scoped ESLint and diff check. Stress38 measured ops ramp1,2,5,10,20:0 errors,38 runs/jobs,101.01ops/s,p50 51.11ms,p95 131.10ms,p99 136.79ms."
+    },
+    {
+      "actual": "All report load5.5s and month load5.2s; URL remains period=all at assertion timeout",
+      "affected": "Week, month and all-time reports as matching cost-log volume grows; fresh low-volume database passes",
+      "commit": "f187aab3aa24715aa540cd008c8c16688f543513",
+      "created_at": "2026-09-05T03:01:07Z",
+      "environment": "Combined integration head1e55f89; Node22 Chromium worker1; retained qa_20260905_integration with10067 cost rows",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md",
+        "e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json"
+      ],
+      "expected": "Period navigation completes within the existing5-second browser contract",
+      "fix": "Evaluate cost-log read access, then use one parameterized PostgreSQL GROUP BY query with typed date and pipeline-run filters",
+      "id": "E2E-007",
+      "lane": "11",
+      "pr": "https://github.com/snowopsdev/datum/pull/93",
+      "preconditions": "Authenticated Reports view with about10000 append-only cost-log rows",
+      "regression": "CMS integration test aggregates 5,026 rows with zero cost-log document hydration and covers null buckets, totals, inclusive date boundaries and a quoted run identifier",
+      "reproduction": "Open period=all and click Month; focused worker1 repeats existing Playwright failure after5s. Server completes period=month after5.2s.",
+      "residual_risk": "Postgres-specific aggregation; future row-scoped access rules fail closed until supported; other report datasets may scale independently; local timing is not a production latency guarantee",
+      "root_cause": "loadReportCosts reads and hydrates every cost row through sequential1000-row Payload batches instead of aggregating in Postgres",
+      "severity": "minor",
+      "status": "verified",
+      "title": "High-volume reports exceed the interactive navigation budget",
+      "updated_at": "2026-09-05T03:13:54Z",
+      "validation": "Fail-before observed seven Payload reads. Focused 5 of 5, full CMS 402 of 402 on fix branch, combined npm test pipeline 803 of 803 plus CMS 408 of 408, combined Chromium 16 of 16 on bounded second attempt, typecheck, lint and production build passed. Browser median all-time 5,772 to 419 ms and month 5,867 to 820 ms on lane fixture; combined all-time 1,146 to 1,547 ms and month 1,335 to 1,347 ms."
+    },
+    {
+      "actual": "Returns 200 and purges cache paths despite the five-minute freshness contract",
+      "affected": "Signed revalidation webhook timestamp validation",
+      "commit": "4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4",
+      "created_at": "2026-09-05T03:22:29Z",
+      "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts"
+      ],
+      "expected": "Reject with 401 because freshness cannot be established; perform no purge",
+      "fix": "Convert once, require a finite numeric timestamp, then enforce the five-minute age window before parsing or mutation",
+      "id": "E2E-008",
+      "lane": "05",
+      "pr": "https://github.com/snowopsdev/datum/pull/95",
+      "preconditions": "Valid webhook signature over a non-finite timestamp value",
+      "regression": "Non-finite timestamp cases not-a-timestamp, NaN and Infinity assert 401 and zero revalidation calls",
+      "reproduction": "Send a correctly signed revalidation request whose timestamp parses to NaN",
+      "residual_risk": "Freshness still depends on sender and receiver clock agreement within the documented five-minute window",
+      "root_cause": "Number(timestamp) produces NaN and the age comparison is false, so the invalid timestamp falls through",
+      "severity": "minor",
+      "status": "verified",
+      "title": "Invalid signed webhook timestamp bypasses freshness validation",
+      "updated_at": "2026-09-05T03:24:30Z",
+      "validation": "Four focused suites 24 of 24 passed; HTTP contract journey 9 of 9 passed including NaN 401 and valid signed publication 200; CMS typecheck, focused ESLint and diff checks passed"
+    },
+    {
+      "actual": "Variants throw, acknowledge invalid input, or purge a path before failing",
+      "affected": "Revalidation webhook request parsing and mutation ordering",
+      "commit": "4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4",
+      "created_at": "2026-09-05T03:22:32Z",
+      "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts"
+      ],
+      "expected": "Return 400 before any cache mutation",
+      "fix": "Validate the parsed value is a non-array object, require a positive safe integer article ID, and require supported fields to be strings before invalidating any path",
+      "id": "E2E-009",
+      "lane": "05",
+      "pr": "https://github.com/snowopsdev/datum/pull/95",
+      "preconditions": "Validly signed request with null, scalar, array or structurally invalid JSON body",
+      "regression": "Null, array, numeric slug and object article ID bodies assert 400 and zero revalidation calls before a valid signed control",
+      "reproduction": "Submit signed malformed body variants and observe response plus purge calls",
+      "residual_risk": "The endpoint intentionally ignores authenticated event names outside the publication transition contract",
+      "root_cause": "The route uses parsed JSON fields without first validating that the body is an object with supported scalar values",
+      "severity": "minor",
+      "status": "verified",
+      "title": "Malformed webhook bodies bypass the request boundary",
+      "updated_at": "2026-09-05T03:24:32Z",
+      "validation": "Four focused suites 24 of 24 passed; HTTP contract journey 9 of 9 passed; CMS typecheck, focused ESLint and diff checks passed; webhook fixture restored disabled and null settings"
+    },
+    {
+      "actual": "Returns HTTP 500 with an empty body; server logs GraphQLError that enum values cannot be named true",
+      "affected": "Entire GraphQL API schema, including unrelated queries",
+      "commit": "1615ff9833cf599890925f4b68040b4385c0696f",
+      "created_at": "2026-09-05T03:27:15Z",
+      "environment": "Local isolated lane09 database, mock CMS, authenticated GraphQL request",
+      "evidence": [
+        "e2e-reports/qa-20260905-artifacts/api-lanes.md",
+        "e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs",
+        "e2e-reports/qa-20260905-artifacts/lane09-http.json",
+        "e2e-reports/qa-20260905-artifacts/lane09-graphql-before-body.txt",
+        "https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts"
+      ],
+      "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
+      "fix": "Rename policy select values to enabled and disabled, add a reversible PostgreSQL enum-label migration, accept new and legacy parser values, normalize legacy REST and Local API inputs, and regenerate Payload types",
+      "id": "E2E-010",
+      "lane": "09",
+      "pr": "https://github.com/snowopsdev/datum/pull/96",
+      "preconditions": "CMS configured with the Information Gain Policy global in the GraphQL schema",
+      "regression": "Direct complete-schema construction and introspection query, legacy Local API writes, stored enum reads, effective policy resolution, and access-boundary HTTP GraphQL checks",
+      "reproduction": "POST a valid Users query to /api/graphql and observe schema construction before resolver authorization",
+      "residual_risk": "Deployment must run the committed migration before serving the new schema; legacy REST and Local API strings are normalized, while the previously broken GraphQL enum had no usable client value to preserve",
+      "root_cause": "InformationGainPolicy defines boolean select values as the strings true and false, which Payload maps to invalid GraphQL enum identifiers",
+      "severity": "major",
+      "status": "verified",
+      "title": "Invalid select values crash the GraphQL schema",
+      "updated_at": "2026-09-05T03:37:03Z",
+      "validation": "Migration preserved enabled, disabled and unset choices. Lane09 nine suites 164 of 164, pipeline policy 37 of 37, HTTP boundary 28 of 28, both workspace typechecks, scoped ESLint and diff checks passed. Combined migrated head da866db passed pipeline 803 of 803, CMS 460 of 460, HTTP API and GraphQL 28 of 28, signed webhook 9 of 9, Chromium 16 of 16, typecheck, lint and production build."
+    }
+  ],
+  "lanes": [
+    {
+      "agent": "/root/browser_lanes",
+      "app": 4211,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+      "branch": "codex/qa-20260905-lane01",
+      "callback": 4212,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4210,
+      "health_url": "http://127.0.0.1:4211",
+      "lane": "01",
+      "log_path": "tool-session:45699",
+      "namespace": "qa_20260905_lane01",
+      "session": "45699",
+      "startup": "npm run dev --workspace cms -- --hostname 127.0.0.1 --port 4211",
+      "status": "completed",
+      "summary": "Build/migration/seed/dev health, production build and baseline Chromium16/16 passed; session45699 stopped exit0, port4211 closed; evidence retained in browser packet",
+      "updated_at": "2026-09-05T02:50:12Z",
+      "worktree": "<qa-worktree>/lane01"
+    },
+    {
+      "agent": "/root/browser_lanes",
+      "app": 4221,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+      "branch": "codex/qa-20260905-lane01",
+      "callback": 4222,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4220,
+      "lane": "02",
+      "namespace": "qa_20260905_lane02",
+      "status": "completed",
+      "summary": "Configured login, anonymous redirect, invalid/login account identity, five setup assets, demo replay and logout passed; recovery email delivery gap recorded",
+      "updated_at": "2026-09-05T02:50:14Z",
+      "worktree": "<qa-worktree>/lane01"
+    },
+    {
+      "agent": "/root/browser_lanes",
+      "app": 4231,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+      "branch": "codex/qa-20260905-lane03",
+      "callback": 4232,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4230,
+      "lane": "03",
+      "namespace": "qa_20260905_lane03",
+      "status": "completed",
+      "summary": "Manual keyword through research, brief edit, approval, writing audit and QA terminal passed after E2E-003 fix11e81b6; session80938 stopped exit0, port4231 closed",
+      "updated_at": "2026-09-05T02:50:17Z",
+      "worktree": "<qa-worktree>/lane03"
+    },
+    {
+      "agent": "/root/browser_lanes",
+      "app": 4241,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+      "branch": "codex/qa-20260905-lane01",
+      "callback": 4242,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4240,
+      "lane": "04",
+      "namespace": "qa_20260905_lane04",
+      "status": "completed",
+      "summary": "Review gates, reports, machine-edit rejection, publication, signed loopback webhook, public article and admin user flows passed",
+      "updated_at": "2026-09-05T02:50:22Z",
+      "worktree": "<qa-worktree>/lane01"
+    },
+    {
+      "agent": "/root/api_lanes",
+      "app": 4251,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs; e2e-reports/qa-20260905-artifacts/lane05-http.json; e2e-reports/qa-20260905-artifacts/lane05-health.json; https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
+      "blocker": "",
+      "branch": "codex/qa-20260905-lane05",
+      "callback": 4252,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4250,
+      "lane": "05",
+      "namespace": "qa_20260905_lane05",
+      "previous_sessions": [
+        "96559 stopped exit 0"
+      ],
+      "session": "Next 3568 stopped exit 0; HTTP 53298 completed exit 0",
+      "status": "completed",
+      "summary": "Corrected exploratory harness and verified E2E-008 and E2E-009 at commit 4a78ff7; four suites 24 of 24 and HTTP journey 9 of 9 pass; PR95 ready and reviewed",
+      "updated_at": "2026-09-05T03:24:36Z",
+      "worktree": "<qa-worktree>/lane05"
+    },
+    {
+      "agent": "/root/pipeline_lanes",
+      "app": 4261,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
+      "branch": "codex/qa-20260905-lane06",
+      "callback": 4262,
+      "created_at": "2026-09-05T01:48:19Z",
+      "gateway": 4260,
+      "lane": "06",
+      "namespace": "qa_20260905_lane06",
+      "status": "completed",
+      "summary": "Fresh14 migrations; pipeline801/801 and CMS persistence/queue/audit/corpus/scheduling37/37 passed; direct Payload only; sessions exited",
+      "updated_at": "2026-09-05T02:50:25Z",
+      "worktree": "<qa-worktree>/lane06"
+    },
+    {
+      "agent": "/root/browser_lanes",
+      "app": 4271,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+      "branch": "codex/qa-20260905-lane07",
+      "callback": 4272,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4270,
+      "lane": "07",
+      "namespace": "qa_20260905_lane07",
+      "status": "completed",
+      "summary": "390px and320px overflow matrix, keyboard brief editing, public rendering and full Chromium16/16 pass; E2E-005 verified at7e7f3b9; session26309 stopped, port4271 closed",
+      "updated_at": "2026-09-05T02:50:28Z",
+      "worktree": "<qa-worktree>/lane07"
+    },
+    {
+      "agent": "/root/pipeline_lanes",
+      "app": 4281,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
+      "branch": "codex/qa-20260905-lane08",
+      "callback": 4282,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4280,
+      "lane": "08",
+      "namespace": "qa_20260905_lane08",
+      "status": "completed",
+      "summary": "Recovery and failed-write accounting scenarios passed after E2E-002 bbafe1d; full pipeline803/803, focused64/64, affected CMS13/13; PR87 all checks green",
+      "updated_at": "2026-09-05T02:50:30Z",
+      "worktree": "<qa-worktree>/lane08"
+    },
+    {
+      "agent": "/root/api_lanes",
+      "app": 4291,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs; e2e-reports/qa-20260905-artifacts/lane09-http.json; e2e-reports/qa-20260905-artifacts/lane09-graphql-before-body.txt; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/accessBoundaries.int.spec.ts; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts",
+      "blocker": "",
+      "branch": "codex/qa-20260905-lane09",
+      "callback": 4292,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4290,
+      "health_url": "http://127.0.0.1:4291/api/users/me returned 200",
+      "lane": "09",
+      "namespace": "qa_20260905_lane09",
+      "previous_sessions": [
+        "install 95374 completed or reconciling",
+        "Next 24641 running on 4291; HTTP 84340 completed or reconciling"
+      ],
+      "session": "Next 24641 and 4033 stopped exit 0; HTTP 84340 and 10633 completed exit 0",
+      "status": "completed",
+      "summary": "Verified local access boundaries plus E2E-010 GraphQL repair at 1615ff9: nine suites 164 of 164, pipeline policy 37 of 37 and HTTP 28 of 28 pass; PR96 ready, green and reviewed",
+      "updated_at": "2026-09-05T03:37:07Z",
+      "worktree": "<qa-worktree>/lane09"
+    },
+    {
+      "agent": "/root/pipeline_lanes",
+      "app": 4301,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
+      "branch": "codex/qa-20260905-lane10",
+      "callback": 4302,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4300,
+      "lane": "10",
+      "namespace": "qa_20260905_lane10",
+      "status": "completed",
+      "summary": "Mock/live config guards, provider matrix58/58, read-only report lifecycle and full pipeline801/801 passed after E2E-004 800906f; PR88 all checks green",
+      "updated_at": "2026-09-05T02:50:33Z",
+      "worktree": "<qa-worktree>/lane10"
+    },
+    {
+      "agent": "/root",
+      "app": 4311,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md; e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json; e2e-reports/qa-20260905-artifacts/service-stress-harness.mjs; e2e-reports/qa-20260905-artifacts/service-stress-metrics.json",
+      "branch": "codex/qa-20260905-integration",
+      "callback": 4312,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4310,
+      "health_url": "http://127.0.0.1:4311/api/users/me returned 200 during run",
+      "lane": "11",
+      "log_path": "tool-session:29241",
+      "namespace": "qa_20260905_lane11 and qa_20260905_integration_live",
+      "previous_agents": [
+        "/root/api_lanes"
+      ],
+      "previous_sessions": [
+        "29241"
+      ],
+      "session": "32881 and integration 30183 stopped exit 0; port 4311 closed",
+      "startup": "220 ms lane app; 230 ms integration app",
+      "status": "completed",
+      "summary": "E2E-007 fixed report aggregation and verified under high volume; 250 read-only service requests at concurrency up to 20 had zero errors and recovery passed; database count evidence was not retained, so no count claim is made; combined Chromium 16 of 16 passed",
+      "updated_at": "2026-09-05T03:13:51Z",
+      "worktree": "<qa-worktree>/integration"
+    },
+    {
+      "agent": "/root/pipeline_lanes",
+      "app": 4321,
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md; e2e-reports/qa-20260905-artifacts/e2e-006-before.log; e2e-reports/qa-20260905-artifacts/e2e-006-after.log; e2e-reports/qa-20260905-artifacts/workflow-stress-harness.int.spec.ts; e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json; e2e-reports/qa-20260905-artifacts/queue-expansion.int.spec.ts",
+      "branch": "codex/qa-20260905-lane12",
+      "callback": 4322,
+      "created_at": "2026-09-05T01:48:20Z",
+      "gateway": 4320,
+      "lane": "12",
+      "namespace": "qa_20260905_lane12",
+      "status": "completed",
+      "summary": "Workflow concurrency E2E-006 fixed116a212; launch4/4 and bounded stress76 total attempts across2 runs, measured n38 at concurrency up to20 with0 errors and exact integrity; no sessions/listeners/connections remain",
+      "updated_at": "2026-09-05T02:50:35Z",
+      "worktree": "<qa-worktree>/lane12"
+    }
+  ],
+  "mode": "repair",
+  "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Initial campaign authority covered commits, pushes, PRs, issues, and review responses; merge authorization was granted separately during convergence. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 campaign-wide passes, each covering the skill's three scenario classes. The three passes exercised 6, 6, and 3 selected scenarios. The target was not reached and documented live-provider, platform, assistive-technology, and sustained-load gaps remain, so this is an expansion-budget stop rather than exhaustion. Next work requires a new budget and any provider allowance needed for those gaps. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
+  "phase": "expansion",
+  "repo": "<source-checkout>",
+  "run_id": "qa-20260905",
+  "status": "stopped",
+  "target": 100,
+  "timeline": [
+    {
+      "at": "2026-09-05T01:46:38Z",
+      "message": "Campaign initialized"
+    },
+    {
+      "at": "2026-09-05T01:46:39Z",
+      "message": "Run metadata updated"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 01 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 02 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 03 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 04 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 05 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T01:48:19Z",
+      "message": "Lane 06 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 07 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 08 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 09 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 10 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 11 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:48:20Z",
+      "message": "Lane 12 updated to pending"
+    },
+    {
+      "at": "2026-09-05T01:49:35Z",
+      "message": "Lane 01 updated to running"
+    },
+    {
+      "at": "2026-09-05T01:49:36Z",
+      "message": "Live report published on codex/qa-20260905-report at fc55871. Generated report helper leaves trailing whitespace on pending checkpoint rows; normalize generated markdown on final checkpoint. Lane05 owns revalidate route/tests; lane06 owns pipeline stages persistence candidate. Install sessions lane05 64906 and lane06 81894; no app handles yet."
+    },
+    {
+      "at": "2026-09-05T01:50:08Z",
+      "message": "Lane 06 updated to completed"
+    },
+    {
+      "at": "2026-09-05T01:50:08Z",
+      "message": "Disposable integration worktree codex/qa-20260905-integration created at base; isolated database qa_20260905_integration created with fresh mock config. npm install exact session2325 active. Integration branch will never be published. Verified report remote SHA fc5587105658fe873eb3387d6efcb7aa29dd79d5; no existing open PRs."
+    },
+    {
+      "at": "2026-09-05T01:50:27Z",
+      "message": "Lane 05 updated to blocked"
+    },
+    {
+      "at": "2026-09-05T01:50:27Z",
+      "message": "Lane 09 updated to blocked"
+    },
+    {
+      "at": "2026-09-05T01:51:34Z",
+      "message": "E2E-002 updated to suspected"
+    },
+    {
+      "at": "2026-09-05T01:51:34Z",
+      "message": "E2E-003 updated to suspected"
+    },
+    {
+      "at": "2026-09-05T01:51:34Z",
+      "message": "Rejected worker cleanup reconciled: Next96559 interrupted exited0; install64906 migration31172 seed5058 baseline1815 health22361 new-tests45475 completed. DB qa_20260905_lane05 retained; health<run-temp>/qa-20260905-lane05-health.json. Dirty regression file revalidateHook.int.spec.ts retained +19 lines; 14 baseline tests pass; attempted new tests7pass6fail incl known harness case. No accepted finding or production fix; do not publish untriaged candidate. Lane09/11 not started by that worker."
+    },
+    {
+      "at": "2026-09-05T01:53:25Z",
+      "message": "Resumed after turn interruption; reconciled agents, worktrees, commits, dirty artifacts and listeners"
+    },
+    {
+      "at": "2026-09-05T01:53:28Z",
+      "message": "Lane 01 updated to running"
+    },
+    {
+      "at": "2026-09-05T01:53:30Z",
+      "message": "Lane 08 updated to running"
+    },
+    {
+      "at": "2026-09-05T01:53:33Z",
+      "message": "E2E-002 updated to fixed"
+    },
+    {
+      "at": "2026-09-05T01:54:44Z",
+      "message": "E2E-002 updated to verified"
+    },
+    {
+      "at": "2026-09-05T01:54:46Z",
+      "message": "PR87 verified draft at remote head bbafe1d; title check and GitGuardian pass; CI and two CodeQL jobs in progress; no review decision yet. Required four-section description includes problem, reason, user impact and evidence."
+    },
+    {
+      "at": "2026-09-05T02:49:52Z",
+      "message": "E2E-003 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:49:55Z",
+      "message": "E2E-004 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:49:58Z",
+      "message": "E2E-005 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:50:00Z",
+      "message": "E2E-006 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:50:12Z",
+      "message": "Lane 01 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:14Z",
+      "message": "Lane 02 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:17Z",
+      "message": "Lane 03 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:22Z",
+      "message": "Lane 04 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:25Z",
+      "message": "Lane 06 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:28Z",
+      "message": "Lane 07 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:30Z",
+      "message": "Lane 08 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:33Z",
+      "message": "Lane 10 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:50:35Z",
+      "message": "Lane 12 updated to completed"
+    },
+    {
+      "at": "2026-09-05T02:51:07Z",
+      "message": "E2E-003 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:51:09Z",
+      "message": "E2E-005 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:51:12Z",
+      "message": "E2E-006 updated to verified"
+    },
+    {
+      "at": "2026-09-05T02:51:15Z",
+      "message": "Published focused draft PRs: PR89 E2E-006 head116a212; PR90 E2E-003 head11e81b6; PR91 E2E-005 head7e7f3b9. GitGuardian and title checks passed; CI/CodeQL running at first inspection; no reviews/comments. No merge."
+    },
+    {
+      "at": "2026-09-05T02:53:34Z",
+      "message": "Lane 11 updated to running"
+    },
+    {
+      "at": "2026-09-05T02:53:36Z",
+      "message": "Port check from restricted sandbox falsely reported all lane11 ports occupied; no listener was stopped. Replans v2/v3 preserved. Unsandboxed checks showed both alternatives free; authoritative v3 assigns4310/4311/4312 and final immediate check passed."
+    },
+    {
+      "at": "2026-09-05T03:01:07Z",
+      "message": "E2E-007 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:01:10Z",
+      "message": "Combined head1e55f89 static/database checks pass: typecheck, lint0 errors/30 preexisting warnings, pipeline803/803, CMS407/407. First browser run on integration-test-populated DB had dashboard harness mismatch and report timeout; dashboard harness commit added. Fresh DB qa_20260905_integration_live then passed Chromium16/16 in24.6s. High-volume report timeout reproduced worker1 and allocated E2E-007; exact sessions29241,69320,3188 stopped normally."
+    },
+    {
+      "at": "2026-09-05T03:13:44Z",
+      "message": "Lane 05 updated to blocked"
+    },
+    {
+      "at": "2026-09-05T03:13:47Z",
+      "message": "Lane 09 updated to blocked"
+    },
+    {
+      "at": "2026-09-05T03:13:51Z",
+      "message": "Lane 11 updated to completed"
+    },
+    {
+      "at": "2026-09-05T03:13:54Z",
+      "message": "E2E-007 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:13:56Z",
+      "message": "Checkpoint coverage: blocked"
+    },
+    {
+      "at": "2026-09-05T03:13:58Z",
+      "message": "Checkpoint stress: passed"
+    },
+    {
+      "at": "2026-09-05T03:14:03Z",
+      "message": "Checkpoint expansion: blocked"
+    },
+    {
+      "at": "2026-09-05T03:14:06Z",
+      "message": "Checkpoint integration: passed"
+    },
+    {
+      "at": "2026-09-05T03:14:09Z",
+      "message": "Checkpoint convergence: passed"
+    },
+    {
+      "at": "2026-09-05T03:14:12Z",
+      "message": "Checkpoint cleanup: passed"
+    },
+    {
+      "at": "2026-09-05T03:14:14Z",
+      "message": "PRs 87 through 93 verified at current remote heads: all draft, all CI, title, GitGuardian and CodeQL checks green, no reviews or comments, no merge."
+    },
+    {
+      "at": "2026-09-05T03:14:17Z",
+      "message": "E2E-007 current-SHA integration head 2cee2bc passed typecheck, lint, production build, pipeline 803 of 803, CMS 408 of 408, focused Reports 5 of 5 and bounded-second-attempt Chromium 16 of 16. First Chromium attempt had a non-reproducing bare-URL harness assertion; isolated rerun passed."
+    },
+    {
+      "at": "2026-09-05T03:14:20Z",
+      "message": "All independent repair, publication, verification and cleanup work is complete. Resume lanes 05 and 09 only after the platform allows the delegated API and access-boundary task; then rerun coverage and expansion checkpoints before declaring completion."
+    },
+    {
+      "at": "2026-09-05T03:15:22Z",
+      "message": "Final report published as draft PR94 from report branch head 96871fc; no merge."
+    },
+    {
+      "at": "2026-09-05T03:21:01Z",
+      "message": "User explicitly requested retry of lanes 05 and 09. Local mock-only API and access-boundary coverage resumed from preserved lane05 artifacts and immutable base."
+    },
+    {
+      "at": "2026-09-05T03:21:04Z",
+      "message": "Lane 05 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:21:08Z",
+      "message": "Lane 09 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T03:22:29Z",
+      "message": "E2E-008 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:22:32Z",
+      "message": "E2E-009 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:22:34Z",
+      "message": "Lane 05 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:24:30Z",
+      "message": "E2E-008 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:24:32Z",
+      "message": "E2E-009 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:24:36Z",
+      "message": "Lane 05 updated to completed"
+    },
+    {
+      "at": "2026-09-05T03:24:39Z",
+      "message": "Lane 09 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T03:24:41Z",
+      "message": "Lane05 repairs E2E-008 and E2E-009 published as draft PR95 at head 4a78ff7 after 24 focused tests and 9 HTTP contract requests passed. No merge."
+    },
+    {
+      "at": "2026-09-05T03:27:15Z",
+      "message": "E2E-010 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:27:19Z",
+      "message": "Lane 09 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:37:03Z",
+      "message": "E2E-010 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:37:07Z",
+      "message": "Lane 09 updated to completed"
+    },
+    {
+      "at": "2026-09-05T03:37:10Z",
+      "message": "Checkpoint coverage: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:12Z",
+      "message": "Checkpoint expansion: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:15Z",
+      "message": "Checkpoint integration: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:18Z",
+      "message": "Checkpoint convergence: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:21Z",
+      "message": "Checkpoint cleanup: passed"
+    },
+    {
+      "at": "2026-09-05T03:37:24Z",
+      "message": "Explicit retry completed lanes05 and09. E2E-008 and E2E-009 published in draft PR95 head4a78ff7; E2E-010 published in draft PR96 head1615ff9. Both PRs have all checks green and no reviews or comments. No merge."
+    },
+    {
+      "at": "2026-09-05T03:37:27Z",
+      "message": "Final combined migrated head da866db passed pipeline803, CMS460, API and GraphQL HTTP28, signed webhook HTTP9, Chromium16, both typechecks, lint and production build. Final integration session5438 stopped exit0."
+    },
+    {
+      "at": "2026-09-05T03:37:29Z",
+      "message": "Campaign completed after the user-requested retry closed lanes05 and09. All terminal checkpoints now pass; all repair PRs remain draft and unmerged."
+    },
+    {
+      "at": "2026-09-05T04:13:14Z",
+      "message": "Review correction: reconstructed the actual 6/6/3 scenario expansion matrix, removed the unsupported nine-per-pass claim, and recorded an expansion-budget stop without claiming coverage exhaustion."
+    },
+    {
+      "at": "2026-09-05T04:20:14Z",
+      "message": "Review correction: linked cross-PR regression sources immutably, narrowed the service-stress integrity claim to preserved evidence, and refreshed combined integration and finding residual-risk status."
+    },
+    {
+      "at": "2026-09-05T04:22:01Z",
+      "message": "Review correction: refreshed current lane, finding validation, authorization, and convergence fields while retaining timestamped historical events unchanged."
+    },
+    {
+      "at": "2026-09-05T04:27:55Z",
+      "message": "Review correction: published and linked retained API, pipeline expansion, persistence, and stress harnesses; reconciled the pipeline packet; clarified configured versus attempted service operations."
+    }
+  ],
+  "updated_at": "2026-09-05T04:27:55Z"
+}

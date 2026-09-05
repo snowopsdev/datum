@@ -1,0 +1,65 @@
+{
+  "target": "http://127.0.0.1:4311/api/users/me",
+  "classification": "read-only unauthenticated account-status endpoint",
+  "ramps": [
+    {
+      "concurrency": 1,
+      "completed": 10,
+      "durationMs": 55.354333000000004,
+      "configuredOperations": 10,
+      "attemptedOperations": 10
+    },
+    {
+      "concurrency": 2,
+      "completed": 20,
+      "durationMs": 52.635625000000005,
+      "configuredOperations": 20,
+      "attemptedOperations": 20
+    },
+    {
+      "concurrency": 5,
+      "completed": 40,
+      "durationMs": 125.959083,
+      "configuredOperations": 40,
+      "attemptedOperations": 40
+    },
+    {
+      "concurrency": 10,
+      "completed": 80,
+      "durationMs": 186.697917,
+      "configuredOperations": 80,
+      "attemptedOperations": 80
+    },
+    {
+      "concurrency": 20,
+      "completed": 100,
+      "durationMs": 289.728,
+      "configuredOperations": 100,
+      "attemptedOperations": 100
+    }
+  ],
+  "completedOperations": 250,
+  "retries": 0,
+  "peakConcurrency": 20,
+  "totalDurationMs": 710.3749580000001,
+  "throughputOpsPerSecond": 351.92682003297756,
+  "latencyMs": {
+    "p50": 22.525207999999964,
+    "p95": 85.31654199999997,
+    "p99": 94.37975000000006,
+    "samples": 250
+  },
+  "errors": [],
+  "recovery": {
+    "status": 200,
+    "bodyValid": true,
+    "latencyMs": 2.8321670000000267
+  },
+  "stopConditionTriggered": false,
+  "databaseCountComparison": {
+    "status": "not-recorded",
+    "note": "The original before/after database counts were not preserved, so this artifact makes no database-count integrity claim."
+  },
+  "configuredOperationLimit": 250,
+  "attemptedOperations": 250
+}
