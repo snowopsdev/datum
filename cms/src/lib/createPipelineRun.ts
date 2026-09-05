@@ -31,7 +31,10 @@ export async function createPipelineRun(
   user: TypedUser,
   input: CreatePipelineRunInput,
 ): Promise<void> {
-  const transactionID = await payload.db.beginTransaction({ isolationLevel: 'serializable' })
+  // The advisory lock serializes launch decisions. READ COMMITTED gives a
+  // waiter a fresh snapshot after acquiring it; SERIALIZABLE would retain the
+  // snapshot from before the wait and reject valid queued selected runs.
+  const transactionID = await payload.db.beginTransaction({ isolationLevel: 'read committed' })
   if (transactionID == null)
     throw new Error('The database could not start a content-run transaction.')
 
