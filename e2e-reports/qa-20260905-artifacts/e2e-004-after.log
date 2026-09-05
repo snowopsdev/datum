@@ -1,0 +1,13 @@
+
+> cms@1.0.0 test:int
+> cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts tests/int/pipelineReportCli.int.spec.ts
+
+
+ RUN  v4.1.11 <qa-worktree>/lane10/cms
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  21:55:58
+   Duration  1.12s (transform 14ms, setup 14ms, import 7ms, tests 845ms, environment 206ms)
+

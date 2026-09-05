@@ -1,0 +1,198 @@
+[
+  {
+    "path": "/api/users/me",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/articles?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/templates?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/brand-voice-files?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/cost-log?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/article-audit?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/pipeline-runs?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/information-gain-runs?limit=1",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/webhook-settings",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/workspace-profile",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/evidence-bank",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/globals/llm-settings",
+    "method": "GET",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/media?limit=1",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/login",
+    "method": "POST",
+    "status": 401,
+    "expected": 401,
+    "passed": true
+  },
+  {
+    "path": "/api/users/login",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/me",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/articles?limit=1",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/me",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/cost-log",
+    "method": "POST",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/article-audit",
+    "method": "POST",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/governance-audit",
+    "method": "POST",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/information-gain-runs",
+    "method": "POST",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/pipeline-runs",
+    "method": "POST",
+    "status": 403,
+    "expected": 403,
+    "passed": true
+  },
+  {
+    "path": "/api/graphql",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/graphql",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/logout",
+    "method": "POST",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  },
+  {
+    "path": "/api/users/me",
+    "method": "GET",
+    "status": 200,
+    "expected": 200,
+    "passed": true
+  }
+]

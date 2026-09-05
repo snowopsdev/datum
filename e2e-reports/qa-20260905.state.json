@@ -42,10 +42,9 @@
       "created_at": "2026-09-05T01:51:34Z",
       "environment": "Base56c0731; fix bbafe1d; Node22 isolated mock lane08",
       "evidence": [
-        "Worker /root/pipeline_lanes reports deterministic2/2 fail-before; durable logs pending",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane08/qa-artifacts/e2e-002-before.tap",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane08/qa-artifacts/e2e-002-after.tap",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane08/qa-artifacts/lane08-integration.log"
+        "e2e-reports/qa-20260905-artifacts/e2e-002-before.tap",
+        "e2e-reports/qa-20260905-artifacts/e2e-002-after.tap",
+        "e2e-reports/qa-20260905-artifacts/lane08-integration.log"
       ],
       "expected": "Only successfully persisted stages count as advanced and final status remains last stored value",
       "fix": "Move processed/status/warning accounting after successful Payload update",
@@ -70,9 +69,8 @@
       "created_at": "2026-09-05T01:51:34Z",
       "environment": "Base56c0731 local Chromium4211 qa_20260905_lane01; fix11e81b6 Chromium4231 qa_20260905_lane03",
       "evidence": [
-        "Worker browser_lanes reports article60 and worker logs; durable regression pending",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/test-results/qa-20260905/writing.png"
+        "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
+        "e2e-reports/qa-20260905-artifacts/writing-stage.png"
       ],
       "expected": "New brief and Approve and write action appear after run completion without manual reload",
       "fix": "Refresh each newly observed settled run once even if its active state was missed",
@@ -97,9 +95,9 @@
       "created_at": "2026-09-05T02:49:55Z",
       "environment": "Base56c0731 and fix800906f Node22 isolated qa_20260905_lane10; live-mode dummy keys; no provider calls",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane10/qa-artifacts/report-live-no-domain-before.log",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane10/qa-artifacts/e2e-004-before.log",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane10/qa-artifacts/e2e-004-after.log"
+        "e2e-reports/qa-20260905-artifacts/e2e-004-live-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-004-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-004-after.log"
       ],
       "expected": "Read-only report prints persisted results without requiring a research workspace or Ahrefs client",
       "fix": "Dispatch report immediately after Payload/config startup, before research-only prerequisites",
@@ -124,7 +122,7 @@
       "created_at": "2026-09-05T02:49:58Z",
       "environment": "Base Chromium4231; fix7e7f3b9 Chromium4271 qa_20260905_lane07",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md"
+        "e2e-reports/qa-20260905-artifacts/browser-lanes.md"
       ],
       "expected": "One tab stop; arrow keys move focus and selection; Home and End reach boundaries",
       "fix": "Add roving tabindex and wrapping arrow/Home/End selection with focus synchronization",
@@ -149,9 +147,9 @@
       "created_at": "2026-09-05T02:50:00Z",
       "environment": "Base56c0731 and fix116a212 Node22 Postgres qa_20260905_lane12 mock configuration",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/selected-concurrency-before.log",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/selected-concurrency-after.log",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/stress-metrics.json"
+        "e2e-reports/qa-20260905-artifacts/e2e-006-before.log",
+        "e2e-reports/qa-20260905-artifacts/e2e-006-after.log",
+        "e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json"
       ],
       "expected": "Selected runs are exempt from one-active-run rule and both run/job pairs commit",
       "fix": "Use READ COMMITTED while retaining the same transaction-scoped advisory lock and atomic run/job writes",
@@ -176,8 +174,8 @@
       "created_at": "2026-09-05T03:01:07Z",
       "environment": "Combined integration head1e55f89; Node22 Chromium worker1; retained qa_20260905_integration with10067 cost rows",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-integration/cms/test-results/adminPerformance.e2e-repor-8427f-summaries-and-switch-period-chromium/error-context.md",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane11/test-results/qa-20260905/e2e-007-validation.md; /Users/snow/.codex/worktrees/datum-qa-20260905-lane11/test-results/qa-20260905/report-benchmark-results.json"
+        "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md",
+        "e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json"
       ],
       "expected": "Period navigation completes within the existing5-second browser contract",
       "fix": "Evaluate cost-log read access, then use one parameterized PostgreSQL GROUP BY query with typed date and pipeline-run filters",
@@ -202,8 +200,8 @@
       "created_at": "2026-09-05T03:22:29Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts; /tmp/qa-20260905-lane05-http.json"
+        "cms/tests/int/revalidateHook.int.spec.ts",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json"
       ],
       "expected": "Reject with 401 because freshness cannot be established; perform no purge",
       "fix": "Convert once, require a finite numeric timestamp, then enforce the five-minute age window before parsing or mutation",
@@ -228,8 +226,8 @@
       "created_at": "2026-09-05T03:22:32Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts",
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts; /tmp/qa-20260905-lane05-http.json"
+        "cms/tests/int/revalidateHook.int.spec.ts",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json"
       ],
       "expected": "Return 400 before any cache mutation",
       "fix": "Validate the parsed value is a non-array object, require a positive safe integer article ID, and require supported fields to be strings before invalidating any path",
@@ -254,8 +252,9 @@
       "created_at": "2026-09-05T03:27:15Z",
       "environment": "Local isolated lane09 database, mock CMS, authenticated GraphQL request",
       "evidence": [
-        "/tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/src/globals/InformationGainPolicy.ts",
-        "/tmp/qa-20260905-api-lanes-evidence.md; /tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/tests/int/graphqlSchema.int.spec.ts"
+        "e2e-reports/qa-20260905-artifacts/api-lanes.md",
+        "e2e-reports/qa-20260905-artifacts/lane09-http.json",
+        "cms/tests/int/graphqlSchema.int.spec.ts"
       ],
       "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
       "fix": "Rename policy select values to enabled and disabled, add a reversible PostgreSQL enum-label migration, accept new and legacy parser values, normalize legacy REST and Local API inputs, and regenerate Payload types",
@@ -278,7 +277,7 @@
     {
       "agent": "/root/browser_lanes",
       "app": 4211,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
       "branch": "codex/qa-20260905-lane01",
       "callback": 4212,
       "created_at": "2026-09-05T01:48:19Z",
@@ -292,12 +291,12 @@
       "status": "completed",
       "summary": "Build/migration/seed/dev health, production build and baseline Chromium16/16 passed; session45699 stopped exit0, port4211 closed; evidence retained in browser packet",
       "updated_at": "2026-09-05T02:50:12Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane01"
+      "worktree": "<qa-worktree>/lane01"
     },
     {
       "agent": "/root/browser_lanes",
       "app": 4221,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
       "branch": "codex/qa-20260905-lane01",
       "callback": 4222,
       "created_at": "2026-09-05T01:48:19Z",
@@ -307,12 +306,12 @@
       "status": "completed",
       "summary": "Configured login, anonymous redirect, invalid/login account identity, five setup assets, demo replay and logout passed; recovery email delivery gap recorded",
       "updated_at": "2026-09-05T02:50:14Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane01"
+      "worktree": "<qa-worktree>/lane01"
     },
     {
       "agent": "/root/browser_lanes",
       "app": 4231,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
       "branch": "codex/qa-20260905-lane03",
       "callback": 4232,
       "created_at": "2026-09-05T01:48:19Z",
@@ -322,12 +321,12 @@
       "status": "completed",
       "summary": "Manual keyword through research, brief edit, approval, writing audit and QA terminal passed after E2E-003 fix11e81b6; session80938 stopped exit0, port4231 closed",
       "updated_at": "2026-09-05T02:50:17Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03"
+      "worktree": "<qa-worktree>/lane03"
     },
     {
       "agent": "/root/browser_lanes",
       "app": 4241,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
       "branch": "codex/qa-20260905-lane01",
       "callback": 4242,
       "created_at": "2026-09-05T01:48:19Z",
@@ -337,12 +336,12 @@
       "status": "completed",
       "summary": "Review gates, reports, machine-edit rejection, publication, signed loopback webhook, public article and admin user flows passed",
       "updated_at": "2026-09-05T02:50:22Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane01"
+      "worktree": "<qa-worktree>/lane01"
     },
     {
       "agent": "/root/api_lanes",
       "app": 4251,
-      "artifacts": "/tmp/qa-20260905-lane05-http.json; /tmp/qa-20260905-lane05-http.mjs; cms/tests/int/revalidateHook.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/lane05-http.json; cms/tests/int/revalidateHook.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane05",
       "callback": 4252,
@@ -357,12 +356,12 @@
       "status": "completed",
       "summary": "Corrected exploratory harness and verified E2E-008 and E2E-009 at commit 4a78ff7; four suites 24 of 24 and HTTP journey 9 of 9 pass; draft PR95 opened",
       "updated_at": "2026-09-05T03:24:36Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05"
+      "worktree": "<qa-worktree>/lane05"
     },
     {
       "agent": "/root/pipeline_lanes",
       "app": 4261,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/lane-packet.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
       "branch": "codex/qa-20260905-lane06",
       "callback": 4262,
       "created_at": "2026-09-05T01:48:19Z",
@@ -372,12 +371,12 @@
       "status": "completed",
       "summary": "Fresh14 migrations; pipeline801/801 and CMS persistence/queue/audit/corpus/scheduling37/37 passed; direct Payload only; sessions exited",
       "updated_at": "2026-09-05T02:50:25Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane06"
+      "worktree": "<qa-worktree>/lane06"
     },
     {
       "agent": "/root/browser_lanes",
       "app": 4271,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane03/e2e-evidence/qa-20260905-browser.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/browser-lanes.md",
       "branch": "codex/qa-20260905-lane07",
       "callback": 4272,
       "created_at": "2026-09-05T01:48:20Z",
@@ -387,12 +386,12 @@
       "status": "completed",
       "summary": "390px and320px overflow matrix, keyboard brief editing, public rendering and full Chromium16/16 pass; E2E-005 verified at7e7f3b9; session26309 stopped, port4271 closed",
       "updated_at": "2026-09-05T02:50:28Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane07"
+      "worktree": "<qa-worktree>/lane07"
     },
     {
       "agent": "/root/pipeline_lanes",
       "app": 4281,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/lane-packet.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
       "branch": "codex/qa-20260905-lane08",
       "callback": 4282,
       "created_at": "2026-09-05T01:48:20Z",
@@ -402,12 +401,12 @@
       "status": "completed",
       "summary": "Recovery and failed-write accounting scenarios passed after E2E-002 bbafe1d; full pipeline803/803, focused64/64, affected CMS13/13; PR87 all checks green",
       "updated_at": "2026-09-05T02:50:30Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane08"
+      "worktree": "<qa-worktree>/lane08"
     },
     {
       "agent": "/root/api_lanes",
       "app": 4291,
-      "artifacts": "/tmp/qa-20260905-api-lanes-evidence.md; /tmp/qa-20260905-lane09-http.json; /tmp/qa-20260905-lane09-http.mjs; cms/tests/int/accessBoundaries.int.spec.ts; cms/tests/int/graphqlSchema.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http.json; cms/tests/int/accessBoundaries.int.spec.ts; cms/tests/int/graphqlSchema.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
@@ -424,12 +423,12 @@
       "status": "completed",
       "summary": "Verified local access boundaries plus E2E-010 GraphQL repair at 1615ff9: nine suites 164 of 164, pipeline policy 37 of 37 and HTTP 28 of 28 pass; draft PR96 green",
       "updated_at": "2026-09-05T03:37:07Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane09"
+      "worktree": "<qa-worktree>/lane09"
     },
     {
       "agent": "/root/pipeline_lanes",
       "app": 4301,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/lane-packet.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
       "branch": "codex/qa-20260905-lane10",
       "callback": 4302,
       "created_at": "2026-09-05T01:48:20Z",
@@ -439,12 +438,12 @@
       "status": "completed",
       "summary": "Mock/live config guards, provider matrix58/58, read-only report lifecycle and full pipeline801/801 passed after E2E-004 800906f; PR88 all checks green",
       "updated_at": "2026-09-05T02:50:33Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane10"
+      "worktree": "<qa-worktree>/lane10"
     },
     {
       "agent": "/root",
       "app": 4311,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane11/test-results/qa-20260905/e2e-007-validation.md; /Users/snow/.codex/worktrees/datum-qa-20260905-lane11/test-results/qa-20260905/report-benchmark-results.json; /private/tmp/qa-20260905-lane11-service-metrics.json",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md; e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json; e2e-reports/qa-20260905-artifacts/service-stress-metrics.json",
       "branch": "codex/qa-20260905-integration",
       "callback": 4312,
       "created_at": "2026-09-05T01:48:20Z",
@@ -464,12 +463,12 @@
       "status": "completed",
       "summary": "E2E-007 fixed report aggregation and verified under high volume; 250 read-only service requests at concurrency up to 20 had zero errors and unchanged database counts; combined Chromium 16 of 16 passed",
       "updated_at": "2026-09-05T03:13:51Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-integration"
+      "worktree": "<qa-worktree>/integration"
     },
     {
       "agent": "/root/pipeline_lanes",
       "app": 4321,
-      "artifacts": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12/qa-artifacts/lane-packet.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
       "branch": "codex/qa-20260905-lane12",
       "callback": 4322,
       "created_at": "2026-09-05T01:48:20Z",
@@ -479,13 +478,13 @@
       "status": "completed",
       "summary": "Workflow concurrency E2E-006 fixed116a212; launch4/4 and bounded stress76 total attempts across2 runs, measured n38 at concurrency up to20 with0 errors and exact integrity; no sessions/listeners/connections remain",
       "updated_at": "2026-09-05T02:50:35Z",
-      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane12"
+      "worktree": "<qa-worktree>/lane12"
     }
   ],
   "mode": "repair",
   "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 passes with 9 scenarios each, stopping after 2 fully covered zero-new passes. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
   "phase": "completed",
-  "repo": "/Users/snow/.codex/worktrees/171f/datum",
+  "repo": "<source-checkout>",
   "run_id": "qa-20260905",
   "status": "completed",
   "target": 100,
@@ -580,7 +579,7 @@
     },
     {
       "at": "2026-09-05T01:51:34Z",
-      "message": "Rejected worker cleanup reconciled: Next96559 interrupted exited0; install64906 migration31172 seed5058 baseline1815 health22361 new-tests45475 completed. DB qa_20260905_lane05 retained; health/tmp/qa-20260905-lane05-health.json. Dirty regression file revalidateHook.int.spec.ts retained +19 lines; 14 baseline tests pass; attempted new tests7pass6fail incl known harness case. No accepted finding or production fix; do not publish untriaged candidate. Lane09/11 not started by that worker."
+      "message": "Rejected worker cleanup reconciled: Next96559 interrupted exited0; install64906 migration31172 seed5058 baseline1815 health22361 new-tests45475 completed. DB qa_20260905_lane05 retained; health<run-temp>/qa-20260905-lane05-health.json. Dirty regression file revalidateHook.int.spec.ts retained +19 lines; 14 baseline tests pass; attempted new tests7pass6fail incl known harness case. No accepted finding or production fix; do not publish untriaged candidate. Lane09/11 not started by that worker."
     },
     {
       "at": "2026-09-05T01:53:25Z",

@@ -1,0 +1,23 @@
+{
+  "finding": "E2E-007",
+  "base": "56c073175f12f38b6c861b382a8f197df71b416c",
+  "target": "http://127.0.0.1:4311",
+  "database": "qa_20260905_lane11",
+  "mode": "mock",
+  "browser": "Chromium",
+  "concurrency": 1,
+  "measurement": "Browser navigation until Reports heading visible, then Month click until period=month URL assertion passes; milliseconds, three sequential samples",
+  "before": {
+    "costLogRows": 10067,
+    "session": 44857,
+    "allMs": [5279, 5826, 5772],
+    "monthMs": [5866, 5877, 5867]
+  },
+  "after": {
+    "costLogRows": 15098,
+    "session": 92790,
+    "allMs": [436, 419, 386],
+    "monthMs": [827, 820, 318]
+  },
+  "caveat": "The focused regression appended fixtures before the after measurement, so after has 50% more rows. These local dev measurements demonstrate the reproduced improvement, not a production latency guarantee. Timing is not asserted by the regression test."
+}

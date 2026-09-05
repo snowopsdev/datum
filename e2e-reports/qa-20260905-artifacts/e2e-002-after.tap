@@ -1,0 +1,112 @@
+TAP version 13
+# ◇ injected env (7) from cms/.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+# ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+# [generate] 0 article(s) at status "researched"
+# Subtest: runPipeline
+    # Subtest: reports only persisted progress when an article write fails
+    ok 1 - reports only persisted progress when an article write fails
+      ---
+      duration_ms: 0.7135
+      type: 'test'
+      ...
+    # Subtest: keeps the last persisted status when a later stage write fails
+    ok 2 - keeps the last persisted status when a later stage write fails
+      ---
+      duration_ms: 0.143417
+      type: 'test'
+      ...
+    # Subtest: reports no failures for a clean run and advances every article
+    ok 3 - reports no failures for a clean run and advances every article
+      ---
+      duration_ms: 0.215375
+      type: 'test'
+      ...
+    # Subtest: keeps processing the batch after one article throws, and counts it
+    ok 4 - keeps processing the batch after one article throws, and counts it
+      ---
+      duration_ms: 0.098709
+      type: 'test'
+      ...
+    # Subtest: runs every later stage and totals failures across all of them
+    ok 5 - runs every later stage and totals failures across all of them
+      ---
+      duration_ms: 0.126167
+      type: 'test'
+      ...
+    # Subtest: counts a warning separately from a failure and records it on the audit
+    ok 6 - counts a warning separately from a failure and records it on the audit
+      ---
+      duration_ms: 0.075458
+      type: 'test'
+      ...
+    # Subtest: leaves the audit details free of a warnings key on a clean run
+    ok 7 - leaves the audit details free of a warnings key on a clean run
+      ---
+      duration_ms: 0.087084
+      type: 'test'
+      ...
+    # Subtest: reports a stage with nothing to do as an empty batch
+    ok 8 - reports a stage with nothing to do as an empty batch
+      ---
+      duration_ms: 0.0855
+      type: 'test'
+      ...
+    1..8
+ok 1 - runPipeline
+  ---
+  duration_ms: 1.945375
+  type: 'suite'
+  ...
+# Subtest: describeFailures
+    # Subtest: names only the stages that failed, with their counts
+    ok 1 - names only the stages that failed, with their counts
+      ---
+      duration_ms: 0.099917
+      type: 'test'
+      ...
+    # Subtest: is empty for a clean run
+    ok 2 - is empty for a clean run
+      ---
+      duration_ms: 0.117458
+      type: 'test'
+      ...
+    1..2
+ok 2 - describeFailures
+  ---
+  duration_ms: 0.272208
+  type: 'suite'
+  ...
+# Subtest: the brief checkpoint
+    # Subtest: research exits at brief_review, and no stage picks brief_review up
+    ok 1 - research exits at brief_review, and no stage picks brief_review up
+      ---
+      duration_ms: 0.061333
+      type: 'test'
+      ...
+    # Subtest: generate still enters at researched, which is where an approved brief lands
+    ok 2 - generate still enters at researched, which is where an approved brief lands
+      ---
+      duration_ms: 0.048208
+      type: 'test'
+      ...
+    # Subtest: a run finds nothing to do for an article waiting at its brief
+    ok 3 - a run finds nothing to do for an article waiting at its brief
+      ---
+      duration_ms: 0.075
+      type: 'test'
+      ...
+    1..3
+ok 3 - the brief checkpoint
+  ---
+  duration_ms: 0.217042
+  type: 'suite'
+  ...
+1..3
+# tests 13
+# suites 3
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 251.402291
