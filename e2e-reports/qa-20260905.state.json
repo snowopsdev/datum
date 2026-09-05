@@ -7,7 +7,7 @@
       "updated_at": "2026-09-05T03:37:21Z"
     },
     "convergence": {
-      "evidence": "Application repair draft PRs 87 through 91, 93, 95 and 96 plus harness PR92 all point at verified heads with CI, title, GitGuardian and CodeQL checks green. No reviews or comments are pending and no PR was merged.",
+      "evidence": "Application repair PRs 87 through 91, 93, 95 and 96 plus harness PR92 are ready for review at verified heads with CI, title, GitGuardian and CodeQL checks green. Their Codex reviews completed with zero unresolved conversations. Report PR94 is the publication vehicle and runs its own check and review cycle after each evidence correction. No PR had been merged at this checkpoint.",
       "outcome": "passed",
       "updated_at": "2026-09-05T03:37:18Z"
     },
@@ -60,7 +60,7 @@
       "status": "verified",
       "title": "Pipeline reports successful advancement when article persistence fails",
       "updated_at": "2026-09-05T01:54:44Z",
-      "validation": "At bbafe1d: full pipeline803/803; focused pipeline64/64; affected CMS13/13; both workspace typechecks; git diff check. Remote branch verified at same SHA; combined campaign integration pending."
+      "validation": "At bbafe1d: full pipeline803/803; focused pipeline64/64; affected CMS13/13; both workspace typechecks; git diff check. Remote branch verified at the same SHA; combined integration passed at 2b474b7."
     },
     {
       "actual": "Article page remains at Research although persisted status is brief_review",
@@ -354,7 +354,7 @@
       ],
       "session": "Next 3568 stopped exit 0; HTTP 53298 completed exit 0",
       "status": "completed",
-      "summary": "Corrected exploratory harness and verified E2E-008 and E2E-009 at commit 4a78ff7; four suites 24 of 24 and HTTP journey 9 of 9 pass; draft PR95 opened",
+      "summary": "Corrected exploratory harness and verified E2E-008 and E2E-009 at commit 4a78ff7; four suites 24 of 24 and HTTP journey 9 of 9 pass; PR95 ready and reviewed",
       "updated_at": "2026-09-05T03:24:36Z",
       "worktree": "<qa-worktree>/lane05"
     },
@@ -421,7 +421,7 @@
       ],
       "session": "Next 24641 and 4033 stopped exit 0; HTTP 84340 and 10633 completed exit 0",
       "status": "completed",
-      "summary": "Verified local access boundaries plus E2E-010 GraphQL repair at 1615ff9: nine suites 164 of 164, pipeline policy 37 of 37 and HTTP 28 of 28 pass; draft PR96 green",
+      "summary": "Verified local access boundaries plus E2E-010 GraphQL repair at 1615ff9: nine suites 164 of 164, pipeline policy 37 of 37 and HTTP 28 of 28 pass; PR96 ready, green and reviewed",
       "updated_at": "2026-09-05T03:37:07Z",
       "worktree": "<qa-worktree>/lane09"
     },
@@ -482,7 +482,7 @@
     }
   ],
   "mode": "repair",
-  "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 campaign-wide passes, each covering the skill's three scenario classes. The three passes exercised 6, 6, and 3 selected scenarios. The target was not reached and documented live-provider, platform, assistive-technology, and sustained-load gaps remain, so this is an expansion-budget stop rather than exhaustion. Next work requires a new budget and any provider allowance needed for those gaps. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
+  "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Initial campaign authority covered commits, pushes, PRs, issues, and review responses; merge authorization was granted separately during convergence. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 campaign-wide passes, each covering the skill's three scenario classes. The three passes exercised 6, 6, and 3 selected scenarios. The target was not reached and documented live-provider, platform, assistive-technology, and sustained-load gaps remain, so this is an expansion-budget stop rather than exhaustion. Next work requires a new budget and any provider allowance needed for those gaps. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
   "phase": "expansion",
   "repo": "<source-checkout>",
   "run_id": "qa-20260905",
@@ -844,7 +844,11 @@
     {
       "at": "2026-09-05T04:20:14Z",
       "message": "Review correction: linked cross-PR regression sources immutably, narrowed the service-stress integrity claim to preserved evidence, and refreshed combined integration and finding residual-risk status."
+    },
+    {
+      "at": "2026-09-05T04:22:01Z",
+      "message": "Review correction: refreshed current lane, finding validation, authorization, and convergence fields while retaining timestamped historical events unchanged."
     }
   ],
-  "updated_at": "2026-09-05T04:20:14Z"
+  "updated_at": "2026-09-05T04:22:01Z"
 }
