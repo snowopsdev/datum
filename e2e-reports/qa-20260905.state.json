@@ -194,6 +194,46 @@
       "title": "High-volume reports exceed the interactive navigation budget",
       "updated_at": "2026-09-05T03:13:54Z",
       "validation": "Fail-before observed seven Payload reads. Focused 5 of 5, full CMS 402 of 402 on fix branch, combined npm test pipeline 803 of 803 plus CMS 408 of 408, combined Chromium 16 of 16 on bounded second attempt, typecheck, lint and production build passed. Browser median all-time 5,772 to 419 ms and month 5,867 to 820 ms on lane fixture; combined all-time 1,146 to 1,547 ms and month 1,335 to 1,347 ms."
+    },
+    {
+      "actual": "Returns 200 and purges cache paths despite the five-minute freshness contract",
+      "affected": "Signed revalidation webhook timestamp validation",
+      "created_at": "2026-09-05T03:22:29Z",
+      "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
+      "evidence": [
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts"
+      ],
+      "expected": "Reject with 401 because freshness cannot be established; perform no purge",
+      "id": "E2E-008",
+      "lane": "05",
+      "preconditions": "Valid webhook signature over a non-finite timestamp value",
+      "reproduction": "Send a correctly signed revalidation request whose timestamp parses to NaN",
+      "residual_risk": "Repair and verification in progress",
+      "root_cause": "Number(timestamp) produces NaN and the age comparison is false, so the invalid timestamp falls through",
+      "severity": "minor",
+      "status": "reproduced",
+      "title": "Invalid signed webhook timestamp bypasses freshness validation",
+      "updated_at": "2026-09-05T03:22:29Z"
+    },
+    {
+      "actual": "Variants throw, acknowledge invalid input, or purge a path before failing",
+      "affected": "Revalidation webhook request parsing and mutation ordering",
+      "created_at": "2026-09-05T03:22:32Z",
+      "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
+      "evidence": [
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts"
+      ],
+      "expected": "Return 400 before any cache mutation",
+      "id": "E2E-009",
+      "lane": "05",
+      "preconditions": "Validly signed request with null, scalar, array or structurally invalid JSON body",
+      "reproduction": "Submit signed malformed body variants and observe response plus purge calls",
+      "residual_risk": "Repair and verification in progress",
+      "root_cause": "The route uses parsed JSON fields without first validating that the body is an object with supported scalar values",
+      "severity": "minor",
+      "status": "reproduced",
+      "title": "Malformed webhook bodies bypass the request boundary",
+      "updated_at": "2026-09-05T03:22:32Z"
     }
   ],
   "lanes": [
@@ -274,8 +314,8 @@
       "namespace": "qa_20260905_lane05",
       "session": "96559 stopped exit 0",
       "status": "running",
-      "summary": "Retrying preserved API and webhook evidence; classifying prior 7-pass and 6-fail exploratory results before accepting findings",
-      "updated_at": "2026-09-05T03:21:04Z",
+      "summary": "Corrected exploratory test parameterization; base rerun 13 cases with 7 passing and 6 failing reproduced E2E-008 timestamp freshness and E2E-009 malformed-body boundary defects; repairs in progress",
+      "updated_at": "2026-09-05T03:22:34Z",
       "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05"
     },
     {
@@ -667,7 +707,19 @@
     {
       "at": "2026-09-05T03:21:08Z",
       "message": "Lane 09 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T03:22:29Z",
+      "message": "E2E-008 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:22:32Z",
+      "message": "E2E-009 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:22:34Z",
+      "message": "Lane 05 updated to running"
     }
   ],
-  "updated_at": "2026-09-05T03:21:08Z"
+  "updated_at": "2026-09-05T03:22:34Z"
 }
