@@ -28,6 +28,8 @@ These commands validate repaired behavior and must not run against PR #94 by its
 
 The combined campaign checkout contained all four heads. The merge sequence places PR #94 last, so a fresh `main` checkout after the campaign merges also satisfies every prerequisite.
 
+The service stress result used the fully combined repaired checkout containing PR heads `bbafe1d`, `800906f`, `11e81b6`, `7e7f3b9`, `116a212`, `8855dea`, `f187aab`, `4a78ff7`, and `5392437`. Use post-campaign `main` to reproduce that result.
+
 Run these commands from the repository root. Use a migration-built isolated test database and the configured ignored environment file. Remove each copied test after its run so the campaign harnesses do not become part of the permanent test suite.
 
 ```bash
@@ -55,4 +57,17 @@ The HTTP harnesses accept the target URL and output path as arguments. Provide t
 SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs http://127.0.0.1:3000 lane05-http.repro.json
 SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs http://127.0.0.1:3000 lane09-http.repro.json
 rm lane05-http.repro.json lane09-http.repro.json
+```
+
+To reproduce the 250-request service ramp, start the CMS from post-campaign `main` in one terminal with the configured isolated database and mock-mode test environment:
+
+```bash
+MOCK_MODE=true npm run dev --workspace cms
+```
+
+After `http://127.0.0.1:3000/api/users/me` responds, run the harness from a second repository-root terminal. It needs no account credential because it exercises the read-only unauthenticated account-status endpoint.
+
+```bash
+node e2e-reports/qa-20260905-artifacts/service-stress-harness.mjs http://127.0.0.1:3000 service-stress-metrics.repro.json
+rm service-stress-metrics.repro.json
 ```
