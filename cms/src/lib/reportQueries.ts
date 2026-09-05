@@ -1,68 +1,75 @@
-import type { PayloadRequest, Where } from 'payload'
+import { sql } from '@payloadcms/db-postgres'
+import { executeAccess, Forbidden, type PayloadRequest } from 'payload'
 import type { CostReport, SpendRow } from '../components/ops/ReportsPanel'
 import type { StageKpiRow } from './opsKpis'
 
-/** Traverse append-only logs by ID, keeping just aggregates between batches. */
+/** The report's supported filters, bound as values rather than SQL fragments. */
+export type ReportCostFilter = {
+  createdAtFrom?: string
+  pipelineRunId?: string
+}
+
+/** Aggregate in one database snapshot without hydrating individual cost logs. */
 export async function loadReportCosts(
   req: PayloadRequest,
-  where: Where,
+  filter: ReportCostFilter,
 ): Promise<{
   aggregate: Pick<CostReport, 'totalUsd' | 'byStage' | 'byModel' | 'rowCount'>
   stages: StageKpiRow[]
 }> {
-  let cursor = 0
+  const access = await executeAccess({ req }, req.payload.collections['cost-log'].config.access.read)
+  // CostLog grants all rows to authenticated users. Fail closed if that policy
+  // ever becomes row-scoped, rather than silently bypassing a new constraint.
+  if (access !== true) throw new Forbidden(req.t)
+
+  const conditions = [sql`true`]
+  if (filter.createdAtFrom !== undefined) {
+    conditions.push(sql`created_at >= ${filter.createdAtFrom}::timestamptz`)
+  }
+  if (filter.pipelineRunId !== undefined) {
+    conditions.push(sql`pipeline_run_id = ${filter.pipelineRunId}`)
+  }
+  const grouped = await req.payload.db.drizzle.execute<{
+    stage: string | null
+    model: string | null
+    calls: string
+    cost_usd: string
+    input_tokens: string
+    output_tokens: string
+  }>(sql`
+    SELECT stage, model, count(*) AS calls,
+      coalesce(sum(cost_usd), 0) AS cost_usd,
+      coalesce(sum(input_tokens), 0) AS input_tokens,
+      coalesce(sum(output_tokens), 0) AS output_tokens
+    FROM ${req.payload.db.tables.cost_log}
+    WHERE ${sql.join(conditions, sql` AND `)}
+    GROUP BY stage, model
+  `)
+
   let rowCount = 0
   let totalUsd = 0
   const byModel = new Map<string, number>()
   const stages = new Map<string, StageKpiRow>()
-  // Pin the upper ID so concurrent appends cannot extend a report indefinitely.
-  const newest = await req.payload.find({
-    collection: 'cost-log',
-    where,
-    sort: '-id',
-    limit: 1,
-    depth: 0,
-    select: { costUsd: true },
-    user: req.user,
-    overrideAccess: false,
-  })
-  const upper = newest.docs[0]?.id ?? 0
-  while (cursor < upper) {
-    const result = await req.payload.find({
-      collection: 'cost-log',
-      where: { and: [where, { id: { greater_than: cursor, less_than_equal: upper } }] },
-      sort: 'id',
-      limit: 1000,
-      // Payload 3.88's Postgres adapter still applies LIMIT with pagination off.
-      // The ID cursor does not need a COUNT of the remaining rows on each batch.
-      pagination: false,
-      depth: 0,
-      select: { costUsd: true, stage: true, model: true, inputTokens: true, outputTokens: true },
-      user: req.user,
-      overrideAccess: false,
-    })
-    if (result.docs.length === 0) break
-    for (const row of result.docs) {
-      rowCount += 1
-      const usd = row.costUsd ?? 0
-      totalUsd += usd
-      const stage = row.stage ?? '(unknown)'
-      const entry = stages.get(stage) ?? {
-        stage,
-        calls: 0,
-        costUsd: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-      }
-      entry.calls += 1
-      entry.costUsd += usd
-      entry.inputTokens += row.inputTokens ?? 0
-      entry.outputTokens += row.outputTokens ?? 0
-      stages.set(stage, entry)
-      const model = row.model ?? '(unknown)'
-      byModel.set(model, (byModel.get(model) ?? 0) + usd)
+  for (const row of grouped.rows) {
+    const calls = Number(row.calls)
+    const usd = Number(row.cost_usd)
+    rowCount += calls
+    totalUsd += usd
+    const stage = row.stage ?? '(unknown)'
+    const entry = stages.get(stage) ?? {
+      stage,
+      calls: 0,
+      costUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
     }
-    cursor = result.docs[result.docs.length - 1].id
+    entry.calls += calls
+    entry.costUsd += usd
+    entry.inputTokens += Number(row.input_tokens)
+    entry.outputTokens += Number(row.output_tokens)
+    stages.set(stage, entry)
+    const model = row.model ?? '(unknown)'
+    byModel.set(model, (byModel.get(model) ?? 0) + usd)
   }
   const stageRows = [...stages.values()].sort((a, b) => b.costUsd - a.costUsd)
   const modelRows: SpendRow[] = [...byModel]

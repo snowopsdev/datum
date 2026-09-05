@@ -56,7 +56,7 @@ export async function ReportsView(props: AdminViewServerProps) {
       user: req.user,
       overrideAccess: false,
     }),
-    loadReportCosts(req, costWhere),
+    loadReportCosts(req, { createdAtFrom: periodStart ?? undefined }),
     req.payload.find({
       collection: 'pipeline-runs',
       select: { runId: true, status: true, errorSummary: true, completedAt: true },
