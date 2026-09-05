@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 export interface LoginOptions {
+  dashboardPath?: '/admin' | '/admin/ops/content'
   page: Page
   serverURL?: string
   user: {
@@ -14,6 +15,7 @@ export interface LoginOptions {
  * Logs the user into the admin panel via the login page.
  */
 export async function login({
+  dashboardPath = '/admin',
   page,
   serverURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3101',
   user,
@@ -24,7 +26,7 @@ export async function login({
   await page.fill('#field-password', user.password)
   await page.click('button[type="submit"]')
 
-  await page.waitForURL(`${serverURL}/admin`)
+  await page.waitForURL(`${serverURL}${dashboardPath}`)
 
   const dashboardArtifact = page.locator('span[title="Dashboard"]')
   await expect(dashboardArtifact).toBeVisible()
