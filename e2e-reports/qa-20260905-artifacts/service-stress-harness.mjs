@@ -15,15 +15,19 @@ const latencies = []
 const errors = []
 const rampResults = []
 let peakInFlight = 0
+let attemptedOperations = 0
 
 for (const ramp of ramps) {
   let next = 0
   let inFlight = 0
+  let rampAttempted = 0
   const startedAt = performance.now()
   const workers = Array.from({ length: ramp.concurrency }, async () => {
     while (true) {
       const operation = next++
       if (operation >= ramp.operations || errors.length > 0) return
+      attemptedOperations += 1
+      rampAttempted += 1
       inFlight += 1
       peakInFlight = Math.max(peakInFlight, inFlight)
       const requestStarted = performance.now()
@@ -50,7 +54,8 @@ for (const ramp of ramps) {
   const durationMs = performance.now() - startedAt
   rampResults.push({
     concurrency: ramp.concurrency,
-    requested: ramp.operations,
+    configuredOperations: ramp.operations,
+    attemptedOperations: rampAttempted,
     completed: latencies.length - rampResults.reduce((sum, row) => sum + row.completed, 0),
     durationMs,
   })
@@ -68,7 +73,8 @@ const result = {
   target: `${baseURL}/api/users/me`,
   classification: 'read-only unauthenticated account-status endpoint',
   ramps: rampResults,
-  requestedOperations: ramps.reduce((sum, ramp) => sum + ramp.operations, 0),
+  configuredOperationLimit: ramps.reduce((sum, ramp) => sum + ramp.operations, 0),
+  attemptedOperations,
   completedOperations: latencies.length,
   retries: 0,
   peakConcurrency: peakInFlight,

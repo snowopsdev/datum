@@ -200,8 +200,9 @@
       "created_at": "2026-09-05T03:22:29Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
-        "e2e-reports/qa-20260905-artifacts/lane05-http.json"
+        "e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts"
       ],
       "expected": "Reject with 401 because freshness cannot be established; perform no purge",
       "fix": "Convert once, require a finite numeric timestamp, then enforce the five-minute age window before parsing or mutation",
@@ -226,8 +227,9 @@
       "created_at": "2026-09-05T03:22:32Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
-        "e2e-reports/qa-20260905-artifacts/lane05-http.json"
+        "e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs",
+        "e2e-reports/qa-20260905-artifacts/lane05-http.json",
+        "https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts"
       ],
       "expected": "Return 400 before any cache mutation",
       "fix": "Validate the parsed value is a non-array object, require a positive safe integer article ID, and require supported fields to be strings before invalidating any path",
@@ -253,7 +255,9 @@
       "environment": "Local isolated lane09 database, mock CMS, authenticated GraphQL request",
       "evidence": [
         "e2e-reports/qa-20260905-artifacts/api-lanes.md",
+        "e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs",
         "e2e-reports/qa-20260905-artifacts/lane09-http.json",
+        "e2e-reports/qa-20260905-artifacts/lane09-graphql-before-body.txt",
         "https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts"
       ],
       "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
@@ -341,7 +345,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4251,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/lane05-http.json; https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs; e2e-reports/qa-20260905-artifacts/lane05-http.json; e2e-reports/qa-20260905-artifacts/lane05-health.json; https://github.com/snowopsdev/datum/blob/4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4/cms/tests/int/revalidateHook.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane05",
       "callback": 4252,
@@ -406,7 +410,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4291,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http.json; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/accessBoundaries.int.spec.ts; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/api-lanes.md; e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs; e2e-reports/qa-20260905-artifacts/lane09-http.json; e2e-reports/qa-20260905-artifacts/lane09-graphql-before-body.txt; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/accessBoundaries.int.spec.ts; https://github.com/snowopsdev/datum/blob/1615ff9833cf599890925f4b68040b4385c0696f/cms/tests/int/graphqlSchema.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
@@ -443,7 +447,7 @@
     {
       "agent": "/root",
       "app": 4311,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md; e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json; e2e-reports/qa-20260905-artifacts/service-stress-metrics.json",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/e2e-007-validation.md; e2e-reports/qa-20260905-artifacts/e2e-007-benchmark.json; e2e-reports/qa-20260905-artifacts/service-stress-harness.mjs; e2e-reports/qa-20260905-artifacts/service-stress-metrics.json",
       "branch": "codex/qa-20260905-integration",
       "callback": 4312,
       "created_at": "2026-09-05T01:48:20Z",
@@ -468,7 +472,7 @@
     {
       "agent": "/root/pipeline_lanes",
       "app": 4321,
-      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md",
+      "artifacts": "e2e-reports/qa-20260905-artifacts/pipeline-lanes.md; e2e-reports/qa-20260905-artifacts/e2e-006-before.log; e2e-reports/qa-20260905-artifacts/e2e-006-after.log; e2e-reports/qa-20260905-artifacts/workflow-stress-harness.int.spec.ts; e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json; e2e-reports/qa-20260905-artifacts/queue-expansion.int.spec.ts",
       "branch": "codex/qa-20260905-lane12",
       "callback": 4322,
       "created_at": "2026-09-05T01:48:20Z",
@@ -848,7 +852,11 @@
     {
       "at": "2026-09-05T04:22:01Z",
       "message": "Review correction: refreshed current lane, finding validation, authorization, and convergence fields while retaining timestamped historical events unchanged."
+    },
+    {
+      "at": "2026-09-05T04:27:55Z",
+      "message": "Review correction: published and linked retained API, pipeline expansion, persistence, and stress harnesses; reconciled the pipeline packet; clarified configured versus attempted service operations."
     }
   ],
-  "updated_at": "2026-09-05T04:22:01Z"
+  "updated_at": "2026-09-05T04:27:55Z"
 }
