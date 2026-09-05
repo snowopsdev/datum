@@ -85,6 +85,39 @@ const quietly = async <T>(body: () => Promise<T>): Promise<T> => {
 }
 
 describe('runPipeline', () => {
+  it('reports only persisted progress when an article write fails', async () => {
+    const { ctx } = fakeCtx([articleAt(1, 'topic_selected')])
+    ctx.payload.update = async () => {
+      throw new Error('database write failed')
+    }
+    const summary = await quietly(() => runPipeline(ctx, {
+      stages: [stubStage('research', 'topic_selected', 'researched')],
+    }))
+    assert.equal(summary.failed, 1)
+    assert.deepEqual(summary.articleIds, [])
+    assert.deepEqual(summary.finalStatuses, {})
+    assert.equal(summary.failures[0]?.message, 'database write failed')
+  })
+
+  it('keeps the last persisted status when a later stage write fails', async () => {
+    const article = articleAt(1, 'topic_selected')
+    const { ctx } = fakeCtx([article])
+    ctx.payload.update = (async ({ data }: { data: { status: Article['status'] } }) => {
+      if (data.status === 'drafted') throw new Error('database write failed')
+      article.status = data.status
+      return article
+    }) as unknown as typeof ctx.payload.update
+    const summary = await quietly(() => runPipeline(ctx, {
+      stages: [
+        stubStage('research', 'topic_selected', 'researched'),
+        stubStage('generate', 'researched', 'drafted'),
+      ],
+    }))
+    assert.equal(summary.failed, 1)
+    assert.deepEqual(summary.articleIds, [1])
+    assert.deepEqual(summary.finalStatuses, { researched: 1 })
+  })
+
   it('reports no failures for a clean run and advances every article', async () => {
     const { ctx, updates } = fakeCtx([
       articleAt(1, 'topic_selected'),

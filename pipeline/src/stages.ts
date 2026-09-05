@@ -162,15 +162,7 @@ export async function runPipeline(
       // and a scheduled run's alerting sees stuck articles.
       try {
         const outcome = await stage.run(article, ctx)
-        processed.add(article.id)
-        finalStatusByArticle.set(article.id, outcome.status)
         const warnings = outcome.warnings ?? []
-        if (warnings.length > 0) {
-          warned += 1
-          for (const warning of warnings) {
-            console.warn(`[${stage.name}] article ${article.id} warning: ${warning}`)
-          }
-        }
         await ctx.payload.update({
           collection: 'articles',
           id: article.id,
@@ -192,6 +184,16 @@ export async function runPipeline(
             },
           },
         })
+        // A stage outcome is only progress once the article write succeeds.
+        // Keep the last persisted status when a later stage fails to save.
+        processed.add(article.id)
+        finalStatusByArticle.set(article.id, outcome.status)
+        if (warnings.length > 0) {
+          warned += 1
+          for (const warning of warnings) {
+            console.warn(`[${stage.name}] article ${article.id} warning: ${warning}`)
+          }
+        }
         console.log(
           `[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`,
         )
