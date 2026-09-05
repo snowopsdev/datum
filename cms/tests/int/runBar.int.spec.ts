@@ -76,3 +76,37 @@ it('ignores a request that completes after unmount', async () => {
   })
   expect(mocks.refresh).not.toHaveBeenCalled()
 })
+
+it('refreshes a run that starts and finishes between idle polls', async () => {
+  mocks.poll.mockResolvedValueOnce(null).mockResolvedValue(run('succeeded'))
+  render(React.createElement(GlobalRunBar))
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(mocks.refresh).not.toHaveBeenCalled()
+  await act(() => vi.advanceTimersByTimeAsync(15000))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  await act(() => vi.advanceTimersByTimeAsync(30000))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+})
+
+it('refreshes a different completed run without requiring an active observation', async () => {
+  mocks.poll.mockResolvedValueOnce(run('succeeded')).mockResolvedValue({
+    ...run('succeeded'),
+    runId: 'next-run',
+  })
+  render(React.createElement(GlobalRunBar))
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  mocks.refresh.mockClear()
+  await act(() => vi.advanceTimersByTimeAsync(15000))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  await act(() => vi.advanceTimersByTimeAsync(15000))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+})
+
+it('refreshes once when a run completed before the first poll', async () => {
+  mocks.poll.mockResolvedValue(run('succeeded'))
+  render(React.createElement(GlobalRunBar))
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  await act(() => vi.advanceTimersByTimeAsync(30000))
+  expect(mocks.refresh).toHaveBeenCalledTimes(1)
+})
