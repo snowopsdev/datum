@@ -246,6 +246,26 @@
       "title": "Malformed webhook bodies bypass the request boundary",
       "updated_at": "2026-09-05T03:24:32Z",
       "validation": "Four focused suites 24 of 24 passed; HTTP contract journey 9 of 9 passed; CMS typecheck, focused ESLint and diff checks passed; webhook fixture restored disabled and null settings"
+    },
+    {
+      "actual": "Returns HTTP 500 with an empty body; server logs GraphQLError that enum values cannot be named true",
+      "affected": "Entire GraphQL API schema, including unrelated queries",
+      "created_at": "2026-09-05T03:27:15Z",
+      "environment": "Local isolated lane09 database, mock CMS, authenticated GraphQL request",
+      "evidence": [
+        "/tmp/qa-20260905-lane09-http.json; /Users/snow/.codex/worktrees/datum-qa-20260905-lane09/cms/src/globals/InformationGainPolicy.ts"
+      ],
+      "expected": "Build the schema and return the authorized query result or a structured GraphQL authorization error",
+      "id": "E2E-010",
+      "lane": "09",
+      "preconditions": "CMS configured with the Information Gain Policy global in the GraphQL schema",
+      "reproduction": "POST a valid Users query to /api/graphql and observe schema construction before resolver authorization",
+      "residual_risk": "Schema migration, type regeneration and verification in progress",
+      "root_cause": "InformationGainPolicy defines boolean select values as the strings true and false, which Payload maps to invalid GraphQL enum identifiers",
+      "severity": "major",
+      "status": "reproduced",
+      "title": "Invalid select values crash the GraphQL schema",
+      "updated_at": "2026-09-05T03:27:15Z"
     }
   ],
   "lanes": [
@@ -381,17 +401,22 @@
     {
       "agent": "/root/api_lanes",
       "app": 4291,
+      "artifacts": "/tmp/qa-20260905-lane09-http.json; /tmp/qa-20260905-lane09-http.mjs; cms/tests/int/accessBoundaries.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
       "created_at": "2026-09-05T01:48:20Z",
       "gateway": 4290,
+      "health_url": "http://127.0.0.1:4291/api/users/me returned 200",
       "lane": "09",
       "namespace": "qa_20260905_lane09",
-      "session": "install 95374 completed or reconciling",
-      "status": "provisioning",
-      "summary": "Separate immutable-base worktree created; mock environment installed and isolated database provisioning started",
-      "updated_at": "2026-09-05T03:24:39Z",
+      "previous_sessions": [
+        "install 95374 completed or reconciling"
+      ],
+      "session": "Next 24641 running on 4291; HTTP 84340 completed or reconciling",
+      "status": "running",
+      "summary": "Collection, global, internal-create, append-only and REST boundary coverage passes; 153 tests and 24 HTTP requests green. Authenticated GraphQL request reproduced E2E-010 schema-construction crash; repair in progress.",
+      "updated_at": "2026-09-05T03:27:19Z",
       "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane09"
     },
     {
@@ -757,7 +782,15 @@
     {
       "at": "2026-09-05T03:24:41Z",
       "message": "Lane05 repairs E2E-008 and E2E-009 published as draft PR95 at head 4a78ff7 after 24 focused tests and 9 HTTP contract requests passed. No merge."
+    },
+    {
+      "at": "2026-09-05T03:27:15Z",
+      "message": "E2E-010 updated to reproduced"
+    },
+    {
+      "at": "2026-09-05T03:27:19Z",
+      "message": "Lane 09 updated to running"
     }
   ],
-  "updated_at": "2026-09-05T03:24:41Z"
+  "updated_at": "2026-09-05T03:27:19Z"
 }
