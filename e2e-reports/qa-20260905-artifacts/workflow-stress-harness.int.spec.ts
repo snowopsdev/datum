@@ -8,33 +8,58 @@ import { evaluateWorkspaceReadiness } from '@/lib/workspaceReadiness'
 import { getPayload, type TypedUser } from 'payload'
 import { expect, it } from 'vitest'
 
-const STRESS_DEADLINE_MS = 300_000
+const TEST_TIMEOUT_MS = 300_000
+const DRAIN_GRACE_MS = 10_000
+const CLEANUP_BUDGET_MS = 15_000
+const LAUNCH_DEADLINE_MS = TEST_TIMEOUT_MS - DRAIN_GRACE_MS - CLEANUP_BUDGET_MS
 const CONCURRENCY_RAMPS = [1, 2, 5, 10, 20]
 const EXPECTED_OPERATIONS = CONCURRENCY_RAMPS.reduce(
   (sum, concurrency) => sum + concurrency,
   0,
 )
 
-async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<T> {
-  const remainingMs = deadlineAt - performance.now()
-  if (remainingMs <= 0) throw new Error('Workflow stress deadline exceeded')
+class WorkflowStressDeadlineError extends Error {
+  constructor(readonly cleanupSafe: boolean) {
+    super('Workflow stress deadline exceeded')
+  }
+}
 
+async function settlesWithin<T>(work: Promise<T>, timeoutMs: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const outcome = await Promise.race([
-      work.then((value) => ({ kind: 'completed' as const, value })),
-      new Promise<{ kind: 'deadline' }>((resolve) => {
-        timer = setTimeout(
-          () => resolve({ kind: 'deadline' }),
-          Math.ceil(remainingMs),
-        )
+    return await Promise.race([
+      work.then(() => true, () => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs)
       }),
     ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<T> {
+  const remainingMs = deadlineAt - performance.now()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const outcome = remainingMs <= 0
+      ? { kind: 'deadline' as const }
+      : await Promise.race([
+          work.then((value) => ({ kind: 'completed' as const, value })),
+          new Promise<{ kind: 'deadline' }>((resolve) => {
+            timer = setTimeout(
+              () => resolve({ kind: 'deadline' }),
+              Math.ceil(remainingMs),
+            )
+          }),
+        ])
     if (outcome.kind === 'deadline') {
-      // createPipelineRun has no cancellation signal. Drain the batch before
-      // integrity queries and cleanup so late writes cannot escape the test.
-      await work
-      throw new Error('Workflow stress deadline exceeded')
+      if (timer) clearTimeout(timer)
+      // createPipelineRun has no cancellation signal. Drain for a bounded
+      // grace period. If work remains pending, the caller skips deletion so
+      // late writes cannot race cleanup in the isolated test database.
+      const cleanupSafe = await settlesWithin(work, DRAIN_GRACE_MS)
+      throw new WorkflowStressDeadlineError(cleanupSafe)
     }
     return outcome.value
   } finally {
@@ -43,6 +68,7 @@ async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<
 }
 
 it('runs bounded workflow launch stress', async () => {
+  const deadlineAt = performance.now() + LAUNCH_DEADLINE_MS
   const payload = await getPayload({ config: await config })
   const template = await payload.create({
     collection: 'templates', overrideAccess: true,
@@ -52,7 +78,7 @@ it('runs bounded workflow launch stress', async () => {
   const latencies: number[] = []
   const errors: string[] = []
   const start = performance.now()
-  const deadlineAt = start + STRESS_DEADLINE_MS
+  let cleanupSafe = true
   let peakInFlight = 0
   let inFlight = 0
   const article = await payload.create({
@@ -112,12 +138,17 @@ it('runs bounded workflow launch stress', async () => {
     expect(runIds).toHaveLength(EXPECTED_OPERATIONS)
     expect(runs.docs).toHaveLength(runIds.length)
     expect(jobs.docs).toHaveLength(runIds.length)
+  } catch (error) {
+    if (error instanceof WorkflowStressDeadlineError) cleanupSafe = error.cleanupSafe
+    throw error
   } finally {
-    await payload.delete({ collection: 'payload-jobs', overrideAccess: true,
-      where: { 'input.runId': { in: runIds } } })
-    await payload.delete({ collection: 'pipeline-runs', overrideAccess: true,
-      where: { runId: { in: runIds } } })
-    // The article's append-only audit record retains its relationship. Keep
-    // the article and template, as the other database-backed suites do.
+    if (cleanupSafe) {
+      await payload.delete({ collection: 'payload-jobs', overrideAccess: true,
+        where: { 'input.runId': { in: runIds } } })
+      await payload.delete({ collection: 'pipeline-runs', overrideAccess: true,
+        where: { runId: { in: runIds } } })
+      // The article's append-only audit record retains its relationship. Keep
+      // the article and template, as the other database-backed suites do.
+    }
   }
-}, STRESS_DEADLINE_MS + 15_000)
+}, TEST_TIMEOUT_MS)
