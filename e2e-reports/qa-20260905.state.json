@@ -198,42 +198,54 @@
     {
       "actual": "Returns 200 and purges cache paths despite the five-minute freshness contract",
       "affected": "Signed revalidation webhook timestamp validation",
+      "commit": "4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4",
       "created_at": "2026-09-05T03:22:29Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts"
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts",
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts; /tmp/qa-20260905-lane05-http.json"
       ],
       "expected": "Reject with 401 because freshness cannot be established; perform no purge",
+      "fix": "Convert once, require a finite numeric timestamp, then enforce the five-minute age window before parsing or mutation",
       "id": "E2E-008",
       "lane": "05",
+      "pr": "https://github.com/snowopsdev/datum/pull/95",
       "preconditions": "Valid webhook signature over a non-finite timestamp value",
+      "regression": "Non-finite timestamp cases not-a-timestamp, NaN and Infinity assert 401 and zero revalidation calls",
       "reproduction": "Send a correctly signed revalidation request whose timestamp parses to NaN",
-      "residual_risk": "Repair and verification in progress",
+      "residual_risk": "Freshness still depends on sender and receiver clock agreement within the documented five-minute window",
       "root_cause": "Number(timestamp) produces NaN and the age comparison is false, so the invalid timestamp falls through",
       "severity": "minor",
-      "status": "reproduced",
+      "status": "verified",
       "title": "Invalid signed webhook timestamp bypasses freshness validation",
-      "updated_at": "2026-09-05T03:22:29Z"
+      "updated_at": "2026-09-05T03:24:30Z",
+      "validation": "Four focused suites 24 of 24 passed; HTTP contract journey 9 of 9 passed including NaN 401 and valid signed publication 200; CMS typecheck, focused ESLint and diff checks passed"
     },
     {
       "actual": "Variants throw, acknowledge invalid input, or purge a path before failing",
       "affected": "Revalidation webhook request parsing and mutation ordering",
+      "commit": "4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4",
       "created_at": "2026-09-05T03:22:32Z",
       "environment": "Local isolated lane05 database and mock CMS; configured signed revalidation sender",
       "evidence": [
-        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts"
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts",
+        "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05/cms/tests/int/revalidateHook.int.spec.ts; /tmp/qa-20260905-lane05-http.json"
       ],
       "expected": "Return 400 before any cache mutation",
+      "fix": "Validate the parsed value is a non-array object, require a positive safe integer article ID, and require supported fields to be strings before invalidating any path",
       "id": "E2E-009",
       "lane": "05",
+      "pr": "https://github.com/snowopsdev/datum/pull/95",
       "preconditions": "Validly signed request with null, scalar, array or structurally invalid JSON body",
+      "regression": "Null, array, numeric slug and object article ID bodies assert 400 and zero revalidation calls before a valid signed control",
       "reproduction": "Submit signed malformed body variants and observe response plus purge calls",
-      "residual_risk": "Repair and verification in progress",
+      "residual_risk": "The endpoint intentionally ignores authenticated event names outside the publication transition contract",
       "root_cause": "The route uses parsed JSON fields without first validating that the body is an object with supported scalar values",
       "severity": "minor",
-      "status": "reproduced",
+      "status": "verified",
       "title": "Malformed webhook bodies bypass the request boundary",
-      "updated_at": "2026-09-05T03:22:32Z"
+      "updated_at": "2026-09-05T03:24:32Z",
+      "validation": "Four focused suites 24 of 24 passed; HTTP contract journey 9 of 9 passed; CMS typecheck, focused ESLint and diff checks passed; webhook fixture restored disabled and null settings"
     }
   ],
   "lanes": [
@@ -304,7 +316,7 @@
     {
       "agent": "/root/api_lanes",
       "app": 4251,
-      "artifacts": "/tmp/qa-20260905-lane05-health.json; cms/tests/int/revalidateHook.int.spec.ts retained uncommitted",
+      "artifacts": "/tmp/qa-20260905-lane05-http.json; /tmp/qa-20260905-lane05-http.mjs; cms/tests/int/revalidateHook.int.spec.ts",
       "blocker": "",
       "branch": "codex/qa-20260905-lane05",
       "callback": 4252,
@@ -312,10 +324,13 @@
       "gateway": 4250,
       "lane": "05",
       "namespace": "qa_20260905_lane05",
-      "session": "96559 stopped exit 0",
-      "status": "running",
-      "summary": "Corrected exploratory test parameterization; base rerun 13 cases with 7 passing and 6 failing reproduced E2E-008 timestamp freshness and E2E-009 malformed-body boundary defects; repairs in progress",
-      "updated_at": "2026-09-05T03:22:34Z",
+      "previous_sessions": [
+        "96559 stopped exit 0"
+      ],
+      "session": "Next 3568 stopped exit 0; HTTP 53298 completed exit 0",
+      "status": "completed",
+      "summary": "Corrected exploratory harness and verified E2E-008 and E2E-009 at commit 4a78ff7; four suites 24 of 24 and HTTP journey 9 of 9 pass; draft PR95 opened",
+      "updated_at": "2026-09-05T03:24:36Z",
       "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05"
     },
     {
@@ -367,14 +382,17 @@
       "agent": "/root/api_lanes",
       "app": 4291,
       "blocker": "",
+      "branch": "codex/qa-20260905-lane09",
       "callback": 4292,
       "created_at": "2026-09-05T01:48:20Z",
       "gateway": 4290,
       "lane": "09",
       "namespace": "qa_20260905_lane09",
+      "session": "install 95374 completed or reconciling",
       "status": "provisioning",
-      "summary": "Retrying local authentication, access-boundary, privacy and input-abuse application contracts after explicit user request",
-      "updated_at": "2026-09-05T03:21:08Z"
+      "summary": "Separate immutable-base worktree created; mock environment installed and isolated database provisioning started",
+      "updated_at": "2026-09-05T03:24:39Z",
+      "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane09"
     },
     {
       "agent": "/root/pipeline_lanes",
@@ -719,7 +737,27 @@
     {
       "at": "2026-09-05T03:22:34Z",
       "message": "Lane 05 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:24:30Z",
+      "message": "E2E-008 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:24:32Z",
+      "message": "E2E-009 updated to verified"
+    },
+    {
+      "at": "2026-09-05T03:24:36Z",
+      "message": "Lane 05 updated to completed"
+    },
+    {
+      "at": "2026-09-05T03:24:39Z",
+      "message": "Lane 09 updated to provisioning"
+    },
+    {
+      "at": "2026-09-05T03:24:41Z",
+      "message": "Lane05 repairs E2E-008 and E2E-009 published as draft PR95 at head 4a78ff7 after 24 focused tests and 9 HTTP contract requests passed. No merge."
     }
   ],
-  "updated_at": "2026-09-05T03:22:34Z"
+  "updated_at": "2026-09-05T03:24:41Z"
 }
