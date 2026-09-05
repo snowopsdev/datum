@@ -91,6 +91,13 @@ async function main(): Promise<number> {
     `[pipeline] ${args.command} — run ${runId} (${config.mockMode ? 'MOCK' : 'live'} mode)`,
   )
 
+  // Reporting reads saved results and does not need a research workspace or
+  // an Ahrefs client. Keep it available while deployment settings are edited.
+  if (args.command === 'report') {
+    await printReport(payload, args.period)
+    return 0
+  }
+
   const mode = config.mockMode ? 'mock' : 'live'
   // Loaded before anything Ahrefs-shaped: the profile is what tells the client
   // which site it is comparing against, and it is the only place that knows
@@ -144,8 +151,6 @@ async function main(): Promise<number> {
       )
       return 1
     }
-  } else {
-    await printReport(payload, args.period)
   }
   return 0
 }
