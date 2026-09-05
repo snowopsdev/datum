@@ -32,7 +32,7 @@
       "updated_at": "2026-09-05T03:13:58Z"
     }
   },
-  "coverage": "12 lanes accounted: 10 completed, 2 platform-blocked; 6 unique application defects verified against target 100; finite stress and expansion limits honored",
+  "coverage": "12 lanes accounted; explicit retry reopened blocked lanes 05 and 09; 6 unique application defects verified against target 100",
   "created_at": "2026-09-05T01:46:38Z",
   "findings": [
     {
@@ -265,7 +265,7 @@
       "agent": "/root/api_lanes",
       "app": 4251,
       "artifacts": "/tmp/qa-20260905-lane05-health.json; cms/tests/int/revalidateHook.int.spec.ts retained uncommitted",
-      "blocker": "Worker platform rejected the delegated API and access-boundary task as possible cybersecurity risk. No reproduction accepted and no indirect retry.",
+      "blocker": "",
       "branch": "codex/qa-20260905-lane05",
       "callback": 4252,
       "created_at": "2026-09-05T01:48:19Z",
@@ -273,9 +273,9 @@
       "lane": "05",
       "namespace": "qa_20260905_lane05",
       "session": "96559 stopped exit 0",
-      "status": "blocked",
-      "summary": "Baseline API and webhook tests passed 14 of 14; exploratory regression harness left 7 passing and 6 failing cases untriaged, including one known harness defect; app session 96559 stopped and database retained",
-      "updated_at": "2026-09-05T03:13:44Z",
+      "status": "running",
+      "summary": "Retrying preserved API and webhook evidence; classifying prior 7-pass and 6-fail exploratory results before accepting findings",
+      "updated_at": "2026-09-05T03:21:04Z",
       "worktree": "/Users/snow/.codex/worktrees/datum-qa-20260905-lane05"
     },
     {
@@ -326,15 +326,15 @@
     {
       "agent": "/root/api_lanes",
       "app": 4291,
-      "blocker": "Worker platform rejected the delegated API and access-boundary task as possible cybersecurity risk. Boundary coverage remains unverified and was not retried indirectly.",
+      "blocker": "",
       "callback": 4292,
       "created_at": "2026-09-05T01:48:20Z",
       "gateway": 4290,
       "lane": "09",
       "namespace": "qa_20260905_lane09",
-      "status": "blocked",
-      "summary": "Authentication boundaries, abuse cases and privacy scenarios remained assigned but unexecuted; no finding allocated",
-      "updated_at": "2026-09-05T03:13:47Z"
+      "status": "provisioning",
+      "summary": "Retrying local authentication, access-boundary, privacy and input-abuse application contracts after explicit user request",
+      "updated_at": "2026-09-05T03:21:08Z"
     },
     {
       "agent": "/root/pipeline_lanes",
@@ -394,10 +394,10 @@
   ],
   "mode": "repair",
   "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 passes with 9 scenarios each, stopping after 2 fully covered zero-new passes. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
-  "phase": "cleanup",
+  "phase": "functional",
   "repo": "/Users/snow/.codex/worktrees/171f/datum",
   "run_id": "qa-20260905",
-  "status": "blocked",
+  "status": "running",
   "target": 100,
   "timeline": [
     {
@@ -655,7 +655,19 @@
     {
       "at": "2026-09-05T03:15:22Z",
       "message": "Final report published as draft PR94 from report branch head 96871fc; no merge."
+    },
+    {
+      "at": "2026-09-05T03:21:01Z",
+      "message": "User explicitly requested retry of lanes 05 and 09. Local mock-only API and access-boundary coverage resumed from preserved lane05 artifacts and immutable base."
+    },
+    {
+      "at": "2026-09-05T03:21:04Z",
+      "message": "Lane 05 updated to running"
+    },
+    {
+      "at": "2026-09-05T03:21:08Z",
+      "message": "Lane 09 updated to provisioning"
     }
   ],
-  "updated_at": "2026-09-05T03:15:22Z"
+  "updated_at": "2026-09-05T03:21:08Z"
 }
