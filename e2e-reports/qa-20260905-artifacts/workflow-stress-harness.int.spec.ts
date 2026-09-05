@@ -16,15 +16,22 @@ async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
-      work,
-      new Promise<never>((_resolve, reject) => {
+    const outcome = await Promise.race([
+      work.then((value) => ({ kind: 'completed' as const, value })),
+      new Promise<{ kind: 'deadline' }>((resolve) => {
         timer = setTimeout(
-          () => reject(new Error('Workflow stress deadline exceeded')),
+          () => resolve({ kind: 'deadline' }),
           Math.ceil(remainingMs),
         )
       }),
     ])
+    if (outcome.kind === 'deadline') {
+      // createPipelineRun has no cancellation signal. Drain the batch before
+      // integrity queries and cleanup so late writes cannot escape the test.
+      await work
+      throw new Error('Workflow stress deadline exceeded')
+    }
+    return outcome.value
   } finally {
     if (timer) clearTimeout(timer)
   }

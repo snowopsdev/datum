@@ -29,8 +29,9 @@ npx tsx --test pipeline/test/qaExpansion.test.ts
 rm pipeline/test/qaExpansion.test.ts
 
 cp e2e-reports/qa-20260905-artifacts/workflow-stress-harness.int.spec.ts cms/tests/int/qaWorkflowStress.int.spec.ts
-QA_STRESS_OUTPUT=e2e-reports/qa-20260905-artifacts/workflow-stress-metrics.json npm run test:int --workspace cms -- tests/int/qaWorkflowStress.int.spec.ts
+QA_STRESS_OUTPUT=../workflow-stress-metrics.repro.json npm run test:int --workspace cms -- tests/int/qaWorkflowStress.int.spec.ts
 rm cms/tests/int/qaWorkflowStress.int.spec.ts
+rm workflow-stress-metrics.repro.json
 
 cp e2e-reports/qa-20260905-artifacts/queue-expansion.int.spec.ts cms/tests/int/qaQueueExpansion.int.spec.ts
 npm run test:int --workspace cms -- tests/int/qaQueueExpansion.int.spec.ts

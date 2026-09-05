@@ -4,6 +4,11 @@ const baseURL = process.argv[2]
 const outputPath = process.argv[3]
 if (!baseURL || !outputPath) throw new Error('usage: node load.mjs BASE_URL OUTPUT_PATH')
 
+const STRESS_DEADLINE_MS = 300_000
+const REQUEST_TIMEOUT_MS = 10_000
+const campaignStartedAt = performance.now()
+const campaignDeadlineAt = campaignStartedAt + STRESS_DEADLINE_MS
+const loadDeadlineAt = campaignDeadlineAt - REQUEST_TIMEOUT_MS
 const ramps = [
   { concurrency: 1, operations: 10 },
   { concurrency: 2, operations: 20 },
@@ -16,6 +21,7 @@ const errors = []
 const rampResults = []
 let peakInFlight = 0
 let attemptedOperations = 0
+let deadlineExceeded = false
 
 for (const ramp of ramps) {
   let next = 0
@@ -24,8 +30,14 @@ for (const ramp of ramps) {
   const startedAt = performance.now()
   const workers = Array.from({ length: ramp.concurrency }, async () => {
     while (true) {
+      if (errors.length > 0 || deadlineExceeded) return
       const operation = next++
-      if (operation >= ramp.operations || errors.length > 0) return
+      if (operation >= ramp.operations) return
+      const remainingLoadMs = loadDeadlineAt - performance.now()
+      if (remainingLoadMs <= 0) {
+        deadlineExceeded = true
+        return
+      }
       attemptedOperations += 1
       rampAttempted += 1
       inFlight += 1
@@ -34,7 +46,9 @@ for (const ramp of ramps) {
       try {
         const response = await fetch(`${baseURL}/api/users/me`, {
           headers: { accept: 'application/json' },
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.timeout(
+            Math.max(1, Math.min(REQUEST_TIMEOUT_MS, Math.ceil(remainingLoadMs))),
+          ),
         })
         const body = await response.json()
         if (response.status !== 200 || body?.user !== null || body?.message !== 'Account') {
@@ -43,6 +57,7 @@ for (const ramp of ramps) {
         }
         latencies.push(performance.now() - requestStarted)
       } catch (error) {
+        if (performance.now() >= loadDeadlineAt) deadlineExceeded = true
         errors.push({ operation, message: error instanceof Error ? error.message : String(error) })
         return
       } finally {
@@ -59,15 +74,35 @@ for (const ramp of ramps) {
     completed: latencies.length - rampResults.reduce((sum, row) => sum + row.completed, 0),
     durationMs,
   })
-  if (errors.length > 0) break
+  if (errors.length > 0 || deadlineExceeded) break
 }
 
 const sorted = [...latencies].sort((a, b) => a - b)
 const percentile = (p) => sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)] ?? null
 const totalDurationMs = rampResults.reduce((sum, row) => sum + row.durationMs, 0)
 const recoveryStarted = performance.now()
-const recoveryResponse = await fetch(`${baseURL}/api/users/me`, { signal: AbortSignal.timeout(10_000) })
-const recoveryBody = await recoveryResponse.json()
+const remainingRecoveryMs = campaignDeadlineAt - recoveryStarted
+let recoveryStatus = null
+let recoveryBodyValid = false
+let recoveryError = null
+if (remainingRecoveryMs <= 0) {
+  deadlineExceeded = true
+  recoveryError = 'Stress campaign deadline exceeded before recovery check'
+} else {
+  try {
+    const recoveryResponse = await fetch(`${baseURL}/api/users/me`, {
+      signal: AbortSignal.timeout(
+        Math.max(1, Math.min(REQUEST_TIMEOUT_MS, Math.ceil(remainingRecoveryMs))),
+      ),
+    })
+    const recoveryBody = await recoveryResponse.json()
+    recoveryStatus = recoveryResponse.status
+    recoveryBodyValid = recoveryBody?.user === null && recoveryBody?.message === 'Account'
+  } catch (error) {
+    if (performance.now() >= campaignDeadlineAt) deadlineExceeded = true
+    recoveryError = error instanceof Error ? error.message : String(error)
+  }
+}
 const recoveryMs = performance.now() - recoveryStarted
 const result = {
   target: `${baseURL}/api/users/me`,
@@ -76,6 +111,8 @@ const result = {
   configuredOperationLimit: ramps.reduce((sum, ramp) => sum + ramp.operations, 0),
   attemptedOperations,
   completedOperations: latencies.length,
+  deadlineMs: STRESS_DEADLINE_MS,
+  deadlineExceeded,
   retries: 0,
   peakConcurrency: peakInFlight,
   totalDurationMs,
@@ -88,12 +125,13 @@ const result = {
   },
   errors,
   recovery: {
-    status: recoveryResponse.status,
-    bodyValid: recoveryBody?.user === null && recoveryBody?.message === 'Account',
+    status: recoveryStatus,
+    bodyValid: recoveryBodyValid,
     latencyMs: recoveryMs,
+    error: recoveryError,
   },
-  stopConditionTriggered: errors.length > 0,
+  stopConditionTriggered: errors.length > 0 || deadlineExceeded,
 }
 await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`)
 console.log(JSON.stringify(result))
-if (errors.length > 0 || recoveryResponse.status !== 200 || !result.recovery.bodyValid) process.exitCode = 1
+if (errors.length > 0 || deadlineExceeded || recoveryStatus !== 200 || !recoveryBodyValid) process.exitCode = 1
