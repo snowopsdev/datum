@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/snowopsdev/datum?sort=semver)](https://github.com/snowopsdev/datum/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Datum is an SEO content pipeline built on [Payload CMS](https://payloadcms.com/). It finds content-gap keywords, drafts articles from reusable templates, and checks each draft before publication.
+Datum is an governed content pipeline built on [Payload CMS](https://payloadcms.com/). It finds content-gap keywords, drafts content from reusable templates, and checks each draft before publication.
 
 ## Why Datum is different
 
@@ -26,7 +26,7 @@ Everything runs in your Payload and Postgres setup under the MIT license. If a r
 
 ## Pipeline and data integration
 
-![Datum data flow: external SEO sources and the open web feed the pipeline through the AhrefsClient seam, topic discovery, research, the brief gate, generation, QA and scoring, then editor review and publication](docs/diagrams/pipeline-data-flow.svg)
+![Datum data flow: external sources and the open web feed the pipeline through the AhrefsClient seam, topic discovery, research, the brief gate, generation, QA and scoring, then editor review and publication](docs/diagrams/pipeline-data-flow.svg)
 
 External SEO data is isolated behind the `AhrefsClient` contract, which has three methods: `contentGapKeywords` and `discoverKeywords` find topics, and `serpResearch` reads a keyword's live results page. To add another provider, implement that interface and inject it through `StageContext`; topic discovery and SERP research consume the normalized results. Model calls are routed through one adapter of their own, picked per stage from the model id, so no stage has to choose one. The editable [diagram source](docs/diagrams/pipeline-data-flow.html) lives beside the SVG.
 
