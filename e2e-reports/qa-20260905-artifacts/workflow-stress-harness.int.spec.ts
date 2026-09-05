@@ -10,19 +10,13 @@ import { expect, it } from 'vitest'
 
 const TEST_TIMEOUT_MS = 300_000
 const DRAIN_GRACE_MS = 10_000
-const CLEANUP_BUDGET_MS = 15_000
-const LAUNCH_DEADLINE_MS = TEST_TIMEOUT_MS - DRAIN_GRACE_MS - CLEANUP_BUDGET_MS
+const EXIT_MARGIN_MS = 5_000
+const LAUNCH_DEADLINE_MS = TEST_TIMEOUT_MS - DRAIN_GRACE_MS - EXIT_MARGIN_MS
 const CONCURRENCY_RAMPS = [1, 2, 5, 10, 20]
 const EXPECTED_OPERATIONS = CONCURRENCY_RAMPS.reduce(
   (sum, concurrency) => sum + concurrency,
   0,
 )
-
-class WorkflowStressDeadlineError extends Error {
-  constructor(readonly cleanupSafe: boolean) {
-    super('Workflow stress deadline exceeded')
-  }
-}
 
 async function settlesWithin<T>(work: Promise<T>, timeoutMs: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -56,10 +50,12 @@ async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<
     if (outcome.kind === 'deadline') {
       if (timer) clearTimeout(timer)
       // createPipelineRun has no cancellation signal. Drain for a bounded
-      // grace period. If work remains pending, the caller skips deletion so
-      // late writes cannot race cleanup in the isolated test database.
-      const cleanupSafe = await settlesWithin(work, DRAIN_GRACE_MS)
-      throw new WorkflowStressDeadlineError(cleanupSafe)
+      // grace period. This harness never deletes its uniquely identified rows,
+      // so work that remains pending cannot race cleanup in the isolated DB.
+      const drained = await settlesWithin(work, DRAIN_GRACE_MS)
+      throw new Error(drained
+        ? 'Workflow stress deadline exceeded after draining active launches'
+        : 'Workflow stress deadline exceeded; active launches retained in isolated database')
     }
     return outcome.value
   } finally {
@@ -78,7 +74,6 @@ it('runs bounded workflow launch stress', async () => {
   const latencies: number[] = []
   const errors: string[] = []
   const start = performance.now()
-  let cleanupSafe = true
   let peakInFlight = 0
   let inFlight = 0
   const article = await payload.create({
@@ -138,17 +133,9 @@ it('runs bounded workflow launch stress', async () => {
     expect(runIds).toHaveLength(EXPECTED_OPERATIONS)
     expect(runs.docs).toHaveLength(runIds.length)
     expect(jobs.docs).toHaveLength(runIds.length)
-  } catch (error) {
-    if (error instanceof WorkflowStressDeadlineError) cleanupSafe = error.cleanupSafe
-    throw error
   } finally {
-    if (cleanupSafe) {
-      await payload.delete({ collection: 'payload-jobs', overrideAccess: true,
-        where: { 'input.runId': { in: runIds } } })
-      await payload.delete({ collection: 'pipeline-runs', overrideAccess: true,
-        where: { runId: { in: runIds } } })
-      // The article's append-only audit record retains its relationship. Keep
-      // the article and template, as the other database-backed suites do.
-    }
+    // Retain this harness's uniquely identified run, job, article, and template
+    // rows as evidence in the dedicated isolated database. Discard that test
+    // database after inspection instead of racing uncancellable Payload calls.
   }
 }, TEST_TIMEOUT_MS)

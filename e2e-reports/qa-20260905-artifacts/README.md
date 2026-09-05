@@ -30,7 +30,7 @@ The combined campaign checkout contained all four heads. The merge sequence plac
 
 The service stress result used the fully combined repaired checkout containing PR heads `bbafe1d`, `800906f`, `11e81b6`, `7e7f3b9`, `116a212`, `8855dea`, `f187aab`, `4a78ff7`, and `5392437`. Use post-campaign `main` to reproduce that result.
 
-Run these commands from the repository root. Use a migration-built isolated test database and the configured ignored environment file. Remove each copied test after its run so the campaign harnesses do not become part of the permanent test suite.
+Run these commands from the repository root. Use a dedicated migration-built isolated test database and the configured ignored environment file. The workflow stress harness intentionally retains its uniquely identified run, job, article, and template rows as evidence; inspect or discard that isolated database after the run. Remove each copied test so the campaign harnesses do not become part of the permanent test suite.
 
 ```bash
 cp e2e-reports/qa-20260905-artifacts/pipeline-persistence-regression.test.ts pipeline/test/qaPersistence.test.ts
