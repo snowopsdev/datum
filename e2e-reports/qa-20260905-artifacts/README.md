@@ -41,6 +41,7 @@ rm cms/tests/int/qaQueueExpansion.int.spec.ts
 The HTTP harnesses accept the target URL and output path as arguments. Provide the configured test password through the environment:
 
 ```bash
-SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs http://127.0.0.1:3000 e2e-reports/qa-20260905-artifacts/lane05-http.json
-SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs http://127.0.0.1:3000 e2e-reports/qa-20260905-artifacts/lane09-http.json
+SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane05-http-harness.mjs http://127.0.0.1:3000 lane05-http.repro.json
+SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" node e2e-reports/qa-20260905-artifacts/lane09-http-harness.mjs http://127.0.0.1:3000 lane09-http.repro.json
+rm lane05-http.repro.json lane09-http.repro.json
 ```

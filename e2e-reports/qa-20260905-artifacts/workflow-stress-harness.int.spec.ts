@@ -9,6 +9,11 @@ import { getPayload, type TypedUser } from 'payload'
 import { expect, it } from 'vitest'
 
 const STRESS_DEADLINE_MS = 300_000
+const CONCURRENCY_RAMPS = [1, 2, 5, 10, 20]
+const EXPECTED_OPERATIONS = CONCURRENCY_RAMPS.reduce(
+  (sum, concurrency) => sum + concurrency,
+  0,
+)
 
 async function beforeDeadline<T>(work: Promise<T>, deadlineAt: number): Promise<T> {
   const remainingMs = deadlineAt - performance.now()
@@ -65,8 +70,9 @@ it('runs bounded workflow launch stress', async () => {
     evidenceBank: { content: null, updatedAt: null, asOf: '2026-09-05' },
   })
   try {
-    for (const concurrency of [1, 2, 5, 10, 20]) {
-      if (performance.now() >= deadlineAt || runIds.length + concurrency > 500) break
+    for (const concurrency of CONCURRENCY_RAMPS) {
+      if (performance.now() >= deadlineAt) throw new Error('Workflow stress deadline exceeded')
+      if (runIds.length + concurrency > 500) throw new Error('Workflow stress operation limit exceeded')
       const batch = Array.from({ length: concurrency }, () => randomUUID())
       runIds.push(...batch)
       await beforeDeadline(Promise.all(batch.map(async (runId) => {
@@ -103,6 +109,7 @@ it('runs bounded workflow launch stress', async () => {
     }
     if (process.env.QA_STRESS_OUTPUT) writeFileSync(process.env.QA_STRESS_OUTPUT, JSON.stringify(metrics, null, 2))
     expect(errors).toEqual([])
+    expect(runIds).toHaveLength(EXPECTED_OPERATIONS)
     expect(runs.docs).toHaveLength(runIds.length)
     expect(jobs.docs).toHaveLength(runIds.length)
   } finally {
