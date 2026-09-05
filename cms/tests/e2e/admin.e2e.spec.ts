@@ -20,15 +20,19 @@ test.describe('Admin Panel', () => {
 
   test('can navigate to dashboard', async () => {
     await page.goto('/admin')
-    await expect(page).toHaveURL(/\/admin$/)
-    const dashboardArtifact = page.locator('span[title="Dashboard"]').first()
-    await expect(dashboardArtifact).toBeVisible()
+    await expect(page).toHaveURL(/\/admin(?:\/ops\/content)?$/)
     // The dashboard is the setup hub, whose h1 changes with workspace state
     // ("Set up your workspace" / "Your workspace"), and which redirects to the
     // content list once setup is finished and anything has been written.
     // Pinning specific copy made the test fail on any database mid-onboarding,
     // so assert a rendered heading instead of a particular state's wording.
-    await expect(page.getByRole('heading', { level: 1 }).first()).not.toBeEmpty()
+    const heading = page.getByRole('heading', { level: 1 }).first()
+    if (new URL(page.url()).pathname === '/admin/ops/content') {
+      await expect(heading).toHaveText('Content')
+    } else {
+      await expect(page.locator('span[title="Dashboard"]').first()).toBeVisible()
+      await expect(heading).toHaveText(/^(Set up your workspace|Your workspace)$/)
+    }
   })
 
   test('the setup hub lists the five workspace assets', async () => {
