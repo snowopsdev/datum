@@ -31,10 +31,16 @@ live provider behavior remains an explicit coverage gap.
   concurrency at most 20, ramp from 1. Stop on sustained errors, integrity risk,
   throttling or unexpected cost.
 - Startup: 180 seconds and one evidenced setup retry.
-- Expansion: at most three passes, nine selected scenarios per pass covering
-  pairwise journeys, boundaries/recovery, and concurrency/historical risk.
+- Expansion: at most three campaign-wide passes. Each pass selects a finite list
+  covering pairwise journeys, boundaries/recovery, and concurrency/historical risk.
+  The skill sets no fixed scenario count per pass.
 - Discovery exhaustion requires complete applicable critical boundaries and two
   consecutive complete passes without a new root cause. Gaps cannot be exhaustion.
+- Actual execution: pass 1 covered six scenarios, pass 2 covered six, and pass 3
+  covered three. The detailed matrix is in
+  `qa-20260905-artifacts/expansion-matrix.md`. Because the target was not reached
+  and documented gaps remain after the third allowed pass, the campaign records an
+  expansion-budget stop rather than claiming exhaustion.
 - CI: two attempts at the same failure before reassessment, ten-minute observation
   allowance per published head. External reviewers are not presumed approved.
 

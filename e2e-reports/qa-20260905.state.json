@@ -17,9 +17,9 @@
       "updated_at": "2026-09-05T03:37:10Z"
     },
     "expansion": {
-      "evidence": "The campaign used the bounded maximum of three expansion passes plus two browser passes that ended after two fully covered zero-new-root passes. The retried API and access inventories then closed the remaining primary coverage gap and found three additional roots. No further expansion pass is permitted by the configured cap.",
       "outcome": "passed",
-      "updated_at": "2026-09-05T03:37:12Z"
+      "evidence": "The configured maximum of three campaign-wide expansion passes ran 6, 6, and 3 preselected scenarios respectively, with every pass covering pairwise, boundary/recovery, and concurrency/historical-risk classes; see e2e-reports/qa-20260905-artifacts/expansion-matrix.md. All 15 scenarios passed with zero new roots. The discovery target of 100 was not reached and explicit coverage gaps remain, so no exhaustion is claimed; the run stopped at its expansion budget.",
+      "updated_at": "2026-09-05T04:13:14Z"
     },
     "integration": {
       "evidence": "Final combined migrated head da866db contains all nine application repairs plus the dashboard harness repair. Migration 20260905_232800 completed in 2 ms. Pipeline 803 of 803, CMS integration 460 of 460, API and GraphQL HTTP 28 of 28, signed webhook HTTP 9 of 9, Chromium 16 of 16, typecheck, lint with zero errors and 30 pre-existing warnings, and production build passed.",
@@ -32,7 +32,7 @@
       "updated_at": "2026-09-05T03:13:58Z"
     }
   },
-  "coverage": "All 12 lanes completed; 9 unique application defects verified against discovery target 100; bounded stress and expansion limits honored",
+  "coverage": "All 12 lanes completed; 9 unique application defects verified against discovery target 100; stress limits honored; expansion stopped at the configured three-pass budget",
   "created_at": "2026-09-05T01:46:38Z",
   "findings": [
     {
@@ -482,11 +482,11 @@
     }
   ],
   "mode": "repair",
-  "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 passes with 9 scenarios each, stopping after 2 fully covered zero-new passes. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
-  "phase": "completed",
+  "notes": "Repair full application from immutable HEAD 56c073175f12f38b6c861b382a8f197df71b416c. Clean source checkout; no dirty work included. Origin https://github.com/snowopsdev/datum.git. No matching campaign found in all 3 registered worktrees including hidden state search. Three workers and coordinator, capacity-aware lane waves. Authorized commits/push/draft PRs/deferred issues/review responses, never merge. Local Postgres snow role available; Docker unavailable. Mock providers only; each lane isolated database; env hook copies ignored local credentials so lane configuration must override DATABASE_URL/MOCK_MODE and webhook settings before any app process. Target 100 unique reproduced roots, not a quota. Primary: finite scenario inventory per lane; expansion at most 3 campaign-wide passes, each covering the skill's three scenario classes. The three passes exercised 6, 6, and 3 selected scenarios. The target was not reached and documented live-provider, platform, assistive-technology, and sustained-load gaps remain, so this is an expansion-budget stop rather than exhaustion. Next work requires a new budget and any provider allowance needed for those gaps. Stress each <=300s, <=500 operations including retries, <=20 concurrency ramping from 1; local only, stop on sustained errors/integrity risk/throttling. Startup 180s plus one evidenced retry. CI max 2 attempts per same failure, observe up to 10 minutes. No platform goal exists or requested.",
+  "phase": "expansion",
   "repo": "<source-checkout>",
   "run_id": "qa-20260905",
-  "status": "completed",
+  "status": "stopped",
   "target": 100,
   "timeline": [
     {
@@ -836,7 +836,11 @@
     {
       "at": "2026-09-05T03:37:29Z",
       "message": "Campaign completed after the user-requested retry closed lanes05 and09. All terminal checkpoints now pass; all repair PRs remain draft and unmerged."
+    },
+    {
+      "at": "2026-09-05T04:13:14Z",
+      "message": "Review correction: reconstructed the actual 6/6/3 scenario expansion matrix, removed the unsupported nine-per-pass claim, and recorded an expansion-budget stop without claiming coverage exhaustion."
     }
   ],
-  "updated_at": "2026-09-05T03:37:29Z"
+  "updated_at": "2026-09-05T04:13:14Z"
 }
