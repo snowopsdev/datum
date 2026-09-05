@@ -38,8 +38,8 @@ describe('Information-gain policy global', () => {
       expect(field.type).toBe('select')
       if (field.type !== 'select') continue
       expect(field.options).toEqual([
-        { label: 'Enabled', value: 'true' },
-        { label: 'Disabled', value: 'false' },
+        { label: 'Enabled', value: 'enabled' },
+        { label: 'Disabled', value: 'disabled' },
       ])
       expect(field.admin?.isClearable).toBe(true)
     }

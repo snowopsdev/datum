@@ -42,8 +42,8 @@ const policyField = (f: PolicyFieldDef): Field => {
       type: 'select',
       label,
       options: [
-        { label: 'Enabled', value: 'true' },
-        { label: 'Disabled', value: 'false' },
+        { label: 'Enabled', value: 'enabled' },
+        { label: 'Disabled', value: 'disabled' },
       ],
       admin: { ...admin, isClearable: true },
     }
@@ -82,6 +82,16 @@ export const InformationGainPolicy: GlobalConfig = {
     update: ({ req }) => Boolean(req.user),
   },
   hooks: {
+    beforeValidate: [({ data }) => {
+      // Preserve existing REST/Local API clients while storing GraphQL-safe
+      // enum names. Existing database values are converted by the migration.
+      for (const field of POLICY_FIELDS) {
+        if (field.kind !== 'boolean' || !data) continue
+        if (data[field.key] === 'true') data[field.key] = 'enabled'
+        if (data[field.key] === 'false') data[field.key] = 'disabled'
+      }
+      return data
+    }],
     afterChange: [auditGlobalChange('information-gain-policy', 'information_gain_policy')],
   },
   fields: POLICY_FIELDS.map(policyField),
