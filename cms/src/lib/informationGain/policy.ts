@@ -174,8 +174,8 @@ export interface ResolvedPolicy {
   canonical: string
 }
 
-const TRUE_WORDS = new Set(['true', '1', 'yes'])
-const FALSE_WORDS = new Set(['false', '0', 'no'])
+const TRUE_WORDS = new Set(['true', '1', 'yes', 'enabled'])
+const FALSE_WORDS = new Set(['false', '0', 'no', 'disabled'])
 
 /** Shared by the admin and env parsers so both read a boolean the same way. */
 function parseBooleanWord(raw: string): boolean | undefined {
@@ -194,7 +194,7 @@ const validNumber = (value: number, kind: PolicyKind): boolean => {
 /** The admin value for a field, or undefined when it is absent or out of range. */
 function fromAdmin(value: unknown, kind: PolicyKind): number | boolean | undefined {
   if (kind === 'boolean') {
-    // The global stores the boolean gates as a clearable select ('true'/'false')
+    // The global stores the boolean gates as a clearable select ('enabled'/'disabled')
     // so that "unset" stays a visible, distinct state; a real boolean is
     // accepted too, for API callers and older stored docs.
     if (typeof value === 'boolean') return value

@@ -2944,15 +2944,15 @@ export interface InformationGainPolicy {
   /**
    * A new claim's numbers or dates must match its source exactly, not just roughly. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_REQUIRE_EXACT_VALUE_MATCH environment variable, or the built-in default of true.
    */
-  requireExactValueMatch?: ('true' | 'false') | null;
+  requireExactValueMatch?: ('enabled' | 'disabled') | null;
   /**
    * Every new, checkable claim must point to at least one source. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_REQUIRE_EVIDENCE_LINEAGE environment variable, or the built-in default of true.
    */
-  requireEvidenceLineage?: ('true' | 'false') | null;
+  requireEvidenceLineage?: ('enabled' | 'disabled') | null;
   /**
    * Drafts are written by a model, so any claim that we ran our own test, survey, or study is fabricated. Block it. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS environment variable, or the built-in default of true.
    */
-  blockFirstPartyMeasurements?: ('true' | 'false') | null;
+  blockFirstPartyMeasurements?: ('enabled' | 'disabled') | null;
   /**
    * If a claim looks like it contradicts a reliable source, at or above this likelihood send it to a person instead of blocking it automatically. It might just be genuinely new information. If a draft fails this check, it gets flagged for a person to review. Leave this blank to fall back to the INFORMATION_GAIN_MAX_CONTRADICTION_PROBABILITY environment variable, or the built-in default of 0.25.
    */

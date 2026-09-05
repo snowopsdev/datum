@@ -12,6 +12,7 @@ import * as migration_20260903_020919_workspace_profile_global from './20260903_
 import * as migration_20260903_022301_icps_collection_and_article_icp from './20260903_022301_icps_collection_and_article_icp';
 import * as migration_20260903_024506_positioning_global_and_llm_stage_schema from './20260903_024506_positioning_global_and_llm_stage_schema';
 import * as migration_20260903_030748_evidence_bank_global_and_qa from './20260903_030748_evidence_bank_global_and_qa';
+import * as migration_20260905_232800_graphql_policy_options from './20260905_232800_graphql_policy_options';
 
 export const migrations = [
   {
@@ -83,5 +84,10 @@ export const migrations = [
     up: migration_20260903_030748_evidence_bank_global_and_qa.up,
     down: migration_20260903_030748_evidence_bank_global_and_qa.down,
     name: '20260903_030748_evidence_bank_global_and_qa'
+  },
+  {
+    up: migration_20260905_232800_graphql_policy_options.up,
+    down: migration_20260905_232800_graphql_policy_options.down,
+    name: '20260905_232800_graphql_policy_options',
   },
 ];
