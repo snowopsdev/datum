@@ -17,6 +17,17 @@ The campaign used mock mode, configured test credentials, and isolated databases
 
 ## Running the preserved harnesses
 
+These commands validate repaired behavior and must not run against PR #94 by itself, because that PR contains the campaign record rather than the application fixes. Use a checkout containing the repair head listed for each harness:
+
+| Harness | Required repair head |
+| --- | --- |
+| `pipeline-persistence-regression.test.ts`, `pipeline-expansion.test.ts` | PR [#87](https://github.com/snowopsdev/datum/pull/87), `bbafe1d52fc26989c804a58c986c39419d67fb2c` |
+| `workflow-stress-harness.int.spec.ts`, `queue-expansion.int.spec.ts` | PR [#89](https://github.com/snowopsdev/datum/pull/89), `116a212e54d2cbc2ed98de20627edb89ff3a58d2` |
+| `lane05-http-harness.mjs` | PR [#95](https://github.com/snowopsdev/datum/pull/95), `4a78ff7ae6f0ffc60dadaa2c0bd0e3148dd213c4` |
+| `lane09-http-harness.mjs` | PR [#96](https://github.com/snowopsdev/datum/pull/96), `53924378264f5f22f303e71cd0096e9242f1b33a` |
+
+The combined campaign checkout contained all four heads. The merge sequence places PR #94 last, so a fresh `main` checkout after the campaign merges also satisfies every prerequisite.
+
 Run these commands from the repository root. Use a migration-built isolated test database and the configured ignored environment file. Remove each copied test after its run so the campaign harnesses do not become part of the permanent test suite.
 
 ```bash
