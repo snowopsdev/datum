@@ -41,6 +41,18 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
 
   const chosen = templates.find((t) => t.id === templateId) ?? null
 
+  const chooseWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next: number
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % templates.length
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (index - 1 + templates.length) % templates.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = templates.length - 1
+    else return
+    event.preventDefault()
+    setTemplateId(templates[next].id)
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
+  }
+
   const createFromKeyword = (event: React.FormEvent) => {
     event.preventDefault()
     if (!chosen) return
@@ -79,13 +91,15 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
             </p>
           ) : (
             <div className="datum-new__cards" role="radiogroup" aria-label="Kind of piece">
-              {templates.map((t) => (
+              {templates.map((t, index) => (
                 <button
                   aria-checked={templateId === t.id}
                   className={`datum-new__card${templateId === t.id ? ' is-selected' : ''}`}
                   key={t.id}
                   onClick={() => setTemplateId(t.id)}
+                  onKeyDown={(event) => chooseWithKeyboard(event, index)}
                   role="radio"
+                  tabIndex={templateId === t.id || (templateId === null && index === 0) ? 0 : -1}
                   type="button"
                 >
                   <strong>{t.name}</strong>
