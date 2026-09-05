@@ -1,0 +1,104 @@
+{
+  "host": "127.0.0.1",
+  "lanes": [
+    {
+      "lane": "01",
+      "ports": {
+        "app": 4211,
+        "callback": 4212,
+        "gateway": 4210
+      }
+    },
+    {
+      "lane": "02",
+      "ports": {
+        "app": 4221,
+        "callback": 4222,
+        "gateway": 4220
+      }
+    },
+    {
+      "lane": "03",
+      "ports": {
+        "app": 4231,
+        "callback": 4232,
+        "gateway": 4230
+      }
+    },
+    {
+      "lane": "04",
+      "ports": {
+        "app": 4241,
+        "callback": 4242,
+        "gateway": 4240
+      }
+    },
+    {
+      "lane": "05",
+      "ports": {
+        "app": 4251,
+        "callback": 4252,
+        "gateway": 4250
+      }
+    },
+    {
+      "lane": "06",
+      "ports": {
+        "app": 4261,
+        "callback": 4262,
+        "gateway": 4260
+      }
+    },
+    {
+      "lane": "07",
+      "ports": {
+        "app": 4271,
+        "callback": 4272,
+        "gateway": 4270
+      }
+    },
+    {
+      "lane": "08",
+      "ports": {
+        "app": 4281,
+        "callback": 4282,
+        "gateway": 4280
+      }
+    },
+    {
+      "lane": "09",
+      "ports": {
+        "app": 4291,
+        "callback": 4292,
+        "gateway": 4290
+      }
+    },
+    {
+      "lane": "10",
+      "ports": {
+        "app": 4301,
+        "callback": 4302,
+        "gateway": 4300
+      }
+    },
+    {
+      "lane": "11",
+      "ports": {
+        "app": 4331,
+        "callback": 4332,
+        "gateway": 4330
+      }
+    },
+    {
+      "lane": "12",
+      "ports": {
+        "app": 4321,
+        "callback": 4322,
+        "gateway": 4320
+      }
+    }
+  ],
+  "note": "Availability is a point-in-time probe; recheck immediately before process startup.",
+  "requested_base": 4200,
+  "stride": 10
+}
