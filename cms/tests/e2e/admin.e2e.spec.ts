@@ -8,6 +8,7 @@ import { seedTestUser, cleanupTestUser, testUser } from '../helpers/seedUser'
 test.describe('Admin Panel', () => {
   let page: Page
   let dashboardPath: '/admin' | '/admin/ops/content'
+  let originalViewport: { height: number; width: number } | null = null
 
   test.beforeAll(async ({ browser }) => {
     await seedTestUser()
@@ -22,12 +23,22 @@ test.describe('Admin Panel', () => {
 
     const context = await browser.newContext()
     page = await context.newPage()
+    originalViewport = page.viewportSize()
 
     await login({ dashboardPath, page, user: testUser })
   })
 
   test.afterAll(async () => {
     await cleanupTestUser()
+  })
+
+  // Two tests widen the shared page to exercise Payload's nav breakpoint. Put
+  // the context's own size back so nothing after them runs at 1440px.
+  test.afterEach(async () => {
+    const current = page.viewportSize()
+    if (originalViewport && (current?.width !== originalViewport.width || current?.height !== originalViewport.height)) {
+      await page.setViewportSize(originalViewport)
+    }
   })
 
   test('can navigate to dashboard', async () => {
@@ -100,6 +111,32 @@ test.describe('Admin Panel', () => {
     await expect(page.locator('.datum-ops-nav')).toBeVisible()
   })
 
+  test('a nav close below 1440px is remembered across a reload', async () => {
+    // Payload's own toggler only persists the preference above 1440px, so
+    // without NavOpener writing it a close here is forgotten on every load.
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.goto('/admin/ops/content')
+    const aside = page.locator('aside.nav')
+    const toggler = page.locator('.template-default__nav-toggler').first()
+    const settle = () => page.waitForTimeout(1000)
+
+    await expect(aside).toHaveClass(/nav--nav-open/)
+    await toggler.click()
+    await expect(aside).not.toHaveClass(/nav--nav-open/)
+    await settle()
+    await page.reload()
+    await expect(aside).toHaveClass(/nav--nav-hydrated/)
+    await settle()
+    await expect(aside).not.toHaveClass(/nav--nav-open/)
+
+    // Reopening is remembered too — the operator is never stuck with either.
+    await toggler.click()
+    await expect(aside).toHaveClass(/nav--nav-open/)
+    await settle()
+    await page.reload()
+    await expect(aside).toHaveClass(/nav--nav-open/)
+  })
+
   test('brand voice lives beside the other setup assets', async () => {
     await page.goto('/admin/ops/setup/brand-voice')
     expect(new URL(page.url()).pathname).toBe('/admin/ops/setup/brand-voice')
@@ -109,12 +146,19 @@ test.describe('Admin Panel', () => {
   test('the globals shadowed by an ops editor are not reachable as raw forms', async () => {
     for (const slug of ['workspace-profile', 'positioning', 'evidence-bank']) {
       const response = await page.goto(`/admin/globals/${slug}`)
-      const status = response?.status() ?? 0
-      if (status === 404) continue
-      // Payload answers a hidden entity's admin route with its not-found view
-      // at HTTP 200; either way there must be no form to save.
-      await expect(page.locator('form.global-edit')).toHaveCount(0)
+      // The edit view is `<main class="collection-edit global-edit--<slug>">`
+      // wrapping `<form class="collection-edit__form">`; neither may exist.
+      await expect(page.locator(`main.global-edit--${slug}`)).toHaveCount(0)
+      await expect(page.locator('form.collection-edit__form')).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0)
+      // Payload answers a hidden entity's admin route with its own not-found
+      // view at HTTP 200 rather than 404. Accept either, but insist the page
+      // actually says so instead of rendering something else empty-handed.
+      if (response?.status() !== 404) {
+        await expect(
+          page.locator('.not-found').getByRole('heading', { name: 'Nothing found' }),
+        ).toBeVisible()
+      }
     }
   })
 
