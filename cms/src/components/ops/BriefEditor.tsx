@@ -103,8 +103,8 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         <p className="datum-ops__eyebrow">Brief · step 2 of 5</p>
         <h2>Check the plan before we write</h2>
         <p className="datum-ops__sub">
-          Research is done. Nothing has been written yet, so nothing has been spent.
-          {mode === 'live' ? ' Writing uses paid models.' : ''}
+          Research is done. Nothing has been written yet, so nothing has been spent on writing.
+          {mode === 'live' ? ' Research used paid calls, and writing will too.' : ''}
         </p>
         <ol className="datum-brief__todo">
           <li>

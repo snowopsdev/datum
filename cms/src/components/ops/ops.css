@@ -797,7 +797,9 @@
   min-height: 480px;
   border: 1px solid var(--ops-hairline);
   border-radius: var(--ops-radius-lg);
-  overflow: hidden;
+  /* `clip`, not `hidden`: hidden makes this grid a scroll container, which
+     would pin the sticky rail to a box that never scrolls. */
+  overflow: clip;
   background: var(--ops-canvas);
 }
 
