@@ -28,6 +28,14 @@ export async function IcpEditorView(props: AdminViewServerProps) {
   const idSegment = segments[3]
   if (!idSegment || Array.isArray(idSegment)) notFound()
 
+  // The assistant on every step drafts from the workspace's own pages, so the
+  // editor has to be able to say when there are none.
+  const profile = await req.payload.findGlobal({
+    slug: 'workspace-profile',
+    depth: 0,
+    overrideAccess: true,
+  })
+
   let record: IcpDTO | null = null
   if (idSegment !== 'new') {
     const id = Number(idSegment)
@@ -65,7 +73,12 @@ export async function IcpEditorView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <IcpEditor record={record} />
+        <IcpEditor
+          record={record}
+          sitePagesFetchedAt={
+            (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
+          }
+        />
       </Gutter>
     </DefaultTemplate>
   )

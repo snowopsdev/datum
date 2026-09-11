@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import React, { useState, useTransition } from 'react'
 
 import { assistAction, type AssistAsset } from './setupActions'
@@ -35,6 +36,12 @@ type Props<Id extends string> = {
   /** Merge an assistant's proposal into form state. Never saves. */
   onAssist: (stepId: Id, value: Record<string, unknown>) => void
   disabled: boolean
+  /**
+   * When the workspace last fetched its own site pages, or null for never.
+   * The assistant drafts from those pages, so a step that offers it with none
+   * stored is offering a draft from almost nothing, and says so.
+   */
+  sitePagesFetchedAt?: string | null
   /** The step's fields. */
   children: React.ReactNode
   /** Save, activate, archive — whatever this asset's footer offers. */
@@ -77,6 +84,7 @@ export function AssetStepper<Id extends string>({
   sectionValue,
   onAssist,
   disabled,
+  sitePagesFetchedAt,
   children,
   actions,
   problems = [],
@@ -174,6 +182,15 @@ export function AssetStepper<Id extends string>({
                 It reads your site pages, your brand voice, and the rest of this workspace. It never
                 saves: whatever comes back lands in the form for you to edit.
               </p>
+              {sitePagesFetchedAt === null ? (
+                <p className="datum-ops__warn">
+                  No site pages fetched yet — the assistant drafts from your site. Fetch them on the{' '}
+                  <Link href="/admin/ops/setup/workspace" prefetch={false}>
+                    Workspace step
+                  </Link>
+                  .
+                </p>
+              ) : null}
               <div className="datum-ops__field">
                 <label htmlFor={`assist-notes-${current.id}`}>
                   Your notes for this step (optional)

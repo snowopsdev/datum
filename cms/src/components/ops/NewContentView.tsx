@@ -50,6 +50,7 @@ export async function NewContentView(props: AdminViewServerProps) {
     >
       <Gutter>
         <NewContentFlow
+          blockers={r.governance.blockers}
           mode={r.mode}
           pipelineReady={r.runtime.ready && r.governance.ready && r.content.ready}
           runActive={setup.latestRun?.status === 'queued' || setup.latestRun?.status === 'running'}

@@ -10,6 +10,7 @@ import { getPayload } from 'payload'
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { gateRunReadiness } from '../../lib/queueRunForArticles'
 
 export interface StartContentRunInput {
   templateId: number
@@ -29,23 +30,12 @@ export async function startContentRunAction(
 
   const setup = await loadWorkspaceSetup(payload)
   const { readiness } = setup
-  if (!readiness.runtime.ready) {
-    return {
-      ok: false,
-      error: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
-    }
-  }
-  if (!readiness.governance.ready) {
-    return {
-      ok: false,
-      error: `Finish setup before starting a content run: ${readiness.governance.problems.join('; ')}.`,
-    }
-  }
+  // The one gate every run goes through, so a gap run is refused in the same
+  // words as a run queued from the board or an article page.
+  const refusal = gateRunReadiness(readiness, input.confirmLiveCost)
+  if (refusal) return { ok: false, error: refusal }
   if (!setup.templates.some((template) => template.id === input.templateId)) {
     return { ok: false, error: 'Choose an existing content template.' }
-  }
-  if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
-    return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
   }
 
   const runId = randomUUID()

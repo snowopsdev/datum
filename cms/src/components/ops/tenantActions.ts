@@ -617,8 +617,10 @@ export async function activateDefaultBrandVoiceAction(): Promise<TenantActionRes
 /** What the runtime banner needs: live mode with anything missing. */
 export async function runtimeStatusAction(): Promise<{
   mode: 'mock' | 'live'
+  /** Environment variable names. */
   missing: string[]
-  blockers: string[]
+  /** Everything else unmet, already phrased as an instruction. */
+  problems: string[]
 }> {
   try {
     const { payload } = await requireUser()
@@ -636,10 +638,10 @@ export async function runtimeStatusAction(): Promise<{
     return {
       mode: readiness.mode,
       missing: readiness.runtime.missing,
-      blockers: readiness.runtime.blockers,
+      problems: readiness.runtime.problems,
     }
   } catch {
-    return { mode: 'mock', missing: [], blockers: [] }
+    return { mode: 'mock', missing: [], problems: [] }
   }
 }
 

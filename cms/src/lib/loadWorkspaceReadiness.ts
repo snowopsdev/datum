@@ -1,6 +1,6 @@
 import type { Payload, TypedUser } from 'payload'
 
-import type { LlmSettingsDoc } from './llmSettings'
+import { llmSettingsConfigured, type LlmSettingsDoc } from './llmSettings'
 import {
   evidenceBankContentOf,
   icpAudienceLine,
@@ -40,6 +40,12 @@ export interface IcpOption {
 export interface WorkspaceSetupData {
   readiness: WorkspaceReadiness
   templates: Array<{ id: number | string; name: string }>
+  /**
+   * Whether anybody has chosen a model on the `llm-settings` global. Readiness
+   * itself only reports the resolved model per stage, which cannot tell a
+   * deliberate choice from the platform default.
+   */
+  modelsConfigured: boolean
   /** Active audiences, primary first. Empty when setup is not finished. */
   icps: IcpOption[]
   latestRun: PipelineRunSummary | null
@@ -174,6 +180,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
   return {
     readiness,
     templates: templates.map(({ id, name }) => ({ id, name })),
+    modelsConfigured: llmSettingsConfigured(settings as LlmSettingsDoc),
     icps,
     latestRun,
   }

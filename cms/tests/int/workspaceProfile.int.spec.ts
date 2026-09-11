@@ -1,6 +1,11 @@
 import config from '@/payload.config'
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
-import { resolveWorkspaceProfile, type WorkspaceProfileDoc } from '@/lib/tenant'
+import {
+  MOCK_TARGET_DOMAIN,
+  resolveWorkspaceProfile,
+  type WorkspaceProfileDoc,
+} from '@/lib/tenant'
+import { evaluateWorkspaceReadiness } from '@/lib/workspaceReadiness'
 import { WorkspaceProfile } from '@/globals/WorkspaceProfile'
 import { getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -151,5 +156,80 @@ describe('workspace profile global', () => {
     // The global answers both variables, so neither is reported as missing.
     expect(readiness.runtime.missing).not.toContain('TARGET_DOMAIN')
     expect(readiness.runtime.missing).not.toContain('COMPETITOR_DOMAINS')
+  })
+})
+
+/**
+ * A copied-but-unedited `.env.example` names `example.com`, and a workspace
+ * that inherits it looks configured while researching a site nobody owns.
+ * Resolving the placeholder to nothing is what turns that into an honest gate.
+ */
+describe('the .env.example placeholders', () => {
+  it('treats the placeholder domain as unset and drops placeholder competitors', () => {
+    const profile = resolveWorkspaceProfile(null, {
+      TARGET_DOMAIN: 'example.com',
+      COMPETITOR_DOMAINS: 'competitor-a.com,real.com',
+    })
+
+    expect(profile.targetDomain).toBeNull()
+    expect(profile.competitors).toEqual([{ domain: 'real.com', name: 'real.com' }])
+    expect(profile.placeholderDomain).toBe('example.com')
+  })
+
+  it('leaves the demo workspace alone in mock mode', () => {
+    const profile = resolveWorkspaceProfile(
+      null,
+      { TARGET_DOMAIN: 'example.com', COMPETITOR_DOMAINS: 'competitor-a.com,competitor-b.com' },
+      { mockDefault: true },
+    )
+
+    expect(profile.targetDomain).toBe(MOCK_TARGET_DOMAIN)
+    expect(profile.competitors.map((competitor) => competitor.domain)).toEqual([
+      'competitor-one.com',
+      'competitor-two.com',
+    ])
+    // Nothing to warn about: the run has a domain, it is just not this one.
+    expect(profile.placeholderDomain).toBeNull()
+  })
+
+  it('names the placeholder in the problem a run reports, tagged with the step that fixes it', () => {
+    const env = { MOCK_MODE: 'false', TARGET_DOMAIN: 'example.com' }
+    const readiness = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile(null, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+
+    expect(readiness.tenant.profile.ready).toBe(false)
+    expect(readiness.governance.problems).toEqual([
+      'Set the site Datum writes about (example.com is the placeholder from .env.example)',
+    ])
+    expect(readiness.governance.blockers).toEqual([
+      {
+        asset: 'workspace',
+        message: 'Set the site Datum writes about (example.com is the placeholder from .env.example)',
+      },
+    ])
+  })
+
+  it('keeps the plain sentence when no placeholder is involved', () => {
+    const env = { MOCK_MODE: 'false' }
+    const readiness = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile(null, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+
+    expect(readiness.governance.problems).toEqual(['Set the target domain'])
   })
 })

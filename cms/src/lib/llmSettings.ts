@@ -53,6 +53,24 @@ export interface LlmSettingsDoc {
   setupAssistModel?: string | null
 }
 
+/** Every model field on the global, in the order the admin form shows them. */
+export const LLM_SETTING_FIELDS = [
+  ...PIPELINE_STAGES.map((stage) => STAGE_SETTING_FIELD[stage]),
+  'brandVoiceExtractModel',
+  'setupAssistModel',
+] as const satisfies readonly (keyof LlmSettingsDoc)[]
+
+/**
+ * Has anybody chosen a model at all?
+ *
+ * Blank everywhere is a working workspace — every call falls through to the
+ * platform default — so this is a recommendation on the setup hub, never a
+ * gate. It is the honest answer to "did we pick these, or inherit them".
+ */
+export function llmSettingsConfigured(settings: LlmSettingsDoc | null | undefined): boolean {
+  return LLM_SETTING_FIELDS.some((field) => clean(settings?.[field]) !== undefined)
+}
+
 export type ModelSource = 'admin' | 'env' | 'default'
 
 export interface ResolvedModel {

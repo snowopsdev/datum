@@ -118,6 +118,14 @@ export interface TenantReadiness {
   recommendations: string[]
 }
 
+/** The setup asset that fixes a governance problem, so a caller can link to it. */
+export type GovernanceAsset = 'voice' | 'workspace' | 'audiences'
+
+export interface GovernanceBlocker {
+  asset: GovernanceAsset
+  message: string
+}
+
 export interface WorkspaceReadiness {
   ready: boolean
   mode: PipelineMode
@@ -127,9 +135,15 @@ export interface WorkspaceReadiness {
     ready: boolean
     missing: string[]
     /**
-     * Everything unmet, in the words an operator acts on. `missing` holds
-     * environment variable names only, so callers that interpolate it render an
-     * empty sentence when the sole blocker is a model we cannot serve.
+     * What is unmet and is not an environment variable name — a selected model
+     * no provider serves, say — already phrased as an instruction. Kept apart
+     * from `missing` so a banner never has to subtract one list from the other
+     * to work out which sentence a blocker belongs in.
+     */
+    problems: string[]
+    /**
+     * Everything unmet, in the words an operator acts on: `missing` then
+     * `problems`. Callers that print one sentence interpolate this.
      */
     blockers: string[]
   }
@@ -142,6 +156,12 @@ export interface WorkspaceReadiness {
      * the content-run action, and the brief all say the same thing.
      */
     problems: string[]
+    /**
+     * The same list, each sentence tagged with the asset that fixes it. A
+     * screen that links a problem to its setup step reads this rather than
+     * matching words in the prose.
+     */
+    blockers: GovernanceBlocker[]
   }
   content: {
     ready: boolean
@@ -210,18 +230,20 @@ export function evaluateRuntimeReadiness(
     }
   }
 
+  const sortedMissing = [...missing].sort()
+  const problems =
+    unsupportedModels.length > 0
+      ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
+      : []
+
   return {
     mode,
     models,
     runtime: {
       ready: missing.size === 0 && unsupportedModels.length === 0,
-      missing: [...missing].sort(),
-      blockers: [
-        ...[...missing].sort(),
-        ...(unsupportedModels.length > 0
-          ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
-          : []),
-      ],
+      missing: sortedMissing,
+      problems,
+      blockers: [...sortedMissing, ...problems],
     },
   }
 }
@@ -264,12 +286,34 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
   const profileReady = profile.targetDomain !== null
   // Governance is now three assets, not one. A workspace with a voice but no
   // domain researches the wrong site; one with no audience writes for nobody.
-  const governanceProblems = [
-    ...(input.activeVoice === null ? ['Activate a brand voice'] : []),
-    ...(profileReady ? [] : ['Set the target domain']),
-    ...(icpsReady ? [] : ['Add and activate at least one audience (ICP)']),
+  const governanceBlockers: GovernanceBlocker[] = [
+    ...(input.activeVoice === null
+      ? [{ asset: 'voice' as const, message: 'Activate a brand voice' }]
+      : []),
+    ...(profileReady
+      ? []
+      : [
+          {
+            asset: 'workspace' as const,
+            // An inherited `.env.example` is not a blank workspace, and being
+            // told to "set the target domain" when TARGET_DOMAIN is already
+            // set sends an operator looking in the wrong place.
+            message: profile.placeholderDomain
+              ? `Set the site Datum writes about (${profile.placeholderDomain} is the placeholder from .env.example)`
+              : 'Set the target domain',
+          },
+        ]),
+    ...(icpsReady
+      ? []
+      : [
+          {
+            asset: 'audiences' as const,
+            message: 'Add and activate at least one audience (ICP)',
+          },
+        ]),
   ]
-  const governanceReady = governanceProblems.length === 0
+  const governanceProblems = governanceBlockers.map((blocker) => blocker.message)
+  const governanceReady = governanceBlockers.length === 0
   const contentReady = input.templates.length > 0
 
   // Recommendations, not problems: a workspace with no position writes fine,
@@ -329,6 +373,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ready: governanceReady,
       activeVoiceId: input.activeVoice?.id ?? null,
       problems: governanceProblems,
+      blockers: governanceBlockers,
     },
     content: {
       ready: contentReady,

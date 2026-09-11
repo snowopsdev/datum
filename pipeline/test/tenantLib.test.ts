@@ -180,6 +180,32 @@ describe('resolveWorkspaceProfile precedence', () => {
   })
 })
 
+/**
+ * A run resolves the profile the same way the admin does, so a pipeline
+ * started from the CLI with an unedited `.env.example` must stop for the same
+ * reason the admin does rather than research a site nobody owns.
+ */
+describe('the .env.example placeholders', () => {
+  it('resolves the placeholder domain and competitors to nothing', () => {
+    const profile = resolveWorkspaceProfile(null, {
+      TARGET_DOMAIN: 'example.com',
+      COMPETITOR_DOMAINS: 'competitor-a.com, competitor-b.com, real.com',
+    })
+
+    assert.equal(profile.targetDomain, null)
+    assert.equal(profile.placeholderDomain, 'example.com')
+    assert.deepEqual(profile.competitors, [{ domain: 'real.com', name: 'real.com' }])
+    assert.deepEqual(workspaceProfileProblems(profile), ['Set the target domain'])
+  })
+
+  it('never overrides a domain somebody typed into the Workspace global', () => {
+    const profile = resolveWorkspaceProfile({ targetDomain: 'example.com' }, {})
+
+    assert.equal(profile.targetDomain, 'example.com')
+    assert.equal(profile.placeholderDomain, null)
+  })
+})
+
 describe('workspaceProfileProblems', () => {
   it('names what is missing, and says nothing when nothing is', () => {
     assert.deepEqual(workspaceProfileProblems(resolveWorkspaceProfile(null, {})), [

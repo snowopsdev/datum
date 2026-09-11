@@ -14,11 +14,10 @@ export async function PositioningView(props: AdminViewServerProps) {
 
   if (!req.user) redirect('/admin/login')
 
-  const doc = await req.payload.findGlobal({
-    slug: 'positioning',
-    depth: 0,
-    overrideAccess: true,
-  })
+  const [doc, profile] = await Promise.all([
+    req.payload.findGlobal({ slug: 'positioning', depth: 0, overrideAccess: true }),
+    req.payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+  ])
 
   return (
     <DefaultTemplate
@@ -32,7 +31,12 @@ export async function PositioningView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <PositioningEditor initial={positioningContentOf(doc)} />
+        <PositioningEditor
+          initial={positioningContentOf(doc)}
+          sitePagesFetchedAt={
+            (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
+          }
+        />
       </Gutter>
     </DefaultTemplate>
   )

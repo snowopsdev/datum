@@ -30,7 +30,14 @@ const SECTION_KEYS: Record<Exclude<PositioningStepId, 'review'>, (keyof Position
   openRulings: ['openRulings'],
 }
 
-export function PositioningEditor({ initial }: { initial: PositioningContent }) {
+export function PositioningEditor({
+  initial,
+  sitePagesFetchedAt,
+}: {
+  initial: PositioningContent
+  /** From the workspace profile: null warns that the assistant has nothing to read. */
+  sitePagesFetchedAt: string | null
+}) {
   const router = useRouter()
   const [content, setContent] = useState(initial)
   const [step, setStep] = useState(0)
@@ -85,6 +92,7 @@ export function PositioningEditor({ initial }: { initial: PositioningContent }) 
           </Link>
         </>
       }
+      sitePagesFetchedAt={sitePagesFetchedAt}
       steps={POSITIONING_STEPS}
       step={step}
       onStep={setStep}

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
+import type { GovernanceBlocker } from '../../lib/workspaceReadiness'
 import { ContentRunForm } from './ContentRunForm'
 import { TopicDiscovery } from './TopicDiscovery'
 import { createTopicsAction } from './topicDiscoveryActions'
@@ -21,6 +22,43 @@ type Props = {
   mode: 'mock' | 'live'
   pipelineReady: boolean
   runActive: boolean
+  /** What setup is still missing, tagged by the step that fixes it. */
+  blockers: GovernanceBlocker[]
+}
+
+/** Where each governance asset is edited. Keyed by the tag readiness sets. */
+const FIX_HREF: Record<GovernanceBlocker['asset'], string> = {
+  voice: '/admin/ops/governance/brand-voice',
+  workspace: '/admin/ops/setup/workspace',
+  audiences: '/admin/ops/setup/audiences',
+}
+
+/**
+ * What setup is still missing, above everything a person could press.
+ *
+ * The same sentences the gap panel used to show alone, each one a link to the
+ * step that fixes it: a screen that offers "Create" to a workspace that cannot
+ * research the result is worse than one that says so first.
+ */
+function SetupNotice({ blockers }: { blockers: GovernanceBlocker[] }) {
+  return (
+    <div className="datum-ops__checklist" role="status">
+      <strong>Finish setting up before making a piece.</strong>
+      {blockers.length === 0 ? (
+        <p className="datum-ops__hint">
+          <Link href="/admin">Finish workspace setup</Link> before starting this.
+        </p>
+      ) : (
+        <ul>
+          {blockers.map((blocker) => (
+            <li key={blocker.asset}>
+              <Link href={FIX_HREF[blocker.asset]}>{blocker.message}</Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -31,7 +69,7 @@ type Props = {
  * next thing the editor sees is the brief. Keywords are still how research
  * and scoring key the piece, but they are a means here, not the entry point.
  */
-export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Props) {
+export function NewContentFlow({ templates, mode, pipelineReady, runActive, blockers }: Props) {
   const router = useRouter()
   const [templateId, setTemplateId] = useState<number | null>(templates.length === 1 ? templates[0].id : null)
   const [path, setPath] = useState<'suggest' | 'keyword'>('suggest')
@@ -55,7 +93,7 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
 
   const createFromKeyword = (event: React.FormEvent) => {
     event.preventDefault()
-    if (!chosen) return
+    if (!chosen || !pipelineReady) return
     setError(null)
     startTransition(async () => {
       const result = await createTopicsAction({ keywords: [keyword], templateId: chosen.id })
@@ -80,6 +118,8 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
         {mode === 'live' ? ' — that research alone calls paid services' : ''}. You approve a brief
         before a word of the piece itself is written.
       </p>
+
+      {pipelineReady ? null : <SetupNotice blockers={blockers} />}
 
       <section className="datum-ops__panel">
         <h2>I want to make a…</h2>
@@ -132,7 +172,12 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
             </div>
 
             {path === 'suggest' ? (
-              <TopicDiscovery mode={mode} templateId={chosen.id} templates={templates} />
+              <TopicDiscovery
+                mode={mode}
+                pipelineReady={pipelineReady}
+                templateId={chosen.id}
+                templates={templates}
+              />
             ) : (
               <form className="datum-ops__period" onSubmit={createFromKeyword}>
                 <label className="datum-ops__field" style={{ flex: '1 1 320px', marginBottom: 0 }}>
@@ -147,7 +192,7 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
                 </label>
                 <button
                   className="datum-ops__btn datum-ops__btn--primary"
-                  disabled={pending || !keyword.trim()}
+                  disabled={pending || !pipelineReady || !keyword.trim()}
                   type="submit"
                 >
                   {pending ? 'Creating…' : `Create ${chosen.name.toLowerCase()}`}
@@ -166,12 +211,13 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
             Looks for keywords your competitors rank for and you do not, picks the best few, and
             researches them. Each one stops at its brief for you, like anything else.
           </p>
-          {!pipelineReady ? (
-            <p className="datum-ops__hint">
-              <Link href="/admin">Finish workspace setup</Link> before starting this.
-            </p>
-          ) : null}
-          <ContentRunForm mode={mode} pipelineReady={pipelineReady} runActive={runActive} templates={templates} />
+          <ContentRunForm
+            mode={mode}
+            pipelineReady={pipelineReady}
+            runActive={runActive}
+            templates={templates}
+            {...(chosen ? { selectedTemplateId: chosen.id } : {})}
+          />
         </div>
       </details>
     </div>

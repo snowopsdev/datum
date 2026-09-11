@@ -47,7 +47,14 @@ function mergeAssist(content: IcpContent, value: Record<string, unknown>): IcpCo
   }
 }
 
-export function IcpEditor({ record }: { record: IcpDTO | null }) {
+export function IcpEditor({
+  record,
+  sitePagesFetchedAt,
+}: {
+  record: IcpDTO | null
+  /** From the workspace profile: null warns that the assistant has nothing to read. */
+  sitePagesFetchedAt: string | null
+}) {
   const router = useRouter()
   const [content, setContent] = useState<IcpContent>(() =>
     record ? icpContentOf(record) : emptyIcpContent(),
@@ -168,6 +175,7 @@ export function IcpEditor({ record }: { record: IcpDTO | null }) {
           </Link>
         </>
       }
+      sitePagesFetchedAt={sitePagesFetchedAt}
       steps={ICP_STEPS}
       step={step}
       onStep={setStep}

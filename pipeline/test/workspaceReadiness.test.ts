@@ -53,7 +53,7 @@ describe('workspace readiness', () => {
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       OPENAI_API_KEY: 'configured',
     }
@@ -95,7 +95,7 @@ describe('workspace readiness', () => {
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       ANTHROPIC_API_KEY: 'configured',
     }
@@ -136,9 +136,12 @@ describe('workspace readiness', () => {
   it('fingerprints an API-backed workspace exactly as it always has', () => {
     // Frozen inputs and hashes: the fingerprint decides whether a verification
     // run is still current, so a change here stales every existing run. Only
-    // recompute these when that is the intent. They last moved when the
-    // fingerprint started covering the evidence-bank global's timestamp, which
-    // decides what a draft may state about the workspace. (Before that they
+    // recompute these when that is the intent. The live hash last moved when
+    // `example.com` became a placeholder the resolver ignores and this fixture
+    // had to name a domain a workspace could really own; the mock hash is
+    // untouched by that. Before that they moved when the fingerprint started
+    // covering the evidence-bank global's timestamp, which decides what a
+    // draft may state about the workspace. (Before that they
     // moved for the positioning global and the `evidenceCheck` stage joining
     // the model list, before that for the active audiences, and before that for
     // the resolved target domain and competitor list rather than "is
@@ -163,7 +166,7 @@ describe('workspace readiness', () => {
     const liveEnv = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       OPENAI_API_KEY: 'configured',
     }
@@ -179,7 +182,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(live).configFingerprint,
-      'f3a8cc08bde7aee291080b2c12d6aa7daed06cc2222fa9e9b35e4b85e7d8a37d',
+      '017ebcc15ef931f391775c0047b998c686dbd857040cad0f183ce59eb949b901',
     )
   })
 
@@ -311,7 +314,7 @@ describe('models no provider serves are reported to blocked actions', () => {
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       ANTHROPIC_API_KEY: 'configured',
     }

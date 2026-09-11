@@ -17,6 +17,11 @@ type Props = {
   mode: 'mock' | 'live'
   /** Chosen on the New content screen; when set, the picker below is hidden. */
   templateId?: number
+  /**
+   * False when setup is unfinished. Creating then makes a piece nothing will
+   * research, so the create button is off and the screen above says why.
+   */
+  pipelineReady?: boolean
 }
 
 /** Rough guide next to a keyword difficulty score, so a number means something. */
@@ -34,7 +39,12 @@ const compact = (n: number): string =>
       ? `${Math.round(n / 1_000)}k`
       : String(n)
 
-export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }: Props) {
+export function TopicDiscovery({
+  templates,
+  mode,
+  templateId: fixedTemplateId,
+  pipelineReady = true,
+}: Props) {
   const router = useRouter()
   const [seed, setSeed] = useState('')
   const [pickedTemplateId, setTemplateId] = useState(templates[0]?.id ?? 0)
@@ -272,7 +282,7 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
                   </label>
                   <button
                     className="datum-ops__btn datum-ops__btn--primary"
-                    disabled={pending || picked.size === 0}
+                    disabled={pending || !pipelineReady || picked.size === 0}
                     onClick={create}
                     type="button"
                   >

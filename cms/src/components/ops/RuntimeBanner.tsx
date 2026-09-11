@@ -10,13 +10,17 @@ import './ops.css'
  *
  * It used to be an onboarding gate, which put an environment problem in front
  * of a content person who could not fix it. Now it is a banner that names the
- * variables and otherwise stays out of the way. Dismissed per session.
+ * variables and otherwise stays out of the way.
+ *
+ * A missing key is not a notice you read once — every run fails until it is
+ * set — so that version has no dismiss button. Anything else the evaluator
+ * raised is advice, and advice can be dismissed for the session.
  */
 export function RuntimeBanner() {
   const [status, setStatus] = useState<{
     mode: 'mock' | 'live'
     missing: string[]
-    blockers: string[]
+    problems: string[]
   } | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
@@ -25,35 +29,43 @@ export function RuntimeBanner() {
     return () => clearTimeout(id)
   }, [])
 
-  if (!status || status.mode !== 'live' || dismissed) return null
-  if (status.blockers.length === 0) return null
-  // `missing` gets the "set these variables" sentence; anything else the
-  // evaluator raised (a selected model no provider serves, say) is already
-  // phrased as an instruction, so it is printed as written.
-  const other = status.blockers.filter((blocker) => !status.missing.includes(blocker))
+  if (!status || status.mode !== 'live') return null
+  // `missing` holds environment variable names; `problems` holds sentences the
+  // evaluator already phrased as instructions. Kept apart by readiness, so
+  // neither list has to be reconstructed by subtracting the other.
+  const { missing, problems } = status
+  if (missing.length === 0 && problems.length === 0) return null
+  if (missing.length === 0 && dismissed) return null
 
   return (
     <div className="datum-runtime" role="status">
-      <strong>Live providers are not fully configured.</strong>
-      {status.missing.length > 0 && (
-        <>
-          {' '}
-          Runs will fail until whoever deploys this sets{' '}
-          {status.missing.map((name, index) => (
+      {missing.length > 0 ? (
+        <span>
+          Live providers are not configured. Runs will fail until{' '}
+          {missing.map((name, index) => (
             <React.Fragment key={name}>
               {index > 0 && ', '}
               <code>{name}</code>
             </React.Fragment>
-          ))}
-          .
-        </>
+          ))}{' '}
+          {missing.length === 1 ? 'is' : 'are'} set in <code>cms/.env</code>.
+        </span>
+      ) : (
+        <strong>Live providers are not fully configured.</strong>
       )}
-      {other.map((blocker) => (
-        <React.Fragment key={blocker}> {blocker}.</React.Fragment>
+      {problems.map((problem) => (
+        <React.Fragment key={problem}> {problem}.</React.Fragment>
       ))}
-      <button aria-label="Dismiss" className="datum-runtime__close" onClick={() => setDismissed(true)} type="button">
-        ×
-      </button>
+      {missing.length > 0 ? null : (
+        <button
+          aria-label="Dismiss"
+          className="datum-runtime__close"
+          onClick={() => setDismissed(true)}
+          type="button"
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
