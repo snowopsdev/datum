@@ -5,10 +5,11 @@ import type { WorkspaceReadiness } from '@/lib/workspaceReadiness'
 // The board actions are exercised outside a Next.js request scope and without a
 // database: `payload` keeps its real exports (importOriginal) and only
 // `getPayload` is replaced, the workspace checklist is stubbed because it reads
-// eight collections and globals, and `createPipelineRun` is stubbed because it
-// opens a Postgres transaction and takes an advisory lock. Its
-// `ActivePipelineRunError` stays real — `runSelectedArticlesAction` branches on
-// `instanceof`.
+// eight collections and globals, and `createPipelineRun` — reached through
+// `queueRunForArticles`, whose own behaviour is covered in
+// `queueRunForArticles.int.spec.ts` — is stubbed because it opens a Postgres
+// transaction and takes an advisory lock. Its `ActivePipelineRunError` stays
+// real: `runSelectedArticlesAction` branches on `instanceof`.
 const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.com' } }))
 const findMock = vi.fn(async (_args: { collection?: string }) => ({ docs: [] }) as never)
 
@@ -53,7 +54,7 @@ const readySetup = (overrides: Record<string, unknown> = {}) =>
   }) as never
 
 const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
-const { latestRunAction, queueRunForArticles, runSelectedArticlesAction } = await import(
+const { latestRunAction, runSelectedArticlesAction } = await import(
   '@/components/ops/boardActions'
 )
 
@@ -103,54 +104,6 @@ describe('runSelectedArticlesAction', () => {
       ok: false,
       error: 'Run run-42 is already in progress. Wait for it to finish before starting another.',
     })
-  })
-})
-
-/**
- * The one way to queue a run for articles that already exist. Both the board's
- * Run button and the reviewer's reset/regenerate actions go through it, so the
- * refusals it makes are the refusals everyone sees.
- */
-describe('queueRunForArticles', () => {
-  const payload = { find: findMock } as never
-  const user = { id: 7, email: 'reviewer@example.com' } as never
-
-  it('returns the run id it queued', async () => {
-    const { runId } = await queueRunForArticles(
-      payload,
-      user,
-      [{ id: 1, status: 'drafted', template: 3 }] as never,
-      readyReadiness(),
-    )
-    expect(runId).toEqual(expect.any(String))
-    expect(createPipelineRunMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ runId, source: 'selected', articleIds: [1] }),
-    )
-  })
-
-  it('refuses a status no stage waits on rather than reporting a run that does nothing', async () => {
-    await expect(
-      queueRunForArticles(
-        payload,
-        user,
-        [{ id: 1, status: 'approved', template: 3 }] as never,
-        readyReadiness(),
-      ),
-    ).rejects.toThrow('1 article cannot be advanced by a run')
-    expect(createPipelineRunMock).not.toHaveBeenCalled()
-  })
-
-  it('refuses an article with no template, which the pipeline would skip', async () => {
-    await expect(
-      queueRunForArticles(
-        payload,
-        user,
-        [{ id: 1, status: 'drafted', template: null }] as never,
-        readyReadiness(),
-      ),
-    ).rejects.toThrow('Assign a template to 1 article first')
   })
 })
 

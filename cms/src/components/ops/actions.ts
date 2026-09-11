@@ -9,11 +9,11 @@ import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
 import { ActivePipelineRunError } from '@/lib/createPipelineRun'
 import { errorMessage } from '@/lib/errorMessage'
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
+import { queueRunForArticles } from '@/lib/queueRunForArticles'
 import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
 import type { Article } from '@/payload-types'
 
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
-import { queueRunForArticles } from './boardActions'
 
 /**
  * Nulls every `informationGain` key. The group has `access.update: () =>
