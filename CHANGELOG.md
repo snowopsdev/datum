@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/snowopsdev/datum/compare/v0.6.3...v0.6.4) (2026-09-11)
+
+
+### Bug Fixes
+
+* Improve ops workspace guidance and review layouts ([#98](https://github.com/snowopsdev/datum/issues/98)) ([8e97da5](https://github.com/snowopsdev/datum/commit/8e97da5cbe5f6fd09f6d083784e4dd784e3d9ce6))
+
 ## [0.6.3](https://github.com/snowopsdev/datum/compare/v0.6.2...v0.6.3) (2026-09-05)
 
 
