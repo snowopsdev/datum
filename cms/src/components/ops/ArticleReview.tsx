@@ -586,6 +586,10 @@ export function ArticleReview({
   )
   /** Live mode only: the run is one confirmation away from spending money. */
   const [confirmRun, setConfirmRun] = useState(false)
+  /** The same, for the reset/regenerate buttons, which queue a run of their own. */
+  const [pendingReviewAction, setPendingReviewAction] = useState<'reset' | 'regenerate' | null>(
+    null,
+  )
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   /**
    * Deliberately *not* seeded from the article's persisted
@@ -643,6 +647,32 @@ export function ArticleReview({
    */
   const reportQueued = (result: { queued: boolean; reason?: string }) => {
     setNotice(result.queued ? 'Run queued' : (result.reason ?? 'No run was queued.'))
+  }
+
+  /**
+   * Reset and regenerate queue a run of their own, so in live mode they cost
+   * money and need the same confirmation the run panel asks for.
+   *
+   * Without the flag the gate refuses with "Confirm the live provider cost
+   * before starting this run." and this panel has no control that could — the
+   * reviewer is told to confirm something nothing on the page will let them
+   * confirm. Mock mode is unaffected: the gate only looks at the flag in live.
+   */
+  const runReviewAction = (which: 'reset' | 'regenerate', confirmLiveCost: boolean) => {
+    setPendingReviewAction(null)
+    runAction(async () => {
+      const options = { confirmLiveCost }
+      reportQueued(
+        which === 'reset'
+          ? await resetToDraftedAction(article.id, notes, options)
+          : await regenerateArticleAction(article.id, notes, options),
+      )
+    }, false)
+  }
+
+  const requestReviewAction = (which: 'reset' | 'regenerate') => {
+    if (mode === 'live') setPendingReviewAction(which)
+    else runReviewAction(which, false)
   }
 
   const qa = article.qaResults
@@ -879,74 +909,90 @@ export function ArticleReview({
                     placeholder="What you fixed…"
                   />
                 </div>
-                <div className="datum-ops__actions">
-                  <button
-                    type="button"
-                    className="datum-ops__btn datum-ops__btn--primary"
-                    disabled={pending}
-                    onClick={() =>
-                      runAction(
-                        async () => reportQueued(await resetToDraftedAction(article.id, notes)),
-                        false,
-                      )
-                    }
-                  >
-                    Reset to drafted
-                  </button>
-                  <button
-                    className="datum-ops__btn"
-                    disabled={pending}
-                    onClick={() =>
-                      runAction(async () => {
-                        const result = await revisitBriefAction(article.id)
-                        if (!result.ok) throw new Error(result.error)
-                      }, false)
-                    }
-                    title="Go back to the brief and change the angle or sections before rewriting"
-                    type="button"
-                  >
-                    Revisit brief
-                  </button>
-                  {confirmRegenerate ? (
-                    <>
+                {/* One question at a time: the live-cost confirmation replaces
+                    the action row rather than sitting under it, so the panel
+                    never shows two Cancels answering different questions. */}
+                {pendingReviewAction ? (
+                  <>
+                    <p className="datum-ops__warn">This calls paid providers. Continue?</p>
+                    <div className="datum-ops__actions">
                       <button
                         type="button"
-                        className="datum-ops__btn datum-ops__btn--danger"
+                        className="datum-ops__btn datum-ops__btn--primary"
                         disabled={pending}
-                        onClick={() =>
-                          runAction(
-                            async () =>
-                              reportQueued(await regenerateArticleAction(article.id, notes)),
-                            false,
-                          )
-                        }
+                        onClick={() => runReviewAction(pendingReviewAction, true)}
                       >
-                        Confirm: discard draft & regenerate
+                        Confirm
                       </button>
                       <button
                         type="button"
                         className="datum-ops__btn"
                         disabled={pending}
-                        onClick={() => setConfirmRegenerate(false)}
+                        onClick={() => setPendingReviewAction(null)}
                       >
                         Cancel
                       </button>
-                    </>
-                  ) : (
+                    </div>
+                  </>
+                ) : (
+                  <div className="datum-ops__actions">
                     <button
                       type="button"
+                      className="datum-ops__btn datum-ops__btn--primary"
+                      disabled={pending}
+                      onClick={() => requestReviewAction('reset')}
+                    >
+                      Reset to drafted
+                    </button>
+                    <button
                       className="datum-ops__btn"
                       disabled={pending}
-                      onClick={() => setConfirmRegenerate(true)}
+                      onClick={() =>
+                        runAction(async () => {
+                          const result = await revisitBriefAction(article.id)
+                          if (!result.ok) throw new Error(result.error)
+                        }, false)
+                      }
+                      title="Go back to the brief and change the angle or sections before rewriting"
+                      type="button"
                     >
-                      Regenerate from gaps
+                      Revisit brief
                     </button>
-                  )}
-                  <a className="datum-ops__btn" href={editHref}>
-                    Open in admin
-                  </a>
-                </div>
-                {confirmRegenerate ? (
+                    {confirmRegenerate ? (
+                      <>
+                        <button
+                          type="button"
+                          className="datum-ops__btn datum-ops__btn--danger"
+                          disabled={pending}
+                          onClick={() => requestReviewAction('regenerate')}
+                        >
+                          Confirm: discard draft & regenerate
+                        </button>
+                        <button
+                          type="button"
+                          className="datum-ops__btn"
+                          disabled={pending}
+                          onClick={() => setConfirmRegenerate(false)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="datum-ops__btn"
+                        disabled={pending}
+                        onClick={() => setConfirmRegenerate(true)}
+                      >
+                        Regenerate from gaps
+                      </button>
+                    )}
+                    <a className="datum-ops__btn" href={editHref}>
+                      Open in admin
+                    </a>
+                  </div>
+                )}
+                {confirmRegenerate && !pendingReviewAction ? (
                   <p className="datum-ops__warn" style={{ marginTop: 10 }}>
                     This throws away the current body and sends the article back to{' '}
                     <code>researched</code>, then writes a new draft on the next run with the

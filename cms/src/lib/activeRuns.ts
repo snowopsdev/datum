@@ -20,6 +20,12 @@ export const ACTIVE_RUN_STATUSES = ['queued', 'running'] as const
  * `hasMany` relationship (`collections/PipelineRuns.ts`), so at depth 0 it
  * arrives as ids; a populated row is tolerated because `depth` is the caller's
  * business, not this function's contract.
+ *
+ * `limit: 0` is the only way to ask for all of them. `pagination: false` skips
+ * the count query but leaves the row cap in place — the drizzle adapter clears
+ * `limit` only when it is exactly 0 (`@payloadcms/drizzle` `findMany`) — and a
+ * truncated set here does not fail loudly: it marks articles a run is carrying
+ * as stalled, which is the exact lie this module exists to stop telling.
  */
 export async function activeRunArticleIds(
   payload: Payload,
@@ -30,7 +36,7 @@ export async function activeRunArticleIds(
     where: { status: { in: [...ACTIVE_RUN_STATUSES] } },
     select: { articles: true },
     pagination: false,
-    limit: 100,
+    limit: 0,
     depth: 0,
     user: user ?? undefined,
     overrideAccess: false,

@@ -229,19 +229,24 @@ export function ContentList({ content, latestRun, mode }: Props) {
               Run selected
             </button>
           ) : null}
+          {/* The hint explains the button beside it, so it goes when the
+              button does: with two stalled drafts picked there is nothing to
+              remove and nothing the sentence would be answering. */}
           {removable.length > 0 ? (
-            <button
-              className="datum-ops__btn datum-ops__btn--danger"
-              disabled={pending || navigating}
-              onClick={remove}
-              type="button"
-            >
-              Remove from content
-            </button>
+            <>
+              <button
+                className="datum-ops__btn datum-ops__btn--danger"
+                disabled={pending || navigating}
+                onClick={remove}
+                type="button"
+              >
+                Remove from content
+              </button>
+              <span className="datum-ops__hint">
+                Only topics research has not started can be removed.
+              </span>
+            </>
           ) : null}
-          <span className="datum-ops__hint">
-            Only topics research has not started can be removed.
-          </span>
         </div>
       ) : null}
       {pendingRun ? (
