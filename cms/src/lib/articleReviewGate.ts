@@ -15,12 +15,11 @@ export const OVERRIDABLE_STATUSES = ['needs_review', 'blocked'] as const
  * This is deliberately an allow-list of backward targets rather than a list of
  * forward ones. Enumerating the forward targets makes every status that is not
  * on the list default to *ungated*, so each new status — or each one whose
- * meaning shifts — silently opens another detour out of review. That is exactly
- * how `qa_passed` slipped through: it is not "forward" in the reviewer's mental
- * model, but `ArticleReview.tsx` offers Approve at `qa_passed`, so an editor
- * could reach `approved` in two ungated edits. Inverting the rule makes the
- * failure mode an unexpected 400 that a reviewer reports, not a bypass nobody
- * notices.
+ * meaning shifts — silently opens another detour out of review.
+ * `ArticleReview.tsx` shows a read-only "Awaiting information gain" panel at
+ * `qa_passed`; the allow-list exists so no client can approve a draft that has
+ * not been scored. Inverting the rule makes the failure mode an unexpected 400
+ * that a reviewer reports, not a bypass nobody notices.
  */
 export const UNGATED_OVERRIDE_TARGETS = [
   'needs_revision',

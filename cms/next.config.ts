@@ -37,6 +37,24 @@ const nextConfig: NextConfig = {
     // resolves from cms/ and cannot find the next package
     root: path.resolve(dirname, '..'),
   },
+  // The keyword-first discovery page and the kanban board were replaced by
+  // "New content" and the content list. Their admin views are gone; these
+  // keep old bookmarks and links working. Temporary, not permanent, in case
+  // either path is reused for something else later.
+  async redirects() {
+    return [
+      {
+        source: '/admin/ops/topics',
+        destination: '/admin/ops/new',
+        permanent: false,
+      },
+      {
+        source: '/admin/ops/articles',
+        destination: '/admin/ops/content',
+        permanent: false,
+      },
+    ]
+  },
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

@@ -66,23 +66,9 @@ export default buildConfig({
           exact: true,
           meta: { title: 'New content' },
         },
-        // The keyword-first discovery page this replaced. Redirects so bookmarks work.
-        topicDiscovery: {
-          Component: '/components/ops/TopicDiscoveryView#TopicDiscoveryView',
-          path: '/ops/topics',
-          exact: true,
-          meta: { title: 'New content' },
-        },
         content: {
           Component: '/components/ops/ContentListView#ContentListView',
           path: '/ops/content',
-          exact: true,
-          meta: { title: 'Content' },
-        },
-        // The kanban board this replaced. Kept as a redirect so bookmarks work.
-        articleBoard: {
-          Component: '/components/ops/ArticleBoardView#ArticleBoardView',
-          path: '/ops/articles',
           exact: true,
           meta: { title: 'Content' },
         },

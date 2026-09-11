@@ -6,26 +6,34 @@ import React, { useState, useTransition } from 'react'
 import { startContentRunAction } from './contentRunActions'
 
 type Props = {
-  source: 'onboarding' | 'admin'
   templates: Array<{ id: number; name: string }>
   mode: 'mock' | 'live'
-  disabled?: boolean
+  pipelineReady: boolean
+  runActive: boolean
+  /** Preselects a template, e.g. the one the caller was already looking at. */
+  selectedTemplateId?: number
 }
 
-export function ContentRunForm({ source, templates, mode, disabled = false }: Props) {
+export function ContentRunForm({
+  templates,
+  mode,
+  pipelineReady,
+  runActive,
+  selectedTemplateId,
+}: Props) {
   const router = useRouter()
-  const [templateId, setTemplateId] = useState(templates[0]?.id ?? 0)
-  const [count, setCount] = useState(source === 'onboarding' ? 1 : 1)
+  const [templateId, setTemplateId] = useState(selectedTemplateId ?? templates[0]?.id ?? 0)
+  const [count, setCount] = useState(1)
   const [confirmLiveCost, setConfirmLiveCost] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const disabled = !pipelineReady || runActive
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
     setMessage(null)
     startTransition(async () => {
       const result = await startContentRunAction({
-        source,
         templateId,
         count,
         confirmLiveCost,
@@ -53,22 +61,20 @@ export function ContentRunForm({ source, templates, mode, disabled = false }: Pr
           ))}
         </select>
       </label>
-      {source === 'admin' ? (
-        <label>
-          <span>Topics</span>
-          <select
-            disabled={pending || disabled}
-            onChange={(event) => setCount(Number(event.target.value))}
-            value={count}
-          >
-            {[1, 2, 3, 4, 5].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
+      <label>
+        <span>Topics</span>
+        <select
+          disabled={pending || disabled}
+          onChange={(event) => setCount(Number(event.target.value))}
+          value={count}
+        >
+          {[1, 2, 3, 4, 5].map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
       {mode === 'live' ? (
         <label className="datum-ops__cost-confirm">
           <input
@@ -85,11 +91,7 @@ export function ContentRunForm({ source, templates, mode, disabled = false }: Pr
         disabled={pending || disabled || templates.length === 0}
         type="submit"
       >
-        {pending
-          ? 'Queuing…'
-          : source === 'onboarding'
-            ? 'Run verification demo'
-            : 'Find gaps and research them'}
+        {pending ? 'Queuing…' : 'Find gaps and research them'}
       </button>
       {message ? (
         <p className="datum-ops__form-message" role="status">

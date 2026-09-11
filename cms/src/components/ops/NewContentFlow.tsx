@@ -171,7 +171,7 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive }: Pr
               <Link href="/admin">Finish workspace setup</Link> before starting this.
             </p>
           ) : null}
-          <ContentRunForm disabled={!pipelineReady || runActive} mode={mode} source="admin" templates={templates} />
+          <ContentRunForm mode={mode} pipelineReady={pipelineReady} runActive={runActive} templates={templates} />
         </div>
       </details>
     </div>

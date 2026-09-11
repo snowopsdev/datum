@@ -2,9 +2,7 @@
 export {
   apiKeyForModel,
   type ApiKeyProvider,
-  describeRequirement,
   envVarNameForModel,
-  LLM_PROVIDERS,
   type LlmProvider,
   PROVIDER_ENV_VAR_NAME,
   providerForModel,

@@ -3,7 +3,6 @@ import { describe, it } from 'node:test'
 
 import {
   apiKeyForModel,
-  describeRequirement,
   envVarNameForModel,
   providerForModel,
   requirementForModel,
@@ -47,13 +46,6 @@ describe('requirementForModel', () => {
     assert.deepEqual(requirementForModel('claude-opus-5'), { kind: 'env', envVar: 'ANTHROPIC_API_KEY' })
     assert.deepEqual(requirementForModel('gpt-5'), { kind: 'env', envVar: 'OPENAI_API_KEY' })
     assert.equal(requirementForModel('codex/gpt-5'), null)
-  })
-})
-
-describe('describeRequirement', () => {
-  it('names the env var', () => {
-    assert.equal(describeRequirement({ kind: 'env', envVar: 'ANTHROPIC_API_KEY' }), 'ANTHROPIC_API_KEY')
-    assert.equal(describeRequirement({ kind: 'env', envVar: 'OPENAI_API_KEY' }), 'OPENAI_API_KEY')
   })
 })
 

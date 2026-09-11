@@ -66,29 +66,6 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       if (articleIds.length === 0) {
         throw new Error('This run has no articles attached.')
       }
-    } else if (run.source === 'onboarding') {
-      const sample = await payload.create({
-        collection: 'articles',
-        overrideAccess: true,
-        data: {
-          keyword: `governed content pipeline demo ${run.runId.slice(0, 8)}`,
-          template: templateId,
-          status: 'topic_selected',
-          ...(tenant.icps.find((icp) => icp.primary)
-            ? { icp: tenant.icps.find((icp) => icp.primary)!.id as number }
-            : {}),
-        },
-        context: {
-          articleAudit: {
-            actor: 'pipeline',
-            actorType: 'pipeline',
-            event: 'onboarding_sample_created',
-            pipelineRunId: run.runId,
-            summary: 'Onboarding verification sample created',
-          },
-        },
-      })
-      articleIds = [sample.id]
     } else {
       const fetched = await fetchTopics(fetchContext, {
         count: run.requestedCount,
@@ -126,9 +103,6 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       evidenceSources: await loadEvidenceSources(payload),
       tenant,
       llm: createLlmClient(run.mode),
-      // The onboarding run is a smoke test with nobody at the keyboard; every
-      // other run stops at the brief for a person to approve.
-      pauseForBrief: run.source !== 'onboarding',
     }
     const result = await runPipeline(stageContext, { articleIds })
     const completedAt = new Date().toISOString()

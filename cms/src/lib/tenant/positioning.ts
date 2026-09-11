@@ -18,8 +18,6 @@
 
 export type OpenRulingStatus = 'open' | 'ruled'
 
-export const OPEN_RULING_STATUSES: readonly OpenRulingStatus[] = ['open', 'ruled']
-
 /** A claim we lean on, optionally pointing at the evidence-bank entry that backs it. */
 export interface PositioningClaim {
   claim: string

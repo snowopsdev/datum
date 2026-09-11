@@ -11,7 +11,6 @@ import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipel
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 export interface StartContentRunInput {
-  source: 'onboarding' | 'admin'
   templateId: number
   count: number
   confirmLiveCost?: boolean
@@ -53,7 +52,7 @@ export async function startContentRunAction(
   try {
     await createPipelineRun(payload, user, {
       runId,
-      source: input.source,
+      source: 'admin',
       templateId: input.templateId,
       count: input.count,
       requestedBy,

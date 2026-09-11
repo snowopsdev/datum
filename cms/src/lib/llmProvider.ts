@@ -10,8 +10,6 @@ export type LlmProvider = 'anthropic' | 'openai' | 'unknown'
 /** The providers whose credential is an API key in the environment. */
 export type ApiKeyProvider = Exclude<LlmProvider, 'unknown'>
 
-export const LLM_PROVIDERS: readonly LlmProvider[] = ['anthropic', 'openai', 'unknown']
-
 /**
  * Name of the env var each provider's key lives in — never the key value
  * itself. Named without "key"/"secret"/"token" so log lines built from it
@@ -41,11 +39,6 @@ export function providerForModel(model: string): LlmProvider {
 export function requirementForModel(model: string): ProviderRequirement | null {
   const provider = providerForModel(model)
   return provider === 'unknown' ? null : { kind: 'env', envVar: PROVIDER_ENV_VAR_NAME[provider] }
-}
-
-/** How an operator satisfies a requirement, for embedding in a message. */
-export function describeRequirement(requirement: ProviderRequirement): string {
-  return requirement.envVar
 }
 
 /** Which env var name the given model's key needs — the name, not the value. */

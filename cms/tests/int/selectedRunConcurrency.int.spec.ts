@@ -22,7 +22,6 @@ it('queues both selected runs when editors launch work concurrently', async () =
     env: { MOCK_MODE: 'true' }, models: null,
     activeVoice: { id: 1, updatedAt: new Date(0).toISOString() },
     templates: [{ id: template.id, name: template.name, updatedAt: template.updatedAt }],
-    verification: null,
     profile: resolveWorkspaceProfile(null, {}, { mockDefault: true }),
     icps: [{ id: 5, updatedAt: new Date(0).toISOString(), name: 'Demo', primary: true }],
     positioning: { content: null, updatedAt: null },

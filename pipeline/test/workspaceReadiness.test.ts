@@ -34,21 +34,16 @@ const baseInput = (): WorkspaceReadinessInput => ({
   icps: [
     { id: 11, updatedAt: '2026-08-25T12:00:00.000Z', name: 'Marketing lead', primary: true },
   ],
-  verification: null,
 })
 
 describe('workspace readiness', () => {
-  it('shows a governed mock workspace as ready, independent of verification', () => {
+  it('shows a governed mock workspace as ready', () => {
     const readiness = evaluateWorkspaceReadiness(baseInput())
 
     assert.equal(readiness.mode, 'mock')
     assert.equal(readiness.runtime.ready, true)
     assert.equal(readiness.governance.ready, true)
     assert.equal(readiness.content.ready, true)
-    // `ready` is a run-time question — can Datum write and score content — not
-    // an onboarding one, so it does not wait on a verification run nobody has
-    // done yet.
-    assert.equal(readiness.verification.ready, false)
     assert.equal(readiness.ready, true)
     assert.deepEqual(readiness.runtime.missing, [])
   })
@@ -159,7 +154,6 @@ describe('workspace readiness', () => {
       ],
       positioning: { content: null, updatedAt: null },
       evidenceBank: { content: null, updatedAt: null, asOf: '2026-09-02' },
-      verification: null,
     }
     assert.equal(
       evaluateWorkspaceReadiness(mock).configFingerprint,
@@ -308,33 +302,6 @@ describe('workspace readiness', () => {
 
     input.icps = []
     assert.notEqual(evaluateWorkspaceReadiness(input).configFingerprint, before)
-  })
-
-  it('accepts a terminal QA result only when its configuration fingerprint is current', () => {
-    const input = baseInput()
-    const current = evaluateWorkspaceReadiness(input)
-    input.verification = {
-      runId: 'onboarding:1',
-      status: 'succeeded',
-      articleStatus: 'needs_revision',
-      configFingerprint: current.configFingerprint,
-      completedAt: '2026-08-25T12:05:00.000Z',
-    }
-
-    const verified = evaluateWorkspaceReadiness(input)
-    assert.equal(verified.verification.ready, true)
-    assert.equal(verified.ready, true)
-
-    input.activeVoice = {
-      ...input.activeVoice!,
-      updatedAt: '2026-08-25T12:10:00.000Z',
-    }
-    const stale = evaluateWorkspaceReadiness(input)
-    assert.equal(stale.verification.ready, false)
-    assert.equal(stale.verification.stale, true)
-    // A config change stales the verification snapshot, but governance and
-    // templates are unaffected, so the workspace is still ready to run.
-    assert.equal(stale.ready, true)
   })
 })
 

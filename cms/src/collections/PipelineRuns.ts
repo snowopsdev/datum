@@ -22,7 +22,7 @@ export const PipelineRuns: CollectionConfig = {
       name: 'source',
       type: 'select',
       required: true,
-      options: ['onboarding', 'admin', 'cli', 'selected'],
+      options: ['admin', 'cli', 'selected'],
       admin: {
         description:
           'Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.',

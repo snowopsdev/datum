@@ -1385,7 +1385,7 @@ export interface PipelineRun {
   /**
    * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.
    */
-  source: 'onboarding' | 'admin' | 'cli' | 'selected';
+  source: 'admin' | 'cli' | 'selected';
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   mode: 'mock' | 'live';
   template: number | Template;

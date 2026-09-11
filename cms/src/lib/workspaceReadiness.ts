@@ -38,20 +38,11 @@ export interface ReadinessTemplate extends ReadinessEntity {
   name: string
 }
 
-export interface VerificationSnapshot {
-  runId: string
-  status: 'failed' | 'queued' | 'running' | 'succeeded'
-  articleStatus: string | null
-  configFingerprint: string
-  completedAt: string | null
-}
-
 export interface WorkspaceReadinessInput {
   env: Record<string, string | undefined>
   models: LlmSettingsDoc | null
   activeVoice: ReadinessEntity | null
   templates: ReadinessTemplate[]
-  verification: VerificationSnapshot | null
   /**
    * The workspace profile as the pipeline will resolve it — admin global first,
    * then env. Passed in rather than read from `env` here so this evaluator and
@@ -156,13 +147,6 @@ export interface WorkspaceReadiness {
     ready: boolean
     templateCount: number
     models: ModelReadiness[]
-  }
-  verification: {
-    ready: boolean
-    stale: boolean
-    runId: string | null
-    articleStatus: string | null
-    completedAt: string | null
   }
 }
 
@@ -275,12 +259,6 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     models: models.map(({ stage, model, source }) => [stage, model, source]),
   })
 
-  const terminalArticle =
-    input.verification?.articleStatus === 'qa_passed' ||
-    input.verification?.articleStatus === 'needs_revision'
-  const verificationCurrent = input.verification?.configFingerprint === configFingerprint
-  const verificationReady =
-    input.verification?.status === 'succeeded' && terminalArticle && verificationCurrent
   const primaryIcp = input.icps.find((icp) => icp.primary) ?? input.icps[0] ?? null
   const icpsReady = input.icps.length > 0
   const profileReady = profile.targetDomain !== null
@@ -356,13 +334,6 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ready: contentReady,
       templateCount: input.templates.length,
       models,
-    },
-    verification: {
-      ready: verificationReady,
-      stale: Boolean(input.verification && !verificationCurrent),
-      runId: input.verification?.runId ?? null,
-      articleStatus: input.verification?.articleStatus ?? null,
-      completedAt: input.verification?.completedAt ?? null,
     },
   }
 }
