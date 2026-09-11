@@ -133,7 +133,9 @@ test.describe('Content ops', () => {
     await page.goto(`/admin/ops/articles/${article.id}`)
     await expect(page.getByText('Needs you · Publish: signed off')).toBeVisible()
     await expect(page.getByRole('list', { name: /stage 5 of 5: publish/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Publish' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Publish now' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Schedule' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Archive' })).toBeVisible()
   })
 
   test('publishing delivers a signed webhook and serves the public page', async () => {
@@ -147,8 +149,12 @@ test.describe('Content ops', () => {
     seededIds.push(article.id)
 
     await page.goto(`/admin/ops/articles/${article.id}`)
-    await page.getByRole('button', { name: 'Publish' }).click()
-    await page.waitForURL(/\/admin\/ops\/content/)
+    await page.getByRole('button', { name: 'Publish now' }).click()
+    // Publishing keeps the reviewer on the article: the page re-renders in
+    // place and the panel for the new status replaces the one just used.
+    await expect(page.getByText('Published · view it')).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/admin/ops/articles/${article.id}`))
+    await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible()
 
     // Delivery is asynchronous: the afterChange hook queues a job and dev
     // autoRun drains the webhooks queue every two seconds.

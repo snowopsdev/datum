@@ -150,6 +150,10 @@ export type BoardArticle = {
   slug: string | null
   /** When the piece went live; null until it has. */
   publishedAt: string | null
+  /** A scheduled publish time the `publish-due` job will act on; null when unscheduled. */
+  publishAt: string | null
+  /** Taken off the board. Nothing runs on it and no action but un-archiving applies. */
+  archived: boolean
   templateName: string | null
   templateId: number | null
   totalCostUsd: number | null
@@ -238,6 +242,8 @@ export function toBoardArticle(doc: Article): BoardArticle {
     status: doc.status,
     slug: doc.slug ?? null,
     publishedAt: doc.publishedAt ?? null,
+    publishAt: doc.publishAt ?? null,
+    archived: doc.archived === true,
     templateName: template?.name ?? null,
     templateId: template?.id ?? (typeof doc.template === 'number' ? doc.template : null),
     totalCostUsd: doc.totalCostUsd ?? null,

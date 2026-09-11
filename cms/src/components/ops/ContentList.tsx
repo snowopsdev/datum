@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import type { ContentFilter, ContentPage } from './contentListData'
+import { isContentFilter } from './contentListData'
 import { OWNER_LABEL, STAGE_LABEL, stageOf } from './articleStatus'
 import { removeTopicsAction, runSelectedArticlesAction } from './boardActions'
 import type { RunStatusDTO } from './boardTypes'
@@ -33,7 +34,11 @@ const FILTER_LABEL: Record<Filter, string> = {
   working: 'In progress',
   done: 'Done',
   all: 'All',
+  archived: 'Archived',
 }
+
+/** Tab order. `archived` sits last: it is where things go, not where work is. */
+const FILTERS: Filter[] = ['you', 'working', 'done', 'all', 'archived']
 
 /**
  * The primary content screen: every piece, where it is, and who it is waiting
@@ -80,14 +85,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
       const restoredQuery = restored.get('q') ?? ''
       const restoredFilter = restored.get('filter')
       setRequestedFilter(
-        restoredFilter === 'you' ||
-          restoredFilter === 'working' ||
-          restoredFilter === 'done' ||
-          restoredFilter === 'all'
-          ? restoredFilter
-          : counts.you > 0
-            ? 'you'
-            : 'all',
+        isContentFilter(restoredFilter) ? restoredFilter : counts.you > 0 ? 'you' : 'all',
       )
       setQuery(restoredQuery)
       setRequestedQueries([restoredQuery.trim()])
@@ -124,7 +122,9 @@ export function ContentList({ content, latestRun, mode }: Props) {
   }
   const visible = articles
 
-  const removable = articles.filter((a) => a.status === 'topic_selected' && picked.has(a.id))
+  const removable = articles.filter(
+    (a) => !a.archived && a.status === 'topic_selected' && picked.has(a.id),
+  )
   // Only the stalled ones: an article an active run already carries would
   // queue a second run over the top of the first.
   const runnable = articles.filter((a) => a.stalled && picked.has(a.id))
@@ -184,7 +184,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
 
       <div className="datum-content__toolbar">
         <div className="datum-ops__tabs datum-ops__tabs--pills" role="tablist">
-          {(['you', 'working', 'done', 'all'] as Filter[]).map((f) => (
+          {FILTERS.map((f) => (
             <button
               aria-selected={requestedFilter === f}
               className={requestedFilter === f ? 'is-active' : undefined}
@@ -295,6 +295,8 @@ export function ContentList({ content, latestRun, mode }: Props) {
                   : 'Everything is either done or waiting to be started.'}
               </p>
             </>
+          ) : filter === 'archived' ? (
+            <p>Nothing is archived.</p>
           ) : (
             <p>No pieces match.</p>
           )}
@@ -312,7 +314,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
                 className={`datum-content__row datum-content__row--${a.stalled ? 'you' : info.owner}`}
                 key={a.id}
               >
-                {a.status === 'topic_selected' || a.stalled ? (
+                {!a.archived && (a.status === 'topic_selected' || a.stalled) ? (
                   <input
                     aria-label={`Select ${a.title || a.keyword}`}
                     checked={picked.has(a.id)}
@@ -348,10 +350,18 @@ export function ContentList({ content, latestRun, mode }: Props) {
                   </span>
                 </div>
                 <span className={`datum-content__owner datum-content__owner--${tone}`}>
-                  {a.stalled ? `Stalled · ${info.label}` : OWNER_LABEL[info.owner]}
+                  {a.archived
+                    ? `Archived · ${info.label}`
+                    : a.stalled
+                      ? `Stalled · ${info.label}`
+                      : OWNER_LABEL[info.owner]}
                 </span>
                 <div className="datum-content__action">
-                  {a.stalled ? (
+                  {a.archived ? (
+                    <Link className="datum-ops__link-btn" href={href} prefetch={false}>
+                      Open
+                    </Link>
+                  ) : a.stalled ? (
                     <button
                       className="datum-ops__btn datum-ops__btn--primary"
                       disabled={pending || navigating}

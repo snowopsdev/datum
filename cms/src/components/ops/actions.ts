@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
+import { activeRunIncludesArticle } from '@/lib/activeRuns'
 import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
 import { ActivePipelineRunError } from '@/lib/createPipelineRun'
 import { errorMessage } from '@/lib/errorMessage'
@@ -94,6 +95,17 @@ function auditContext(
  * show it instead of leaving the reviewer to wonder why nothing is moving.
  */
 export type QueuedRunResult = { queued: boolean; runId?: string; reason?: string }
+
+/**
+ * What an article became.
+ *
+ * Approve and publish used to end in a redirect to the board, so the page that
+ * asked never needed an answer. The reviewer now stays on the article and the
+ * page re-renders in place, which means the panel they see next is chosen from
+ * the status the write actually landed — not from the one the button was
+ * named after, which a `beforeChange` gate is free to have overridden.
+ */
+export type StatusResult = { status: ArticleStatus }
 
 /**
  * `queueRun: false` for a caller that will start the run itself (or wants none
@@ -221,9 +233,12 @@ export async function resetToDraftedAction(
   return queueRunAfterRework(payload, user, updated, options)
 }
 
-export async function approveArticleAction(articleId: number, reviewNotes?: string) {
+export async function approveArticleAction(
+  articleId: number,
+  reviewNotes?: string,
+): Promise<StatusResult> {
   const { payload, user } = await requireUser()
-  await payload.update({
+  const approved = await payload.update({
     collection: 'articles',
     id: articleId,
     data: {
@@ -238,9 +253,13 @@ export async function approveArticleAction(articleId: number, reviewNotes?: stri
     overrideAccess: false,
   })
   revalidateOps(articleId)
+  return { status: approved.status }
 }
 
-export async function publishArticleAction(articleId: number, reviewNotes?: string) {
+export async function publishArticleAction(
+  articleId: number,
+  reviewNotes?: string,
+): Promise<StatusResult> {
   const { payload, user } = await requireUser()
   const published = await payload.update({
     collection: 'articles',
@@ -258,6 +277,104 @@ export async function publishArticleAction(articleId: number, reviewNotes?: stri
     overrideAccess: false,
   })
   revalidatePublishedArticle(published)
+  revalidateOps(articleId)
+  return { status: published.status }
+}
+
+/**
+ * Parks an approved article for the `publish-due` job (`jobs/publishDue.ts`)
+ * to publish when the time arrives.
+ *
+ * Two refusals, both about not letting the page display a promise nothing will
+ * keep. A date in the past would sit there reading "Scheduled for…" while the
+ * job — which selects on `publishAt <= now` — published it on its very next
+ * tick, five minutes later, with no scheduling having meaningfully happened.
+ * And the job only ever picks up `approved`, so a date written onto any other
+ * status is inert: the field is deliberately allowed to survive status moves
+ * as stored intent, but *setting* it somewhere it can never fire is the UI
+ * lying rather than the field remembering.
+ *
+ * The stored value is normalised to an ISO instant. The control that feeds
+ * this is a `datetime-local` input, which has no zone of its own, so the
+ * conversion happens in the browser's zone and what is persisted is the
+ * absolute moment the reviewer meant.
+ */
+export async function scheduleArticleAction(articleId: number, publishAt: string) {
+  const { payload, user } = await requireUser()
+  const when = new Date(publishAt)
+  if (Number.isNaN(when.getTime())) {
+    throw new Error('Pick a date and time to schedule this article.')
+  }
+  if (when.getTime() <= Date.now()) {
+    throw new Error('Pick a time in the future to schedule this article.')
+  }
+  const article = await payload.findByID({
+    collection: 'articles',
+    id: articleId,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+  if (article.status !== 'approved') {
+    throw new Error('Only an approved article can be scheduled. Approve it first.')
+  }
+  const iso = when.toISOString()
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: { publishAt: iso },
+    context: auditContext(user, 'publish_scheduled', 'Publish scheduled', { publishAt: iso }),
+    user,
+    overrideAccess: false,
+  })
+  revalidateOps(articleId)
+  return { publishAt: iso }
+}
+
+/** Takes the date back off, leaving the article approved and unpublished. */
+export async function unscheduleArticleAction(articleId: number) {
+  const { payload, user } = await requireUser()
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: { publishAt: null },
+    context: auditContext(user, 'publish_unscheduled', 'Publish schedule cleared'),
+    user,
+    overrideAccess: false,
+  })
+  revalidateOps(articleId)
+}
+
+/**
+ * Takes a piece off the board without destroying it — see the `archived` field
+ * on `Articles.ts` for why a hard delete is not on offer.
+ *
+ * Refused while a `queued`/`running` run lists the article, through the same
+ * `activeRunIncludesArticle` the review page and the content list resolve
+ * "Datum is working on this" with. A run mid-flight writes a status, a body
+ * and cost rows onto an article the reviewer has just declared dead, and the
+ * pipeline's own skip (`archived` articles are passed over at selection) does
+ * not help a run that already picked this one up. Throwing is right here where
+ * the queue helpers merely report: nothing was written, so there is no half of
+ * the action to be honest about.
+ */
+export async function archiveArticleAction(articleId: number, reason?: string) {
+  const { payload, user } = await requireUser()
+  if (await activeRunIncludesArticle(payload, user, articleId)) {
+    throw new Error(
+      'This article is in an active run. Wait for the run to finish before archiving it.',
+    )
+  }
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: { archived: true },
+    context: auditContext(user, 'article_archived', 'Article archived', {
+      reason: reason?.trim() || null,
+    }),
+    user,
+    overrideAccess: false,
+  })
   revalidateOps(articleId)
 }
 

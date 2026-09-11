@@ -13,6 +13,10 @@ const findByIDMock = vi.fn(
     ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0, template: 3 }) as never,
 )
 const findMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ docs: [] }) as never)
+// `activeRunIncludesArticle` (lib/activeRuns.ts) asks with `count`, not `find`:
+// the archive refusal runs through the real helper so the predicate it pushes
+// into the query is the one under test, not a second copy written here.
+const countMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ totalDocs: 0 }) as never)
 // Echoes back what was written, the way the real `payload.update` returns the
 // updated document — the queue step reads the article's *new* status from it.
 const updateMock = vi.fn(
@@ -48,6 +52,7 @@ vi.mock('payload', async (importOriginal) => {
       auth: authMock,
       findByID: findByIDMock,
       find: findMock,
+      count: countMock,
       update: updateMock,
     })),
   }
@@ -71,9 +76,16 @@ loadWorkspaceSetupMock.mockResolvedValue(readySetup())
 createPipelineRunMock.mockResolvedValue(undefined)
 
 const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
-const { regenerateArticleAction, resetToDraftedAction, sendBackAction } = await import(
-  '@/components/ops/actions'
-)
+const {
+  approveArticleAction,
+  archiveArticleAction,
+  publishArticleAction,
+  regenerateArticleAction,
+  resetToDraftedAction,
+  scheduleArticleAction,
+  sendBackAction,
+  unscheduleArticleAction,
+} = await import('@/components/ops/actions')
 
 describe('qaFailureLines', () => {
   it('returns an empty list when there are no qaResults', () => {
@@ -568,5 +580,110 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
     expect(result).toEqual({ queued: false })
     expect(createPipelineRunMock).not.toHaveBeenCalled()
     expect(updateMock).toHaveBeenCalled()
+  })
+})
+
+/**
+ * Scheduling, unscheduling and archiving — the three things a reviewer can do
+ * to a piece that is finished with the pipeline but not yet (or never) going
+ * live. Each writes through the ordinary `overrideAccess: false` path with its
+ * own audit event, because "who parked this and when" is exactly what someone
+ * looking at an article nobody published needs to read months later.
+ */
+describe('scheduling, unscheduling and archiving', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findByIDMock.mockResolvedValue({ id: 1, status: 'approved' } as never)
+    countMock.mockResolvedValue({ totalDocs: 0 } as never)
+  })
+
+  it('scheduleArticleAction rejects a past date', async () => {
+    await expect(scheduleArticleAction(1, '2020-01-01T00:00:00Z')).rejects.toThrow(/future/)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('scheduleArticleAction rejects a value that is not a date at all', async () => {
+    await expect(scheduleArticleAction(1, 'next tuesday')).rejects.toThrow(/date and time/)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('scheduleArticleAction stores publishAt with an audit context', async () => {
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved' } as never)
+    await scheduleArticleAction(1, '2099-01-01T09:00:00Z')
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ publishAt: '2099-01-01T09:00:00.000Z' }),
+        overrideAccess: false,
+        context: expect.objectContaining({
+          articleAudit: expect.objectContaining({ event: 'publish_scheduled' }),
+        }),
+      }),
+    )
+  })
+
+  // `jobs/publishDue.ts` only ever picks up `approved`, so a date on anything
+  // else is inert intent dressed up as a promise the page would then repeat.
+  it('scheduleArticleAction refuses an article that is not approved', async () => {
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'needs_revision' } as never)
+    await expect(scheduleArticleAction(1, '2099-01-01T09:00:00Z')).rejects.toThrow(/approved/)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('unscheduleArticleAction clears publishAt and records why', async () => {
+    await unscheduleArticleAction(1)
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { publishAt: null },
+        context: expect.objectContaining({
+          articleAudit: expect.objectContaining({ event: 'publish_unscheduled' }),
+        }),
+      }),
+    )
+  })
+
+  it('archiveArticleAction refuses while a run is active', async () => {
+    countMock.mockResolvedValueOnce({ totalDocs: 1 } as never)
+    await expect(archiveArticleAction(1)).rejects.toThrow(/active run/)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('archiveArticleAction sets archived and records the reason', async () => {
+    await archiveArticleAction(1, '  duplicate topic  ')
+    expect(countMock).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'pipeline-runs' }),
+    )
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { archived: true },
+        overrideAccess: false,
+        context: expect.objectContaining({
+          articleAudit: expect.objectContaining({
+            event: 'article_archived',
+            details: { reason: 'duplicate topic' },
+          }),
+        }),
+      }),
+    )
+  })
+})
+
+/**
+ * Approve and publish used to answer with nothing and let the page navigate
+ * away. The reviewer stays put now, so the action has to say what the article
+ * became — the panel that replaces the one they just used is chosen from it.
+ */
+describe('approve and publish report the status they left behind', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+  })
+
+  it('approveArticleAction returns the approved status', async () => {
+    await expect(approveArticleAction(1, 'reads well')).resolves.toEqual({ status: 'approved' })
+  })
+
+  it('publishArticleAction returns the published status', async () => {
+    await expect(publishArticleAction(1)).resolves.toEqual({ status: 'published' })
   })
 })

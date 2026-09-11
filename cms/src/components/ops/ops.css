@@ -605,6 +605,7 @@
   margin-bottom: 6px;
 }
 
+.datum-ops__field input,
 .datum-ops__field select,
 .datum-ops__field textarea {
   width: 100%;

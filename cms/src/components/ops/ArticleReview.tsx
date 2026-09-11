@@ -7,12 +7,15 @@ import React, { useState, useTransition } from 'react'
 import { FACET_GAIN_THRESHOLD } from '../../lib/informationGain/scoring'
 import {
   approveArticleAction,
+  archiveArticleAction,
   assignTemplateAction,
   overrideReviewAction,
   publishArticleAction,
   regenerateArticleAction,
   resetToDraftedAction,
+  scheduleArticleAction,
   sendBackAction,
+  unscheduleArticleAction,
 } from './actions'
 import { type BriefIcpOption, BriefEditor } from './BriefEditor'
 import { revisitBriefAction } from './briefActions'
@@ -454,6 +457,84 @@ function oneLineHint(value: string | null): string | null {
 }
 
 /**
+ * An ISO instant as the `datetime-local` string its input wants, in UTC.
+ *
+ * UTC rather than the viewer's zone on purpose: every other time on this page
+ * comes from `formatAuditTimestamp`, which is pinned to UTC, and an input that
+ * disagreed with the "Scheduled for…" line right above it would be read as a
+ * bug in one of them. It also keeps the control safe to server-render — the
+ * Node process's zone and the browser's are frequently different, and a value
+ * derived from `getHours()` would not survive hydration.
+ */
+function toUtcInputValue(iso: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 16)
+}
+
+/** The same string back as an instant. `datetime-local` omits the seconds. */
+function utcInputValueToIso(value: string): string {
+  return `${value.length === 16 ? `${value}:00` : value}Z`
+}
+
+/**
+ * Archive, behind the two-click confirm the regenerate button uses.
+ *
+ * Rendered into every panel a person owns and none that a run does: an
+ * article a run is carrying is refused by `archiveArticleAction` anyway, and
+ * offering the button beside "Datum will write this on the next run" invites
+ * exactly the click that gets refused.
+ */
+function ArchiveAction({
+  archived,
+  confirming,
+  onArchive,
+  onCancel,
+  onRequest,
+  pending,
+}: {
+  archived: boolean
+  confirming: boolean
+  onArchive: () => void
+  onCancel: () => void
+  onRequest: () => void
+  pending: boolean
+}) {
+  if (archived) {
+    return <span className="datum-ops__hint">Archived — hidden from the content board.</span>
+  }
+  if (confirming) {
+    return (
+      <>
+        <button
+          type="button"
+          className="datum-ops__btn datum-ops__btn--danger"
+          disabled={pending}
+          onClick={onArchive}
+        >
+          Confirm: archive
+        </button>
+        <button type="button" className="datum-ops__btn" disabled={pending} onClick={onCancel}>
+          Cancel
+        </button>
+      </>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className="datum-ops__btn"
+      disabled={pending}
+      onClick={onRequest}
+      title="Take this piece off the content board. Nothing is deleted and the audit trail is kept."
+    >
+      Archive
+    </button>
+  )
+}
+
+/**
  * The one run control, on every status a pipeline run can advance.
  *
  * Before this, three of those statuses shared a "No operator action required.
@@ -614,17 +695,32 @@ export function ArticleReview({
    */
   const [justification, setJustification] = useState('')
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+  /** The same two-click confirm, for archiving. */
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  /**
+   * The scheduling input, in UTC. Seeded from whatever is already scheduled so
+   * changing a time is an edit rather than a retype.
+   */
+  const [scheduleAt, setScheduleAt] = useState(() => toUtcInputValue(article.publishAt))
 
   const scoreInvalidatedBy = scoreInvalidationNotice(article.status, auditEntries)
 
-  const runAction = (fn: () => Promise<unknown>, thenBoard = true) => {
+  /**
+   * Run a reviewer action and re-render the page in place.
+   *
+   * Approving and publishing used to push the reviewer back to the board,
+   * which threw away the one thing they were about to want — the piece they
+   * had just decided on, now showing what the decision did to it. Everything
+   * refreshes instead: the server component re-reads the article and the panel
+   * for its new status replaces the one that was just used.
+   */
+  const runAction = (fn: () => Promise<unknown>) => {
     setError(null)
     setNotice(null)
     startTransition(async () => {
       try {
         await fn()
-        if (thenBoard) router.push('/admin/ops/content')
-        else router.refresh()
+        router.refresh()
       } catch (error) {
         // Whatever was actually thrown. "Action failed" hid the gate messages
         // (`articleReviewGate.ts`) that explain why a write was refused, which
@@ -651,7 +747,7 @@ export function ArticleReview({
       })
       if (!result.ok) throw new Error(result.error)
       setNotice(result.message)
-    }, false)
+    })
   }
 
   /**
@@ -683,13 +779,53 @@ export function ArticleReview({
           ? await resetToDraftedAction(article.id, notes, options)
           : await regenerateArticleAction(article.id, notes, options),
       )
-    }, false)
+    })
   }
 
   const requestReviewAction = (which: 'reset' | 'regenerate') => {
     if (mode === 'live') setPendingReviewAction(which)
     else runReviewAction(which, false)
   }
+
+  /**
+   * Approving and publishing stay on the page, so each says what it did. The
+   * status comes back from the action rather than being assumed from the
+   * button's name: `gateVerifiedStatus` and friends are free to have landed
+   * the write somewhere else, and the notice must not claim otherwise.
+   */
+  const approve = () =>
+    runAction(async () => {
+      const { status } = await approveArticleAction(article.id, notes)
+      setNotice(status === 'approved' ? 'Approved — publish when ready' : `Saved as ${status}.`)
+    })
+
+  const publishNow = () =>
+    runAction(async () => {
+      const { status } = await publishArticleAction(article.id, notes)
+      setNotice(status === 'published' ? 'Published · view it' : `Saved as ${status}.`)
+    })
+
+  /**
+   * One element, rendered into every panel a person owns. Shared rather than
+   * repeated so the confirm is genuinely one state: a reviewer cannot arm it
+   * in one panel and leave a second, still-unarmed Archive button beside it.
+   */
+  const archiveControls = (
+    <ArchiveAction
+      archived={article.archived}
+      confirming={confirmArchive}
+      onArchive={() => {
+        setConfirmArchive(false)
+        runAction(async () => {
+          await archiveArticleAction(article.id)
+          setNotice('Archived — it is off the content board.')
+        })
+      }}
+      onCancel={() => setConfirmArchive(false)}
+      onRequest={() => setConfirmArchive(true)}
+      pending={pending}
+    />
+  )
 
   const qa = article.qaResults
   const failures = qaFailures(article)
@@ -968,7 +1104,7 @@ export function ArticleReview({
                         runAction(async () => {
                           const result = await revisitBriefAction(article.id)
                           if (!result.ok) throw new Error(result.error)
-                        }, false)
+                        })
                       }
                       title="Go back to the brief and change the angle or sections before rewriting"
                       type="button"
@@ -1004,6 +1140,7 @@ export function ArticleReview({
                         Regenerate from gaps
                       </button>
                     )}
+                    {archiveControls}
                     <a className="datum-ops__btn" href={editHref}>
                       Open in admin
                     </a>
@@ -1041,7 +1178,7 @@ export function ArticleReview({
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending}
-                  onClick={() => runAction(() => approveArticleAction(article.id, notes))}
+                  onClick={() => approve()}
                 >
                   Approve
                 </button>
@@ -1049,23 +1186,21 @@ export function ArticleReview({
                   type="button"
                   className="datum-ops__btn"
                   disabled={pending}
-                  onClick={() => runAction(() => publishArticleAction(article.id, notes))}
+                  onClick={() => publishNow()}
                 >
-                  Approve & publish
+                  Approve &amp; publish
                 </button>
                 <button
                   type="button"
                   className="datum-ops__btn"
                   disabled={pending}
                   onClick={() =>
-                    runAction(
-                      () => sendBackAction(article.id, notes || 'Sent back for revision.'),
-                      false,
-                    )
+                    runAction(() => sendBackAction(article.id, notes || 'Sent back for revision.'))
                   }
                 >
                   Send back
                 </button>
+                {archiveControls}
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>
@@ -1076,15 +1211,75 @@ export function ArticleReview({
           {article.status === 'approved' ? (
             <div className="datum-ops__block">
               <h3>Publish</h3>
+              {article.publishAt ? (
+                <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                  Scheduled for {formatAuditTimestamp(article.publishAt)} ·{' '}
+                  <button
+                    type="button"
+                    className="datum-ops__link-btn"
+                    disabled={pending}
+                    onClick={() =>
+                      runAction(async () => {
+                        await unscheduleArticleAction(article.id)
+                        setScheduleAt('')
+                        setNotice('Unscheduled — it stays approved until you publish it.')
+                      })
+                    }
+                  >
+                    Unschedule
+                  </button>
+                </p>
+              ) : (
+                <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                  Publish it now, or pick a time and Datum publishes it for you.
+                </p>
+              )}
+              <div className="datum-ops__field">
+                <label htmlFor="publish-at">Publish at (UTC)</label>
+                <input
+                  id="publish-at"
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => setScheduleAt(e.target.value)}
+                  disabled={pending}
+                />
+              </div>
               <div className="datum-ops__actions">
                 <button
                   type="button"
                   className="datum-ops__btn datum-ops__btn--primary"
                   disabled={pending}
-                  onClick={() => runAction(() => publishArticleAction(article.id, notes))}
+                  onClick={() => publishNow()}
                 >
-                  Publish
+                  Publish now
                 </button>
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  disabled={pending || scheduleAt === ''}
+                  onClick={() =>
+                    runAction(async () => {
+                      const { publishAt } = await scheduleArticleAction(
+                        article.id,
+                        utcInputValueToIso(scheduleAt),
+                      )
+                      setNotice(`Scheduled for ${formatAuditTimestamp(publishAt)}`)
+                    })
+                  }
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  disabled={pending}
+                  onClick={() =>
+                    runAction(() => sendBackAction(article.id, notes || 'Sent back for revision.'))
+                  }
+                >
+                  Send back
+                </button>
+                {archiveControls}
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>
@@ -1134,13 +1329,11 @@ export function ArticleReview({
                   className="datum-ops__btn"
                   disabled={pending}
                   onClick={() =>
-                    runAction(
-                      () =>
-                        sendBackAction(
-                          article.id,
-                          justification.trim() || 'Sent back after information-gain review.',
-                        ),
-                      false,
+                    runAction(() =>
+                      sendBackAction(
+                        article.id,
+                        justification.trim() || 'Sent back after information-gain review.',
+                      ),
                     )
                   }
                 >
@@ -1153,13 +1346,14 @@ export function ArticleReview({
                     runAction(async () => {
                       const result = await revisitBriefAction(article.id)
                       if (!result.ok) throw new Error(result.error)
-                    }, false)
+                    })
                   }
                   title="Go back to the brief and change the angle or sections before rewriting"
                   type="button"
                 >
                   Revisit brief
                 </button>
+                {archiveControls}
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>
@@ -1190,6 +1384,7 @@ export function ArticleReview({
                     No slug on this piece, so it has no public address.
                   </span>
                 )}
+                {archiveControls}
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>
