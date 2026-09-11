@@ -22,7 +22,7 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
     loadWorkspaceSetup(payload),
     payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
   ])
-  const { content, governance, mode, tenant } = setup.readiness
+  const { content, governance, mode, ready, tenant } = setup.readiness
 
   let voiceName: string | null = null
   if (governance.activeVoiceId !== null) {
@@ -48,7 +48,10 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
 
   return {
     mode,
-    ready: governance.ready,
+    // `readiness.ready`, not `governance.ready`: the hub's "Ready" headline
+    // and its "Make your first piece" button have to mean a piece can be
+    // made, and a workspace with no template cannot make one.
+    ready,
     voice: { name: voiceName, active: governance.activeVoiceId !== null },
     workspace: {
       ready: tenant.profile.ready,
@@ -68,6 +71,9 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
     },
     templateCount: content.templateCount,
     modelsConfigured: setup.modelsConfigured,
+    // A PIPELINE_MODEL_* override is a choice somebody made; the row must not
+    // call it "platform defaults" just because the global is blank.
+    modelsFromEnv: content.models.some((model) => model.source === 'env'),
     positioning: tenant.positioning,
     evidence: {
       status: tenant.evidenceBank.status,

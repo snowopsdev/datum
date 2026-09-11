@@ -218,29 +218,41 @@ export function evaluateRuntimeReadiness(
 
   const profile = input.profile
   const missing = new Set<string>()
+  // Variables that are set, to the values `.env.example` ships. Naming them
+  // as missing sends whoever deploys this to a file that already has them, so
+  // they get a sentence of their own instead.
+  const placeholderVars: string[] = []
   if (mode === 'live') {
     if (!configured(input.env.AHREFS_API_KEY)) missing.add('AHREFS_API_KEY')
     // The env vars are the fallback, not the source of truth: a workspace whose
     // Workspace global names the domain has nothing missing, so naming the
     // variable would send an operator to fix something that is already set.
-    if (!profile.targetDomain) missing.add(TARGET_DOMAIN_ENV_VAR)
-    if (profile.competitors.length === 0) missing.add(COMPETITOR_DOMAINS_ENV_VAR)
+    if (profile.placeholderDomain) placeholderVars.push(TARGET_DOMAIN_ENV_VAR)
+    else if (!profile.targetDomain) missing.add(TARGET_DOMAIN_ENV_VAR)
+    if (profile.placeholderCompetitors.length > 0) placeholderVars.push(COMPETITOR_DOMAINS_ENV_VAR)
+    else if (profile.competitors.length === 0) missing.add(COMPETITOR_DOMAINS_ENV_VAR)
     for (const model of models) {
       if (!model.configured && model.envVar) missing.add(model.envVar)
     }
   }
 
   const sortedMissing = [...missing].sort()
-  const problems =
-    unsupportedModels.length > 0
+  const problems = [
+    ...(placeholderVars.length > 0
+      ? [
+          `Replace the .env.example placeholders in ${placeholderVars.join(', ')}, or fill in the Workspace step (what is saved there is used instead)`,
+        ]
+      : []),
+    ...(unsupportedModels.length > 0
       ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
-      : []
+      : []),
+  ]
 
   return {
     mode,
     models,
     runtime: {
-      ready: missing.size === 0 && unsupportedModels.length === 0,
+      ready: missing.size === 0 && problems.length === 0,
       missing: sortedMissing,
       problems,
       blockers: [...sortedMissing, ...problems],

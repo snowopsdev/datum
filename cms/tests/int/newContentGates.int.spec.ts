@@ -66,6 +66,22 @@ it('names every setup blocker above the cards and refuses to create while one st
   )
 })
 
+it('names the missing template too, so the notice is never a dead end', () => {
+  render(
+    React.createElement(NewContentFlow, {
+      templates: [],
+      mode: 'mock' as const,
+      pipelineReady: false,
+      runActive: false,
+      blockers: [{ asset: 'templates' as const, message: 'Add a content template' }],
+    }),
+  )
+
+  expect(
+    screen.getByRole('link', { name: 'Add a content template' }).getAttribute('href'),
+  ).toBe('/admin/ops/templates')
+})
+
 it('creates as usual, and hands the gap form the card already chosen, when setup is done', () => {
   render(
     React.createElement(NewContentFlow, {

@@ -50,7 +50,15 @@ export async function NewContentView(props: AdminViewServerProps) {
     >
       <Gutter>
         <NewContentFlow
-          blockers={r.governance.blockers}
+          blockers={[
+            ...r.governance.blockers,
+            // Templates are content readiness, not governance, but from this
+            // screen they are the same kind of blocker: without one there is
+            // nothing to press Create on.
+            ...(r.content.ready
+              ? []
+              : [{ asset: 'templates' as const, message: 'Add a content template' }]),
+          ]}
           mode={r.mode}
           pipelineReady={r.runtime.ready && r.governance.ready && r.content.ready}
           runActive={setup.latestRun?.status === 'queued' || setup.latestRun?.status === 'running'}

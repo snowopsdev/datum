@@ -1,9 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import React, { useState, useTransition } from 'react'
 
 import { assistAction, type AssistAsset } from './setupActions'
+import { SitePagesHint } from './SitePagesHint'
 import './ops.css'
 
 /**
@@ -182,15 +182,7 @@ export function AssetStepper<Id extends string>({
                 It reads your site pages, your brand voice, and the rest of this workspace. It never
                 saves: whatever comes back lands in the form for you to edit.
               </p>
-              {sitePagesFetchedAt === null ? (
-                <p className="datum-ops__warn">
-                  No site pages fetched yet — the assistant drafts from your site. Fetch them on the{' '}
-                  <Link href="/admin/ops/setup/workspace" prefetch={false}>
-                    Workspace step
-                  </Link>
-                  .
-                </p>
-              ) : null}
+              <SitePagesHint fetchedAt={sitePagesFetchedAt} />
               <div className="datum-ops__field">
                 <label htmlFor={`assist-notes-${current.id}`}>
                   Your notes for this step (optional)

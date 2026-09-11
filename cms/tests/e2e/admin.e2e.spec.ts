@@ -42,10 +42,18 @@ test.describe('Admin Panel', () => {
     }
   })
 
-  test('the setup hub lists the five workspace assets', async () => {
+  test('the setup hub lists the seven workspace assets', async () => {
     await page.goto('/admin/ops/setup')
     await expect(page.getByRole('heading', { level: 1 }).first()).not.toBeEmpty()
-    for (const title of ['Workspace', 'Brand voice', 'Audiences', 'Positioning', 'Evidence bank']) {
+    for (const title of [
+      'Workspace',
+      'Brand voice',
+      'Audiences',
+      'Templates',
+      'Positioning',
+      'Evidence bank',
+      'Models',
+    ]) {
       await expect(page.locator('.datum-setup__title', { hasText: title }).first()).toBeVisible()
     }
   })

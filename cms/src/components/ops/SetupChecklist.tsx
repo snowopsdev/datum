@@ -9,7 +9,7 @@ import './ops.css'
 
 export type SetupChecklistData = {
   mode: 'mock' | 'live'
-  /** `governance.ready`: a piece can be researched and written. */
+  /** `readiness.ready`: a piece can be created, researched, and written. */
   ready: boolean
   voice: { name: string | null; active: boolean }
   workspace: {
@@ -25,8 +25,10 @@ export type SetupChecklistData = {
   audiences: { ready: boolean; count: number; primaryName: string | null }
   /** Templates are seeded on install, but a workspace can delete every one. */
   templateCount: number
-  /** Whether anybody has chosen a model, as opposed to inheriting the default. */
+  /** Whether anybody has chosen a model on the global, rather than inheriting one. */
   modelsConfigured: boolean
+  /** Whether a `PIPELINE_MODEL_*` variable chose one instead. */
+  modelsFromEnv: boolean
   positioning: { status: 'missing' | 'partial' | 'ready'; problems: string[] }
   evidence: {
     status: 'missing' | 'ready'
@@ -161,8 +163,12 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       blurb: 'Which model runs each step. Blank uses the platform default.',
       state: data.modelsConfigured
         ? 'Chosen for this workspace'
-        : 'Platform defaults everywhere',
-      done: data.modelsConfigured,
+        : data.modelsFromEnv
+          ? 'Set by PIPELINE_MODEL_* in the environment'
+          : 'Platform defaults everywhere',
+      // An environment override is somebody's choice too, so the row is done
+      // and the action offers to move it into the admin global.
+      done: data.modelsConfigured || data.modelsFromEnv,
       required: false,
       href: '/admin/globals/llm-settings',
       action: data.modelsConfigured ? 'Edit' : 'Choose models',

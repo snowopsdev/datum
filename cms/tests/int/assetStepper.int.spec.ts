@@ -8,6 +8,8 @@ import { afterEach, expect, it, vi } from 'vitest'
  * no way to know, so the box says so and links to the step that fetches them.
  */
 vi.mock('@/components/ops/setupActions', () => ({ assistAction: vi.fn() }))
+vi.mock('@/components/ops/tenantActions', () => ({ saveEvidenceBankAction: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) =>
     React.createElement('a', { href }, children),
@@ -48,6 +50,25 @@ it('warns that the assistant has no site pages to read, and links to the Workspa
   expect(screen.getByRole('link', { name: 'Workspace step' }).getAttribute('href')).toBe(
     '/admin/ops/setup/workspace',
   )
+})
+
+it('warns on the evidence bank too, where the assistant lives outside the stepper', async () => {
+  const { EvidenceBankEditor } = await import('@/components/ops/EvidenceBankEditor')
+  const { emptyEvidenceBankDraft } = await import('@/components/ops/setupTypes')
+
+  render(
+    React.createElement(EvidenceBankEditor, {
+      initial: emptyEvidenceBankDraft({ verifiedClaims: [], facts: [], rejectedClaims: [] }),
+      today: '2026-09-11',
+      sitePagesFetchedAt: null,
+    }),
+  )
+
+  const hints = screen.getAllByText(
+    /No site pages fetched yet — the assistant drafts from your site\./,
+  )
+  expect(hints.length).toBeGreaterThan(0)
+  expect(hints[0].textContent).toContain('Fetch them on the Workspace step.')
 })
 
 it('says nothing once pages are fetched, or on a step with no assistant', () => {

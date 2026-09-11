@@ -72,6 +72,13 @@ export interface ResolvedWorkspaceProfile {
    * env file they copied rather than hunting a workspace that looks empty.
    */
   placeholderDomain: string | null
+  /**
+   * The same for `COMPETITOR_DOMAINS`: the placeholders dropped from it, when
+   * dropping them is why there are no competitors. A caller that would
+   * otherwise report the variable as unset can say it is set to the sample
+   * values instead.
+   */
+  placeholderCompetitors: string[]
 }
 
 const clean = (value: unknown): string | undefined =>
@@ -173,9 +180,13 @@ export function resolveWorkspaceProfile(
   const targetDomain = adminDomain ?? envDomain ?? defaultDomain
 
   const adminCompetitors = competitorsFromDoc(doc)
-  const envCompetitors = parseCompetitorDomainsEnv(env[COMPETITOR_DOMAINS_ENV_VAR]).filter(
+  const rawEnvCompetitors = parseCompetitorDomainsEnv(env[COMPETITOR_DOMAINS_ENV_VAR])
+  const envCompetitors = rawEnvCompetitors.filter(
     (competitor) => !PLACEHOLDER_DOMAINS.has(competitor.domain),
   )
+  const droppedCompetitors = rawEnvCompetitors
+    .filter((competitor) => PLACEHOLDER_DOMAINS.has(competitor.domain))
+    .map((competitor) => competitor.domain)
   const defaultCompetitors = opts.mockDefault
     ? parseCompetitorDomainsEnv(MOCK_COMPETITOR_DOMAINS)
     : []
@@ -198,6 +209,7 @@ export function resolveWorkspaceProfile(
     // Only worth saying when the placeholder is the reason there is nothing:
     // a mock run has a demo domain and an admin field beats the env anyway.
     placeholderDomain: placeholder && targetDomain === null ? rawEnvDomain : null,
+    placeholderCompetitors: competitors.length === 0 ? droppedCompetitors : [],
   }
 }
 

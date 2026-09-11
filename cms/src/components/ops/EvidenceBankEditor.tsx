@@ -14,6 +14,7 @@ import {
 } from '../../lib/tenant/evidenceBank'
 import { assistAction } from './setupActions'
 import { Field, RowsEditor } from './setupFields'
+import { SitePagesHint } from './SitePagesHint'
 import { type EvidenceBankDraft, emptyEvidenceBankDraft, type NewRow } from './setupTypes'
 import { saveEvidenceBankAction } from './tenantActions'
 import './ops.css'
@@ -76,9 +77,15 @@ const SURFACE_LABEL: Record<ClearedSurface, string> = {
 export function EvidenceBankEditor({
   initial,
   today,
+  sitePagesFetchedAt,
 }: {
   initial: EvidenceBankDraft
   today: string
+  /**
+   * From the workspace profile. Both assist panels below read the site pages,
+   * so null is worth saying before somebody presses one.
+   */
+  sitePagesFetchedAt: string | null
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(initial)
@@ -416,6 +423,7 @@ export function EvidenceBankEditor({
               onRun={() => assist('verifiedClaims')}
               disabled={pending}
               mock={mock}
+              sitePagesFetchedAt={sitePagesFetchedAt}
             />
           </>
         ) : null}
@@ -478,6 +486,7 @@ export function EvidenceBankEditor({
               onRun={() => assist('facts')}
               disabled={pending}
               mock={mock}
+              sitePagesFetchedAt={sitePagesFetchedAt}
             />
           </>
         ) : null}
@@ -570,6 +579,7 @@ function AssistPanel({
   onRun,
   disabled,
   mock,
+  sitePagesFetchedAt,
 }: {
   title: string
   buttonLabel: string
@@ -579,6 +589,7 @@ function AssistPanel({
   onRun: () => void
   disabled: boolean
   mock: boolean
+  sitePagesFetchedAt: string | null
 }) {
   return (
     <div className="datum-ops__assist">
@@ -587,6 +598,7 @@ function AssistPanel({
         {mock ? <span className="datum-ops__pill datum-ops__pill--muted">mock</span> : null}
       </div>
       <p className="datum-ops__hint">{blurb}</p>
+      <SitePagesHint fetchedAt={sitePagesFetchedAt} />
       <div className="datum-ops__field">
         <label htmlFor="eb-assist-notes">Your notes (optional)</label>
         <textarea

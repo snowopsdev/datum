@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import type { GovernanceBlocker } from '../../lib/workspaceReadiness'
+
 import { ContentRunForm } from './ContentRunForm'
 import { TopicDiscovery } from './TopicDiscovery'
 import { createTopicsAction } from './topicDiscoveryActions'
@@ -17,20 +18,28 @@ export type TemplateCard = {
   requiredSections: number
 }
 
+/**
+ * A governance blocker, plus the one thing this screen can be blocked by that
+ * governance does not track: a workspace with no template has no shape to
+ * make a piece in.
+ */
+export type SetupBlocker = { asset: GovernanceBlocker['asset'] | 'templates'; message: string }
+
 type Props = {
   templates: TemplateCard[]
   mode: 'mock' | 'live'
   pipelineReady: boolean
   runActive: boolean
   /** What setup is still missing, tagged by the step that fixes it. */
-  blockers: GovernanceBlocker[]
+  blockers: SetupBlocker[]
 }
 
-/** Where each governance asset is edited. Keyed by the tag readiness sets. */
-const FIX_HREF: Record<GovernanceBlocker['asset'], string> = {
+/** Where each asset is edited. Keyed by the tag readiness sets. */
+const FIX_HREF: Record<SetupBlocker['asset'], string> = {
   voice: '/admin/ops/governance/brand-voice',
   workspace: '/admin/ops/setup/workspace',
   audiences: '/admin/ops/setup/audiences',
+  templates: '/admin/ops/templates',
 }
 
 /**
@@ -40,7 +49,7 @@ const FIX_HREF: Record<GovernanceBlocker['asset'], string> = {
  * step that fixes it: a screen that offers "Create" to a workspace that cannot
  * research the result is worse than one that says so first.
  */
-function SetupNotice({ blockers }: { blockers: GovernanceBlocker[] }) {
+function SetupNotice({ blockers }: { blockers: SetupBlocker[] }) {
   return (
     <div className="datum-ops__checklist" role="status">
       <strong>Finish setting up before making a piece.</strong>

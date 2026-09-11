@@ -217,6 +217,54 @@ describe('the .env.example placeholders', () => {
     ])
   })
 
+  it('never asks a deploy to set variables that are already set', () => {
+    const env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      ANTHROPIC_API_KEY: 'configured',
+      OPENAI_API_KEY: 'configured',
+      TARGET_DOMAIN: 'example.com',
+      COMPETITOR_DOMAINS: 'competitor-a.com,competitor-b.com',
+    }
+    const readiness = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile(null, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+
+    // Both variables are set; their values are the placeholders. Listing them
+    // as missing sends whoever deploys this to a file that already has them.
+    expect(readiness.runtime.ready).toBe(false)
+    expect(readiness.runtime.missing).toEqual([])
+    expect(readiness.runtime.problems).toEqual([
+      'Replace the .env.example placeholders in TARGET_DOMAIN, COMPETITOR_DOMAINS, or fill in the Workspace step (what is saved there is used instead)',
+    ])
+    expect(readiness.runtime.blockers).toEqual(readiness.runtime.problems)
+  })
+
+  it('still names the variables when they are genuinely unset', () => {
+    const env = { MOCK_MODE: 'false', AHREFS_API_KEY: 'configured' }
+    const readiness = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile(null, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+
+    expect(readiness.runtime.missing).toContain('TARGET_DOMAIN')
+    expect(readiness.runtime.missing).toContain('COMPETITOR_DOMAINS')
+    expect(readiness.runtime.problems).toEqual([])
+  })
+
   it('keeps the plain sentence when no placeholder is involved', () => {
     const env = { MOCK_MODE: 'false' }
     const readiness = evaluateWorkspaceReadiness({
