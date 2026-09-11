@@ -1,6 +1,5 @@
 import type { Payload, TypedUser } from 'payload'
 
-import { codexAuthFilePresent } from './codexAuth'
 import type { LlmSettingsDoc } from './llmSettings'
 import {
   evidenceBankContentOf,
@@ -187,8 +186,6 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
           completedAt: latestRun.completedAt,
         }
       : null,
-    // Presence only: never reads credentials or launches the local CLI.
-    codexLoggedIn: codexAuthFilePresent(process.env),
   })
 
   return {

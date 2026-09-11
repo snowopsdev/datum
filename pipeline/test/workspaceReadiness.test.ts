@@ -95,7 +95,7 @@ describe('workspace readiness', () => {
     )
   })
 
-  it('blocks live Codex stages before a run can be queued', () => {
+  it('blocks a model no provider serves before a run can be queued', () => {
     const input = baseInput()
     input.env = {
       MOCK_MODE: 'false',
@@ -105,13 +105,13 @@ describe('workspace readiness', () => {
       ANTHROPIC_API_KEY: 'configured',
     }
     input.profile = envProfile(input.env)
+    // A selection left behind by the removed Codex integration: the migration
+    // nulls stored ones, but a PIPELINE_MODEL_* override can still name one.
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
 
     const blocked = evaluateWorkspaceReadiness(input)
-    assert.equal(blocked.runtime.needsCodexLogin, false)
     assert.equal(blocked.runtime.ready, false)
     assert.deepEqual(blocked.runtime.missing, [])
-    assert.deepEqual(blocked.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
     assert.deepEqual(blocked.runtime.blockers, [
       'Select an API-backed model instead of codex/gpt-5.6-terra',
     ])
@@ -122,60 +122,23 @@ describe('workspace readiness', () => {
         model.provider,
         model.configured,
       ])[0],
-      ['generate', 'codex/gpt-5.6-terra', 'codex', false],
+      ['generate', 'codex/gpt-5.6-terra', 'unknown', false],
     )
     assert.equal(blocked.content.models[0]!.envVar, null)
-    assert.equal(blocked.content.models[0]!.requirement, 'codex-disabled')
-
-    input.codexLoggedIn = true
-    const loggedIn = evaluateWorkspaceReadiness(input)
-    assert.equal(loggedIn.content.models[0]!.configured, false)
-    assert.equal(loggedIn.runtime.needsCodexLogin, false)
-    assert.equal(loggedIn.runtime.ready, false)
-    assert.equal(loggedIn.configFingerprint, blocked.configFingerprint)
+    assert.equal(blocked.content.models[0]!.requirement, 'none')
   })
 
-  it('runtime-only readiness keeps live Codex disabled without inspecting login state', () => {
-    const input = baseInput()
-    input.env = {
-      MOCK_MODE: 'false',
-      AHREFS_API_KEY: 'configured',
-      ANTHROPIC_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
-      COMPETITOR_DOMAINS: 'competitor.example',
-    }
-    input.profile = envProfile(input.env)
-    input.models = { generateModel: 'codex/gpt-5.6-terra' }
-    // This is the reduced input used by runtimeStatusAction.
-    const runtimeInput = { env: input.env, models: input.models, profile: input.profile }
-    const omitted = evaluateRuntimeReadiness(runtimeInput)
-    assert.equal(omitted.runtime.needsCodexLogin, false)
-    assert.equal(omitted.runtime.ready, false)
-    assert.deepEqual(omitted.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
-    for (const codexLoggedIn of [false, true]) {
-      assert.deepEqual(
-        evaluateRuntimeReadiness({ ...runtimeInput, codexLoggedIn }).runtime,
-        omitted.runtime,
-      )
-      assert.deepEqual(
-        evaluateWorkspaceReadiness({ ...input, codexLoggedIn }).runtime,
-        omitted.runtime,
-      )
-    }
-  })
-
-  it('treats a Codex stage as configured in mock mode, logged in or not', () => {
+  it('treats an unservable stage as configured in mock mode', () => {
     const input = baseInput()
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
 
     const readiness = evaluateWorkspaceReadiness(input)
     assert.equal(readiness.content.models[0]!.configured, true)
-    assert.equal(readiness.runtime.needsCodexLogin, false)
-    assert.deepEqual(readiness.runtime.unsupportedModels, [])
+    assert.deepEqual(readiness.runtime.blockers, [])
     assert.equal(readiness.runtime.ready, true)
   })
 
-  it('fingerprints a workspace with no Codex stage exactly as it did before Codex', () => {
+  it('fingerprints an API-backed workspace exactly as it always has', () => {
     // Frozen inputs and hashes: the fingerprint decides whether a verification
     // run is still current, so a change here stales every existing run. Only
     // recompute these when that is the intent. They last moved when the
@@ -375,7 +338,7 @@ describe('workspace readiness', () => {
   })
 })
 
-describe('unsupported Codex models are reported to blocked actions', () => {
+describe('models no provider serves are reported to blocked actions', () => {
   it('lists the model migration among blockers so action errors are never empty', () => {
     const input = baseInput()
     input.env = {
@@ -387,19 +350,17 @@ describe('unsupported Codex models are reported to blocked actions', () => {
     }
     input.profile = envProfile(input.env)
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
-    input.codexLoggedIn = false
 
     const readiness = evaluateWorkspaceReadiness(input)
 
     assert.deepEqual(readiness.runtime.missing, [])
-    assert.equal(readiness.runtime.needsCodexLogin, false)
     // The action messages interpolate this list; an empty one renders
     // "Configure the required environment variables: ." and helps nobody.
     assert.ok(readiness.runtime.blockers.length > 0)
     assert.match(readiness.runtime.blockers.join(' '), /API-backed model/)
   })
 
-  it('leaves blockers equal to missing when no codex stage is selected', () => {
+  it('leaves blockers equal to missing when every stage is API-backed', () => {
     const input = baseInput()
     input.env = { MOCK_MODE: 'false', OPENAI_API_KEY: 'configured' }
     input.profile = envProfile(input.env)

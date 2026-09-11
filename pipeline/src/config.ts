@@ -3,8 +3,6 @@ import { fileURLToPath } from 'node:url'
 
 import dotenv from 'dotenv'
 
-import { codexAuthFilePresent } from './codexAuth'
-
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const repoRoot = path.resolve(here, '..', '..')
 
@@ -20,7 +18,6 @@ export interface PipelineConfig {
   mockMode: boolean
   anthropicApiKey: string | undefined
   openaiApiKey: string | undefined
-  codexAuthPresent: boolean
   /**
    * `TARGET_DOMAIN` verbatim. The workspace profile owns the policy now
    * (`cms/src/lib/tenant/workspaceProfile.ts`); this is only its env fallback,
@@ -43,21 +40,15 @@ function parseBool(value: string | undefined): boolean | undefined {
 function buildConfig(): PipelineConfig {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY || undefined
   const openaiApiKey = process.env.OPENAI_API_KEY || undefined
-  const codexAuthPresent = codexAuthFilePresent(process.env)
 
   // Per-stage model choice lives in the admin's Models global (see models.ts),
   // so the per-model key check happens there once the run knows its models.
-  // A Codex login is deliberately not part of this inference: mock is the local
-  // default, and a dev machine that happens to carry a login must not be flipped
-  // into live runs by it.
+  // Mock is the local default, and only a provider key can lift it: nothing
+  // else a dev machine happens to carry may flip it into live runs.
   const mockMode =
     parseBool(process.env.MOCK_MODE) ?? (anthropicApiKey === undefined && openaiApiKey === undefined)
-  const noCredential =
-    anthropicApiKey === undefined && openaiApiKey === undefined && !codexAuthPresent
-  if (!mockMode && noCredential) {
-    throw new Error(
-      'MOCK_MODE=false requires ANTHROPIC_API_KEY or OPENAI_API_KEY to be set, or a Codex login (codex login)',
-    )
+  if (!mockMode && anthropicApiKey === undefined && openaiApiKey === undefined) {
+    throw new Error('MOCK_MODE=false requires ANTHROPIC_API_KEY or OPENAI_API_KEY to be set')
   }
 
   const ahrefsApiKey = process.env.AHREFS_API_KEY || undefined
@@ -76,7 +67,6 @@ function buildConfig(): PipelineConfig {
     mockMode,
     anthropicApiKey,
     openaiApiKey,
-    codexAuthPresent,
     targetDomain,
     competitorDomains,
     ahrefsApiKey,

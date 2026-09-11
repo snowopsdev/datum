@@ -16,8 +16,7 @@ export function RuntimeBanner() {
   const [status, setStatus] = useState<{
     mode: 'mock' | 'live'
     missing: string[]
-    needsCodexLogin: boolean
-    unsupportedModels: string[]
+    blockers: string[]
   } | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
@@ -27,12 +26,11 @@ export function RuntimeBanner() {
   }, [])
 
   if (!status || status.mode !== 'live' || dismissed) return null
-  if (
-    status.missing.length === 0 &&
-    !status.needsCodexLogin &&
-    status.unsupportedModels.length === 0
-  )
-    return null
+  if (status.blockers.length === 0) return null
+  // `missing` gets the "set these variables" sentence; anything else the
+  // evaluator raised (a selected model no provider serves, say) is already
+  // phrased as an instruction, so it is printed as written.
+  const other = status.blockers.filter((blocker) => !status.missing.includes(blocker))
 
   return (
     <div className="datum-runtime" role="status">
@@ -50,15 +48,9 @@ export function RuntimeBanner() {
           .
         </>
       )}
-      {status.needsCodexLogin && (
-        <>
-          {' '}
-          Codex models need <code>codex login</code> on this host.
-        </>
-      )}
-      {status.unsupportedModels.length > 0 && (
-        <> Local Codex execution is disabled; select an API-backed model for live runs.</>
-      )}
+      {other.map((blocker) => (
+        <React.Fragment key={blocker}> {blocker}.</React.Fragment>
+      ))}
       <button aria-label="Dismiss" className="datum-runtime__close" onClick={() => setDismissed(true)} type="button">
         ×
       </button>

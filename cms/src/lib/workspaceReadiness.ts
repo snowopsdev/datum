@@ -52,7 +52,6 @@ export interface WorkspaceReadinessInput {
   activeVoice: ReadinessEntity | null
   templates: ReadinessTemplate[]
   verification: VerificationSnapshot | null
-  codexLoggedIn?: boolean
   /**
    * The workspace profile as the pipeline will resolve it — admin global first,
    * then env. Passed in rather than read from `env` here so this evaluator and
@@ -89,7 +88,8 @@ export interface ModelReadiness {
   model: string
   source: 'admin' | 'default' | 'env'
   provider: LlmProvider
-  requirement: ProviderRequirement['kind']
+  /** `env` when the model has a key to set; `none` when we cannot serve it at all. */
+  requirement: ProviderRequirement['kind'] | 'none'
   envVar: string | null
   configured: boolean
 }
@@ -135,12 +135,10 @@ export interface WorkspaceReadiness {
   runtime: {
     ready: boolean
     missing: string[]
-    needsCodexLogin: boolean
-    unsupportedModels: string[]
     /**
      * Everything unmet, in the words an operator acts on. `missing` holds
      * environment variable names only, so callers that interpolate it render an
-     * empty sentence when the sole blocker is a Codex login.
+     * empty sentence when the sole blocker is a model we cannot serve.
      */
     blockers: string[]
   }
@@ -172,9 +170,8 @@ function configured(value: string | undefined): boolean {
   return Boolean(value?.trim())
 }
 
-// A Codex login is deliberately absent here, matching `pipeline/src/config.ts`:
-// a dev machine that happens to carry one must not be flipped into live runs by
-// it. A codex-only workspace reaches live by setting MOCK_MODE=false.
+// Only an API key flips a workspace live on its own, matching
+// `pipeline/src/config.ts`: nothing else a dev machine happens to carry counts.
 export function modeFromEnv(env: Record<string, string | undefined>): PipelineMode {
   const value = env.MOCK_MODE?.trim().toLowerCase()
   if (value === 'false' || value === '0' || value === 'no') return 'live'
@@ -187,10 +184,9 @@ function fingerprint(value: unknown): string {
 }
 
 export function evaluateRuntimeReadiness(
-  input: Pick<WorkspaceReadinessInput, 'env' | 'models' | 'profile' | 'codexLoggedIn'>,
+  input: Pick<WorkspaceReadinessInput, 'env' | 'models' | 'profile'>,
 ): { mode: PipelineMode; models: ModelReadiness[]; runtime: WorkspaceReadiness['runtime'] } {
   const mode = modeFromEnv(input.env)
-  const codexLoggedIn = input.codexLoggedIn ?? false
   const resolved = resolveStageModels(input.models, input.env)
   const models: ModelReadiness[] = PIPELINE_STAGES.map((stage) => {
     const selection = resolved[stage]
@@ -200,23 +196,19 @@ export function evaluateRuntimeReadiness(
       model: selection.model,
       source: selection.source,
       provider: providerForModel(selection.model),
-      requirement: requirement.kind,
-      envVar: requirement.kind === 'env' ? requirement.envVar : null,
-      configured:
-        mode === 'mock' ||
-        (requirement.kind === 'env'
-          ? configured(input.env[requirement.envVar])
-          : requirement.kind === 'codex-login' && codexLoggedIn),
+      requirement: requirement?.kind ?? 'none',
+      envVar: requirement?.envVar ?? null,
+      // A model with no requirement has no credential that could ever satisfy
+      // it, so outside mock mode it stays unconfigured and blocks the run.
+      configured: mode === 'mock' || (requirement !== null && configured(input.env[requirement.envVar])),
     }
   })
-  const needsCodexLogin = models.some(
-    (model) => model.requirement === 'codex-login' && !model.configured,
-  )
+  // Stored selections from a provider we no longer serve — `codex/*` ids left
+  // over from the removed Codex integration, say. The migration nulls the ones
+  // in the database; a PIPELINE_MODEL_* override can still name one.
   const unsupportedModels = [
     ...new Set(
-      models
-        .filter((model) => model.requirement === 'codex-disabled' && !model.configured)
-        .map((model) => model.model),
+      models.filter((model) => model.requirement === 'none' && !model.configured).map((m) => m.model),
     ),
   ].sort()
 
@@ -238,13 +230,10 @@ export function evaluateRuntimeReadiness(
     mode,
     models,
     runtime: {
-      ready: missing.size === 0 && !needsCodexLogin && unsupportedModels.length === 0,
+      ready: missing.size === 0 && unsupportedModels.length === 0,
       missing: [...missing].sort(),
-      needsCodexLogin,
-      unsupportedModels,
       blockers: [
         ...[...missing].sort(),
-        ...(needsCodexLogin ? ['`codex login` on this host'] : []),
         ...(unsupportedModels.length > 0
           ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
           : []),
@@ -255,7 +244,6 @@ export function evaluateRuntimeReadiness(
 
 export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): WorkspaceReadiness {
   const { mode, models, runtime } = evaluateRuntimeReadiness(input)
-  const codexLoggedIn = input.codexLoggedIn ?? false
   const profile = input.profile
   const configFingerprint = fingerprint({
     mode,
@@ -269,14 +257,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       competitors: profile.competitors.map((competitor) => competitor.domain),
       providers: [...new Set(models.map((model) => model.envVar ?? model.requirement))]
         .sort()
-        .map((name) => [
-          name,
-          name === 'codex-login'
-            ? codexLoggedIn
-            : name === 'codex-disabled'
-              ? false
-              : configured(input.env[name]),
-        ]),
+        .map((name) => [name, name === 'none' ? false : configured(input.env[name])]),
     },
     voice: input.activeVoice ? [input.activeVoice.id, input.activeVoice.updatedAt] : null,
     // Editing an audience or the position changes every prompt the next run

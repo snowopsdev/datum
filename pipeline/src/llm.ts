@@ -4,12 +4,6 @@ import type { Payload } from 'payload'
 
 import type { CostLog } from '../../cms/src/payload-types'
 
-import { CODEX_LOGIN_HINT } from './codexAuth'
-import {
-  CodexNotLoggedInError,
-  type CodexTextResult,
-  completeTextViaCodex,
-} from './codexCompletion'
 import { config, type LlmStage } from './config'
 import { mockFixture, mockUsage } from './fixtures'
 import { type LlmProvider, providerForModel } from './llmProvider'
@@ -217,37 +211,6 @@ async function completeJSONOpenAI(
   }
 }
 
-async function completeJSONCodex(
-  stage: LlmStage,
-  request: LlmRequest,
-  model: string,
-  complete: typeof completeTextViaCodex = completeTextViaCodex,
-): Promise<LlmResult> {
-  let result: CodexTextResult
-  // Only the call is wrapped: `parseJsonReply` already names the stage, and the
-  // catch below would prefix it a second time.
-  try {
-    result = await complete({
-      system: `${request.system}\n\n${JSON_ONLY}`,
-      user: request.user,
-      model,
-      needWebSearch: request.needWebSearch,
-    })
-  } catch (error) {
-    if (error instanceof CodexNotLoggedInError) {
-      throw new Error(`[llm:${stage}] Codex is not logged in — ${CODEX_LOGIN_HINT}`)
-    }
-    throw new Error(`[llm:${stage}] ${error instanceof Error ? error.message : String(error)}`)
-  }
-  return {
-    json: parseJsonReply(result.text, stage),
-    usage: result.usage,
-    provider: 'codex',
-    // The adapter echoes the prefixed id back, which is what `costUsd` prices.
-    model: result.model,
-  }
-}
-
 async function completeJSONMock(stage: LlmStage, model: string, fixtureKey?: string): Promise<LlmResult> {
   return {
     json: mockFixture(stage, fixtureKey),
@@ -257,32 +220,29 @@ async function completeJSONMock(stage: LlmStage, model: string, fixtureKey?: str
   }
 }
 
-interface LlmDeps {
-  /** Injected by tests so a `codex/` model never reaches the real CLI. */
-  codex?: typeof completeTextViaCodex
-}
-
 function completeJSONLive(
   stage: LlmStage,
   request: LlmRequest,
   model: string,
-  deps: LlmDeps,
 ): Promise<LlmResult> {
   switch (providerForModel(model)) {
-    case 'codex':
-      return completeJSONCodex(stage, request, model, deps.codex)
     case 'openai':
       return completeJSONOpenAI(stage, request, model)
     case 'anthropic':
       return completeJSONAnthropic(stage, request, model)
+    // `loadStageModels` rejects these before a run starts; this is the second
+    // line of the same fence, for any caller that did not go through it.
+    case 'unknown':
+      return Promise.reject(
+        new Error(`[llm:${stage}] "${model}" is not an Anthropic or OpenAI model id`),
+      )
   }
 }
 
 /**
  * The single LLM call site: every model-calling stage goes through here. The
- * model id decides the provider (`codex/*` → the local Codex CLI, `gpt-*` →
- * OpenAI, `claude-*` → Anthropic); which model a stage uses is resolved once
- * per run (see models.ts).
+ * model id decides the provider (`gpt-*` → OpenAI, `claude-*` → Anthropic);
+ * which model a stage uses is resolved once per run (see models.ts).
  */
 export async function completeJSON(
   stage: LlmStage,
@@ -290,18 +250,18 @@ export async function completeJSON(
   model: string,
 ): Promise<LlmResult> {
   if (config.mockMode) return completeJSONMock(stage, model, request.fixtureKey)
-  return completeJSONLive(stage, request, model, {})
+  return completeJSONLive(stage, request, model)
 }
 
 /** Build a run-scoped adapter so queued runs do not depend on mutable module state. */
-export function createLlmClient(mode: 'mock' | 'live', deps: LlmDeps = {}): LlmClient {
+export function createLlmClient(mode: 'mock' | 'live'): LlmClient {
   return {
     completeJSON(stage, request, model) {
       // `fixtureKey` must survive: a `claimExtraction` request without it gets
       // the whole `{ page, facets }` fixture object instead of the one it asked
       // for, and the parsers reject that.
       if (mode === 'mock') return completeJSONMock(stage, model, request.fixtureKey)
-      return completeJSONLive(stage, request, model, deps)
+      return completeJSONLive(stage, request, model)
     },
   }
 }

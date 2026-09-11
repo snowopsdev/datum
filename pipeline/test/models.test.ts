@@ -31,8 +31,8 @@ function deps(overrides: Partial<StageModelDeps> = {}): StageModelDeps {
   }
 }
 
-describe('loadStageModels (codex stages)', () => {
-  it('rejects a codex model before a live run starts', async () => {
+describe('loadStageModels (models no provider serves)', () => {
+  it('rejects a leftover codex/ selection before a live run starts', async () => {
     await assert.rejects(
       quietly(() =>
         loadStageModels(fakePayload({ generateModel: 'codex/gpt-5.6-sol' }), deps()),
@@ -40,14 +40,14 @@ describe('loadStageModels (codex stages)', () => {
       (error: Error) => {
         assert.equal(
           error.message,
-          'generate model "codex/gpt-5.6-sol" (from admin) cannot run live because local Codex execution is disabled; select an API-backed model',
+          'generate model "codex/gpt-5.6-sol" (from admin) is not an Anthropic or OpenAI model id; select an API-backed model',
         )
         return true
       },
     )
   })
 
-  it('preserves codex selections as harmless fixture labels in mock mode', async () => {
+  it('preserves an unservable selection as a harmless fixture label in mock mode', async () => {
     const models = await quietly(() =>
       loadStageModels(
         fakePayload({ generateModel: 'codex/gpt-5.6-sol' }),

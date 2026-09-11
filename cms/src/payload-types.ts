@@ -2664,7 +2664,7 @@ export interface EvidenceBank {
   createdAt?: string | null;
 }
 /**
- * Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY). Local codex/ execution is disabled for application content; those choices are available only for mock fixtures.
+ * Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings".
@@ -2690,12 +2690,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2717,12 +2711,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2744,12 +2732,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2771,12 +2753,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2798,12 +2774,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2825,12 +2795,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2852,12 +2816,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2879,12 +2837,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2906,12 +2858,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   updatedAt?: string | null;

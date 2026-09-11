@@ -15,7 +15,6 @@ import {
   completeJsonCms,
   logCmsCost,
 } from './cmsLlm'
-import type { CodexTextRequest, CodexTextResult } from './codexCompletion'
 import type { LlmProvider } from './llmProvider'
 import { type LlmSettingsDoc, resolveExtractionModel } from './llmSettings'
 
@@ -99,22 +98,18 @@ export async function extractBrandVoiceFromText(input: {
   text: string
   filename: string
   model?: string
-  completeViaCodex?: (req: CodexTextRequest) => Promise<CodexTextResult>
 }): Promise<ExtractionResult> {
   const model = input.model || extractionModel()
   if (extractionMockMode(process.env, model)) return mockExtraction(input.filename, model)
 
   let result
   try {
-    result = await completeJsonCms(
-      {
-        system: EXTRACTION_SYSTEM_PROMPT,
-        user: `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`,
-        model,
-        label: EXTRACTION_LABEL,
-      },
-      { completeViaCodex: input.completeViaCodex },
-    )
+    result = await completeJsonCms({
+      system: EXTRACTION_SYSTEM_PROMPT,
+      user: `Source file: ${input.filename}\n\n<document>\n${input.text}\n</document>`,
+      model,
+      label: EXTRACTION_LABEL,
+    })
   } catch (error) {
     // Re-badge so the long-standing `instanceof BrandVoiceExtractionError`
     // checks in the server action keep working; the message and billed usage

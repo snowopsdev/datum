@@ -11,17 +11,7 @@ import OpenAI from 'openai'
 import type { Payload } from 'payload'
 
 import type { CostLog } from '../payload-types'
-import {
-  type CodexTextRequest,
-  type CodexTextResult,
-  completeTextViaCodex,
-} from './codexCompletion'
-import {
-  apiKeyForModel,
-  type LlmProvider,
-  providerForModel,
-  requirementForModel,
-} from './llmProvider'
+import { apiKeyForModel, type LlmProvider, providerForModel } from './llmProvider'
 import { costUsd } from './pricing'
 
 export interface CmsLlmRequest {
@@ -73,8 +63,7 @@ function parseBool(value: string | undefined): boolean | undefined {
 
 /**
  * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
- * mock whenever the model's credential is absent — an API key for the key
- * providers; legacy `codex/*` selections stay in mock mode. Never throws — the admin flow
+ * mock whenever the model's API key is absent. Never throws — the admin flow
  * must work in a keyless dev environment.
  */
 export function cmsMockMode(
@@ -83,12 +72,11 @@ export function cmsMockMode(
 ): boolean {
   const explicit = parseBool(env.MOCK_MODE)
   if (explicit !== undefined) return explicit
-  // A Codex login is not consent to spend the plan, so it never activates a
-  // live call on its own. `pipeline/src/config.ts` and `modeFromEnv` make the
-  // same call; if this one differed, an upload would bill quota while the rest
+  // Only the model's own key flips this workspace live, and only for the model
+  // that carries it. `pipeline/src/config.ts` and `modeFromEnv` make the same
+  // call; if this one differed, an upload would bill a provider while the rest
   // of the workspace still reported mock.
-  const requirement = requirementForModel(model)
-  return requirement.kind !== 'env' || apiKeyForModel(model, env) === undefined
+  return apiKeyForModel(model, env) === undefined
 }
 
 function parseJsonReply(text: string): unknown {
@@ -103,8 +91,8 @@ function parseJsonReply(text: string): unknown {
 
 /**
  * One JSON-returning model call, routed by model id: `gpt-*` through OpenAI's
- * Responses API, `claude-*` through Anthropic, and legacy `codex/*` selections
- * to the fail-closed local boundary.
+ * Responses API and `claude-*` through Anthropic. An id belonging to neither
+ * is refused rather than guessed at.
  *
  * Deliberately refuses to run in mock mode rather than inventing a reply: the
  * shape of a useful mock is the caller's business (brand-voice extraction
@@ -113,10 +101,7 @@ function parseJsonReply(text: string): unknown {
  */
 export async function completeJsonCms(
   request: CmsLlmRequest,
-  deps: {
-    completeViaCodex?: (req: CodexTextRequest) => Promise<CodexTextResult>
-    env?: Record<string, string | undefined>
-  } = {},
+  deps: { env?: Record<string, string | undefined> } = {},
 ): Promise<CmsLlmResult> {
   const env = deps.env ?? process.env
   const { model, system, user } = request
@@ -127,19 +112,14 @@ export async function completeJsonCms(
   }
 
   const provider = providerForModel(model)
+  if (provider === 'unknown') {
+    throw new Error(`${label} cannot run: "${model}" is not an Anthropic or OpenAI model id`)
+  }
 
   let text: string | undefined
   let stopReason: string
   let usage: { inputTokens: number; outputTokens: number }
-  if (provider === 'codex') {
-    const response = await (deps.completeViaCodex ?? completeTextViaCodex)({ system, user, model })
-    text = response.text || undefined
-    stopReason = 'completed'
-    usage = {
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
-    }
-  } else if (provider === 'openai') {
+  if (provider === 'openai') {
     const client = new OpenAI({ apiKey: env.OPENAI_API_KEY })
     const response = await client.responses.create({
       model,

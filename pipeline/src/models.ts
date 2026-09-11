@@ -21,9 +21,8 @@ export interface StageModelDeps {
 /**
  * Resolve the model for each LLM stage once per run: the admin's Models global
  * beats the PIPELINE_MODEL_* env overrides, which beat the default. Outside
- * mock mode every chosen model must have its provider's credential — an API key
- * or a Codex login — checked here (not at config load) because the database has
- * a say.
+ * mock mode every chosen model must have its provider's API key, checked here
+ * (not at config load) because the database has a say.
  */
 export async function loadStageModels(
   payload: Payload,
@@ -38,14 +37,14 @@ export async function loadStageModels(
     const { model, source } = resolved[stage] as ResolvedModel
     const requirement = requirementForModel(model)
     if (!deps.mockMode) {
-      if (requirement.kind === 'env' && apiKeyForModel(model, deps.env) === undefined) {
+      if (requirement === null) {
         throw new Error(
-          `${stage} model "${model}" (from ${source}) needs ${requirement.envVar} set (MOCK_MODE=false)`,
+          `${stage} model "${model}" (from ${source}) is not an Anthropic or OpenAI model id; select an API-backed model`,
         )
       }
-      if (requirement.kind === 'codex-disabled') {
+      if (apiKeyForModel(model, deps.env) === undefined) {
         throw new Error(
-          `${stage} model "${model}" (from ${source}) cannot run live because local Codex execution is disabled; select an API-backed model`,
+          `${stage} model "${model}" (from ${source}) needs ${requirement.envVar} set (MOCK_MODE=false)`,
         )
       }
     }

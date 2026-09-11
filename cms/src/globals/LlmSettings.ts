@@ -26,7 +26,7 @@ export const LlmSettings: GlobalConfig = {
   admin: {
     group: false,
     description:
-      'Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY). Local codex/ execution is disabled for application content; those choices are available only for mock fixtures.',
+      'Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY).',
   },
   access: {
     read: ({ req }) => Boolean(req.user),

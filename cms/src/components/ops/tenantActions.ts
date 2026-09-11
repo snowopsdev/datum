@@ -618,8 +618,7 @@ export async function activateDefaultBrandVoiceAction(): Promise<TenantActionRes
 export async function runtimeStatusAction(): Promise<{
   mode: 'mock' | 'live'
   missing: string[]
-  needsCodexLogin: boolean
-  unsupportedModels: string[]
+  blockers: string[]
 }> {
   try {
     const { payload } = await requireUser()
@@ -637,11 +636,10 @@ export async function runtimeStatusAction(): Promise<{
     return {
       mode: readiness.mode,
       missing: readiness.runtime.missing,
-      needsCodexLogin: readiness.runtime.needsCodexLogin,
-      unsupportedModels: readiness.runtime.unsupportedModels,
+      blockers: readiness.runtime.blockers,
     }
   } catch {
-    return { mode: 'mock', missing: [], needsCodexLogin: false, unsupportedModels: [] }
+    return { mode: 'mock', missing: [], blockers: [] }
   }
 }
 

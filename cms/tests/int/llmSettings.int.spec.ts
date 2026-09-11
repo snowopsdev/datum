@@ -22,6 +22,16 @@ describe('Models global', () => {
     }
   })
 
+  it('offers no codex/* option on any model field', () => {
+    const fields = LlmSettings.fields.filter((f) => f.type === 'select')
+    expect(fields.length).toBeGreaterThan(0)
+    for (const field of fields) {
+      expect(field.options.map((o) => (typeof o === 'string' ? o : o.value))).not.toContainEqual(
+        expect.stringMatching(/^codex\//),
+      )
+    }
+  })
+
   it('names the environment variable behind each new slot', () => {
     const description = (name: string) => {
       const field = LlmSettings.fields.find((f) => 'name' in f && f.name === name)

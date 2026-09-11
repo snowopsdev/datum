@@ -1,7 +1,3 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const anthropicCreate = vi.fn()
@@ -23,7 +19,6 @@ import { CmsLlmError, cmsMockMode, completeJsonCms, logCmsCost } from '@/lib/cms
 
 const ANTHROPIC_MODEL = 'claude-opus-5'
 const OPENAI_MODEL = 'gpt-5.6-terra'
-const CODEX_MODEL = 'codex/gpt-5.6-terra'
 
 const anthropicReply = (text: string) => ({
   content: [{ type: 'text', text }],
@@ -61,17 +56,15 @@ describe('cmsMockMode', () => {
     }
   })
 
-  it('never goes live on a bare Codex login', () => {
-    const home = mkdtempSync(path.join(tmpdir(), 'datum-cmsllm-codex-'))
-    try {
-      expect(cmsMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(true)
-      writeFileSync(path.join(home, 'auth.json'), '{}')
-      // A login is not consent to spend the plan; only an explicit MOCK_MODE=false is.
-      expect(cmsMockMode({ CODEX_HOME: home }, CODEX_MODEL)).toBe(true)
-      expect(cmsMockMode({ CODEX_HOME: home, MOCK_MODE: 'false' }, CODEX_MODEL)).toBe(false)
-    } finally {
-      rmSync(home, { force: true, recursive: true })
-    }
+  it('never goes live without the model key, whatever else the environment carries', () => {
+    // Only ANTHROPIC_API_KEY can lift mock mode for a claude-* model; nothing
+    // else a dev machine happens to hold is consent to spend.
+    expect(cmsMockMode({ SOME_OTHER_CREDENTIAL: 'present' }, ANTHROPIC_MODEL)).toBe(true)
+    expect(cmsMockMode({ OPENAI_API_KEY: 'k' }, ANTHROPIC_MODEL)).toBe(true)
+    expect(cmsMockMode({ ANTHROPIC_API_KEY: '' }, ANTHROPIC_MODEL)).toBe(true)
+    // Only an explicit MOCK_MODE=false, or the model's own key, goes live.
+    expect(cmsMockMode({ MOCK_MODE: 'false' }, ANTHROPIC_MODEL)).toBe(false)
+    expect(cmsMockMode({ ANTHROPIC_API_KEY: 'k' }, ANTHROPIC_MODEL)).toBe(false)
   })
 })
 
@@ -120,24 +113,15 @@ describe('completeJsonCms', () => {
     })
   })
 
-  it('routes a codex/ model through the injected CLI and bills the prefixed id', async () => {
-    const result = await completeJsonCms(
-      { system: 'sys', user: 'usr', model: CODEX_MODEL },
-      {
-        env: { MOCK_MODE: 'false' },
-        completeViaCodex: async (req) => {
-          expect(req.model).toBe(CODEX_MODEL)
-          return {
-            text: '{"ok":true}',
-            usage: { inputTokens: 3, outputTokens: 4, webSearchRequests: 0 },
-            model: req.model,
-          }
-        },
-      },
-    )
-    expect(result.provider).toBe('codex')
-    expect(result.model).toBe(CODEX_MODEL)
-    expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 4 })
+  it('refuses a model id neither provider serves instead of guessing one', async () => {
+    await expect(
+      completeJsonCms(
+        { system: 'sys', user: 'usr', model: 'codex/gpt-5.6-terra' },
+        { env: { MOCK_MODE: 'false' } },
+      ),
+    ).rejects.toThrow(/not an Anthropic or OpenAI model id/)
+    expect(anthropicCreate).not.toHaveBeenCalled()
+    expect(openaiCreate).not.toHaveBeenCalled()
   })
 
   it('throws a billed CmsLlmError when the reply is empty', async () => {

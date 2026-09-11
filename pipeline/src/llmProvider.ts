@@ -2,8 +2,6 @@
 export {
   apiKeyForModel,
   type ApiKeyProvider,
-  CODEX_MODEL_PREFIX,
-  codexModelId,
   describeRequirement,
   envVarNameForModel,
   LLM_PROVIDERS,
