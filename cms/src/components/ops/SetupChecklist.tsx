@@ -108,7 +108,7 @@ export function checklistRows(data: SetupChecklistData): Row[] {
         : 'No active voice — drafts would run on the platform style guide alone',
       done: data.voice.active,
       required: true,
-      href: '/admin/ops/governance/brand-voice',
+      href: '/admin/ops/setup/brand-voice',
       action: data.voice.active ? 'Edit' : 'Set up',
     },
     {

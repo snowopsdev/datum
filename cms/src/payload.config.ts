@@ -52,7 +52,12 @@ export default buildConfig({
       afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
       // A provider is the only slot that wraps every admin route, which is what
       // the run bar needs: a live run outlasts the page you started it from.
-      providers: ['/components/ops/RunBarProvider#RunBarProvider'],
+      // NavOpener re-opens the sidebar Payload closes on any screen 1440px or
+      // narrower; the curated nav is the only navigation there is.
+      providers: [
+        '/components/ops/RunBarProvider#RunBarProvider',
+        '/components/ops/NavOpener#NavOpener',
+      ],
       views: {
         dashboard: {
           Component: '/components/ops/OnboardingDashboardView#OnboardingDashboardView',
@@ -88,12 +93,6 @@ export default buildConfig({
           path: '/ops/templates',
           exact: true,
           meta: { title: 'Templates' },
-        },
-        brandVoice: {
-          Component: '/components/ops/BrandVoiceView#BrandVoiceView',
-          path: '/ops/governance/brand-voice',
-          exact: true,
-          meta: { title: 'Brand voice' },
         },
         sourceReview: {
           Component: '/components/ops/SourceReviewView#SourceReviewView',
@@ -141,6 +140,15 @@ export default buildConfig({
           path: '/ops/setup/evidence',
           exact: true,
           meta: { title: 'Evidence bank' },
+        },
+        // Brand voice is a workspace asset like the four above it, so it is
+        // edited where they are. `/ops/governance/brand-voice` redirects here
+        // (see cms/next.config.ts) for bookmarks made before the move.
+        setupBrandVoice: {
+          Component: '/components/ops/BrandVoiceView#BrandVoiceView',
+          path: '/ops/setup/brand-voice',
+          exact: true,
+          meta: { title: 'Brand voice' },
         },
       },
     },

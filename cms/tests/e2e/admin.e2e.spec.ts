@@ -70,6 +70,54 @@ test.describe('Admin Panel', () => {
     }
   })
 
+  test('the curated nav is the only nav, in five groups, and reaches the webhooks', async () => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/admin')
+    const nav = page.locator('.datum-ops-nav')
+    await expect(nav).toBeVisible()
+    await expect(nav.locator('.datum-ops-nav__label')).toHaveText([
+      'Content',
+      'Setup',
+      'Governance',
+      'Settings',
+      'Records',
+    ])
+    await expect(nav.getByRole('link', { name: 'Webhooks' })).toHaveAttribute(
+      'href',
+      '/admin/globals/webhook-settings',
+    )
+    // Payload's own entity list is off (every entity sets `admin.group: false`),
+    // so nothing outside the curated list may appear in the sidebar.
+    await expect(page.locator('.nav__link')).toHaveCount(0)
+  })
+
+  test('the nav stays open on a 1440px desktop', async () => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/admin')
+    // Payload closes its nav on anything 1440px or narrower and only restores
+    // the saved preference above that; NavOpener puts it back.
+    await expect(page.locator('aside.nav')).toHaveClass(/nav--nav-open/)
+    await expect(page.locator('.datum-ops-nav')).toBeVisible()
+  })
+
+  test('brand voice lives beside the other setup assets', async () => {
+    await page.goto('/admin/ops/setup/brand-voice')
+    expect(new URL(page.url()).pathname).toBe('/admin/ops/setup/brand-voice')
+    await expect(page.getByRole('heading', { level: 1, name: 'Brand voice' }).first()).toBeVisible()
+  })
+
+  test('the globals shadowed by an ops editor are not reachable as raw forms', async () => {
+    for (const slug of ['workspace-profile', 'positioning', 'evidence-bank']) {
+      const response = await page.goto(`/admin/globals/${slug}`)
+      const status = response?.status() ?? 0
+      if (status === 404) continue
+      // Payload answers a hidden entity's admin route with its not-found view
+      // at HTTP 200; either way there must be no form to save.
+      await expect(page.locator('form.global-edit')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0)
+    }
+  })
+
   test('can navigate to list view', async () => {
     await page.goto('/admin/collections/users')
     await expect(page).toHaveURL(/\/admin\/collections\/users$/)

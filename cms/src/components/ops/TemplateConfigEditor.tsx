@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useMemo, useState, useTransition } from 'react'
 
@@ -438,9 +437,6 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
               >
                 Save config
               </button>
-              <Link className="datum-ops__btn" href={selected.editHref} prefetch={false}>
-                Open in admin
-              </Link>
             </div>
           </div>
         </div>

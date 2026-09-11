@@ -53,6 +53,13 @@ const nextConfig: NextConfig = {
         destination: '/admin/ops/content',
         permanent: false,
       },
+      // Brand voice moved in with the other workspace assets it is edited
+      // alongside. Same view, one surface, old bookmarks still land.
+      {
+        source: '/admin/ops/governance/brand-voice',
+        destination: '/admin/ops/setup/brand-voice',
+        permanent: false,
+      },
     ]
   },
 }

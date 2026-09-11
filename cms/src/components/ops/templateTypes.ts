@@ -18,7 +18,6 @@ export type TemplateConfigDTO = {
     faqMaxQuestions: number | null
     ogTagsRequired: boolean
   }
-  editHref: string
 }
 
 /** Pure mapper, shared by the view's initial load and the create action. */
@@ -40,6 +39,5 @@ export function toTemplateDTO(doc: Template): TemplateConfigDTO {
       faqMaxQuestions: doc.seoSpec?.faqMaxQuestions ?? null,
       ogTagsRequired: doc.seoSpec?.ogTagsRequired === true,
     },
-    editHref: `/admin/collections/templates/${doc.id}`,
   }
 }

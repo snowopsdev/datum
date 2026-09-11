@@ -28,6 +28,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    // The workspace's own assets: what it is, who it writes for, how it sounds.
     label: 'Setup',
     links: [
       { label: 'Setup checklist', href: '/admin/ops/setup', exact: true },
@@ -35,13 +36,24 @@ const SECTIONS: Section[] = [
       { label: 'Audiences', href: '/admin/ops/setup/audiences' },
       { label: 'Positioning', href: '/admin/ops/setup/positioning' },
       { label: 'Evidence bank', href: '/admin/ops/setup/evidence' },
-      { label: 'Brand voice', href: '/admin/ops/governance/brand-voice' },
+      { label: 'Brand voice', href: '/admin/ops/setup/brand-voice' },
       { label: 'Templates', href: '/admin/ops/templates' },
+    ],
+  },
+  {
+    // What the workspace is allowed to cite, and the policies that judge it.
+    label: 'Governance',
+    links: [
       { label: 'Sources', href: '/admin/collections/evidence-sources' },
       { label: 'Source review', href: '/admin/ops/governance/source-review' },
       { label: 'Scoring policy', href: '/admin/globals/information-gain-policy' },
       { label: 'Models', href: '/admin/globals/llm-settings' },
     ],
+  },
+  {
+    // Deployment plumbing. No run reads it, so it sits apart from both.
+    label: 'Settings',
+    links: [{ label: 'Webhooks', href: '/admin/globals/webhook-settings' }],
   },
   {
     // The raw collections. Useful, rarely, so folded by default.

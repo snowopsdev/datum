@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
@@ -40,7 +39,7 @@ import {
 } from './brandVoiceTypes'
 import './ops.css'
 
-const VIEW_PATH = '/admin/ops/governance/brand-voice'
+const VIEW_PATH = '/admin/ops/setup/brand-voice'
 
 type Tab = 'essence' | 'audience' | 'voice' | 'boundaries' | 'samples' | 'guide' | 'history'
 
@@ -74,7 +73,6 @@ function contentOf(record: BrandVoiceDTO | null): BrandVoiceContent {
     activatedBy: _by,
     sourceFile: _file,
     updatedAt: _updated,
-    editHref: _href,
     ...content
   } = record
   return content
@@ -650,9 +648,6 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
                       </button>
                     )
                   ) : null}
-                  <Link className="datum-ops__btn" href={record.editHref} prefetch={false}>
-                    Open in admin
-                  </Link>
                 </div>
               </div>
             ) : null}

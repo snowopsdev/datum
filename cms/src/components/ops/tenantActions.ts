@@ -607,7 +607,7 @@ export async function activateDefaultBrandVoiceAction(): Promise<TenantActionRes
     }
     revalidatePath('/admin')
     revalidatePath(HUB_PATH)
-    revalidatePath('/admin/ops/governance/brand-voice')
+    revalidatePath('/admin/ops/setup/brand-voice')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not activate the default voice.') }
@@ -679,7 +679,7 @@ export async function activateDefaultTenantAction(): Promise<TenantActionResult>
     revalidatePath('/admin/ops/setup/audiences')
     revalidatePath('/admin/ops/setup/positioning')
     revalidatePath('/admin/ops/setup/evidence')
-    revalidatePath('/admin/ops/governance/brand-voice')
+    revalidatePath('/admin/ops/setup/brand-voice')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not set up the demo workspace.') }

@@ -14,7 +14,6 @@ export type BrandVoiceDTO = BrandVoiceContent & {
   activatedBy: string | null
   sourceFile: { id: number; filename: string; url: string } | null
   updatedAt: string
-  editHref: string
 }
 
 export type BrandVoiceInput = BrandVoiceContent & {

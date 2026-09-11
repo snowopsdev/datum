@@ -115,11 +115,34 @@ test.describe('Content ops', () => {
     )
   })
 
-  test('webhooks global renders its settings form', async () => {
+  test('webhooks global renders its settings form with the secret masked', async () => {
     await page.goto('/admin/globals/webhook-settings')
     await expect(page.getByRole('checkbox', { name: 'Enabled' })).toBeChecked()
     await expect(page.getByRole('textbox', { name: 'Url' })).toHaveValue(listenerUrl)
-    await expect(page.getByRole('textbox', { name: 'Secret' })).toHaveValue(WEBHOOK_SECRET)
+    // The secret is a shared signing key. It is loaded, so it can be edited
+    // and saved, but it is never on screen until someone asks for it.
+    const secret = page.locator('#field-secret')
+    await expect(secret).toHaveAttribute('type', 'password')
+    await expect(secret).toHaveValue(WEBHOOK_SECRET)
+    await page.getByRole('button', { name: 'Show secret' }).click()
+    await expect(secret).toHaveAttribute('type', 'text')
+    await page.getByRole('button', { name: 'Hide secret' }).click()
+    await expect(secret).toHaveAttribute('type', 'password')
+    // A custom field component owns its own form state, so prove a typed
+    // secret still reaches the database — then put the suite's own secret
+    // back the same way, because the delivery tests sign with it.
+    const storedSecret = async () =>
+      (await payload.findGlobal({ slug: 'webhook-settings', depth: 0 }))?.secret
+    const save = async () => {
+      await page.getByRole('button', { name: 'Save' }).first().click()
+      await expect(page.locator('.payload-toast-item').first()).toBeVisible()
+    }
+    await secret.fill(`${WEBHOOK_SECRET}-rotated`)
+    await save()
+    await expect.poll(storedSecret).toBe(`${WEBHOOK_SECRET}-rotated`)
+    await secret.fill(WEBHOOK_SECRET)
+    await save()
+    await expect.poll(storedSecret).toBe(WEBHOOK_SECRET)
   })
 
   test('review page renders stage metadata from the shared status table', async () => {

@@ -51,7 +51,7 @@ it('names every setup blocker above the cards and refuses to create while one st
   )
 
   const voice = screen.getByRole('link', { name: 'Activate a brand voice' })
-  expect(voice.getAttribute('href')).toBe('/admin/ops/governance/brand-voice')
+  expect(voice.getAttribute('href')).toBe('/admin/ops/setup/brand-voice')
   expect(
     screen
       .getByRole('link', { name: 'Add and activate at least one audience (ICP)' })

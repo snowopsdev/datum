@@ -36,7 +36,7 @@ type Props = {
 
 /** Where each asset is edited. Keyed by the tag readiness sets. */
 const FIX_HREF: Record<SetupBlocker['asset'], string> = {
-  voice: '/admin/ops/governance/brand-voice',
+  voice: '/admin/ops/setup/brand-voice',
   workspace: '/admin/ops/setup/workspace',
   audiences: '/admin/ops/setup/audiences',
   templates: '/admin/ops/templates',

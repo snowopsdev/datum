@@ -3140,3 +3140,43 @@
 .datum-ops__table th {
   white-space: nowrap;
 }
+
+/* The webhook signing secret: a password input with a deliberate reveal. */
+.datum-secret-field__wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.datum-secret-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 3px;
+  background: var(--theme-input-bg);
+  color: var(--theme-elevation-800);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.datum-secret-field__input:focus-visible {
+  outline: 2px solid var(--theme-elevation-400);
+  outline-offset: 1px;
+}
+
+.datum-secret-field__toggle {
+  flex: 0 0 auto;
+  padding: 0 0.9rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 3px;
+  background: var(--theme-elevation-50);
+  color: var(--theme-elevation-800);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.datum-secret-field__toggle:hover {
+  background: var(--theme-elevation-100);
+}

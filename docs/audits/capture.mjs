@@ -17,13 +17,12 @@ const routes = [
   ['02-setup-audience-new', '/admin/ops/setup/audiences/new'],
   ['02-setup-positioning', '/admin/ops/setup/positioning'],
   ['02-setup-evidence', '/admin/ops/setup/evidence'],
-  ['03-brand-voice', '/admin/ops/governance/brand-voice'],
+  ['03-brand-voice', '/admin/ops/setup/brand-voice'],
   ['04-global-models', '/admin/globals/llm-settings'],
   ['04-global-scoring-policy', '/admin/globals/information-gain-policy'],
   ['04-global-webhooks', '/admin/globals/webhook-settings'],
-  ['05-global-workspace-profile', '/admin/globals/workspace-profile'],
-  ['05-global-positioning', '/admin/globals/positioning'],
-  ['05-global-evidence-bank', '/admin/globals/evidence-bank'],
+  // The workspace-profile, positioning and evidence-bank globals are hidden
+  // from the admin: each is edited at its `/admin/ops/setup/...` surface above.
   ['06-new-content', '/admin/ops/new'],
   ['07-content-list', '/admin/ops/content'],
   ['10-source-review', '/admin/ops/governance/source-review'],
