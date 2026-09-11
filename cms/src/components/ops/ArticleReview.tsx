@@ -26,7 +26,7 @@ import {
   formatAuditTimestamp,
   isRunnableStatus,
   isStalled,
-  NEXT_STAGE_FOR_STATUS,
+  NEXT_STAGE_VERB_FOR_STATUS,
   qaFailures,
   STAGE_LABEL,
   stageOf,
@@ -498,7 +498,7 @@ function RunNextStagePanel({
     <div className="datum-ops__block">
       <h3>{STAGE_LABEL[STATUS_META[status].stage]}</h3>
       <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-        Datum will {NEXT_STAGE_FOR_STATUS[status]} this piece on the next run.
+        Datum will {NEXT_STAGE_VERB_FOR_STATUS[status]} on the next run.
       </p>
       {needsTemplate ? (
         <>

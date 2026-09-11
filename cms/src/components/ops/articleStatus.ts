@@ -16,6 +16,7 @@ import type {
   ArticleStatus,
   ColumnOwner,
   ContentStage,
+  PipelineStageName,
   RunnableStatus,
   StatusMeta,
 } from '../../lib/articleStatusMeta'
@@ -29,8 +30,10 @@ export { ARTICLE_STATUSES, CONTENT_STAGES, STATUS_META }
 export type { ArticleStatus, ColumnOwner, ContentStage, RunnableStatus }
 
 /**
- * The statuses a pipeline stage waits on, and the board copy for what picks
- * each up. Derived from the table's `pickupStage` column.
+ * The statuses a pipeline stage waits on, named after the stage that picks
+ * each up. Derived from the table's `pickupStage` column, and the registry
+ * `isRunnableStatus` answers from. Use `NEXT_STAGE_VERB_FOR_STATUS` for copy
+ * that has to read as a sentence.
  *
  * A single run walks all four stages in order, so an article that starts at
  * `topic_selected` normally comes out the far end scored. The middle three only
@@ -48,6 +51,31 @@ export const NEXT_STAGE_FOR_STATUS = Object.fromEntries(
 export function isRunnableStatus(status: string): status is RunnableStatus {
   return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
 }
+
+/**
+ * What a run will *do* to this piece, as a verb phrase that finishes the
+ * sentence "Datum will … on the next run."
+ *
+ * `PIPELINE_STAGE_LABEL` names the stages ("QA checks", "Information-gain
+ * scoring") for column headings and status pills, and reads as nonsense in a
+ * sentence — "Datum will Information-gain scoring this piece". These are the
+ * same four stages said as actions, so the run panel can tell an operator what
+ * pressing the button does in one readable line.
+ */
+export const NEXT_STAGE_VERB: Record<PipelineStageName, string> = {
+  research: 'research what already ranks',
+  generate: 'write the draft',
+  qa: 'run the checks',
+  informationGain: 'score information gain',
+}
+
+/** `NEXT_STAGE_VERB` resolved per status, the way `NEXT_STAGE_FOR_STATUS` is. */
+export const NEXT_STAGE_VERB_FOR_STATUS = Object.fromEntries(
+  ARTICLE_STATUSES.flatMap((status) => {
+    const { pickupStage } = STATUS_META[status]
+    return pickupStage ? [[status, NEXT_STAGE_VERB[pickupStage]]] : []
+  }),
+) as Record<RunnableStatus, string>
 
 /**
  * A piece a run would advance, that no run is advancing.
@@ -292,10 +320,8 @@ const HEADING_FIX: Record<string, string> = {
     'Add the missing H2 section. The template requires it and QA checks for it by name.',
 }
 
-const vNum = (v: unknown): number | null =>
-  typeof v === 'number' && Number.isFinite(v) ? v : null
-const vStr = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null
+const vNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+const vStr = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 /**
  * Turn one structural violation into something a person can act on.

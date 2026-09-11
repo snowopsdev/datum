@@ -4,7 +4,9 @@ import { Articles } from '@/collections/Articles'
 import {
   ARTICLE_STATUSES,
   CONTENT_STAGES,
+  isRunnableStatus,
   isStalled,
+  NEXT_STAGE_VERB_FOR_STATUS,
   STATUS_STAGE,
   stageOf,
 } from '@/components/ops/articleStatus'
@@ -49,6 +51,22 @@ describe('article status configuration', () => {
     expect(isStalled('researched', false)).toBe(true)
     expect(isStalled('researched', true)).toBe(false)
     expect(isStalled('verified', false)).toBe(false)
+  })
+
+  /**
+   * The run panel reads "Datum will {phrase} on the next run.", so every
+   * phrase has to be a lowercase verb phrase. A stage name ("QA checks",
+   * "Information-gain scoring") dropped in there is what this guards against.
+   */
+  it('gives every runnable status a lowercase verb phrase for the next stage', () => {
+    const runnable = ARTICLE_STATUSES.filter(isRunnableStatus)
+    expect(runnable.length).toBeGreaterThan(0)
+    for (const status of runnable) {
+      const phrase = NEXT_STAGE_VERB_FOR_STATUS[status]
+      expect(phrase, status).toBeTruthy()
+      expect(phrase, status).toMatch(/^[a-z]+( |$)/)
+      expect(`Datum will ${phrase} on the next run.`, status).not.toContain('  ')
+    }
   })
 
   it('registers gateReviewOverride as a beforeChange hook on Articles', () => {
