@@ -50,6 +50,15 @@ type Props = {
    * touching.
    */
   activeRunIncludesArticle: boolean
+  /**
+   * Whether the article's `publishAt` had already passed when the page was
+   * rendered. Resolved on the server rather than here: "is this date in the
+   * past" is a reading of the clock, and a component that takes one during
+   * render renders differently on the server than it does a moment later in
+   * the browser. It goes stale the way every other value on this page goes
+   * stale, and `router.refresh()` is what renews it.
+   */
+  scheduleExpired: boolean
   mode: 'mock' | 'live'
   /** Active audiences the brief may switch between. */
   icps: BriefIcpOption[]
@@ -659,6 +668,7 @@ function RunNextStagePanel({
 export function ArticleReview({
   article,
   activeRunIncludesArticle,
+  scheduleExpired,
   mode,
   icps,
   templates,
@@ -925,6 +935,22 @@ export function ArticleReview({
             templateId={templateId}
             templates={templates}
           />
+
+          {article.status === 'brief_review' ? (
+            <div className="datum-ops__block">
+              <h3>This piece</h3>
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                Approve or rework the brief on the left. Nothing is written until you do — archive
+                it instead if the topic is not worth the draft.
+              </p>
+              <div className="datum-ops__actions">
+                {archiveControls}
+                <a className="datum-ops__btn" href={editHref}>
+                  Open in admin
+                </a>
+              </div>
+            </div>
+          ) : null}
 
           {article.status === 'needs_revision' ? (
             <>
@@ -1212,8 +1238,12 @@ export function ArticleReview({
             <div className="datum-ops__block">
               <h3>Publish</h3>
               {article.publishAt ? (
-                <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-                  Scheduled for {formatAuditTimestamp(article.publishAt)} ·{' '}
+                <p
+                  className={scheduleExpired ? 'datum-ops__warn' : 'datum-ops__sub'}
+                  style={{ marginBottom: 10 }}
+                >
+                  {scheduleExpired ? 'Schedule expired on' : 'Scheduled for'}{' '}
+                  {formatAuditTimestamp(article.publishAt)} ·{' '}
                   <button
                     type="button"
                     className="datum-ops__link-btn"
@@ -1234,6 +1264,20 @@ export function ArticleReview({
                   Publish it now, or pick a time and Datum publishes it for you.
                 </p>
               )}
+              {/* Shown rather than assumed: Send back writes this text into
+                  `reviewNotes` and onto the failing qualitative check, and the
+                  box arrives holding the note the *approving* reviewer left.
+                  Sending that back as the reason for a revision would put
+                  "reads well" on the draft as a failure. */}
+              <div className="datum-ops__field">
+                <label htmlFor="note">Review notes</label>
+                <textarea
+                  id="note"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={pending}
+                />
+              </div>
               <div className="datum-ops__field">
                 <label htmlFor="publish-at">Publish at (UTC)</label>
                 <input
@@ -1274,7 +1318,9 @@ export function ArticleReview({
                   className="datum-ops__btn"
                   disabled={pending}
                   onClick={() =>
-                    runAction(() => sendBackAction(article.id, notes || 'Sent back for revision.'))
+                    runAction(() =>
+                      sendBackAction(article.id, notes.trim() || 'Sent back after approval.'),
+                    )
                   }
                 >
                   Send back

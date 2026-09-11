@@ -5,6 +5,7 @@ import {
   ARTICLE_STATUSES,
   CONTENT_STAGES,
   isRunnableStatus,
+  isScheduleExpired,
   isStalled,
   NEXT_STAGE_VERB_FOR_STATUS,
   STATUS_STAGE,
@@ -71,5 +72,17 @@ describe('article status configuration', () => {
 
   it('registers gateReviewOverride as a beforeChange hook on Articles', () => {
     expect(Articles.hooks?.beforeChange).toContain(gateReviewOverride)
+  })
+
+  // The review panel reads "Scheduled for" or "Schedule expired on" off this,
+  // so the boundary and the junk cases are the whole behaviour.
+  it('calls a schedule expired only once its moment has actually passed', () => {
+    const now = Date.parse('2026-06-01T12:00:00.000Z')
+    expect(isScheduleExpired(null, now)).toBe(false)
+    expect(isScheduleExpired('', now)).toBe(false)
+    expect(isScheduleExpired('not a date', now)).toBe(false)
+    expect(isScheduleExpired('2026-06-01T12:00:01.000Z', now)).toBe(false)
+    expect(isScheduleExpired('2026-06-01T12:00:00.000Z', now)).toBe(true)
+    expect(isScheduleExpired('2026-05-31T12:00:00.000Z', now)).toBe(true)
   })
 })

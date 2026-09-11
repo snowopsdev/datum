@@ -279,6 +279,22 @@ export type AuditTimelineEntry = {
   toStatus: string | null
 }
 
+/**
+ * Whether a scheduled publish time has already gone by.
+ *
+ * A function taking `now` rather than a value computed where it is used: the
+ * only honest answer is "as of this instant", and the one caller is a server
+ * render the browser hydrates a moment later — so the instant has to be
+ * pinned once, on the server, instead of being read again during hydration
+ * and producing different markup. An unparseable date is not expired; it is
+ * not a schedule at all.
+ */
+export function isScheduleExpired(publishAt: string | null, now: number = Date.now()): boolean {
+  if (!publishAt) return false
+  const at = Date.parse(publishAt)
+  return !Number.isNaN(at) && at <= now
+}
+
 export function formatAuditTimestamp(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return 'Unknown time'

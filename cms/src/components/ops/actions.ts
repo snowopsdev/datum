@@ -51,6 +51,23 @@ const NULL_QA_RESULTS = {
   },
 } as const
 
+/**
+ * What every action that moves an article off `approved` writes to `publishAt`.
+ *
+ * A schedule is inert on any other status, which made leaving it in place look
+ * free — and it is, right up to the moment the piece is approved a second
+ * time. Then the five-minute `publish-due` tick finds a date that passed days
+ * ago, publishes immediately, and the reviewer who had not finished looking at
+ * the draft gets no say and no explanation. Taking the date back at the moment
+ * it stops applying is the only point where the intent is unambiguous: the
+ * person sending this piece back has just said it is not ready to go out.
+ *
+ * The audit details record the write (`publishAt: null`) the same way they
+ * already record `reviewNotes` — what the action wrote, not a claim about what
+ * was there before.
+ */
+const CLEARED_SCHEDULE = { publishAt: null } as const
+
 async function requireUser() {
   const headers = await getHeaders()
   const payload = await getPayload({ config })
@@ -221,9 +238,11 @@ export async function resetToDraftedAction(
       reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
       qaResults: NULL_QA_RESULTS,
       informationGain: NULL_INFORMATION_GAIN,
+      ...CLEARED_SCHEDULE,
     },
     context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
       reviewNotes: reviewNotes?.trim() || null,
+      ...CLEARED_SCHEDULE,
     }),
     user,
     // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
@@ -290,14 +309,16 @@ export async function publishArticleAction(
  * job — which selects on `publishAt <= now` — published it on its very next
  * tick, five minutes later, with no scheduling having meaningfully happened.
  * And the job only ever picks up `approved`, so a date written onto any other
- * status is inert: the field is deliberately allowed to survive status moves
- * as stored intent, but *setting* it somewhere it can never fire is the UI
- * lying rather than the field remembering.
+ * status can never fire, which makes writing one there the UI lying about what
+ * it just arranged.
  *
- * The stored value is normalised to an ISO instant. The control that feeds
- * this is a `datetime-local` input, which has no zone of its own, so the
- * conversion happens in the browser's zone and what is persisted is the
- * absolute moment the reviewer meant.
+ * The mirror of that second refusal is `CLEARED_SCHEDULE` below: a date is
+ * never *set* outside `approved`, and never *survives* leaving it either.
+ *
+ * The stored value is normalised to an ISO instant. The `datetime-local`
+ * control that feeds this has no zone of its own, so the page reads and writes
+ * it as UTC and sends an explicit `Z` — the same zone every other timestamp on
+ * that page is shown in, rather than a zone the reviewer has to infer.
  */
 export async function scheduleArticleAction(articleId: number, publishAt: string) {
   const { payload, user } = await requireUser()
@@ -357,8 +378,13 @@ export async function unscheduleArticleAction(articleId: number) {
  * not help a run that already picked this one up. Throwing is right here where
  * the queue helpers merely report: nothing was written, so there is no half of
  * the action to be honest about.
+ *
+ * No reason is taken. The archive control is a two-click confirm in a row of
+ * buttons with nowhere to type one, and a parameter no caller can reach is an
+ * audit field that is always null pretending to be a field somebody fills in.
+ * Who archived it and when is recorded either way.
  */
-export async function archiveArticleAction(articleId: number, reason?: string) {
+export async function archiveArticleAction(articleId: number) {
   const { payload, user } = await requireUser()
   if (await activeRunIncludesArticle(payload, user, articleId)) {
     throw new Error(
@@ -369,9 +395,7 @@ export async function archiveArticleAction(articleId: number, reason?: string) {
     collection: 'articles',
     id: articleId,
     data: { archived: true },
-    context: auditContext(user, 'article_archived', 'Article archived', {
-      reason: reason?.trim() || null,
-    }),
+    context: auditContext(user, 'article_archived', 'Article archived'),
     user,
     overrideAccess: false,
   })
@@ -400,9 +424,11 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
         },
       },
       informationGain: NULL_INFORMATION_GAIN,
+      ...CLEARED_SCHEDULE,
     },
     context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
       reviewNotes: note,
+      ...CLEARED_SCHEDULE,
     }),
     user,
     // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
@@ -493,12 +519,13 @@ export async function regenerateArticleAction(
       revisionCount: (article.revisionCount ?? 0) + 1,
       qaResults: NULL_QA_RESULTS,
       informationGain: NULL_INFORMATION_GAIN,
+      ...CLEARED_SCHEDULE,
     },
     context: auditContext(
       user,
       'article_regenerate_requested',
       'Article sent back for regeneration',
-      { note: note?.trim() || null, runId: run?.id ?? null },
+      { note: note?.trim() || null, runId: run?.id ?? null, ...CLEARED_SCHEDULE },
     ),
     user,
     // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.

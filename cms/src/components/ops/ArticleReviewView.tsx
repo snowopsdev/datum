@@ -11,7 +11,7 @@ import { loadActiveAudienceOptions } from '../../lib/loadWorkspaceReadiness'
 import { modeFromEnv } from '../../lib/workspaceReadiness'
 import { ArticleReview } from './ArticleReview'
 import type { AuditSummary } from './auditTypes'
-import { formatAuditTimestamp, toBoardArticle, toRunView } from './articleStatus'
+import { formatAuditTimestamp, isScheduleExpired, toBoardArticle, toRunView } from './articleStatus'
 
 export async function ArticleReviewView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -163,6 +163,13 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         <ArticleReview
           activeRunIncludesArticle={inActiveRun}
           article={toBoardArticle(article)}
+          /* The `publish-due` job runs on a five-minute cron, so an expired
+             schedule is the gap before the next tick — or a worker that is
+             not running. Either way the panel has to stop reading a date the
+             piece should already have gone out on as a plan. Asked here, on
+             the server, so the page does not render one answer and hydrate
+             another. */
+          scheduleExpired={isScheduleExpired(article.publishAt ?? null)}
           mode={modeFromEnv(process.env)}
           icps={icps}
           templates={templates}

@@ -648,8 +648,8 @@ describe('scheduling, unscheduling and archiving', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('archiveArticleAction sets archived and records the reason', async () => {
-    await archiveArticleAction(1, '  duplicate topic  ')
+  it('archiveArticleAction sets archived and records who did it', async () => {
+    await archiveArticleAction(1)
     expect(countMock).toHaveBeenCalledWith(
       expect.objectContaining({ collection: 'pipeline-runs' }),
     )
@@ -660,11 +660,79 @@ describe('scheduling, unscheduling and archiving', () => {
         context: expect.objectContaining({
           articleAudit: expect.objectContaining({
             event: 'article_archived',
-            details: { reason: 'duplicate topic' },
+            actor: 'reviewer@example.com',
           }),
         }),
       }),
     )
+  })
+})
+
+/**
+ * A schedule is inert on every status but `approved`, which is exactly what
+ * makes leaving one behind dangerous: the date does nothing while the piece is
+ * being reworked and then fires on the next five-minute tick the moment it is
+ * approved again, publishing a draft nobody re-read.
+ */
+describe('moving an article off approved takes its schedule with it', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'approved',
+      publishAt: '2099-01-01T09:00:00.000Z',
+      revisionCount: 0,
+      template: 3,
+    } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+    loadWorkspaceSetupMock.mockResolvedValue(readySetup())
+    createPipelineRunMock.mockResolvedValue(undefined)
+  })
+
+  const dataSent = () => (updateMock.mock.calls[0][0] as { data: Record<string, unknown> }).data
+  const auditSent = () =>
+    (
+      updateMock.mock.calls[0][0] as {
+        context: { articleAudit: { details?: Record<string, unknown> } }
+      }
+    ).context.articleAudit
+
+  it('sendBackAction clears publishAt and records the clear', async () => {
+    await sendBackAction(1, 'the third section is wrong')
+    expect(dataSent().publishAt).toBeNull()
+    expect(auditSent().details).toMatchObject({ publishAt: null })
+  })
+
+  it('resetToDraftedAction clears publishAt', async () => {
+    await resetToDraftedAction(1, 'fixed the intro')
+    expect(dataSent().publishAt).toBeNull()
+    expect(auditSent().details).toMatchObject({ publishAt: null })
+  })
+
+  it('regenerateArticleAction clears publishAt', async () => {
+    await regenerateArticleAction(1, 'tighten it')
+    expect(dataSent().publishAt).toBeNull()
+    expect(auditSent().details).toMatchObject({ publishAt: null })
+  })
+
+  /**
+   * The approved panel's Send back used to hand over the note the *approving*
+   * reviewer had left, which landed "reads well" on the draft as the reason
+   * the qualitative check failed. The page now shows the box it is sending, and
+   * the action refuses to invent a reason out of whitespace either way.
+   */
+  it('sendBackAction never turns an empty note into a revision reason', async () => {
+    await sendBackAction(1, '   ')
+    const data = dataSent() as {
+      reviewNotes: string
+      qaResults: { qualitativeReview: { notes: string; passed: boolean } }
+    }
+    expect(data.reviewNotes).toBe('Editor sent back for revision.')
+    expect(data.qaResults.qualitativeReview).toMatchObject({
+      passed: false,
+      notes: 'Editor sent back for revision.',
+    })
   })
 })
 

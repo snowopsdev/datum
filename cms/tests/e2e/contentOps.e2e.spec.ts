@@ -194,6 +194,34 @@ test.describe('Content ops', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'E2E publish walk' })).toBeVisible()
   })
 
+  /**
+   * Archiving is offered on every panel a person owns, including the brief —
+   * the cheapest moment to drop a topic is before anything has been written
+   * for it. The walk ends on the content list because an archive that hid the
+   * piece from every tab, Archived included, would be a delete.
+   */
+  test('a brief awaiting review can be archived and is then findable only under Archived', async () => {
+    const keyword = `e2e brief archive ${Date.now()}`
+    const article = await seedArticle(payload, {
+      keyword,
+      title: 'E2E brief archive',
+      status: 'brief_review',
+      template: await firstTemplateId(payload),
+    })
+    seededIds.push(article.id)
+
+    await page.goto(`/admin/ops/articles/${article.id}`)
+    await page.getByRole('button', { name: 'Archive' }).click()
+    await page.getByRole('button', { name: 'Confirm: archive' }).click()
+    await expect(page.getByText('Archived — it is off the content board.')).toBeVisible()
+
+    const search = `?q=${encodeURIComponent(keyword)}&page=1`
+    await page.goto(`/admin/ops/content${search}&filter=all`)
+    await expect(page.getByRole('link', { name: 'E2E brief archive' })).toHaveCount(0)
+    await page.goto(`/admin/ops/content${search}&filter=archived`)
+    await expect(page.getByRole('link', { name: 'E2E brief archive' })).toBeVisible()
+  })
+
   test('read-only gate blocks content edits while the machine owns the article', async () => {
     const article = await seedArticle(payload, {
       keyword: `e2e readonly ${Date.now()}`,

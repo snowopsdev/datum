@@ -272,8 +272,11 @@ export const Articles: CollectionConfig = {
     {
       // Scheduled publishing: the publish-due job (jobs/publishDue.ts) moves
       // due approved articles to published through the normal update path.
-      // The value survives status moves as inert intent; only `approved` is
-      // ever picked up, so a stray date on a reviewed-back article does nothing.
+      // Only `approved` is ever picked up, so the date is inert everywhere
+      // else — but it is not left lying there: every ops action that moves an
+      // article off `approved` nulls it (`CLEARED_SCHEDULE` in
+      // `components/ops/actions.ts`), because a date kept through a send-back
+      // fires the instant the piece is approved again.
       name: 'publishAt',
       type: 'date',
       index: true,
