@@ -302,10 +302,13 @@ export interface Article {
    * Hidden from the article board and skipped by every pipeline run.
    */
   archived?: boolean | null;
+  /**
+   * Editing this while the piece is verified clears its score and sends it back to Writing.
+   */
   title?: string | null;
   slug?: string | null;
   /**
-   * The primary keyword this article targets.
+   * The primary keyword this article targets. Editing this while the piece is verified clears its score and sends it back to Writing.
    */
   keyword: string;
   /**
@@ -413,6 +416,9 @@ export interface Article {
     approvedAt?: string | null;
     approvedBy?: string | null;
   };
+  /**
+   * Editing this while the piece is verified clears its score and sends it back to Writing.
+   */
   body?: {
     root: {
       type: string;

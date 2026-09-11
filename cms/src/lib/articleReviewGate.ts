@@ -1,6 +1,10 @@
 import type { CollectionBeforeChangeHook } from 'payload'
 import { APIError } from 'payload'
 
+import {
+  SCORE_INVALIDATED_EVENT,
+  scoreInvalidatedSummary,
+} from '../components/ops/auditTypes'
 import type { ArticleAuditContext } from './articleAudit'
 import { STATUS_META, type ArticleStatus } from './articleStatusMeta'
 
@@ -342,6 +346,7 @@ export const gateReadOnlyStatus: CollectionBeforeChangeHook = ({
 }
 
 export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
+  context,
   data,
   originalDoc,
 }) => {
@@ -361,10 +366,10 @@ export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
     return data
   }
 
-  const changed = SCORED_CONTENT_FIELDS.some(
+  const changed = SCORED_CONTENT_FIELDS.filter(
     (path) => !sameValue(valueAt(data, path), valueAt(original, path)),
   )
-  if (!changed) return data
+  if (changed.length === 0) return data
 
   data.informationGain = { ...CLEARED_INFORMATION_GAIN }
   if (
@@ -372,6 +377,25 @@ export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
     !UNGATED_OVERRIDE_TARGETS.includes(data.status as never)
   ) {
     data.status = 'drafted'
+    // Why the article moved, for the audit trail and for the notice the review
+    // page shows above "Run next stage". Without it `auditArticleChange` falls
+    // back to a bare `status_changed`, which records that the piece went back
+    // to Writing but not that the editor's own save is what sent it there.
+    //
+    // Deliberately scoped to the demotion. This hook runs *first*, and both
+    // `gateReadOnlyStatus` (which exempts a write whose context claims
+    // actorType pipeline/system) and `gateReviewOverride` (which writes its own
+    // reason only into an empty context) read the same slot afterwards. The
+    // demotion branch requires `verified`, so it cannot collide with either —
+    // and no `actorType` is claimed here, so no exemption is opened.
+    const ctx = context as { articleAudit?: ArticleAuditContext }
+    if (!ctx.articleAudit) {
+      ctx.articleAudit = {
+        event: SCORE_INVALIDATED_EVENT,
+        summary: scoreInvalidatedSummary(changed),
+        details: { changedFields: [...changed] },
+      }
+    }
   }
   return data
 }

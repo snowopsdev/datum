@@ -10,6 +10,16 @@ import {
   invalidateStaleInformationGain,
 } from '../lib/articleReviewGate'
 
+/**
+ * Shown on every field in `SCORED_CONTENT_FIELDS` that an editor can reach in
+ * the admin panel, because `invalidateStaleInformationGain` acts on a save with
+ * no warning of its own: the article silently loses its verdict and drops out
+ * of the review queue. Saying so up front is the difference between a rule and
+ * a surprise.
+ */
+const SCORED_FIELD_DESCRIPTION =
+  'Editing this while the piece is verified clears its score and sends it back to Writing.'
+
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
@@ -52,6 +62,7 @@ export const Articles: CollectionConfig = {
     {
       name: 'title',
       type: 'text',
+      admin: { description: SCORED_FIELD_DESCRIPTION },
     },
     {
       name: 'slug',
@@ -61,7 +72,9 @@ export const Articles: CollectionConfig = {
       name: 'keyword',
       type: 'text',
       required: true,
-      admin: { description: 'The primary keyword this article targets.' },
+      admin: {
+        description: `The primary keyword this article targets. ${SCORED_FIELD_DESCRIPTION}`,
+      },
     },
     {
       // Chosen by the operator in topic discovery, before research runs, so it
@@ -205,6 +218,7 @@ export const Articles: CollectionConfig = {
     {
       name: 'body',
       type: 'richText',
+      admin: { description: SCORED_FIELD_DESCRIPTION },
     },
     {
       name: 'titleTag',

@@ -19,7 +19,7 @@ import { revisitBriefAction } from './briefActions'
 import { runSelectedArticlesAction } from './boardActions'
 import { Stepper } from './Stepper'
 import { AuditEvidence } from './AuditEvidence'
-import type { AuditSummary } from './auditTypes'
+import { scoreInvalidationNotice, type AuditSummary } from './auditTypes'
 import {
   OWNER_LABEL,
   evidenceFindingsOf,
@@ -474,6 +474,7 @@ function RunNextStagePanel({
   onConfirm,
   onRun,
   pending,
+  scoreInvalidatedBy,
   setTemplateId,
   templateId,
   templates,
@@ -486,6 +487,13 @@ function RunNextStagePanel({
   onConfirm: () => void
   onRun: () => void
   pending: boolean
+  /**
+   * The fields whose edit cost this article its score, when that edit is the
+   * last thing that happened to it — otherwise null. A demotion out of
+   * `verified` looks identical to a draft that was never scored, so without
+   * this the reviewer has no way to tell a rule from a bug.
+   */
+  scoreInvalidatedBy: string | null
   setTemplateId: (value: string) => void
   templateId: string
   templates: TemplateOption[]
@@ -500,6 +508,12 @@ function RunNextStagePanel({
       <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
         Datum will {NEXT_STAGE_VERB_FOR_STATUS[status]} on the next run.
       </p>
+      {scoreInvalidatedBy ? (
+        <p className="datum-ops__warn">
+          Score cleared by an edit to {scoreInvalidatedBy}. Run next stage to re-check and
+          re-score.
+        </p>
+      ) : null}
       {needsTemplate ? (
         <>
           {hint ? (
@@ -600,6 +614,8 @@ export function ArticleReview({
    */
   const [justification, setJustification] = useState('')
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+
+  const scoreInvalidatedBy = scoreInvalidationNotice(article.status, auditEntries)
 
   const runAction = (fn: () => Promise<unknown>, thenBoard = true) => {
     setError(null)
@@ -768,6 +784,7 @@ export function ArticleReview({
             onConfirm={() => startRun(true)}
             onRun={() => (mode === 'live' ? setConfirmRun(true) : startRun(false))}
             pending={pending}
+            scoreInvalidatedBy={scoreInvalidatedBy}
             setTemplateId={setTemplateId}
             templateId={templateId}
             templates={templates}

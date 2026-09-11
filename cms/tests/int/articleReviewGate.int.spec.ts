@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ArticleAuditContext } from '@/lib/articleAudit'
 import {
   CLEARED_INFORMATION_GAIN,
   gateReviewOverride,
@@ -10,6 +11,11 @@ import {
   SCORED_CONTENT_FIELDS,
   UNGATED_OVERRIDE_TARGETS,
 } from '@/lib/articleReviewGate'
+import {
+  SCORE_INVALIDATED_EVENT,
+  scoreInvalidatedFields,
+  scoreInvalidatedSummary,
+} from '@/components/ops/auditTypes'
 
 describe('article review-override gate', () => {
   it('throws when moving needs_review to verified without a justification', () => {
@@ -756,6 +762,76 @@ describe('stale information-gain invalidation', () => {
     const result = run(data as unknown as Record<string, unknown>, original)
     expect(summaryOf(result)).toEqual(CLEARED_INFORMATION_GAIN)
     expect(result.status).toBe('published')
+  })
+
+  /**
+   * The demotion on its own reaches the audit trail as a bare `status_changed`,
+   * which tells a reviewer their article moved but not that *their edit* is why.
+   * The hook supplies the reason so `auditArticleChange` writes it instead.
+   */
+  it('records a score_invalidated reason naming the fields that were edited', () => {
+    const context: Record<string, unknown> = {}
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    ;(data.body as typeof body).root.children[0].text = 'rewritten'
+    const result = invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
+
+    expect(result.status).toBe('drafted')
+    const audit = context.articleAudit as ArticleAuditContext | undefined
+    expect(audit?.event).toBe(SCORE_INVALIDATED_EVENT)
+    expect(audit?.summary).toBe(scoreInvalidatedSummary(['title', 'body']))
+    expect(audit?.summary).toContain('title')
+    expect(audit?.details).toEqual({ changedFields: ['title', 'body'] })
+    // The summary has to survive the round trip: the review page reads the
+    // field list back out of it to explain the demotion.
+    expect(scoreInvalidatedFields(audit?.summary ?? '')).toBe('title, body')
+  })
+
+  it('leaves actorType unset so the read-only gate is not exempted', () => {
+    // `gateReadOnlyStatus` waves through any write whose context claims
+    // actorType pipeline/system. This hook runs first, so claiming one here
+    // would open that exemption to every hand edit.
+    const context: Record<string, unknown> = {}
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect((context.articleAudit as ArticleAuditContext | undefined)?.actorType).toBeUndefined()
+  })
+
+  it('does not overwrite an audit reason the caller already supplied', () => {
+    const context: Record<string, unknown> = {
+      articleAudit: { event: 'article_sent_back', summary: 'Reviewer sent it back' },
+    }
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect((context.articleAudit as ArticleAuditContext).event).toBe('article_sent_back')
+  })
+
+  it('records no reason when nothing scored changed', () => {
+    const context: Record<string, unknown> = {}
+    invalidateStaleInformationGain({
+      data: verifiedDoc() as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect(context.articleAudit).toBeUndefined()
   })
 
   it('does nothing on a create', () => {
