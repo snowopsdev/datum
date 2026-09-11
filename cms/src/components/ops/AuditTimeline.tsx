@@ -3,7 +3,6 @@
 import React from 'react'
 
 import type { AuditTimelineEntry } from './articleStatus'
-import { auditEventLabel } from './auditTypes'
 
 type Props = {
   entries: AuditTimelineEntry[]
@@ -36,7 +35,7 @@ export function AuditTimeline({ entries, title, blurb, emptyText }: Props) {
                   <time dateTime={entry.createdAt}>{entry.createdAtLabel}</time>
                 </div>
                 <div className="datum-ops__timeline-meta">
-                  <span>{auditEventLabel(entry.event)}</span>
+                  <span>{entry.event}</span>
                   <span>{entry.actorType}</span>
                   <span>{entry.actor}</span>
                   {entry.fromStatus || entry.toStatus ? (

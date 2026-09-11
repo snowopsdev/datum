@@ -759,9 +759,20 @@ describe('stale information-gain invalidation', () => {
     const original = { ...verifiedDoc(), status: 'published' }
     const data = { ...verifiedDoc(), status: 'published' }
     ;(data.body as typeof body).root.children[0].text = 'rewritten'
-    const result = run(data as unknown as Record<string, unknown>, original)
+    const context: Record<string, unknown> = {}
+    const result = invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: original,
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
     expect(summaryOf(result)).toEqual(CLEARED_INFORMATION_GAIN)
     expect(result.status).toBe('published')
+    // The audit reason is scoped to the demotion. `gateReviewOverride` writes
+    // its own reason into the same slot and only when it is empty, so claiming
+    // it on every invalidation would swallow an override recorded in the same
+    // write. See the comment on the hook.
+    expect(context.articleAudit).toBeUndefined()
   })
 
   /**

@@ -19,7 +19,7 @@ import { revisitBriefAction } from './briefActions'
 import { runSelectedArticlesAction } from './boardActions'
 import { Stepper } from './Stepper'
 import { AuditEvidence } from './AuditEvidence'
-import { scoreInvalidationNotice, type AuditSummary } from './auditTypes'
+import { auditEventLabel, scoreInvalidationNotice, type AuditSummary } from './auditTypes'
 import {
   OWNER_LABEL,
   evidenceFindingsOf,
@@ -1220,6 +1220,7 @@ export function ArticleReview({
                         <time dateTime={entry.createdAt}>{entry.createdAtLabel}</time>
                       </div>
                       <div className="datum-ops__timeline-meta">
+                        <span>{auditEventLabel(entry.event)}</span>
                         <span>{entry.actorType}</span>
                         <span>{entry.actor}</span>
                         {entry.stage ? <span>{entry.stage}</span> : null}
