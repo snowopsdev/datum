@@ -1,7 +1,16 @@
 import type { AuditTimelineEntry } from './articleStatus'
 
 export type AuditSource = { kind: 'audit' | 'cost'; recordId: number }
-export type AuditSummary = Omit<AuditTimelineEntry, 'details'> & { source: AuditSource }
+/**
+ * A timeline row. `costUsd` is carried only by the rows synthesised from the
+ * cost log — the audit trail sums it when it collapses a run's model calls
+ * into one line, and a run whose cost was never recorded shows $0 rather than
+ * a blank.
+ */
+export type AuditSummary = Omit<AuditTimelineEntry, 'details'> & {
+  costUsd?: number | null
+  source: AuditSource
+}
 export type AuditDetailResult = { ok: true; details: unknown } | { ok: false; error: string }
 
 /**

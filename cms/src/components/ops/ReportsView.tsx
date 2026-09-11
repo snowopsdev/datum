@@ -7,7 +7,8 @@ import React from 'react'
 import { runHealth } from '../../lib/opsKpis'
 import { summarizeReportArticles } from '../../lib/articleReportSummary'
 import { loadReportCosts } from '../../lib/reportQueries'
-import { ReportsPanel, type CostReport } from './ReportsPanel'
+import { ReportsPanel } from './ReportsPanel'
+import type { CostReport } from '../../lib/reportTypes'
 
 export async function ReportsView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props

@@ -1,6 +1,6 @@
 import { sql } from '@payloadcms/db-postgres'
 import { executeAccess, Forbidden, type PayloadRequest } from 'payload'
-import type { CostReport, SpendRow } from '../components/ops/ReportsPanel'
+import type { CostReport, SpendRow } from './reportTypes'
 import type { StageKpiRow } from './opsKpis'
 
 /** The report's supported filters, bound as values rather than SQL fragments. */

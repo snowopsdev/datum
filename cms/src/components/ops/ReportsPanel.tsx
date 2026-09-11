@@ -9,6 +9,7 @@ import type { ArticleReportSummary } from '../../lib/articleReportSummary'
 import { PIPELINE_STAGE_LABEL, type PipelineStageName } from '../../lib/articleStatusMeta'
 import { ARTICLE_STATUSES, CHECK_LABEL, STATUS_META } from './articleStatus'
 import { IG_DECISIONS, IG_DECISION_LABEL } from '../../lib/articleReportSummary'
+import type { CostReport, SpendRow } from '../../lib/reportTypes'
 import './ops.css'
 
 function isPipelineStageName(stage: string): stage is PipelineStageName {
@@ -24,17 +25,6 @@ function stageLabel(stage: string): string {
 function statusLabel(status: string): string {
   return (STATUS_META as Record<string, { label: string } | undefined>)[status]?.label ??
     status.replace(/_/g, ' ')
-}
-
-export type SpendRow = { label: string; usd: number }
-
-export type CostReport = {
-  period: 'week' | 'month' | 'all'
-  periodStart: string | null
-  rowCount: number
-  totalUsd: number
-  byStage: SpendRow[]
-  byModel: SpendRow[]
 }
 
 type Props = {

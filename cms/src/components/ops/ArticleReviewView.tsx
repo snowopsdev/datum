@@ -85,7 +85,14 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     }),
     req.payload.find({
       collection: 'cost-log',
-      select: { provider: true, model: true, createdAt: true, pipelineRunId: true, stage: true },
+      select: {
+        provider: true,
+        model: true,
+        costUsd: true,
+        createdAt: true,
+        pipelineRunId: true,
+        stage: true,
+      },
       where: { article: { equals: article.id } },
       depth: 0,
       limit: 100,
@@ -138,6 +145,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       actorType: 'pipeline' as const,
       createdAt: entry.createdAt,
       createdAtLabel: formatAuditTimestamp(entry.createdAt),
+      costUsd: entry.costUsd ?? 0,
       source: { kind: 'cost', recordId: entry.id },
       event: 'model_call_completed',
       fromStatus: null,
