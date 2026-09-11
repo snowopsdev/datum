@@ -486,7 +486,6 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
   })
 
   it('resetToDraftedAction queues a selected run for the article', async () => {
-    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'needs_revision', template: 3 } as never)
     const result = await resetToDraftedAction(1, 'fixed the intro')
     expect(result.queued).toBe(true)
     expect(result.runId).toEqual(expect.any(String))

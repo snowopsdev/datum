@@ -20,6 +20,38 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 const AFFECTED_PATHS = ['/admin/ops/content', '/admin']
 
 /**
+ * Why this workspace cannot start a run right now, in the words an operator
+ * acts on — or `null` when it can.
+ *
+ * One gate for every entry point. The board's Run button and the reviewer's
+ * reset/regenerate actions ask the same question and must give the same
+ * answer, and when they each owned a copy the three sentences drifted (the
+ * board's governance refusal still named the brand voice long after
+ * governance became three assets). `confirmLiveCost` is the only thing the
+ * callers differ on, so it is a parameter: `true` means a person has been
+ * shown what a live run costs and agreed to it.
+ *
+ * Deliberately separate from `queueRunForArticles`: readiness is about the
+ * workspace, the refusals there are about the articles, and only the caller
+ * knows whether it collected a live-cost confirmation.
+ */
+export function gateRunReadiness(
+  readiness: WorkspaceReadiness,
+  confirmLiveCost?: boolean,
+): string | null {
+  if (!readiness.runtime.ready) {
+    return `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`
+  }
+  if (!readiness.governance.ready) {
+    return `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`
+  }
+  if (readiness.mode === 'live' && confirmLiveCost !== true) {
+    return 'Confirm the live provider cost before starting this run.'
+  }
+  return null
+}
+
+/**
  * Queue a run for articles that already exist — the one way to do it.
  *
  * The board's Run button (`runSelectedArticlesAction`) and the reviewer's

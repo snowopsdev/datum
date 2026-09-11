@@ -9,7 +9,7 @@ import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
 import { ActivePipelineRunError } from '@/lib/createPipelineRun'
 import { errorMessage } from '@/lib/errorMessage'
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
-import { queueRunForArticles } from '@/lib/queueRunForArticles'
+import { gateRunReadiness, queueRunForArticles } from '@/lib/queueRunForArticles'
 import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
 import type { Article } from '@/payload-types'
 
@@ -111,11 +111,11 @@ export type ReviewActionOptions = { queueRun?: boolean; confirmLiveCost?: boolea
  * deliberately reuses `queueRunForArticles` so a run queued from an article
  * page is the same run, with the same refusals, as one queued from the board.
  *
- * The readiness gate is the board's, reproduced rather than delegated because
- * only the caller knows whether a live-cost confirmation was collected. Every
- * refusal comes back as `reason`; nothing here throws, because the update it
- * follows has already succeeded and reporting the whole action as failed would
- * be a lie about the part that worked.
+ * The readiness gate is `gateRunReadiness`, the same one the board asks, so a
+ * reviewer and an operator are told the same thing about the same workspace.
+ * Every refusal comes back as `reason`; nothing here throws, because the
+ * update it follows has already succeeded and reporting the whole action as
+ * failed would be a lie about the part that worked.
  */
 async function queueRunAfterRework(
   payload: Awaited<ReturnType<typeof requireUser>>['payload'],
@@ -126,21 +126,8 @@ async function queueRunAfterRework(
   if (options?.queueRun === false) return { queued: false }
 
   const { readiness } = await loadWorkspaceSetup(payload)
-  if (!readiness.runtime.ready) {
-    return {
-      queued: false,
-      reason: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
-    }
-  }
-  if (!readiness.governance.ready) {
-    return {
-      queued: false,
-      reason: `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`,
-    }
-  }
-  if (readiness.mode === 'live' && options?.confirmLiveCost !== true) {
-    return { queued: false, reason: 'Confirm the live provider cost before starting this run.' }
-  }
+  const notReady = gateRunReadiness(readiness, options?.confirmLiveCost)
+  if (notReady) return { queued: false, reason: notReady }
 
   try {
     const { runId } = await queueRunForArticles(payload, user, [article], readiness)

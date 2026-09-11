@@ -8,7 +8,7 @@ import { getPayload } from 'payload'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
-import { queueRunForArticles } from '../../lib/queueRunForArticles'
+import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
 import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
 
@@ -46,21 +46,8 @@ export async function runSelectedArticlesAction(input: {
 
     const setup = await loadWorkspaceSetup(payload)
     const { readiness } = setup
-    if (!readiness.runtime.ready) {
-      return {
-        ok: false,
-        error: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
-      }
-    }
-    if (!readiness.governance.ready) {
-      return {
-        ok: false,
-        error: `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`,
-      }
-    }
-    if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
-      return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
-    }
+    const notReady = gateRunReadiness(readiness, input.confirmLiveCost)
+    if (notReady) return { ok: false, error: notReady }
 
     const { docs } = await payload.find({
       collection: 'articles',

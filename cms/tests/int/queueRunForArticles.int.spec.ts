@@ -21,15 +21,16 @@ vi.mock('@/lib/createPipelineRun', async (importOriginal) => {
 })
 
 /** Enough of `WorkspaceReadiness` to reach `createPipelineRun`; it reads the rest. */
-const readiness = () =>
+const readiness = (overrides: Record<string, unknown> = {}) =>
   ({
     mode: 'mock',
     runtime: { ready: true, missing: [], blockers: [] },
     governance: { ready: true, activeVoiceId: 1, problems: [] },
+    ...overrides,
   }) as unknown as WorkspaceReadiness
 
 const { revalidatePath } = await import('next/cache')
-const { queueRunForArticles } = await import('@/lib/queueRunForArticles')
+const { gateRunReadiness, queueRunForArticles } = await import('@/lib/queueRunForArticles')
 
 const payload = {} as never
 const user = { id: 7, email: 'reviewer@example.com' } as never
@@ -110,5 +111,63 @@ describe('queueRunForArticles', () => {
     await expect(queueRunForArticles(payload, user, [], readiness())).rejects.toThrow(
       'Those articles no longer exist.',
     )
+  })
+})
+
+/**
+ * The one gate every entry point asks. The board's Run button and the
+ * reviewer's reset/regenerate actions both refuse with these sentences, so
+ * they are asserted here once rather than copied into each caller's spec.
+ */
+describe('gateRunReadiness', () => {
+  it('lets a ready mock-mode workspace through', () => {
+    expect(gateRunReadiness(readiness())).toBeNull()
+  })
+
+  it('names the environment variables the runtime is missing', () => {
+    expect(
+      gateRunReadiness(
+        readiness({ runtime: { ready: false, missing: ['OPENAI_API_KEY'], blockers: ['OPENAI_API_KEY', 'an Ahrefs key'] } }),
+      ),
+    ).toBe('Configure the required environment variables: OPENAI_API_KEY, an Ahrefs key.')
+  })
+
+  it('names every governance problem, not just the brand voice', () => {
+    expect(
+      gateRunReadiness(
+        readiness({
+          governance: {
+            ready: false,
+            activeVoiceId: 1,
+            problems: ['Set the target domain', 'Add and activate at least one audience (ICP)'],
+          },
+        }),
+      ),
+    ).toBe(
+      'Finish setup before running the pipeline: Set the target domain; Add and activate at least one audience (ICP).',
+    )
+  })
+
+  it('holds a live run until someone confirms the cost, then lets it through', () => {
+    expect(gateRunReadiness(readiness({ mode: 'live' }))).toBe(
+      'Confirm the live provider cost before starting this run.',
+    )
+    expect(gateRunReadiness(readiness({ mode: 'live' }), false)).toBe(
+      'Confirm the live provider cost before starting this run.',
+    )
+    expect(gateRunReadiness(readiness({ mode: 'live' }), true)).toBeNull()
+  })
+
+  // Runtime first: a workspace missing both would otherwise be told to finish
+  // setup when the run could not have started anyway.
+  it('reports the runtime before governance when both are unmet', () => {
+    expect(
+      gateRunReadiness(
+        readiness({
+          runtime: { ready: false, missing: [], blockers: ['a model we cannot serve'] },
+          governance: { ready: false, activeVoiceId: null, problems: ['Activate a brand voice'] },
+        }),
+      ),
+    ).toBe('Configure the required environment variables: a model we cannot serve.')
   })
 })

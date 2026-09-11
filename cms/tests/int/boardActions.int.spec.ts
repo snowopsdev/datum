@@ -98,6 +98,18 @@ describe('runSelectedArticlesAction', () => {
     )
   })
 
+  it('passes a refusal from the queue helper through its own generic catch', async () => {
+    // The helper throws; the action's `errorMessage(error, 'Could not start
+    // that run.')` branch is what turns that into the sentence the board shows,
+    // and it must keep the helper's words rather than the fallback.
+    findMock.mockResolvedValueOnce({ docs: [] } as never)
+    expect(await runSelectedArticlesAction({ articleIds: [1] })).toEqual({
+      ok: false,
+      error: 'Those articles no longer exist.',
+    })
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
   it('reports an active run rather than silently dropping the request', async () => {
     createPipelineRunMock.mockRejectedValueOnce(new ActivePipelineRunError('run-42'))
     expect(await runSelectedArticlesAction({ articleIds: [1] })).toEqual({
