@@ -70,8 +70,7 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
   const updateSection = (index: number, patch: Partial<Section>) =>
     setSections((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
 
-  const removeSection = (index: number) =>
-    setSections((prev) => prev.filter((_, i) => i !== index))
+  const removeSection = (index: number) => setSections((prev) => prev.filter((_, i) => i !== index))
 
   const addSection = () => {
     const heading = newHeading.trim()
@@ -102,17 +101,31 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
     <div className="datum-brief">
       <div className="datum-brief__intro">
         <p className="datum-ops__eyebrow">Brief · step 2 of 5</p>
-        <h2>Agree what this piece is before anything is written</h2>
+        <h2>Check the plan before we write</h2>
         <p className="datum-ops__sub">
-          Research is done and nothing has been spent on writing yet. Fix the angle, cut or add
-          sections, and tell the writer what you actually want. When you approve, Datum writes the
-          draft, runs the checks and scores it{mode === 'live' ? ' — that part uses paid providers' : ''}
-          .
+          Research is done. Nothing has been written yet, so nothing has been spent.
+          {mode === 'live' ? ' Writing uses paid models.' : ''}
         </p>
+        <ol className="datum-brief__todo">
+          <li>
+            <strong>Check the angle and audience.</strong> Change them if they are off.
+          </li>
+          <li>
+            <strong>Go through the sections.</strong> Keep, rename, or remove them. Add a note to
+            any section to tell the writer what to say.
+          </li>
+          <li>
+            <strong>Add notes for the writer</strong> if you have any. This is optional.
+          </li>
+          <li>
+            <strong>Press Approve and write.</strong> Datum writes the draft, runs the checks, and
+            scores it.
+          </li>
+        </ol>
       </div>
 
       <label className="datum-ops__field">
-        <span>Angle — what this piece promises the reader</span>
+        <span>Angle</span>
         <input
           disabled={pending}
           onChange={(e) => setAngle(e.target.value)}
@@ -120,6 +133,7 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
           type="text"
           value={angle}
         />
+        <span className="datum-ops__hint">What this piece promises the reader.</span>
       </label>
 
       {icps.length > 0 ? (
@@ -139,13 +153,13 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
             ))}
           </select>
           <span className="datum-ops__hint">
-            Who this piece is for. It steers the draft and the review, not just this brief.
+            Who this is written for. It shapes the draft and the review.
           </span>
         </label>
       ) : null}
 
       <label className="datum-ops__field">
-        <span>{icps.length > 0 ? 'Audience, in a sentence' : 'Audience'}</span>
+        <span>{icps.length > 0 ? 'Audience in one sentence' : 'Audience'}</span>
         <input
           disabled={pending}
           onChange={(e) => setAudience(e.target.value)}
@@ -159,14 +173,17 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         <div className="datum-brief__sections-head">
           <h3>Sections</h3>
           <p className="datum-ops__hint">
-            {templateName ? `${templateName} ` : 'The template '}requires the locked ones and QA
-            checks for them by name. The rest come from gaps in what already ranks — keep, edit, or
-            cut them. Add a note to any section to tell the writer what it should say.
+            Sections marked <em>required</em> come from the {templateName ?? 'template'} and cannot
+            be removed. The rest come from gaps in what already ranks. Keep, rename, or remove them.
+            Add a note under any section to tell the writer what it should say.
           </p>
         </div>
         <ol className="datum-brief__list">
           {sections.map((section, index) => (
-            <li className={`datum-brief__section datum-brief__section--${section.source}`} key={`${index}-${section.source}`}>
+            <li
+              className={`datum-brief__section datum-brief__section--${section.source}`}
+              key={`${index}-${section.source}`}
+            >
               <div className="datum-brief__section-row">
                 {section.source === 'template' ? (
                   <strong className="datum-brief__heading">{section.heading}</strong>
@@ -202,7 +219,7 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
                 aria-label={`Notes for ${section.heading}`}
                 disabled={pending}
                 onChange={(e) => updateSection(index, { notes: e.target.value })}
-                placeholder="What should this section say? (optional)"
+                placeholder="Optional: what should this section say?"
                 rows={2}
                 value={section.notes}
               />
@@ -224,7 +241,12 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
             type="text"
             value={newHeading}
           />
-          <button className="datum-ops__btn" disabled={pending || !newHeading.trim()} onClick={addSection} type="button">
+          <button
+            className="datum-ops__btn"
+            disabled={pending || !newHeading.trim()}
+            onClick={addSection}
+            type="button"
+          >
             Add
           </button>
         </div>
@@ -234,26 +256,25 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         <div className="datum-brief__research">
           {initial.mustCover.length > 0 ? (
             <p>
-              <strong>Everything that ranks already covers:</strong> {initial.mustCover.join(' · ')}.
-              The draft will cover these too — skipping one costs it on scoring.
+              <strong>The top results already cover:</strong> {initial.mustCover.join(' · ')}. The
+              draft covers these too. Skipping one lowers the score.
             </p>
           ) : null}
           {initial.opportunities.length > 0 ? (
             <p>
-              <strong>Where nobody has a good answer yet:</strong>{' '}
-              {initial.opportunities.join(' · ')}. These are the sections above marked{' '}
-              <em>from research</em>.
+              <strong>Gaps nobody has answered well:</strong> {initial.opportunities.join(' · ')}.
+              These are the sections above marked <em>from research</em>.
             </p>
           ) : null}
         </div>
       ) : null}
 
       <label className="datum-ops__field">
-        <span>Direction for the writer</span>
+        <span>Notes for the writer (optional)</span>
         <textarea
           disabled={pending}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Anything the outline does not say: the take you want, what to avoid, an example to follow. This outranks the template where they disagree."
+          placeholder="The take you want, what to avoid, an example to follow. If this disagrees with the template, this wins."
           rows={4}
           value={notes}
         />
@@ -265,6 +286,9 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         </p>
       ) : null}
 
+      <p className="datum-brief__actions-note">
+        Happy with the plan? Approve to start writing. Not sure yet? Save and come back.
+      </p>
       <div className="datum-brief__actions">
         <button
           className="datum-ops__btn datum-ops__btn--primary"

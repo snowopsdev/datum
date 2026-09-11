@@ -17,9 +17,7 @@ type Props = {
 
 export function TemplateConfigEditor({ templates, initialId }: Props) {
   const router = useRouter()
-  const [selectedId, setSelectedId] = useState<number | null>(
-    initialId ?? templates[0]?.id ?? null,
-  )
+  const [selectedId, setSelectedId] = useState<number | null>(initialId ?? templates[0]?.id ?? null)
   const [tab, setTab] = useState<Tab>('outline')
   const selected = useMemo(
     () => templates.find((t) => t.id === selectedId) ?? templates[0] ?? null,
@@ -109,7 +107,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
       // `initialId` is only read once and the panel would keep showing whichever
       // template was open when the form was submitted.
       loadTemplate(created)
-      setMessage(`Created ${created.name}. Fill in its outline, rules and required H2s below.`)
+      setMessage(`Created ${created.name}. Fill in its outline, rules and required sections below.`)
       router.refresh()
     })
   }
@@ -181,9 +179,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
         <span className="datum-ops__pill">config</span>
       </div>
       <p className="datum-ops__lede">
-        A template decides the shape of an article and QA checks every draft against it. Edit one
-        below, or add your own. <strong>Required H2s</strong> and the <strong>SEO</strong> limits
-        are enforced on every draft; the outline and dos/don&rsquo;ts are guidance for the writer.
+        A template decides the shape of an article, and every draft is checked against it. Edit one
+        below or add your own. <strong>Required sections</strong> and <strong>SEO</strong> limits
+        are enforced on every draft. The outline and dos and don&rsquo;ts guide the writer.
       </p>
 
       <div className="datum-ops__tpl">
@@ -197,7 +195,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
             >
               {t.name}
               <span>
-                {t.requiredSections.length} required H2
+                {t.requiredSections.length} required section
                 {t.requiredSections.length === 1 ? '' : 's'}
               </span>
             </button>
@@ -412,7 +410,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
 
             {tab === 'examples' ? (
               <>
-                <p className="datum-ops__sub">Canonical example guidance for the generate prompt.</p>
+                <p className="datum-ops__sub">
+                  Canonical example guidance for the generate prompt.
+                </p>
                 <div className="datum-ops__field">
                   <label htmlFor="example">Example</label>
                   <textarea

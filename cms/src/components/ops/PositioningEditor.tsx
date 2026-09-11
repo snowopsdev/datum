@@ -72,10 +72,12 @@ export function PositioningEditor({ initial }: { initial: PositioningContent }) 
   return (
     <AssetStepper<PositioningStepId>
       heading="Positioning"
-      lede="What you are to the audience you just described. Nothing here blocks a run — whatever is filled in is injected, and the rest is left out."
+      lede="What you are to the audience you just described. Nothing here is required: what you fill in reaches the writer, and the rest is left out."
       headerExtra={
         <>
-          <span className={`datum-ops__status datum-ops__status--${status === 'ready' ? 'active' : 'draft'}`}>
+          <span
+            className={`datum-ops__status datum-ops__status--${status === 'ready' ? 'active' : 'draft'}`}
+          >
             {status}
           </span>
           <Link className="datum-ops__link-btn" href="/admin/ops/setup" prefetch={false}>

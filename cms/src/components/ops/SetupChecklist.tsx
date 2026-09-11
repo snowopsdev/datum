@@ -174,7 +174,11 @@ export function SetupChecklist(props: SetupChecklistData) {
   return (
     <main className="datum-ops datum-setup">
       <p className="datum-ops__eyebrow">
-        {props.ready ? 'Ready' : blockers.length === rows.length - 2 ? 'A few things first' : 'Nearly there'}
+        {props.ready
+          ? 'Ready'
+          : blockers.length === rows.length - 2
+            ? 'A few things first'
+            : 'Nearly there'}
       </p>
       <h1>{props.ready ? 'Your workspace' : 'Set up your workspace'}</h1>
       <p className="datum-ops__lede">
@@ -197,9 +201,7 @@ export function SetupChecklist(props: SetupChecklistData) {
             <div className="datum-setup__body">
               <div className="datum-setup__title">
                 <strong>{row.title}</strong>
-                {row.recommended ? (
-                  <em className="datum-first__optional">Recommended</em>
-                ) : null}
+                {row.recommended ? <em className="datum-first__optional">Recommended</em> : null}
               </div>
               <p className="datum-setup__state">{row.state}</p>
               <p className="datum-ops__hint">{row.blurb}</p>
@@ -227,14 +229,14 @@ export function SetupChecklist(props: SetupChecklistData) {
         </button>
         <span className="datum-ops__hint">
           Fills whatever is still blank with a demo brand: a plain B2B voice, a site to write about,
-          two audiences, a position, and an evidence bank. Every part of it is an ordinary record you
-          can edit or replace.
+          two audiences, a position, and an evidence bank. Every part of it is an ordinary record
+          you can edit or replace.
         </span>
       </div>
       {error ? <p className="datum-ops__error">{error}</p> : null}
       {props.mode === 'live' ? null : (
         <p className="datum-ops__hint">
-          Mock mode: runs use canned fixtures and never call a paid provider.
+          Mock mode is on. Runs use sample data and never call a paid provider.
         </p>
       )}
     </main>

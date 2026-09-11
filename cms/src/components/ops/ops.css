@@ -119,27 +119,6 @@
   text-transform: uppercase;
 }
 
-.datum-ops__progress {
-  width: 88px;
-  aspect-ratio: 1;
-  border: 1px solid var(--ops-hairline);
-  border-radius: 9999px;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-}
-
-.datum-ops__progress strong {
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.datum-ops__progress span {
-  color: var(--ops-ink-muted);
-  font-size: 12px;
-}
-
 .datum-ops__setup-list {
   border-bottom: 1px solid var(--ops-hairline);
 }
@@ -359,6 +338,9 @@
   border-radius: var(--ops-radius-full);
   background: rgba(0, 117, 222, 0.1);
   color: var(--ops-primary);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  line-height: 1.3;
 }
 
 .datum-ops__empty {
@@ -645,6 +627,12 @@
   gap: 8px;
 }
 
+/* List pages: breathing room between the action row and the list or empty state. */
+.datum-ops__actions + .datum-ops__empty,
+.datum-ops__actions + .datum-ops__table {
+  margin-top: 16px;
+}
+
 .datum-ops__error {
   color: var(--ops-orange);
   font-size: 14px;
@@ -851,6 +839,11 @@
 .datum-ops__tpl-list {
   border-right: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .datum-ops__tpl-list button {
@@ -1056,6 +1049,40 @@
   overflow-wrap: anywhere;
 }
 
+/* Audit trail lives in the review sidebar: compact, titles stacked. */
+.datum-ops__review-aside .datum-ops__audit {
+  margin-top: 0;
+  padding: 14px;
+}
+
+.datum-ops__review-aside .datum-ops__audit-head {
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.datum-ops__review-aside .datum-ops__audit-head h2 {
+  font-size: 14px;
+}
+
+.datum-ops__review-aside .datum-ops__timeline-title {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.datum-ops__review-aside .datum-ops__timeline-title strong {
+  font-size: 13px;
+}
+
+.datum-ops__review-aside .datum-ops__timeline-item {
+  padding-bottom: 14px;
+}
+
+.datum-ops__review-aside .datum-ops__audit-details pre {
+  max-height: 200px;
+}
+
 @media (max-width: 640px) {
   .datum-ops__audit {
     padding: 14px;
@@ -1172,9 +1199,10 @@
 
 .datum-ops__entry-card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
 }
 
 .datum-ops__entry-card h3 {
@@ -1247,7 +1275,13 @@
   cursor: pointer;
 }
 
+.datum-ops__progress-label {
+  min-width: 0;
+  line-height: 1.3;
+}
+
 .datum-ops__progress-num {
+  flex: 0 0 auto;
   width: 24px;
   height: 24px;
   border-radius: var(--ops-radius-full);
@@ -1281,6 +1315,10 @@
 .datum-ops__step {
   padding: 24px 28px 32px;
   background: var(--ops-canvas-soft);
+}
+
+/* Cap the form width for readability without leaving a bare panel beside it. */
+.datum-ops__step > * {
   max-width: 760px;
 }
 
@@ -2034,7 +2072,14 @@
   border-top: 1px solid var(--theme-elevation-150, #e6e6e6);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   color: var(--theme-text, #000000);
-  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family:
+    Inter,
+    -apple-system,
+    system-ui,
+    'Segoe UI',
+    Helvetica,
+    Arial,
+    sans-serif;
   animation: datum-runbar-in 180ms ease-out;
 }
 
@@ -2565,11 +2610,22 @@
       'pick main owner'
       'pick stage action';
   }
-  .datum-content__pick { grid-area: pick; }
-  .datum-content__main { grid-area: main; }
-  .datum-content__stage { grid-area: stage; }
-  .datum-content__owner { grid-area: owner; justify-self: end; }
-  .datum-content__action { grid-area: action; }
+  .datum-content__pick {
+    grid-area: pick;
+  }
+  .datum-content__main {
+    grid-area: main;
+  }
+  .datum-content__stage {
+    grid-area: stage;
+  }
+  .datum-content__owner {
+    grid-area: owner;
+    justify-self: end;
+  }
+  .datum-content__action {
+    grid-area: action;
+  }
 }
 
 /* ── Brief editor ──────────────────────────────────────────────────────── */
@@ -2589,6 +2645,28 @@
 .datum-brief__intro h2 {
   margin: 4px 0 8px;
   font-size: 20px;
+}
+
+.datum-brief__todo {
+  margin: 12px 0 0;
+  padding: 12px 14px 12px 32px;
+  border-radius: var(--ops-radius-md);
+  background: rgba(221, 91, 0, 0.06);
+  border: 1px solid rgba(221, 91, 0, 0.35);
+  font-size: 13px;
+  color: var(--ops-ink-secondary);
+  display: grid;
+  gap: 4px;
+}
+
+.datum-brief__todo strong {
+  color: var(--ops-ink);
+}
+
+.datum-brief__actions-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ops-ink-muted);
 }
 
 .datum-brief .datum-ops__field {
@@ -2716,7 +2794,9 @@
   font: inherit;
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .datum-new__card:hover {
@@ -2854,7 +2934,14 @@
   background: var(--theme-warning-100, #fff4e5);
   color: var(--theme-warning-900, #5a2e00);
   border-bottom: 1px solid var(--theme-warning-300, #f5c58a);
-  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family:
+    Inter,
+    -apple-system,
+    system-ui,
+    'Segoe UI',
+    Helvetica,
+    Arial,
+    sans-serif;
   font-size: 13px;
 }
 

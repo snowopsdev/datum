@@ -152,8 +152,8 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
               ))}
             </select>
             <p className="datum-ops__hint">
-              Only Primary, Official docs and Our own data are strong enough to back a claim
-              nobody else is making. The rest record what you think without changing any result.
+              Only Primary, Official docs and Our own data are strong enough to back a claim nobody
+              else is making. The rest record what you think without changing any result.
             </p>
           </div>
           <div className="datum-ops__field">
@@ -172,9 +172,7 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
               className="datum-ops__btn datum-ops__btn--primary"
               disabled={pending}
               onClick={() =>
-                run(() =>
-                  approveCandidateAction({ candidateId: candidate.id, qualityClass, note }),
-                )
+                run(() => approveCandidateAction({ candidateId: candidate.id, qualityClass, note }))
               }
               type="button"
             >
@@ -228,9 +226,9 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
         <span className="datum-ops__pill">governance</span>
       </div>
       <p className="datum-ops__lede">
-        Domains the pipeline ran into that nobody has rated yet. Until a domain is rated, evidence
-        from it can&rsquo;t back a claim nobody else is making, so an article resting on one gets
-        blocked. Rate the ones you trust and dismiss the rest.
+        Websites Datum found while researching that nobody has rated yet. Until you rate a site, its
+        evidence cannot back a claim on its own, and an article that depends on it is blocked. Rate
+        the ones you trust and dismiss the rest.
       </p>
 
       <div className="datum-ops__period">

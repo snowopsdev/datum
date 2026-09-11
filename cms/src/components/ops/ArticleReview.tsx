@@ -537,51 +537,6 @@ export function ArticleReview({
           {run ? (
             <ScorecardSection isCurrent={runIsCurrent} run={run} summaryRunId={summaryRunId} />
           ) : null}
-
-          <section className="datum-ops__audit" aria-labelledby="audit-trail-heading">
-            <div className="datum-ops__audit-head">
-              <div>
-                <h2 id="audit-trail-heading">Audit trail</h2>
-                <p>
-                  Append-only article changes, pipeline stages, model calls, and review decisions.
-                </p>
-              </div>
-              <span>{auditEntries.length} events</span>
-            </div>
-            {auditEntries.length === 0 ? (
-              <p className="datum-ops__empty">
-                No audit events yet. Existing articles begin tracking on their next change.
-              </p>
-            ) : (
-              <ol className="datum-ops__timeline">
-                {auditEntries.map((entry) => (
-                  <li key={entry.id} className="datum-ops__timeline-item">
-                    <div className="datum-ops__timeline-marker" aria-hidden="true" />
-                    <div className="datum-ops__timeline-content">
-                      <div className="datum-ops__timeline-title">
-                        <strong>{entry.summary}</strong>
-                        <time dateTime={entry.createdAt}>{entry.createdAtLabel}</time>
-                      </div>
-                      <div className="datum-ops__timeline-meta">
-                        <span>{entry.actorType}</span>
-                        <span>{entry.actor}</span>
-                        {entry.stage ? <span>{entry.stage}</span> : null}
-                        {entry.fromStatus || entry.toStatus ? (
-                          <span>
-                            {entry.fromStatus ?? 'new'} → {entry.toStatus ?? 'unchanged'}
-                          </span>
-                        ) : null}
-                        {entry.pipelineRunId ? (
-                          <span>run {entry.pipelineRunId.slice(0, 8)}</span>
-                        ) : null}
-                      </div>
-                      <AuditEvidence articleId={article.id} source={entry.source} />
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
         </div>
 
         <aside className="datum-ops__review-aside">
@@ -1039,6 +994,7 @@ export function ArticleReview({
 
           {![
             'topic_selected',
+            'brief_review',
             'needs_revision',
             'qa_passed',
             'verified',
@@ -1058,6 +1014,49 @@ export function ArticleReview({
               </div>
             </div>
           ) : null}
+
+          <section className="datum-ops__audit" aria-labelledby="audit-trail-heading">
+            <div className="datum-ops__audit-head">
+              <div>
+                <h2 id="audit-trail-heading">Audit trail</h2>
+                <p>Every change, run, model call, and decision on this piece.</p>
+              </div>
+              <span>{auditEntries.length} events</span>
+            </div>
+            {auditEntries.length === 0 ? (
+              <p className="datum-ops__empty">
+                Nothing recorded yet. Tracking starts with the next change.
+              </p>
+            ) : (
+              <ol className="datum-ops__timeline">
+                {auditEntries.map((entry) => (
+                  <li key={entry.id} className="datum-ops__timeline-item">
+                    <div className="datum-ops__timeline-marker" aria-hidden="true" />
+                    <div className="datum-ops__timeline-content">
+                      <div className="datum-ops__timeline-title">
+                        <strong>{entry.summary}</strong>
+                        <time dateTime={entry.createdAt}>{entry.createdAtLabel}</time>
+                      </div>
+                      <div className="datum-ops__timeline-meta">
+                        <span>{entry.actorType}</span>
+                        <span>{entry.actor}</span>
+                        {entry.stage ? <span>{entry.stage}</span> : null}
+                        {entry.fromStatus || entry.toStatus ? (
+                          <span>
+                            {entry.fromStatus ?? 'new'} → {entry.toStatus ?? 'unchanged'}
+                          </span>
+                        ) : null}
+                        {entry.pipelineRunId ? (
+                          <span>run {entry.pipelineRunId.slice(0, 8)}</span>
+                        ) : null}
+                      </div>
+                      <AuditEvidence articleId={article.id} source={entry.source} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
         </aside>
       </div>
     </div>

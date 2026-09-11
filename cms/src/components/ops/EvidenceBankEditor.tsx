@@ -21,16 +21,24 @@ import './ops.css'
 type Tab = 'verifiedClaims' | 'facts' | 'rejectedClaims'
 
 const TABS: [Tab, string][] = [
-  ['verifiedClaims', 'Verified claims'],
+  ['verifiedClaims', 'Claims'],
   ['facts', 'Facts'],
   ['rejectedClaims', 'Rejected & expired'],
 ]
 
 const DEPTH_LABEL: Record<VerificationDepth, string> = {
-  primary_document: 'Primary document',
-  reproduced: 'Reproduced',
-  third_party_audit: 'Third-party audit',
-  self_reported: 'Self-reported',
+  primary_document: 'We have the original document',
+  reproduced: 'We reproduced the result ourselves',
+  third_party_audit: 'A third party audited it',
+  self_reported: 'Self-reported, not checked yet',
+}
+
+const TAB_BLURB: Record<Tab, string> = {
+  verifiedClaims:
+    'Numbers and results you can back up, like "412 customers surveyed". Each one needs a source, a date, and a re-check date before the writer can use it.',
+  facts: 'Plain facts that need no proof: founding year, locations, product names.',
+  rejectedClaims:
+    'Things you have ruled out. Listing them here stops the writer from bringing them back.',
 }
 
 /**
@@ -105,7 +113,7 @@ export function EvidenceBankEditor({
       // now have refs, and a row the action dropped for having no text should
       // disappear here too.
       setDraft(emptyEvidenceBankDraft(result.saved))
-      setMessage('Saved. New rows have been given refs a draft can cite.')
+      setMessage('Saved. New rows now have a ref the writer can cite.')
       router.refresh()
     })
 
@@ -128,7 +136,7 @@ export function EvidenceBankEditor({
       const value = (result.value ?? {}) as Record<string, unknown>
       const proposed = Array.isArray(value[section]) ? (value[section] as unknown[]) : []
       if (proposed.length === 0) {
-        setError('The assistant proposed nothing for this tab.')
+        setError('Datum found nothing to propose. Try adding more notes.')
         return
       }
       setMock(result.mock)
@@ -175,7 +183,7 @@ export function EvidenceBankEditor({
         }))
       }
       setMessage(
-        'Proposed rows added below, unsaved. Put a source next to each one before you save it.',
+        'Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.',
       )
     })
 
@@ -193,9 +201,8 @@ export function EvidenceBankEditor({
         </Link>
       </div>
       <p className="datum-ops__lede">
-        Everything this company may say about itself. A draft may state a first-party fact only if
-        it is in here, and must cite the row’s ref. Proof travels with the claim: a row with no
-        source and no limits is an assertion.
+        What Datum is allowed to say about your company. A draft can only state something about you
+        if it is listed here, and it must cite the row. Put the proof next to every claim.
       </p>
 
       <div className="datum-ops__tabs">
@@ -212,6 +219,7 @@ export function EvidenceBankEditor({
       </div>
 
       <div className="datum-ops__tab-panel datum-ops__tab-panel--wide">
+        <p className="datum-ops__sub">{TAB_BLURB[tab]}</p>
         {error ? <p className="datum-ops__error">{error}</p> : null}
         {message ? <p className="datum-ops__ok">{message}</p> : null}
         {warnings.length > 0 ? (
@@ -235,16 +243,16 @@ export function EvidenceBankEditor({
                   onChange={(e) => setNeedsRecheckOnly(e.target.checked)}
                   disabled={pending}
                 />{' '}
-                Needs re-check only
+                Only show claims that need a re-check
               </label>
               <span className="datum-ops__hint">
                 {expiredCount > 0
-                  ? `${expiredCount} claim${expiredCount === 1 ? '' : 's'} past its re-check date — the writer is told never to state ${expiredCount === 1 ? 'it' : 'them'}.`
-                  : 'Nothing has expired.'}
+                  ? `${expiredCount} claim${expiredCount === 1 ? ' is' : 's are'} past the re-check date. The writer will not use ${expiredCount === 1 ? 'it' : 'them'}.`
+                  : 'No claims are past their re-check date.'}
               </span>
               {unverifiedCount > 0 ? (
                 <span className="datum-ops__hint">
-                  {`${unverifiedCount} unverified — ${unverifiedCount === 1 ? 'it is' : 'they are'} not sent to the writer until the source, the date, and the re-check date are filled in.`}
+                  {`${unverifiedCount} claim${unverifiedCount === 1 ? ' is' : 's are'} not ready. The writer will not use ${unverifiedCount === 1 ? 'it' : 'them'} until the source, date, and re-check date are filled in.`}
                 </span>
               ) : null}
             </div>
@@ -279,16 +287,17 @@ export function EvidenceBankEditor({
               })}
               addLabel="Add a claim"
               disabled={pending}
-              emptyText="No claims here. A draft may state no first-party fact until there is one."
+              emptyText="No claims yet. Add one, or paste notes below and let Datum propose some."
               renderRow={({ row, rowId, patch }) => (
                 <>
                   <p className="datum-ops__hint">
-                    {row.ref ? `Cited as [${row.ref}]` : 'New — a ref is assigned when you save'}
-                    {row.recheckAt && row.recheckAt.slice(0, 10) < today ? ' · expired' : ''}
+                    {row.ref ? `Cited as [${row.ref}]` : 'New. Gets a ref when you save.'}
+                    {row.recheckAt && row.recheckAt.slice(0, 10) < today ? ' · Expired' : ''}
                   </p>
                   {claimProblems(row).length > 0 ? (
                     <p className="datum-ops__warn">
-                      Unverified — not sent to the writer. {claimProblems(row).join('; ')}.
+                      Not ready. The writer will not use this until: {claimProblems(row).join('; ')}
+                      .
                     </p>
                   ) : null}
                   <Field
@@ -301,7 +310,7 @@ export function EvidenceBankEditor({
                   />
                   <Field
                     id={`${rowId}-primarySource`}
-                    label="Primary source"
+                    label="Where it comes from"
                     value={row.primarySource}
                     onChange={(primarySource) => patch({ primarySource })}
                     disabled={pending}
@@ -309,14 +318,14 @@ export function EvidenceBankEditor({
                   />
                   <Field
                     id={`${rowId}-sourceUrl`}
-                    label="Source URL"
+                    label="Link (optional)"
                     value={row.sourceUrl}
                     onChange={(sourceUrl) => patch({ sourceUrl })}
                     disabled={pending}
                   />
                   <Field
                     id={`${rowId}-sourceDate`}
-                    label="Source date"
+                    label="Date of the source"
                     value={row.sourceDate ? row.sourceDate.slice(0, 10) : ''}
                     onChange={(sourceDate) => patch({ sourceDate })}
                     disabled={pending}
@@ -324,15 +333,15 @@ export function EvidenceBankEditor({
                   />
                   <Field
                     id={`${rowId}-sampleOrMethod`}
-                    label="Sample or method"
+                    label="How it was measured (optional)"
                     value={row.sampleOrMethod}
                     onChange={(sampleOrMethod) => patch({ sampleOrMethod })}
                     disabled={pending}
                     multiline
-                    placeholder="How it was measured, and over what."
+                    placeholder="Sample size, method, time period."
                   />
                   <div className="datum-ops__field">
-                    <label htmlFor={`${rowId}-depth`}>Verification depth</label>
+                    <label htmlFor={`${rowId}-depth`}>How well is it checked?</label>
                     <select
                       id={`${rowId}-depth`}
                       value={row.verificationDepth}
@@ -351,15 +360,16 @@ export function EvidenceBankEditor({
                   </div>
                   <Field
                     id={`${rowId}-limits`}
-                    label="Limits — what this claim does NOT say"
+                    label="What this claim does not say"
                     value={row.limits}
                     onChange={(limits) => patch({ limits })}
                     disabled={pending}
                     multiline
-                    hint="QA fails a draft that stretches the claim past this."
+                    placeholder="It does not mean every customer saw this result."
+                    hint="QA rejects a draft that stretches the claim past this."
                   />
                   <div className="datum-ops__field">
-                    <label htmlFor={`${rowId}-surfaces`}>Cleared surfaces</label>
+                    <label htmlFor={`${rowId}-surfaces`}>Where it can be used</label>
                     <div className="datum-ops__checks" id={`${rowId}-surfaces`}>
                       {CLEARED_SURFACES.map((surface) => (
                         <label className="datum-ops__hint" key={surface}>
@@ -381,7 +391,9 @@ export function EvidenceBankEditor({
                         </label>
                       ))}
                     </div>
-                    <p className="datum-ops__hint">Leave all unchecked when it is cleared everywhere.</p>
+                    <p className="datum-ops__hint">
+                      Leave all unchecked if it can be used anywhere.
+                    </p>
                   </div>
                   <Field
                     id={`${rowId}-recheckAt`}
@@ -390,14 +402,15 @@ export function EvidenceBankEditor({
                     onChange={(recheckAt) => patch({ recheckAt })}
                     disabled={pending}
                     type="date"
-                    hint="After this date the claim is expired and moves into the writer’s never-state list."
+                    hint="After this date the claim expires and the writer stops using it."
                   />
                 </>
               )}
             />
             <AssistPanel
-              title="Propose claims from notes"
-              blurb="Turns what you paste into candidate claims. They arrive self-reported with no source, which is exactly what the completeness check flags — a person puts the proof beside them."
+              title="Let Datum propose claims from your notes"
+              buttonLabel="Propose claims"
+              blurb="Paste a results email, a support stat, or a page you trust. Datum turns it into draft claims. They arrive without a source, so add the proof before you save."
               notes={notes}
               onNotes={setNotes}
               onRun={() => assist('verifiedClaims')}
@@ -416,11 +429,11 @@ export function EvidenceBankEditor({
               empty={() => ({ fact: '', source: '', owner: '', lastConfirmedAt: '' })}
               addLabel="Add a fact"
               disabled={pending}
-              emptyText="No facts yet. Dates, names, places — the things that need no hedging."
+              emptyText="No facts yet. Founding year, locations, product names go here."
               renderRow={({ row, rowId, patch }) => (
                 <>
                   <p className="datum-ops__hint">
-                    {row.ref ? `Cited as [${row.ref}]` : 'New — a ref is assigned when you save'}
+                    {row.ref ? `Cited as [${row.ref}]` : 'New. Gets a ref when you save.'}
                   </p>
                   <Field
                     id={`${rowId}-fact`}
@@ -443,7 +456,7 @@ export function EvidenceBankEditor({
                     value={row.owner}
                     onChange={(owner) => patch({ owner })}
                     disabled={pending}
-                    placeholder="Whoever answers when it turns out to be wrong."
+                    placeholder="The person to ask if it turns out to be wrong."
                   />
                   <Field
                     id={`${rowId}-lastConfirmedAt`}
@@ -457,8 +470,9 @@ export function EvidenceBankEditor({
               )}
             />
             <AssistPanel
-              title="Draft facts from the site"
-              blurb="Reads the pages fetched on the Workspace page and lists what they state as fact. Nothing is saved; check each one against something you trust."
+              title="Let Datum pull facts from your site"
+              buttonLabel="Pull facts from the site"
+              blurb="Reads the site pages fetched on the Workspace page and lists what they state. Nothing is saved until you check each one and press Save."
               notes={notes}
               onNotes={setNotes}
               onRun={() => assist('facts')}
@@ -476,11 +490,11 @@ export function EvidenceBankEditor({
             empty={() => ({ claim: '', status: 'rejected' as const, reason: '', replacement: '' })}
             addLabel="Add a rejected claim"
             disabled={pending}
-            emptyText="Nothing ruled out yet. A claim nobody can see is one that comes back in the next draft."
+            emptyText="Nothing ruled out yet. Add a claim here to stop the writer from using it."
             renderRow={({ row, rowId, patch }) => (
               <>
                 <p className="datum-ops__hint">
-                  {row.ref ? `Recorded as [${row.ref}]` : 'New — a ref is assigned when you save'}
+                  {row.ref ? `Recorded as [${row.ref}]` : 'New. Gets a ref when you save.'}
                 </p>
                 <Field
                   id={`${rowId}-claim`}
@@ -491,7 +505,7 @@ export function EvidenceBankEditor({
                   multiline
                 />
                 <div className="datum-ops__field">
-                  <label htmlFor={`${rowId}-status`}>Why it is here</label>
+                  <label htmlFor={`${rowId}-status`}>Why it is ruled out</label>
                   <select
                     id={`${rowId}-status`}
                     value={row.status}
@@ -500,8 +514,8 @@ export function EvidenceBankEditor({
                     }
                     disabled={pending}
                   >
-                    <option value="rejected">Rejected — it was never supportable</option>
-                    <option value="expired">Expired — it was true and no longer is</option>
+                    <option value="rejected">Rejected: it was never true</option>
+                    <option value="expired">Expired: it used to be true</option>
                   </select>
                 </div>
                 <Field
@@ -518,7 +532,7 @@ export function EvidenceBankEditor({
                   value={row.replacement}
                   onChange={(replacement) => patch({ replacement })}
                   disabled={pending}
-                  placeholder="E4, or a sentence."
+                  placeholder="A ref like E4, or a sentence."
                 />
               </>
             )}
@@ -538,7 +552,7 @@ export function EvidenceBankEditor({
             <span className="datum-ops__hint">
               {unsaved > 0
                 ? `${unsaved} row${unsaved === 1 ? '' : 's'} not saved yet.`
-                : 'Everything here is saved.'}
+                : 'All saved.'}
             </span>
           </div>
         </div>
@@ -549,6 +563,7 @@ export function EvidenceBankEditor({
 
 function AssistPanel({
   title,
+  buttonLabel,
   blurb,
   notes,
   onNotes,
@@ -557,6 +572,7 @@ function AssistPanel({
   mock,
 }: {
   title: string
+  buttonLabel: string
   blurb: string
   notes: string
   onNotes: (value: string) => void
@@ -583,7 +599,7 @@ function AssistPanel({
       </div>
       <div className="datum-ops__actions">
         <button type="button" className="datum-ops__btn" onClick={onRun} disabled={disabled}>
-          {disabled ? 'Working…' : title}
+          {disabled ? 'Working…' : buttonLabel}
         </button>
       </div>
     </div>
