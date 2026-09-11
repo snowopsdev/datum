@@ -614,9 +614,11 @@ export async function activateDefaultBrandVoiceAction(): Promise<TenantActionRes
   }
 }
 
-/** What the runtime banner needs: live mode with anything missing. */
+/** What the runtime banner needs: live mode that cannot run, and why. */
 export async function runtimeStatusAction(): Promise<{
   mode: 'mock' | 'live'
+  /** False when a live run would fail. The banner shows nothing otherwise. */
+  ready: boolean
   /** Environment variable names. */
   missing: string[]
   /** Everything else unmet, already phrased as an instruction. */
@@ -637,11 +639,14 @@ export async function runtimeStatusAction(): Promise<{
     })
     return {
       mode: readiness.mode,
+      ready: readiness.runtime.ready,
       missing: readiness.runtime.missing,
       problems: readiness.runtime.problems,
     }
   } catch {
-    return { mode: 'mock', missing: [], problems: [] }
+    // Nothing could be read, so nothing can be claimed: the banner stays away
+    // rather than accusing a deploy it never saw.
+    return { mode: 'mock', ready: true, missing: [], problems: [] }
   }
 }
 

@@ -3,13 +3,18 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 /**
- * The banner is for whoever deploys this, and a missing key is not a notice
- * you read once: dismissing it hid the only sign that every run would fail.
- * Prose blockers (a model no provider serves) stay dismissible.
+ * The banner is for whoever deploys this, and in live mode everything it can
+ * say is fatal: the run fails until somebody fixes it. None of it is a notice
+ * you read once, so none of it can be dismissed.
  */
 const mocks = vi.hoisted(() => ({
   status: vi.fn<
-    () => Promise<{ mode: 'mock' | 'live'; missing: string[]; problems: string[] }>
+    () => Promise<{
+      mode: 'mock' | 'live'
+      ready: boolean
+      missing: string[]
+      problems: string[]
+    }>
   >(),
 }))
 vi.mock('@/components/ops/tenantActions', () => ({ runtimeStatusAction: mocks.status }))
@@ -32,6 +37,7 @@ afterEach(cleanup)
 it('names the variables, points at cms/.env, and cannot be dismissed', async () => {
   mocks.status.mockResolvedValue({
     mode: 'live',
+    ready: false,
     missing: ['AHREFS_API_KEY', 'ANTHROPIC_API_KEY'],
     problems: [],
   })
@@ -44,9 +50,29 @@ it('names the variables, points at cms/.env, and cannot be dismissed', async () 
   expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
 })
 
-it('still lets a prose blocker be dismissed, and says nothing in mock mode', async () => {
+it('cannot be dismissed for a placeholder .env either, where every key is set', async () => {
   mocks.status.mockResolvedValue({
     mode: 'live',
+    ready: false,
+    missing: [],
+    problems: [
+      'Replace the .env.example placeholders in TARGET_DOMAIN, COMPETITOR_DOMAINS, or fill in the Workspace step (what is saved there is used instead)',
+    ],
+  })
+
+  await show()
+
+  const banner = screen.getByRole('status')
+  expect(banner.textContent).toContain('Replace the .env.example placeholders')
+  // Runs fail on a placeholder domain exactly as they fail on a missing key,
+  // so this one is no more dismissible than that one.
+  expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+})
+
+it('cannot be dismissed for a model no provider serves', async () => {
+  mocks.status.mockResolvedValue({
+    mode: 'live',
+    ready: false,
     missing: [],
     problems: ['Select an API-backed model instead of codex/gpt-5.6-terra'],
   })
@@ -56,14 +82,21 @@ it('still lets a prose blocker be dismissed, and says nothing in mock mode', asy
   expect(screen.getByRole('status').textContent).toContain(
     'Select an API-backed model instead of codex/gpt-5.6-terra',
   )
-  const dismiss = screen.getByRole('button', { name: 'Dismiss' })
-  await act(async () => {
-    dismiss.click()
+  expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+})
+
+it('says nothing in mock mode, or when a live workspace is ready', async () => {
+  mocks.status.mockResolvedValue({
+    mode: 'mock',
+    ready: false,
+    missing: ['AHREFS_API_KEY'],
+    problems: [],
   })
+  await show()
   expect(screen.queryByRole('status')).toBeNull()
 
   cleanup()
-  mocks.status.mockResolvedValue({ mode: 'mock', missing: ['AHREFS_API_KEY'], problems: [] })
+  mocks.status.mockResolvedValue({ mode: 'live', ready: true, missing: [], problems: [] })
   await show()
   expect(screen.queryByRole('status')).toBeNull()
 })

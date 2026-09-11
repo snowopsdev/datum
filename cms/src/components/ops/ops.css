@@ -2965,16 +2965,6 @@
   font-size: 12px;
 }
 
-.datum-runtime__close {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  color: inherit;
-}
-
 /* Folded nav section */
 .datum-ops-nav__section--fold > summary {
   cursor: pointer;

@@ -22,7 +22,6 @@ vi.mock('@/lib/loadWorkspaceReadiness', async (importOriginal) => {
 })
 
 const { loadSetupChecklistData } = await import('@/components/ops/setupChecklistData')
-const { loadWorkspaceSetup } = await import('@/lib/loadWorkspaceReadiness')
 
 afterEach(() => {
   stub.setup = null
