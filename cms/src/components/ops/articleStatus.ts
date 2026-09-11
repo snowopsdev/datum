@@ -49,6 +49,19 @@ export function isRunnableStatus(status: string): status is RunnableStatus {
   return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
 }
 
+/**
+ * A piece a run would advance, that no run is advancing.
+ *
+ * The board used to label every one of these "Datum is working", which is only
+ * true while a `queued`/`running` pipeline run actually lists the article. When
+ * a run stopped part-way — or nobody ever started one — the card sat there
+ * claiming work was happening and gave the operator no way to make it happen.
+ * `inActiveRun` is that membership, resolved by whoever loaded the article.
+ */
+export function isStalled(status: string, inActiveRun: boolean): boolean {
+  return isRunnableStatus(status) && !inActiveRun
+}
+
 export const STAGE_LABEL: Record<ContentStage, string> = {
   research: 'Research',
   brief: 'Brief',
@@ -105,6 +118,10 @@ export type BoardArticle = {
   title: string | null
   keyword: string
   status: ArticleStatus
+  /** The public path's last segment, once one has been generated. */
+  slug: string | null
+  /** When the piece went live; null until it has. */
+  publishedAt: string | null
   templateName: string | null
   templateId: number | null
   totalCostUsd: number | null
@@ -191,6 +208,8 @@ export function toBoardArticle(doc: Article): BoardArticle {
     title: doc.title ?? null,
     keyword: doc.keyword,
     status: doc.status,
+    slug: doc.slug ?? null,
+    publishedAt: doc.publishedAt ?? null,
     templateName: template?.name ?? null,
     templateId: template?.id ?? (typeof doc.template === 'number' ? doc.template : null),
     totalCostUsd: doc.totalCostUsd ?? null,

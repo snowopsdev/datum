@@ -2575,6 +2575,19 @@
   color: var(--ops-orange);
 }
 
+/*
+ * Stalled wears the Needs-you colour — nothing moves until a person presses
+ * Run — but carries the state as well as the owner ("Stalled · running
+ * checks"), which is longer than the 130px owner column. It is the one pill
+ * allowed to wrap rather than run under the button beside it.
+ */
+.datum-content__owner--stalled {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+  white-space: normal;
+  text-align: center;
+}
+
 .datum-content__owner--done {
   background: rgba(26, 174, 57, 0.12);
   color: var(--ops-green);

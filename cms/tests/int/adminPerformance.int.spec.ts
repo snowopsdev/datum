@@ -88,6 +88,7 @@ describe('admin queries against Postgres', () => {
     expect(Object.keys(first.articles[0]).sort()).toEqual([
       'id',
       'keyword',
+      'stalled',
       'status',
       'templateName',
       'title',

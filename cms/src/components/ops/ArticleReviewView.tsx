@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
 import type { Article, InformationGainRun, Template } from '../../payload-types'
+import { activeRunIncludesArticle } from '../../lib/activeRuns'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { loadActiveAudienceOptions } from '../../lib/loadWorkspaceReadiness'
 import { modeFromEnv } from '../../lib/workspaceReadiness'
@@ -44,64 +45,74 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }, icps] =
-    await Promise.all([
-      req.payload.find({
-        collection: 'templates',
-        select: { name: true },
-        depth: 0,
-        limit: 50,
-        pagination: false,
-        sort: 'name',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      req.payload.find({
-        collection: 'article-audit',
-        select: {
-          actor: true,
-          actorType: true,
-          createdAt: true,
-          event: true,
-          fromStatus: true,
-          pipelineRunId: true,
-          stage: true,
-          summary: true,
-          toStatus: true,
-        },
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 100,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      req.payload.find({
-        collection: 'cost-log',
-        select: { provider: true, model: true, createdAt: true, pipelineRunId: true, stage: true },
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 100,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      // The latest scorecard for this article. `ArticleReview` cross-checks its
-      // id against `article.informationGain.run` before presenting the two as
-      // one state, so a run written after the article's summary was cleared (or
-      // an article re-scored since) is shown as stale rather than silently
-      // merged with the article's headline numbers.
-      req.payload.find({
-        collection: 'information-gain-runs',
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 1,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      loadActiveAudienceOptions(req.payload, req.user),
-    ])
+  const [
+    { docs: templateDocs },
+    { docs: auditDocs },
+    { docs: costDocs },
+    { docs: runDocs },
+    icps,
+    inActiveRun,
+  ] = await Promise.all([
+    req.payload.find({
+      collection: 'templates',
+      select: { name: true },
+      depth: 0,
+      limit: 50,
+      pagination: false,
+      sort: 'name',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    req.payload.find({
+      collection: 'article-audit',
+      select: {
+        actor: true,
+        actorType: true,
+        createdAt: true,
+        event: true,
+        fromStatus: true,
+        pipelineRunId: true,
+        stage: true,
+        summary: true,
+        toStatus: true,
+      },
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 100,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    req.payload.find({
+      collection: 'cost-log',
+      select: { provider: true, model: true, createdAt: true, pipelineRunId: true, stage: true },
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 100,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    // The latest scorecard for this article. `ArticleReview` cross-checks its
+    // id against `article.informationGain.run` before presenting the two as
+    // one state, so a run written after the article's summary was cleared (or
+    // an article re-scored since) is shown as stale rather than silently
+    // merged with the article's headline numbers.
+    req.payload.find({
+      collection: 'information-gain-runs',
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 1,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    loadActiveAudienceOptions(req.payload, req.user),
+    // Whether a run is actually carrying this piece. Its status alone only
+    // says a run *would* pick it up, and the header used to read that as
+    // "Datum is working" on articles nothing had touched for days.
+    activeRunIncludesArticle(req.payload, req.user, article.id),
+  ])
 
   const latestRun = (runDocs as InformationGainRun[])[0] ?? null
 
@@ -150,6 +161,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     >
       <Gutter>
         <ArticleReview
+          activeRunIncludesArticle={inActiveRun}
           article={toBoardArticle(article)}
           mode={modeFromEnv(process.env)}
           icps={icps}

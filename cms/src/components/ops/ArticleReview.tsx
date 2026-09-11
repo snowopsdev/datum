@@ -23,9 +23,14 @@ import type { AuditSummary } from './auditTypes'
 import {
   OWNER_LABEL,
   evidenceFindingsOf,
+  formatAuditTimestamp,
+  isRunnableStatus,
+  isStalled,
+  NEXT_STAGE_FOR_STATUS,
   qaFailures,
   STAGE_LABEL,
   stageOf,
+  STATUS_META,
   type BoardArticle,
   type InformationGainRunView,
   type ScorecardClaim,
@@ -35,6 +40,13 @@ import './ops.css'
 
 type Props = {
   article: BoardArticle
+  /**
+   * Whether a `queued`/`running` pipeline run lists this article. Without it a
+   * runnable status is indistinguishable from work actually in flight, which
+   * is what made the header claim "Datum is working" on pieces nothing was
+   * touching.
+   */
+  activeRunIncludesArticle: boolean
   mode: 'mock' | 'live'
   /** Active audiences the brief may switch between. */
   icps: BriefIcpOption[]
@@ -425,8 +437,133 @@ function ScorecardSection({
   )
 }
 
+/**
+ * A research hint worth printing above the template select.
+ *
+ * `research.rankingPagesSummary` is sometimes a sentence and sometimes a dump
+ * of every SERP result the research stage saw. The first helps somebody choose
+ * a shape; the second buries the control it sits above, which is why the
+ * `topic_selected` panel used to be mostly SERP text.
+ */
+const ONE_LINE_HINT_MAX = 160
+function oneLineHint(value: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (trimmed.includes('\n') || trimmed.length > ONE_LINE_HINT_MAX) return null
+  return trimmed
+}
+
+/**
+ * The one run control, on every status a pipeline run can advance.
+ *
+ * Before this, three of those statuses shared a "No operator action required.
+ * Wait for the pipeline" block that was false whenever no run was in flight —
+ * the reviewer could see the piece was stuck and had nothing to press. The
+ * panel names the stage a run would do next and starts one.
+ *
+ * `topic_selected` folds the template choice in rather than getting a second
+ * panel: `queueRunForArticles` refuses an article with no template, so
+ * assigning one and starting research is a single decision, and splitting it
+ * across two blocks only made the first look optional.
+ */
+function RunNextStagePanel({
+  article,
+  confirming,
+  editHref,
+  onCancel,
+  onConfirm,
+  onRun,
+  pending,
+  setTemplateId,
+  templateId,
+  templates,
+}: {
+  article: BoardArticle
+  /** Live mode has asked for the cost confirmation and is waiting on it. */
+  confirming: boolean
+  editHref: string
+  onCancel: () => void
+  onConfirm: () => void
+  onRun: () => void
+  pending: boolean
+  setTemplateId: (value: string) => void
+  templateId: string
+  templates: TemplateOption[]
+}) {
+  const status = article.status
+  if (!isRunnableStatus(status)) return null
+  const needsTemplate = status === 'topic_selected'
+  const hint = needsTemplate ? oneLineHint(article.researchHint) : null
+  return (
+    <div className="datum-ops__block">
+      <h3>{STAGE_LABEL[STATUS_META[status].stage]}</h3>
+      <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+        Datum will {NEXT_STAGE_FOR_STATUS[status]} this piece on the next run.
+      </p>
+      {needsTemplate ? (
+        <>
+          {hint ? (
+            <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+              {hint}
+            </p>
+          ) : null}
+          <div className="datum-ops__field">
+            <label htmlFor="tpl">Template</label>
+            <select
+              id="tpl"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              disabled={pending}
+            >
+              <option value="">Select…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : null}
+      {confirming ? (
+        <>
+          <p className="datum-ops__warn">This calls paid providers. Continue?</p>
+          <div className="datum-ops__actions">
+            <button
+              type="button"
+              className="datum-ops__btn datum-ops__btn--primary"
+              disabled={pending}
+              onClick={onConfirm}
+            >
+              Confirm
+            </button>
+            <button type="button" className="datum-ops__btn" disabled={pending} onClick={onCancel}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="datum-ops__actions">
+          <button
+            type="button"
+            className="datum-ops__btn datum-ops__btn--primary"
+            disabled={pending || (needsTemplate && !templateId)}
+            onClick={onRun}
+          >
+            {needsTemplate ? 'Assign and start research' : 'Run next stage'}
+          </button>
+          <a className="datum-ops__btn" href={editHref}>
+            Open in admin
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ArticleReview({
   article,
+  activeRunIncludesArticle,
   mode,
   icps,
   templates,
@@ -438,10 +575,17 @@ export function ArticleReview({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  /**
+   * What just happened, when it worked. Reset, regenerate and Run all queue a
+   * run now, and whether one was queued is the whole answer to "did that do
+   * anything" — an empty screen after pressing Run is what this replaces.
+   */
+  const [notice, setNotice] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState(
     article.templateId != null ? String(article.templateId) : '',
   )
-  const [confirmLiveCost, setConfirmLiveCost] = useState(false)
+  /** Live mode only: the run is one confirmation away from spending money. */
+  const [confirmRun, setConfirmRun] = useState(false)
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   /**
    * Deliberately *not* seeded from the article's persisted
@@ -455,6 +599,7 @@ export function ArticleReview({
 
   const runAction = (fn: () => Promise<unknown>, thenBoard = true) => {
     setError(null)
+    setNotice(null)
     startTransition(async () => {
       try {
         await fn()
@@ -469,8 +614,41 @@ export function ArticleReview({
     })
   }
 
+  /**
+   * Start a run for this piece alone, assigning the chosen template first when
+   * the piece has not got one yet — the pipeline skips untemplated articles,
+   * so on `topic_selected` the two are one action.
+   */
+  const startRun = (confirmLiveCost: boolean) => {
+    setConfirmRun(false)
+    runAction(async () => {
+      if (article.status === 'topic_selected' && templateId) {
+        await assignTemplateAction(article.id, Number(templateId))
+      }
+      const result = await runSelectedArticlesAction({
+        articleIds: [article.id],
+        confirmLiveCost,
+      })
+      if (!result.ok) throw new Error(result.error)
+      setNotice(result.message)
+    }, false)
+  }
+
+  /**
+   * Report what reset and regenerate did with the run they queue.
+   *
+   * Both actions now queue a run themselves and return whether they managed
+   * it. Throwing away that answer left the reviewer to guess, and the guess
+   * was wrong precisely when the workspace was not ready to run.
+   */
+  const reportQueued = (result: { queued: boolean; reason?: string }) => {
+    setNotice(result.queued ? 'Run queued' : (result.reason ?? 'No run was queued.'))
+  }
+
   const qa = article.qaResults
   const failures = qaFailures(article)
+  const stage = stageOf(article.status)
+  const stalled = isStalled(article.status, activeRunIncludesArticle)
   const evidenceFindings = evidenceFindingsOf(qa?.evidenceCheck?.claims)
   const summaryRun = article.informationGain?.run
   const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
@@ -484,12 +662,14 @@ export function ArticleReview({
           ← Content
         </Link>
         <div className="datum-ops__stage-header">
-          <Stepper current={stageOf(article.status)} size="full" />
+          <Stepper current={stage} size="full" />
+          {/* Stalled wears the Needs-you colour: nothing moves until a person
+              presses Run, which is the definition of work waiting on them. */}
           <span
-            className={`datum-content__owner datum-content__owner--${stageOf(article.status).owner}`}
+            className={`datum-content__owner datum-content__owner--${stalled ? 'stalled' : stage.owner}`}
           >
-            {OWNER_LABEL[stageOf(article.status).owner]} ·{' '}
-            {STAGE_LABEL[stageOf(article.status).stage]}: {stageOf(article.status).label}
+            {stalled ? 'Stalled' : OWNER_LABEL[stage.owner]} · {STAGE_LABEL[stage.stage]}:{' '}
+            {stage.label}
           </span>
         </div>
       </div>
@@ -544,88 +724,24 @@ export function ArticleReview({
 
         <aside className="datum-ops__review-aside">
           {error ? <p className="datum-ops__error">{error}</p> : null}
-
-          {article.status === 'topic_selected' ? (
-            <div className="datum-ops__block">
-              <h3>Assign template</h3>
-              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-                {article.researchHint || 'Pick a shape before the next pipeline run.'}
-              </p>
-              <div className="datum-ops__field">
-                <label htmlFor="tpl">Template</label>
-                <select
-                  id="tpl"
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
-                  disabled={pending}
-                >
-                  <option value="">Select…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="datum-ops__actions">
-                <button
-                  type="button"
-                  className="datum-ops__btn datum-ops__btn--primary"
-                  disabled={pending || !templateId}
-                  onClick={() =>
-                    runAction(() => assignTemplateAction(article.id, Number(templateId)))
-                  }
-                >
-                  Assign & return
-                </button>
-              </div>
-            </div>
+          {notice ? (
+            <p className="datum-ops__ok" role="status">
+              {notice}
+            </p>
           ) : null}
 
-          {article.status === 'topic_selected' && article.templateId != null ? (
-            <div className="datum-ops__block">
-              <h3>Start research</h3>
-              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-                {/*
-                  This exists because a piece created while the workspace was
-                  not ready (no brand voice, missing live keys) is created
-                  anyway and left here — nothing queues research for it on its
-                  own once the workspace becomes ready, and until now there was
-                  no way to start it from the admin.
-                */}
-                Research has not started yet. This runs it for this piece alone.
-              </p>
-              {mode === 'live' ? (
-                <label className="datum-ops__cost-confirm">
-                  <input
-                    checked={confirmLiveCost}
-                    disabled={pending}
-                    onChange={(e) => setConfirmLiveCost(e.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>This run uses paid live providers.</span>
-                </label>
-              ) : null}
-              <div className="datum-ops__actions">
-                <button
-                  type="button"
-                  className="datum-ops__btn datum-ops__btn--primary"
-                  disabled={pending || (mode === 'live' && !confirmLiveCost)}
-                  onClick={() =>
-                    runAction(async () => {
-                      const result = await runSelectedArticlesAction({
-                        articleIds: [article.id],
-                        confirmLiveCost,
-                      })
-                      if (!result.ok) throw new Error(result.error)
-                    }, false)
-                  }
-                >
-                  Start research
-                </button>
-              </div>
-            </div>
-          ) : null}
+          <RunNextStagePanel
+            article={article}
+            confirming={confirmRun}
+            editHref={editHref}
+            onCancel={() => setConfirmRun(false)}
+            onConfirm={() => startRun(true)}
+            onRun={() => (mode === 'live' ? setConfirmRun(true) : startRun(false))}
+            pending={pending}
+            setTemplateId={setTemplateId}
+            templateId={templateId}
+            templates={templates}
+          />
 
           {article.status === 'needs_revision' ? (
             <>
@@ -741,9 +857,8 @@ export function ArticleReview({
               <div className="datum-ops__block">
                 <h3>Resolve</h3>
                 <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-                  Reset to <code>drafted</code> re-enters QA on next <code>pipeline:run</code>.
-                  Regenerating goes further back, to <code>researched</code>, and rewrites the
-                  draft.
+                  Reset to <code>drafted</code> re-enters QA on the next run. Regenerating goes
+                  further back, to <code>researched</code>, and writes a new draft on the next run.
                   {revisionCount > 0
                     ? ` Regenerated ${revisionCount} time${revisionCount === 1 ? '' : 's'} already.`
                     : ''}
@@ -769,7 +884,12 @@ export function ArticleReview({
                     type="button"
                     className="datum-ops__btn datum-ops__btn--primary"
                     disabled={pending}
-                    onClick={() => runAction(() => resetToDraftedAction(article.id, notes))}
+                    onClick={() =>
+                      runAction(
+                        async () => reportQueued(await resetToDraftedAction(article.id, notes)),
+                        false,
+                      )
+                    }
                   >
                     Reset to drafted
                   </button>
@@ -793,7 +913,13 @@ export function ArticleReview({
                         type="button"
                         className="datum-ops__btn datum-ops__btn--danger"
                         disabled={pending}
-                        onClick={() => runAction(() => regenerateArticleAction(article.id, notes))}
+                        onClick={() =>
+                          runAction(
+                            async () =>
+                              reportQueued(await regenerateArticleAction(article.id, notes)),
+                            false,
+                          )
+                        }
                       >
                         Confirm: discard draft & regenerate
                       </button>
@@ -823,29 +949,12 @@ export function ArticleReview({
                 {confirmRegenerate ? (
                   <p className="datum-ops__warn" style={{ marginTop: 10 }}>
                     This throws away the current body and sends the article back to{' '}
-                    <code>researched</code> so the next pipeline run writes a new one, with the
+                    <code>researched</code>, then writes a new draft on the next run with the
                     reasons above (plus your note) in the prompt.
                   </p>
                 ) : null}
               </div>
             </>
-          ) : null}
-
-          {article.status === 'qa_passed' ? (
-            <div className="datum-ops__block">
-              <h3>Awaiting information gain</h3>
-              <p className="datum-ops__sub" style={{ margin: 0 }}>
-                QA passed, but nothing has scored this draft yet. The <code>informationGain</code>{' '}
-                stage runs on the next <code>pipeline:run</code> and decides between{' '}
-                <code>verified</code>, <code>needs_review</code>, <code>blocked</code>, and{' '}
-                <code>needs_revision</code>. There is nothing to approve until it has.
-              </p>
-              <div className="datum-ops__actions" style={{ marginTop: 12 }}>
-                <a className="datum-ops__btn" href={editHref}>
-                  Open in admin
-                </a>
-              </div>
-            </div>
           ) : null}
 
           {article.status === 'verified' ? (
@@ -995,22 +1104,29 @@ export function ArticleReview({
             </div>
           ) : null}
 
-          {![
-            'topic_selected',
-            'brief_review',
-            'needs_revision',
-            'qa_passed',
-            'verified',
-            'needs_review',
-            'blocked',
-            'approved',
-          ].includes(article.status) ? (
+          {article.status === 'published' ? (
             <div className="datum-ops__block">
-              <h3>Status</h3>
-              <p className="datum-ops__sub" style={{ margin: 0 }}>
-                No operator action required. Wait for the pipeline or open the document in admin.
+              <h3>Live</h3>
+              <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
+                {article.publishedAt
+                  ? `Published ${formatAuditTimestamp(article.publishedAt)}.`
+                  : 'Published; the time it went live was not recorded.'}
               </p>
-              <div className="datum-ops__actions" style={{ marginTop: 12 }}>
+              <div className="datum-ops__actions">
+                {article.slug ? (
+                  <a
+                    className="datum-ops__btn datum-ops__btn--primary"
+                    href={`/articles/${article.slug}`}
+                    rel="noreferrer noopener"
+                    target="_blank"
+                  >
+                    /articles/{article.slug}
+                  </a>
+                ) : (
+                  <span className="datum-ops__hint">
+                    No slug on this piece, so it has no public address.
+                  </span>
+                )}
                 <a className="datum-ops__btn" href={editHref}>
                   Open in admin
                 </a>

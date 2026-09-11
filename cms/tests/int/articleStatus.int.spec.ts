@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { Articles } from '@/collections/Articles'
-import { ARTICLE_STATUSES, CONTENT_STAGES, STATUS_STAGE, stageOf } from '@/components/ops/articleStatus'
+import {
+  ARTICLE_STATUSES,
+  CONTENT_STAGES,
+  isStalled,
+  STATUS_STAGE,
+  stageOf,
+} from '@/components/ops/articleStatus'
 import { gateReviewOverride } from '@/lib/articleReviewGate'
 
 describe('article status configuration', () => {
@@ -37,6 +43,12 @@ describe('article status configuration', () => {
 
   it('does not throw on a status it has never heard of', () => {
     expect(stageOf('something_new').stage).toBe('research')
+  })
+
+  it('isStalled is true for runnable statuses outside an active run', () => {
+    expect(isStalled('researched', false)).toBe(true)
+    expect(isStalled('researched', true)).toBe(false)
+    expect(isStalled('verified', false)).toBe(false)
   })
 
   it('registers gateReviewOverride as a beforeChange hook on Articles', () => {

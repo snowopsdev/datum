@@ -8,6 +8,8 @@ import { verifyWebhookSignature } from '../../src/jobs/webhookDeliver.js'
 import { login } from '../helpers/login'
 import {
   cleanupOpsUser,
+  ensureRunReadiness,
+  firstTemplateId,
   opsPayload,
   opsTestUser,
   retireArticles,
@@ -44,11 +46,16 @@ let previousWebhookSettings: { enabled: boolean; url: string | null; secret: str
 const deliveries: Delivery[] = []
 const seededIds: number[] = []
 const WEBHOOK_SECRET = 'e2e-suite-secret'
+/** A runnable piece no run is carrying — the state the run controls exist for. */
+let researchedId: number
 
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Content ops', () => {
   test.beforeAll(async ({ browser }) => {
+    // Seeding here creates the governance assets a run needs, which is more
+    // work than the default hook budget allows on a cold database.
+    test.setTimeout(120_000)
     payload = await opsPayload()
     await seedOpsUser(payload)
 
@@ -76,6 +83,20 @@ test.describe('Content ops', () => {
       secret: existing?.secret ?? null,
     }
     await setWebhookSettings(payload, { enabled: true, url: listenerUrl, secret: WEBHOOK_SECRET })
+
+    // The run controls refuse a workspace that cannot write, so the suite has
+    // to be able to answer "yes" before it can test the button.
+    await ensureRunReadiness(payload)
+    const researched = await seedArticle(payload, {
+      // Nothing in the title may contain "Stalled": the test asserts on the
+      // header pill by text, and the heading would match it too.
+      keyword: `e2e run controls ${Date.now()}`,
+      title: 'E2E run controls',
+      status: 'researched',
+      template: await firstTemplateId(payload),
+    })
+    researchedId = researched.id
+    seededIds.push(researchedId)
 
     const context = await browser.newContext()
     page = await context.newPage()
@@ -148,7 +169,12 @@ test.describe('Content ops', () => {
     })!
     expect(delivery.event).toBe('article.status_changed')
     expect(
-      verifyWebhookSignature(WEBHOOK_SECRET, delivery.timestamp, delivery.rawBody, delivery.signature),
+      verifyWebhookSignature(
+        WEBHOOK_SECRET,
+        delivery.timestamp,
+        delivery.rawBody,
+        delivery.signature,
+      ),
     ).toBe(true)
     expect(JSON.parse(delivery.rawBody)).toMatchObject({
       from: 'approved',
@@ -177,6 +203,20 @@ test.describe('Content ops', () => {
     // Leave the dirty form so the next navigation is not blocked by the
     // unsaved-changes dialog.
     page.on('dialog', (dialog) => void dialog.accept())
+  })
+
+  // `.datum-ops` rather than `main`: the Payload admin shell renders no
+  // `<main>`, and this root is exactly the operator-facing copy under test.
+  test('no operator copy mentions the CLI', async () => {
+    await page.goto(`/admin/ops/articles/${researchedId}`)
+    await expect(page.locator('.datum-ops')).not.toContainText('pipeline:run')
+  })
+
+  test('a stalled article can be run from the review page', async () => {
+    await page.goto(`/admin/ops/articles/${researchedId}`)
+    await expect(page.getByText('Stalled')).toBeVisible()
+    await page.getByRole('button', { name: 'Run next stage' }).click()
+    await expect(page.getByText(/Started a run/)).toBeVisible()
   })
 
   test('reports page shows the pipeline runs panel', async () => {
