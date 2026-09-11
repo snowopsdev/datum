@@ -453,15 +453,18 @@ export function ArticleReview({
   const [justification, setJustification] = useState('')
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
 
-  const runAction = (fn: () => Promise<void>, thenBoard = true) => {
+  const runAction = (fn: () => Promise<unknown>, thenBoard = true) => {
     setError(null)
     startTransition(async () => {
       try {
         await fn()
         if (thenBoard) router.push('/admin/ops/content')
         else router.refresh()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Action failed')
+      } catch (error) {
+        // Whatever was actually thrown. "Action failed" hid the gate messages
+        // (`articleReviewGate.ts`) that explain why a write was refused, which
+        // are the only thing that tells a reviewer what to do differently.
+        setError(error instanceof Error ? error.message : String(error))
       }
     })
   }

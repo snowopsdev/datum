@@ -5,10 +5,13 @@ import { randomUUID } from 'node:crypto'
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { getPayload, type Payload, type TypedUser } from 'payload'
 
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import type { WorkspaceReadiness } from '../../lib/workspaceReadiness'
+import type { Article } from '../../payload-types'
 
 import { isRunnableStatus } from './articleStatus'
 import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
@@ -25,13 +28,66 @@ async function requireUser() {
   return { payload, user }
 }
 
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
-    return e.message
-  return fallback
-}
-
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * Queue a run for articles that already exist — the one way to do it.
+ *
+ * The board's Run button and the reviewer's reset/regenerate actions both end
+ * up here, so an article queued from an article page and one queued from the
+ * board get the same refusals, the same `selected` source and the same run
+ * row. Callers own the readiness decision (only they know whether a live-cost
+ * confirmation was asked for) and the article load; this owns everything from
+ * "these documents, that readiness" to a queued job.
+ *
+ * Refusals throw rather than returning a result union: every caller already
+ * has a catch that turns a message into its own shape, and a second union here
+ * would only be unwrapped and rewrapped at each one.
+ */
+export async function queueRunForArticles(
+  payload: Payload,
+  user: TypedUser,
+  docs: Article[],
+  readiness: WorkspaceReadiness,
+): Promise<{ runId: string }> {
+  if (docs.length === 0) throw new Error('Those articles no longer exist.')
+
+  // A status with no stage waiting on it would be silently dropped by
+  // `runPipeline`'s entry-status query, so the run would report success
+  // having done nothing. Refuse instead of lying about it.
+  const stalled = docs.filter((doc) => !isRunnableStatus(doc.status))
+  if (stalled.length > 0) {
+    throw new Error(
+      `${plural(stalled.length, 'article')} cannot be advanced by a run — open ${stalled.length === 1 ? 'it' : 'them'} to decide what happens next.`,
+    )
+  }
+  const untemplated = docs.filter((doc) => !doc.template)
+  if (untemplated.length > 0) {
+    throw new Error(
+      `Assign a template to ${plural(untemplated.length, 'article')} first — the pipeline skips articles without one.`,
+    )
+  }
+
+  // The run row needs one template for its own record; each article is still
+  // written against its own, so a mixed selection runs correctly either way.
+  const first = docs[0].template
+  const templateId = typeof first === 'object' && first ? first.id : Number(first)
+
+  const runId = randomUUID()
+  await createPipelineRun(payload, user, {
+    runId,
+    source: 'selected',
+    templateId,
+    count: docs.length,
+    articleIds: docs.map((doc) => doc.id),
+    requestedBy: user.email || String(user.id),
+    readiness,
+  })
+
+  revalidatePath(BOARD_PATH)
+  revalidatePath('/admin')
+  return { runId }
+}
 
 /**
  * Advance the articles a person ticked on the board, and only those.
@@ -60,7 +116,10 @@ export async function runSelectedArticlesAction(input: {
       }
     }
     if (!readiness.governance.ready) {
-      return { ok: false, error: 'Activate a brand voice before running the pipeline.' }
+      return {
+        ok: false,
+        error: `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`,
+      }
     }
     if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
       return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
@@ -73,44 +132,7 @@ export async function runSelectedArticlesAction(input: {
       limit: ids.length,
       depth: 0,
     })
-    if (docs.length === 0) return { ok: false, error: 'Those articles no longer exist.' }
-
-    // A status with no stage waiting on it would be silently dropped by
-    // `runPipeline`'s entry-status query, so the run would report success
-    // having done nothing. Refuse instead of lying about it.
-    const stalled = docs.filter((doc) => !isRunnableStatus(doc.status))
-    if (stalled.length > 0) {
-      return {
-        ok: false,
-        error: `${plural(stalled.length, 'article')} cannot be advanced by a run — open ${stalled.length === 1 ? 'it' : 'them'} to decide what happens next.`,
-      }
-    }
-    const untemplated = docs.filter((doc) => !doc.template)
-    if (untemplated.length > 0) {
-      return {
-        ok: false,
-        error: `Assign a template to ${plural(untemplated.length, 'article')} first — the pipeline skips articles without one.`,
-      }
-    }
-
-    // The run row needs one template for its own record; each article is still
-    // written against its own, so a mixed selection runs correctly either way.
-    const first = docs[0].template
-    const templateId = typeof first === 'object' && first ? first.id : Number(first)
-
-    const runId = randomUUID()
-    await createPipelineRun(payload, user, {
-      runId,
-      source: 'selected',
-      templateId,
-      count: docs.length,
-      articleIds: docs.map((doc) => doc.id),
-      requestedBy: user.email || String(user.id),
-      readiness,
-    })
-
-    revalidatePath(BOARD_PATH)
-    revalidatePath('/admin')
+    await queueRunForArticles(payload, user, docs, readiness)
     return {
       ok: true,
       message: `Started a run for ${plural(docs.length, 'article')}. Progress shows above.`,
@@ -302,7 +324,10 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       failures: toRunFailures(run.warnings),
       errorSummary: run.errorSummary ?? null,
     }
-  } catch {
-    throw new Error('Could not load run status.')
+  } catch (error) {
+    // The cause, not a house-brand sentence: this is polled from every admin
+    // page, and "could not load run status" on its own has sent people looking
+    // at the pipeline when the answer was a closed database connection.
+    throw new Error(`Could not load run status: ${errorMessage(error, 'unknown error')}`)
   }
 }

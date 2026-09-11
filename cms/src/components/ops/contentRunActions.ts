@@ -8,6 +8,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 
 export interface StartContentRunInput {
@@ -60,7 +61,11 @@ export async function startContentRunAction(
     })
   } catch (error) {
     if (error instanceof ActivePipelineRunError) return { ok: false, error: error.message }
-    return { ok: false, error: 'Another content run started at the same time. Try again shortly.' }
+    // Anything else is not a race — it is a transaction that failed, a job
+    // queue that refused, or a database that went away. Guessing "try again
+    // shortly" at all of those sent people retrying a run that could never
+    // start.
+    return { ok: false, error: `Could not start the run: ${errorMessage(error, 'unknown error')}` }
   }
 
   revalidatePath('/admin')

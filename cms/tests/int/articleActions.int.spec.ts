@@ -9,13 +9,37 @@ import { buildRegenerateRevisionNotes, qaFailureLines } from '@/components/ops/a
 // `APIError` from it, and a bare replacement would break those.
 const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.com' } }))
 const findByIDMock = vi.fn(
-  async () => ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0 }) as never,
+  async () =>
+    ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0, template: 3 }) as never,
 )
 const findMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ docs: [] }) as never)
-const updateMock = vi.fn(async () => ({}) as never)
+// Echoes back what was written, the way the real `payload.update` returns the
+// updated document — the queue step reads the article's *new* status from it.
+const updateMock = vi.fn(
+  async (args: { id?: number; data?: Record<string, unknown> }) =>
+    ({ id: args?.id ?? 1, template: 3, ...args?.data }) as never,
+)
+
+// The workspace checklist and the run creator are the two things the queue step
+// added to these actions. Both are mocked: the checklist reads eight collections
+// and globals, and `createPipelineRun` opens a Postgres transaction and takes an
+// advisory lock. `ActivePipelineRunError` is kept real (importOriginal) because
+// `actions.ts` branches on `instanceof`.
+const { createPipelineRunMock, loadWorkspaceSetupMock } = vi.hoisted(() => ({
+  createPipelineRunMock: vi.fn(),
+  loadWorkspaceSetupMock: vi.fn(),
+}))
 
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('@/lib/loadWorkspaceReadiness', () => ({
+  loadWorkspaceSetup: loadWorkspaceSetupMock,
+  loadActiveAudienceOptions: vi.fn(async () => []),
+}))
+vi.mock('@/lib/createPipelineRun', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/createPipelineRun')>()
+  return { ...actual, createPipelineRun: createPipelineRunMock }
+})
 vi.mock('payload', async (importOriginal) => {
   const actual = await importOriginal<typeof import('payload')>()
   return {
@@ -29,6 +53,24 @@ vi.mock('payload', async (importOriginal) => {
   }
 })
 
+/** Enough of `WorkspaceSetupData` for the queue decision; nothing else reads it. */
+const readySetup = (overrides: Record<string, unknown> = {}) =>
+  ({
+    readiness: {
+      mode: 'mock',
+      runtime: { ready: true, missing: [], blockers: [] },
+      governance: { ready: true, activeVoiceId: 1, problems: [] },
+      ...overrides,
+    },
+    templates: [{ id: 3, name: 'Guide' }],
+    icps: [],
+    latestRun: null,
+  }) as never
+
+loadWorkspaceSetupMock.mockResolvedValue(readySetup())
+createPipelineRunMock.mockResolvedValue(undefined)
+
+const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
 const { regenerateArticleAction, resetToDraftedAction, sendBackAction } = await import(
   '@/components/ops/actions'
 )
@@ -417,5 +459,115 @@ describe('regenerateArticleAction resolves the run through the current pointer',
     expect(revisionNotesSent()).toBe(
       '- [Structure] "game changer" appears in the body, and the platform style guide bans it. Remove "game changer" and say the same thing in plain words.',
     )
+  })
+})
+
+/**
+ * Both send-back actions now finish the job they start: an article that has
+ * been reset or sent for regeneration is queued for a run, so nobody has to
+ * find it on the board and tick it a second time. When the run cannot be
+ * queued the action says so in `reason` rather than pretending it started —
+ * the update itself has already happened either way.
+ */
+describe('resetToDraftedAction and regenerateArticleAction queue the run themselves', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_revision',
+      qaResults: undefined,
+      revisionCount: 0,
+      template: 3,
+    } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+    loadWorkspaceSetupMock.mockResolvedValue(readySetup())
+    createPipelineRunMock.mockResolvedValue(undefined)
+  })
+
+  it('resetToDraftedAction queues a selected run for the article', async () => {
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'needs_revision', template: 3 } as never)
+    const result = await resetToDraftedAction(1, 'fixed the intro')
+    expect(result.queued).toBe(true)
+    expect(result.runId).toEqual(expect.any(String))
+    expect(createPipelineRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ source: 'selected', articleIds: [1] }),
+    )
+  })
+
+  it('regenerateArticleAction queues a selected run for the article', async () => {
+    const result = await regenerateArticleAction(1, 'tighten it')
+    expect(result.queued).toBe(true)
+    expect(createPipelineRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ source: 'selected', articleIds: [1] }),
+    )
+  })
+
+  it('regenerateArticleAction reports when a run is already active', async () => {
+    createPipelineRunMock.mockRejectedValueOnce(new ActivePipelineRunError('run-42'))
+    const result = await regenerateArticleAction(1, 'tighten it')
+    expect(result).toEqual({ queued: false, reason: 'Run run-42 is already in progress.' })
+  })
+
+  it('still performs the update when the run cannot be queued', async () => {
+    createPipelineRunMock.mockRejectedValueOnce(new ActivePipelineRunError('run-42'))
+    await resetToDraftedAction(1, 'fixed the intro')
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'drafted' }) }),
+    )
+  })
+
+  it('names the governance problems instead of queueing a run that cannot work', async () => {
+    loadWorkspaceSetupMock.mockResolvedValue(
+      readySetup({
+        governance: {
+          ready: false,
+          activeVoiceId: null,
+          problems: ['Set the target domain', 'Add and activate at least one audience (ICP)'],
+        },
+      }),
+    )
+    const result = await resetToDraftedAction(1, 'fixed the intro')
+    expect(result).toEqual({
+      queued: false,
+      reason:
+        'Finish setup before running the pipeline: Set the target domain; Add and activate at least one audience (ICP).',
+    })
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
+  it('names the missing environment variables when the runtime is not ready', async () => {
+    loadWorkspaceSetupMock.mockResolvedValue(
+      readySetup({ runtime: { ready: false, missing: ['OPENAI_API_KEY'], blockers: ['OPENAI_API_KEY'] } }),
+    )
+    const result = await regenerateArticleAction(1)
+    expect(result).toEqual({
+      queued: false,
+      reason: 'Configure the required environment variables: OPENAI_API_KEY.',
+    })
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
+  it('does not spend live money without confirmation, and queues when it is given', async () => {
+    loadWorkspaceSetupMock.mockResolvedValue(readySetup({ mode: 'live' }))
+    expect(await regenerateArticleAction(1)).toEqual({
+      queued: false,
+      reason: 'Confirm the live provider cost before starting this run.',
+    })
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+
+    const confirmed = await regenerateArticleAction(1, undefined, { confirmLiveCost: true })
+    expect(confirmed.queued).toBe(true)
+  })
+
+  it('skips the run entirely when the caller asks it to', async () => {
+    const result = await resetToDraftedAction(1, 'fixed the intro', { queueRun: false })
+    expect(result).toEqual({ queued: false })
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalled()
   })
 })

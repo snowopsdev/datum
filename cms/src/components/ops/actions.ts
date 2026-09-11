@@ -6,9 +6,14 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
+import { ActivePipelineRunError } from '@/lib/createPipelineRun'
+import { errorMessage } from '@/lib/errorMessage'
+import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
 import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
+import type { Article } from '@/payload-types'
 
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
+import { queueRunForArticles } from './boardActions'
 
 /**
  * Nulls every `informationGain` key. The group has `access.update: () =>
@@ -81,6 +86,71 @@ function auditContext(
   }
 }
 
+/**
+ * What a reviewer action did about the run that has to follow it.
+ *
+ * `queued: false` is a normal outcome, not a failure: the article has been
+ * updated either way, and `reason` says what stopped the run so the page can
+ * show it instead of leaving the reviewer to wonder why nothing is moving.
+ */
+export type QueuedRunResult = { queued: boolean; runId?: string; reason?: string }
+
+/**
+ * `queueRun: false` for a caller that will start the run itself (or wants none
+ * at all); `confirmLiveCost` for one that has told the reviewer what a live run
+ * costs and had them agree. Neither is needed in the ordinary mock-mode case.
+ */
+export type ReviewActionOptions = { queueRun?: boolean; confirmLiveCost?: boolean }
+
+/**
+ * Send an article that has just been reworked straight back into the pipeline.
+ *
+ * Resetting a draft or asking for a regeneration used to leave the article
+ * sitting in a runnable status with nothing running: the reviewer had to go
+ * back to the board, find it, tick it and press Run. This closes that gap, and
+ * deliberately reuses `queueRunForArticles` so a run queued from an article
+ * page is the same run, with the same refusals, as one queued from the board.
+ *
+ * The readiness gate is the board's, reproduced rather than delegated because
+ * only the caller knows whether a live-cost confirmation was collected. Every
+ * refusal comes back as `reason`; nothing here throws, because the update it
+ * follows has already succeeded and reporting the whole action as failed would
+ * be a lie about the part that worked.
+ */
+async function queueRunAfterRework(
+  payload: Awaited<ReturnType<typeof requireUser>>['payload'],
+  user: Awaited<ReturnType<typeof requireUser>>['user'],
+  article: Article,
+  options?: ReviewActionOptions,
+): Promise<QueuedRunResult> {
+  if (options?.queueRun === false) return { queued: false }
+
+  const { readiness } = await loadWorkspaceSetup(payload)
+  if (!readiness.runtime.ready) {
+    return {
+      queued: false,
+      reason: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
+    }
+  }
+  if (!readiness.governance.ready) {
+    return {
+      queued: false,
+      reason: `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`,
+    }
+  }
+  if (readiness.mode === 'live' && options?.confirmLiveCost !== true) {
+    return { queued: false, reason: 'Confirm the live provider cost before starting this run.' }
+  }
+
+  try {
+    const { runId } = await queueRunForArticles(payload, user, [article], readiness)
+    return { queued: true, runId }
+  } catch (error) {
+    if (error instanceof ActivePipelineRunError) return { queued: false, reason: error.message }
+    return { queued: false, reason: errorMessage(error, 'Could not start a run for this article.') }
+  }
+}
+
 /** A `maxDepth: 0` relationship is an id, but a populated row may still arrive. */
 function relationshipId(value: unknown): number | null {
   if (typeof value === 'number') return value
@@ -137,9 +207,13 @@ export async function assignTemplateAction(articleId: number, templateId: number
   revalidateOps(articleId)
 }
 
-export async function resetToDraftedAction(articleId: number, reviewNotes?: string) {
+export async function resetToDraftedAction(
+  articleId: number,
+  reviewNotes?: string,
+  options?: ReviewActionOptions,
+): Promise<QueuedRunResult> {
   const { payload, user } = await requireUser()
-  await payload.update({
+  const updated = await payload.update({
     collection: 'articles',
     id: articleId,
     data: {
@@ -157,6 +231,7 @@ export async function resetToDraftedAction(articleId: number, reviewNotes?: stri
     overrideAccess: true,
   })
   revalidateOps(articleId)
+  return queueRunAfterRework(payload, user, updated, options)
 }
 
 export async function approveArticleAction(articleId: number, reviewNotes?: string) {
@@ -291,7 +366,11 @@ export async function overrideReviewAction(articleId: number, justification: str
  * stale decision must not linger next to a draft nobody has re-scored yet, so
  * this call also needs `overrideAccess: true` — see `NULL_INFORMATION_GAIN`.
  */
-export async function regenerateArticleAction(articleId: number, note?: string) {
+export async function regenerateArticleAction(
+  articleId: number,
+  note?: string,
+  options?: ReviewActionOptions,
+): Promise<QueuedRunResult> {
   const { payload, user } = await requireUser()
   const article = await payload.findByID({
     collection: 'articles',
@@ -301,7 +380,7 @@ export async function regenerateArticleAction(articleId: number, note?: string) 
   })
   const run = await currentInformationGainRun(payload, article, user)
   const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
-  await payload.update({
+  const updated = await payload.update({
     collection: 'articles',
     id: articleId,
     data: {
@@ -322,4 +401,5 @@ export async function regenerateArticleAction(articleId: number, note?: string) 
     overrideAccess: true,
   })
   revalidateOps(articleId)
+  return queueRunAfterRework(payload, user, updated, options)
 }
