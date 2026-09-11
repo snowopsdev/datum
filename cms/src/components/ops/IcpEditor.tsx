@@ -158,7 +158,7 @@ export function IcpEditor({ record }: { record: IcpDTO | null }) {
   return (
     <AssetStepper<IcpStepId>
       heading={record ? content.name || 'Audience' : 'New audience'}
-      lede="Who this piece is for. Every section is injected into the writer’s prompt with its confidence, which decides whether it may be stated or must be hedged."
+      lede="Who you write for. Each answer goes to the writer with how sure you are, which decides whether it can be stated outright or must be hedged."
       headerExtra={
         <>
           <span className={`datum-ops__status datum-ops__status--${status}`}>{status}</span>
@@ -212,7 +212,12 @@ export function IcpEditor({ record }: { record: IcpDTO | null }) {
             </button>
           ) : null}
           {status === 'active' && !primary ? (
-            <button type="button" className="datum-ops__btn" onClick={makePrimary} disabled={pending}>
+            <button
+              type="button"
+              className="datum-ops__btn"
+              onClick={makePrimary}
+              disabled={pending}
+            >
               Make primary
             </button>
           ) : null}

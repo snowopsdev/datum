@@ -28,7 +28,11 @@ function difficultyLabel(kd: number): string {
 }
 
 const compact = (n: number): string =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n)
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1_000
+      ? `${Math.round(n / 1_000)}k`
+      : String(n)
 
 export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }: Props) {
   const router = useRouter()
@@ -125,8 +129,8 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
       <h2>Find topics to write about</h2>
       <div className="datum-ops__panel-body">
         <p className="datum-ops__sub">
-          Type a subject you want to cover. We ask Ahrefs what people actually search for around
-          it, then you pick the ones worth writing. Tick several related searches and they become a
+          Type a subject you want to cover. We ask Ahrefs what people actually search for around it,
+          then you pick the ones worth writing. Tick several related searches and they become a
           single article covering all of them. Creating one starts research right away — that alone
           calls paid services in live mode. Nothing is <em>written</em> until you approve the brief
           it produces.
@@ -144,7 +148,11 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
               value={seed}
             />
           </label>
-          <button className="datum-ops__btn datum-ops__btn--primary" disabled={pending} type="submit">
+          <button
+            className="datum-ops__btn datum-ops__btn--primary"
+            disabled={pending}
+            type="submit"
+          >
             {pending && !candidates ? 'Searching…' : 'Find topics'}
           </button>
         </form>
@@ -227,7 +235,8 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
                       </td>
                       <td>{compact(c.volume)}</td>
                       <td>
-                        {c.difficulty} <span className="datum-ops__hint">{difficultyLabel(c.difficulty)}</span>
+                        {c.difficulty}{' '}
+                        <span className="datum-ops__hint">{difficultyLabel(c.difficulty)}</span>
                       </td>
                     </tr>
                   ))}
@@ -242,7 +251,11 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
             ) : (
               <>
                 <div className="datum-ops__period" style={{ marginTop: 16 }}>
-                  <label className="datum-ops__field" style={{ marginBottom: 0 }} hidden={fixedTemplateId != null}>
+                  <label
+                    className="datum-ops__field"
+                    style={{ marginBottom: 0 }}
+                    hidden={fixedTemplateId != null}
+                  >
                     <label htmlFor="topic-template">Write these as</label>
                     <select
                       disabled={pending}
@@ -283,8 +296,8 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
                 ) : null}
                 <p className="datum-ops__hint">
                   The template decides the shape of the article — a how-to, a comparison, or a
-                  ranked list — and QA checks the draft against it, so pick the one that matches
-                  how you would answer the topic. You can change it per article on the board later.
+                  ranked list — and QA checks the draft against it, so pick the one that matches how
+                  you would answer the topic. You can change it per article on the board later.
                 </p>
               </>
             )}
@@ -300,9 +313,9 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
               Nothing has been written or spent yet.
             </li>
             <li>
-              <strong>Datum researches it</strong> and writes you a brief. Under Content, tick the topics you want and
-              press Start. Datum researches what already ranks, writes a draft in your brand voice,
-              and checks it. You choose which topics run and when.
+              <strong>Datum researches it</strong> and writes you a brief. Under Content, tick the
+              topics you want and press Start. Datum researches what already ranks, writes a draft
+              in your brand voice, and checks it. You choose which topics run and when.
             </li>
             <li>
               <strong>Three checks must pass</strong> — structure, facts (verified against live web
@@ -318,7 +331,7 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
           <p>
             {mode === 'live'
               ? 'This workspace is in live mode: every run calls paid APIs, so add topics deliberately.'
-              : 'This workspace is in mock mode: runs use canned fixtures and cost nothing.'}
+              : 'This workspace is in mock mode. Runs use sample data and cost nothing.'}
           </p>
         </details>
       </div>

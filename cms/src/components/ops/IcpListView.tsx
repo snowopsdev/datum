@@ -65,8 +65,8 @@ export async function IcpListView(props: AdminViewServerProps) {
             </Link>
           </div>
           <p className="datum-ops__lede">
-            Who each piece is written for. The primary audience is what a new piece starts with; the
-            brief can change it per piece. An audience governs prompts only once it is active.
+            Who your content is written for. New pieces start with the primary audience, and the
+            brief can switch it per piece. Only active audiences shape the writing.
           </p>
 
           <div className="datum-ops__actions">
@@ -81,7 +81,7 @@ export async function IcpListView(props: AdminViewServerProps) {
 
           {rows.length === 0 ? (
             <p className="datum-ops__empty">
-              No audiences yet. A run needs at least one active audience before it can write.
+              No audiences yet. Add at least one active audience before Datum can write.
             </p>
           ) : (
             <table className="datum-ops__table">

@@ -105,8 +105,8 @@ function EntryCards({
           <span className="datum-ops__pill">one extraction call</span>
         </div>
         <p>
-          Already have a brand book, tone-of-voice doc, or style guide? Drop it in and we extract the
-          same fields for you to review before anything goes live.
+          Already have a brand book, tone-of-voice doc, or style guide? Drop it in and we extract
+          the same fields for you to review before anything goes live.
         </p>
         <label htmlFor={inputId} className="datum-ops__hint">
           Choose a brand guide file
@@ -158,7 +158,8 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
 
   const [screen, setScreen] = useState<Screen>(() => {
     if (initialMode === 'onboarding') return 'onboarding'
-    if (initialMode === 'review' || initialMode === 'guide') return records.length ? 'review' : 'empty'
+    if (initialMode === 'review' || initialMode === 'guide')
+      return records.length ? 'review' : 'empty'
     return records.length ? 'review' : 'empty'
   })
   const [tab, setTab] = useState<Tab>(initialMode === 'guide' ? 'guide' : 'essence')
@@ -244,7 +245,11 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
     setError(null)
     setTab(nextTab)
     setConfirmDelete(false)
-    if (record.status === 'draft' && record.source === 'onboarding' && record.onboardingStep < STEP_COUNT) {
+    if (
+      record.status === 'draft' &&
+      record.source === 'onboarding' &&
+      record.onboardingStep < STEP_COUNT
+    ) {
       setScreen('onboarding')
       router.replace(`${VIEW_PATH}?id=${record.id}&mode=onboarding`)
     } else {
@@ -319,8 +324,8 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
           ) : null}
         </div>
         <p className="datum-ops__lede">
-          {working ? working.name || 'Untitled brand voice' : 'New brand voice'} · answers save as a
-          draft; nothing governs the pipeline until you activate it.
+          {working ? working.name || 'Untitled brand voice' : 'New brand voice'}. Answers save as a
+          draft. Nothing changes how Datum writes until you activate it.
         </p>
 
         <div className="datum-ops__stepper">
@@ -368,7 +373,12 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
                 </button>
               </div>
               <div className="datum-ops__actions">
-                <button type="button" className="datum-ops__btn" onClick={saveDraft} disabled={pending}>
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  onClick={saveDraft}
+                  disabled={pending}
+                >
                   Save draft
                 </button>
                 <button
@@ -432,7 +442,9 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
   const archive = () =>
     run(async () => {
       await archiveBrandVoiceAction(record.id)
-      setMessage('Archived. The pipeline runs on the platform style guide alone until you activate another voice.')
+      setMessage(
+        'Archived. The pipeline runs on the platform style guide alone until you activate another voice.',
+      )
       router.refresh()
     })
   const remove = () =>
@@ -454,11 +466,13 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       <div className="datum-ops__header">
         <h1>Brand voice</h1>
         <span className="datum-ops__pill">governance</span>
-        <span className={`datum-ops__status datum-ops__status--${record.status}`}>{record.status}</span>
+        <span className={`datum-ops__status datum-ops__status--${record.status}`}>
+          {record.status}
+        </span>
       </div>
       <p className="datum-ops__lede">
-        The active voice is injected into every generate and QA call. Banned words hard-fail
-        structural QA; persona, values, and boundaries steer the qualitative review.
+        How every draft sounds. The active voice shapes every piece Datum writes and checks. Banned
+        words fail a draft outright. Persona, values, and boundaries guide the review.
       </p>
 
       <div className="datum-ops__tpl datum-ops__bv">
@@ -489,7 +503,12 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
           {!hasDraft ? (
             <div className="datum-ops__tpl-new">
               <div className="datum-ops__tpl-group-label">Replace this voice</div>
-              <EntryCards onStart={startOnboarding} onUpload={uploadGuide} disabled={pending} compact />
+              <EntryCards
+                onStart={startOnboarding}
+                onUpload={uploadGuide}
+                disabled={pending}
+                compact
+              />
             </div>
           ) : null}
         </aside>
@@ -591,7 +610,12 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
                       Activate
                     </button>
                   ) : (
-                    <button type="button" className="datum-ops__btn" disabled={pending} onClick={archive}>
+                    <button
+                      type="button"
+                      className="datum-ops__btn"
+                      disabled={pending}
+                      onClick={archive}
+                    >
                       Archive
                     </button>
                   )}

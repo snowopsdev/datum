@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import React from 'react'
+import React, { useState } from 'react'
 
 import type { RunHealth, StageKpiRow } from '../../lib/opsKpis'
 import type { ArticleReportSummary } from '../../lib/articleReportSummary'
@@ -28,6 +28,11 @@ type Props = {
   runs: RunHealth
 }
 
+/** Cents matter under a dollar; above it they are noise. */
+const money = (usd: number) => `$${usd.toFixed(usd < 1 ? 4 : 2)}`
+
+const DIGEST_PREVIEW = 8
+
 function BarList({ rows }: { rows: SpendRow[] }) {
   const max = Math.max(...rows.map((r) => r.usd), 0.01)
   if (rows.length === 0) {
@@ -45,7 +50,7 @@ function BarList({ rows }: { rows: SpendRow[] }) {
           <div className="datum-ops__bar-track">
             <div className="datum-ops__bar-fill" style={{ width: `${(r.usd / max) * 100}%` }} />
           </div>
-          <span className="datum-ops__bar-amt">${r.usd.toFixed(4)}</span>
+          <span className="datum-ops__bar-amt">{money(r.usd)}</span>
         </div>
       ))}
     </div>
@@ -70,6 +75,9 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
     waste,
   } = summary
 
+  const [showAllFailures, setShowAllFailures] = useState(false)
+  const visibleFailures = showAllFailures ? failures : failures.slice(0, DIGEST_PREVIEW)
+
   const setPeriod = (period: CostReport['period']) => {
     router.push(`/admin/ops/reports?period=${period}`)
   }
@@ -83,8 +91,8 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
         </Link>
       </div>
       <p className="datum-ops__lede">
-        Ops loop first — failure digest jumps into review. Spend panels read <code>cost-log</code>{' '}
-        (same source as <code>pipeline:report</code>).
+        Where pieces are stuck, and what the runs cost. Drafts that failed a check come first; each
+        card opens its review. Spend figures come from the cost log.
       </p>
 
       <div className="datum-ops__period">
@@ -165,20 +173,20 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
       </div>
 
       <div className="datum-ops__panel">
-        <h2>Failure digest · ops loop</h2>
+        <h2>Drafts that failed a check ({failures.length})</h2>
         <div className="datum-ops__panel-body">
           {failures.length === 0 ? (
             <p className="datum-ops__sub" style={{ margin: 0 }}>
-              (none at needs_revision)
+              Nothing is waiting for a fix.
             </p>
           ) : (
-            failures.map((a) => {
+            visibleFailures.map((a) => {
               const { fails, details } = a
               return (
                 <div className="datum-ops__fail-card" key={a.id}>
                   <h3>{a.title || a.keyword}</h3>
                   <p className="datum-ops__fail-meta">
-                    {a.templateName ?? '—'} · {fails.join(' · ') || 'unspecified'}
+                    {a.templateName ?? 'No template'} · {fails.join(' · ') || 'no check named'}
                     {a.totalCostUsd != null ? ` · $${a.totalCostUsd.toFixed(2)}` : ''}
                   </p>
                   {details.length > 0 ? (
@@ -210,6 +218,15 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
               )
             })
           )}
+          {failures.length > DIGEST_PREVIEW ? (
+            <button
+              className="datum-ops__link-btn"
+              onClick={() => setShowAllFailures((v) => !v)}
+              type="button"
+            >
+              {showAllFailures ? `Show first ${DIGEST_PREVIEW}` : `Show all ${failures.length}`}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -275,7 +292,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
                     <td>{s.calls}</td>
                     <td>{s.inputTokens.toLocaleString()}</td>
                     <td>{s.outputTokens.toLocaleString()}</td>
-                    <td>${s.costUsd.toFixed(4)}</td>
+                    <td>{money(s.costUsd)}</td>
                   </tr>
                 ))}
               </tbody>
