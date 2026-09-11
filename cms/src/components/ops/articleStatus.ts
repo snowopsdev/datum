@@ -477,6 +477,20 @@ export const QA_CHECK_LABEL: Record<QaFailure['check'], string> = {
   evidenceCheck: 'Evidence',
 }
 
+/**
+ * Human labels for the reports page's pass-rate rows, keyed the way
+ * `summarizeReportArticles` names them (`structural`/`factCheck`/`qualitative`)
+ * rather than by the QA-result field names `QA_CHECK_LABEL` uses — the two
+ * check-name vocabularies read differently in a digest card versus a rollup
+ * table, so they get their own label table instead of sharing one.
+ */
+export const CHECK_LABEL = {
+  structural: 'Structure',
+  factCheck: 'Fact check',
+  qualitative: 'Qualitative review',
+  evidence: 'Evidence',
+} as const satisfies Record<string, string>
+
 export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFailure[] {
   const out: QaFailure[] = []
   const qa = article.qaResults

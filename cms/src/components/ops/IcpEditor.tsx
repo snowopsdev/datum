@@ -10,7 +10,7 @@ import {
   icpCompletenessProblems,
   icpContentOf,
 } from '../../lib/tenant/icp'
-import { AssetStepper } from './AssetStepper'
+import { AssetStepper, hasSectionContent } from './AssetStepper'
 import { ICP_SECTION_COMPONENTS } from './icpSections'
 import { ICP_STEPS, type IcpDTO, type IcpStepId } from './icpTypes'
 import {
@@ -70,6 +70,14 @@ export function IcpEditor({
 
   const problems = icpCompletenessProblems(content)
   const current = ICP_STEPS[step].id
+
+  const sectionValueOf = (stepId: IcpStepId): unknown => {
+    if (stepId === 'boundaries') {
+      return { churnTriggers: content.churnTriggers, notOurUser: content.notOurUser }
+    }
+    if (stepId === 'review') return null
+    return { [stepId]: content[stepId as keyof IcpContent] }
+  }
 
   /** Create on first save, update afterwards; returns the id or null on failure. */
   const persist = async (): Promise<number | null> => {
@@ -181,14 +189,9 @@ export function IcpEditor({
       onStep={setStep}
       asset="icp"
       {...(id != null ? { icpId: id } : {})}
-      sectionValue={(stepId) => {
-        if (stepId === 'boundaries') {
-          return { churnTriggers: content.churnTriggers, notOurUser: content.notOurUser }
-        }
-        if (stepId === 'review') return null
-        return { [stepId]: content[stepId as keyof IcpContent] }
-      }}
+      sectionValue={sectionValueOf}
       onAssist={(_stepId, value) => setContent((prev) => mergeAssist(prev, value))}
+      sectionHasContent={hasSectionContent(sectionValueOf(current))}
       disabled={pending}
       problems={current === 'review' ? problems : []}
       problemsTitle={

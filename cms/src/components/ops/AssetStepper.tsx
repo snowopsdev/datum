@@ -35,6 +35,13 @@ type Props<Id extends string> = {
   sectionValue: (stepId: Id) => unknown
   /** Merge an assistant's proposal into form state. Never saves. */
   onAssist: (stepId: Id, value: Record<string, unknown>) => void
+  /**
+   * Whether the current step's fields carry anything. `Refine with AI` reads
+   * the section's own value back into the prompt, so it is disabled when
+   * there is nothing there to refine — the same case `Draft with AI` exists
+   * for.
+   */
+  sectionHasContent: boolean
   disabled: boolean
   /**
    * When the workspace last fetched its own site pages, or null for never.
@@ -53,10 +60,33 @@ type Props<Id extends string> = {
   message?: string | null
 }
 
+/**
+ * What the assistant does, said once. Shown as visible copy on the first
+ * step — where someone new to the flow needs to read it — and as a tooltip
+ * title everywhere else, so a person who already knows what it does is not
+ * re-reading the same paragraph on every step.
+ */
+const ASSIST_EXPLANATION =
+  'It reads your site pages, your brand voice, and the rest of this workspace. It never saves: whatever comes back lands in the form for you to edit.'
+
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
+
+/**
+ * Whether a step's `sectionValue()` carries anything worth refining — a
+ * non-blank string, a non-empty array with at least one non-empty entry, or an
+ * object with any such field. Shared so every editor computes
+ * `sectionHasContent` the same way instead of re-deriving "empty" per asset.
+ */
+export function hasSectionContent(value: unknown): boolean {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  if (Array.isArray(value)) return value.some(hasSectionContent)
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some(hasSectionContent)
+  return Boolean(value)
+}
 
 /**
  * The step navigation, notes box, assist buttons, and footer every tenant
@@ -83,6 +113,7 @@ export function AssetStepper<Id extends string>({
   icpId,
   sectionValue,
   onAssist,
+  sectionHasContent,
   disabled,
   sitePagesFetchedAt,
   children,
@@ -140,9 +171,6 @@ export function AssetStepper<Id extends string>({
     <div className="datum-ops">
       <div className="datum-ops__header">
         <h1>{heading}</h1>
-        <span className="datum-ops__pill">
-          step {step + 1} of {steps.length}
-        </span>
         {headerExtra}
       </div>
       <p className="datum-ops__lede">{lede}</p>
@@ -175,13 +203,12 @@ export function AssetStepper<Id extends string>({
           {current.assist ? (
             <div className="datum-ops__assist">
               <div className="datum-ops__assist-head">
-                <strong>Draft this step with the setup assistant</strong>
+                <strong title={step === 0 ? undefined : ASSIST_EXPLANATION}>
+                  Draft this step with the setup assistant
+                </strong>
                 {mock ? <span className="datum-ops__pill datum-ops__pill--muted">mock</span> : null}
               </div>
-              <p className="datum-ops__hint">
-                It reads your site pages, your brand voice, and the rest of this workspace. It never
-                saves: whatever comes back lands in the form for you to edit.
-              </p>
+              {step === 0 ? <p className="datum-ops__hint">{ASSIST_EXPLANATION}</p> : null}
               <SitePagesHint fetchedAt={sitePagesFetchedAt} />
               <div className="datum-ops__field">
                 <label htmlFor={`assist-notes-${current.id}`}>
@@ -208,7 +235,8 @@ export function AssetStepper<Id extends string>({
                   type="button"
                   className="datum-ops__btn"
                   onClick={() => runAssist('refine')}
-                  disabled={busy}
+                  disabled={busy || !sectionHasContent}
+                  title={!sectionHasContent ? 'Nothing in this step yet to refine.' : undefined}
                 >
                   Refine with AI
                 </button>

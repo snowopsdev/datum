@@ -181,6 +181,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
 
   const working = records.find((r) => r.id === workingId) ?? null
   const hasDraft = records.some((r) => r.status === 'draft')
+  const hasActive = records.some((r) => r.status === 'active')
   const problems = brandVoiceActivationProblems(content)
 
   const run = (fn: () => Promise<void>) => {
@@ -499,15 +500,27 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
             ) : null,
           )}
           {!hasDraft ? (
-            <div className="datum-ops__tpl-new">
-              <div className="datum-ops__tpl-group-label">Replace this voice</div>
-              <EntryCards
-                onStart={startOnboarding}
-                onUpload={uploadGuide}
-                disabled={pending}
-                compact
-              />
-            </div>
+            hasActive ? (
+              <details className="datum-ops__tpl-new">
+                <summary className="datum-ops__tpl-group-label">Replace this voice</summary>
+                <EntryCards
+                  onStart={startOnboarding}
+                  onUpload={uploadGuide}
+                  disabled={pending}
+                  compact
+                />
+              </details>
+            ) : (
+              <div className="datum-ops__tpl-new">
+                <div className="datum-ops__tpl-group-label">Replace this voice</div>
+                <EntryCards
+                  onStart={startOnboarding}
+                  onUpload={uploadGuide}
+                  disabled={pending}
+                  compact
+                />
+              </div>
+            )
           ) : null}
         </aside>
 

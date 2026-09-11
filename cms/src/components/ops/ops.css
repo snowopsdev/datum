@@ -463,11 +463,13 @@
 
 .datum-ops__review-main {
   padding-right: 24px;
+  min-width: 0;
 }
 
 .datum-ops__review-aside {
   border-left: 1px solid var(--ops-hairline);
   padding-left: 20px;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -499,6 +501,7 @@
   background: var(--ops-canvas);
   padding: 20px 22px;
   border-radius: var(--ops-radius-lg);
+  overflow-wrap: anywhere;
 }
 
 .datum-ops__prose h3 {
@@ -519,6 +522,7 @@
   color: var(--ops-ink-secondary);
   font-size: 15px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .datum-ops__body h2 {
@@ -642,9 +646,15 @@
 
 .datum-ops__metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .datum-ops__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .datum-ops__metric {
@@ -2431,6 +2441,8 @@
 
 .datum-ops__tabs--pills {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 4px;
   border: 0;
   padding: 3px;
@@ -2921,6 +2933,8 @@
   cursor: pointer;
   text-decoration: none;
   box-shadow: var(--ops-shadow);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .datum-first__card:hover {
@@ -2944,6 +2958,7 @@
   top: 0;
   z-index: 90;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
@@ -3024,13 +3039,15 @@
 
 .datum-setup__row {
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: start;
   gap: 14px;
   padding: 16px 18px;
   border: 1px solid var(--ops-hairline, var(--theme-elevation-150));
   border-radius: var(--ops-radius-lg, 8px);
   background: var(--ops-canvas, transparent);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .datum-setup__mark {

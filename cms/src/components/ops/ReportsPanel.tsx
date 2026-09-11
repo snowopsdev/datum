@@ -6,9 +6,25 @@ import React, { useState } from 'react'
 
 import type { RunHealth, StageKpiRow } from '../../lib/opsKpis'
 import type { ArticleReportSummary } from '../../lib/articleReportSummary'
-import { ARTICLE_STATUSES } from './articleStatus'
+import { PIPELINE_STAGE_LABEL, type PipelineStageName } from '../../lib/articleStatusMeta'
+import { ARTICLE_STATUSES, CHECK_LABEL, STATUS_META } from './articleStatus'
 import { IG_DECISIONS, IG_DECISION_LABEL } from '../../lib/articleReportSummary'
 import './ops.css'
+
+function isPipelineStageName(stage: string): stage is PipelineStageName {
+  return Object.hasOwn(PIPELINE_STAGE_LABEL, stage)
+}
+
+/** The pipeline-stage id a cost-log row carries, said the way a person reads it. */
+function stageLabel(stage: string): string {
+  return isPipelineStageName(stage) ? PIPELINE_STAGE_LABEL[stage] : stage
+}
+
+/** A status id, said the way `STATUS_META` describes it; falls back for anything unrecognised. */
+function statusLabel(status: string): string {
+  return (STATUS_META as Record<string, { label: string } | undefined>)[status]?.label ??
+    status.replace(/_/g, ' ')
+}
 
 export type SpendRow = { label: string; usd: number }
 
@@ -122,6 +138,9 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Articles</div>
           <div className="datum-ops__metric-value">{articleCount}</div>
+          <div className="datum-ops__sub" style={{ margin: 0 }}>
+            {withQaCount} with QA
+          </div>
         </div>
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Period spend</div>
@@ -165,10 +184,6 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
         <div className="datum-ops__metric">
           <div className="datum-ops__metric-label">Waste</div>
           <div className="datum-ops__metric-value">${waste.toFixed(2)}</div>
-        </div>
-        <div className="datum-ops__metric">
-          <div className="datum-ops__metric-label">With QA</div>
-          <div className="datum-ops__metric-value">{withQaCount}</div>
         </div>
       </div>
 
@@ -248,9 +263,9 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
           )}
           <p className="datum-ops__sub" style={{ marginTop: 10, marginBottom: 0 }}>
             {igAwaitingScoreCount} at <code>qa_passed</code> awaiting scoring. Decisions are counted
-            from each article&apos;s current <code>informationGain</code> summary; an article reset
-            or sent back since it was scored carries none and is not counted. The scores behind them
-            are uncalibrated model estimates.
+            from each article&apos;s current information-gain summary; an article reset or sent back
+            since it was scored carries none and is not counted. The scores behind them are
+            uncalibrated model estimates.
           </p>
           {igReviewQueue.length > 0 ? (
             <ul className="datum-ops__list" style={{ marginTop: 10 }}>
@@ -259,7 +274,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
                   <Link href={`/admin/ops/articles/${a.id}`} prefetch={false}>
                     {a.title || a.keyword}
                   </Link>{' '}
-                  — {a.status.replace(/_/g, ' ')}
+                  — {statusLabel(a.status)}
                   {a.informationGain?.decision
                     ? ` · ${IG_DECISION_LABEL[a.informationGain.decision]}`
                     : ' · no current decision'}
@@ -273,7 +288,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
       <div className="datum-ops__panel">
         <h2>Spend by stage</h2>
         <div className="datum-ops__panel-body">
-          <BarList rows={costs.byStage} />
+          <BarList rows={costs.byStage.map((r) => ({ ...r, label: stageLabel(r.label) }))} />
           {stages.length > 0 ? (
             <table className="datum-ops__table" style={{ marginTop: 10 }}>
               <thead>
@@ -288,7 +303,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
               <tbody>
                 {stages.map((s) => (
                   <tr key={s.stage}>
-                    <td>{s.stage}</td>
+                    <td>{stageLabel(s.stage)}</td>
                     <td>{s.calls}</td>
                     <td>{s.inputTokens.toLocaleString()}</td>
                     <td>{s.outputTokens.toLocaleString()}</td>
@@ -334,7 +349,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
         <h2>Status mix</h2>
         <div className="datum-ops__panel-body">
           <ul className="datum-ops__list">
-            {ARTICLE_STATUSES.map((id) => ({ id, label: id.replace(/_/g, ' ') })).map((c) => (
+            {ARTICLE_STATUSES.map((id) => ({ id, label: statusLabel(id) })).map((c) => (
               <li key={c.id}>
                 {c.label}: {byStatus[c.id] ?? 0}
               </li>
@@ -348,13 +363,13 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
         <div className="datum-ops__panel-body">
           <ul className="datum-ops__list">
             <li>
-              structural: {st.p}/{st.t}
+              {CHECK_LABEL.structural}: {st.p}/{st.t}
             </li>
             <li>
-              factCheck: {fc.p}/{fc.t}
+              {CHECK_LABEL.factCheck}: {fc.p}/{fc.t}
             </li>
             <li>
-              qualitative: {qu.p}/{qu.t}
+              {CHECK_LABEL.qualitative}: {qu.p}/{qu.t}
             </li>
           </ul>
         </div>

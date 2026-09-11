@@ -10,7 +10,7 @@ import {
   positioningContentOf,
   positioningStatus,
 } from '../../lib/tenant/positioning'
-import { AssetStepper } from './AssetStepper'
+import { AssetStepper, hasSectionContent } from './AssetStepper'
 import {
   POSITIONING_SECTION_COMPONENTS,
   POSITIONING_STEPS,
@@ -48,6 +48,13 @@ export function PositioningEditor({
   const problems = positioningCompletenessProblems(content)
   const status = positioningStatus(content)
   const current = POSITIONING_STEPS[step].id
+
+  const sectionValueOf = (stepId: PositioningStepId): unknown => {
+    if (stepId === 'review') return null
+    const value: Record<string, unknown> = {}
+    for (const key of SECTION_KEYS[stepId]) value[key] = content[key]
+    return value
+  }
 
   const save = () =>
     startTransition(async () => {
@@ -97,13 +104,9 @@ export function PositioningEditor({
       step={step}
       onStep={setStep}
       asset="positioning"
-      sectionValue={(stepId) => {
-        if (stepId === 'review') return null
-        const value: Record<string, unknown> = {}
-        for (const key of SECTION_KEYS[stepId]) value[key] = content[key]
-        return value
-      }}
+      sectionValue={sectionValueOf}
       onAssist={applyAssist}
+      sectionHasContent={hasSectionContent(sectionValueOf(current))}
       disabled={pending}
       problems={current === 'review' ? problems : []}
       problemsTitle="A finished position still needs"

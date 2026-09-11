@@ -4,9 +4,14 @@ import type { Payload } from 'payload'
 import { opsPayload, retireArticles, seedArticle } from '../helpers/seedContentOps'
 
 const marker = `pagination-${randomUUID()}`
+// Deliberately does not contain `marker`: the pagination test searches
+// `q=${marker}` and counts every row that matches, so a fixture whose keyword
+// shared that substring would silently inflate its counts.
+const overflowMarker = `overflow-${randomUUID()}`
 const user = { email: `${marker}@test.local`, password: 'test-password' }
 const ids: number[] = []
 let payload: Payload
+let overflowArticleId: number
 
 test.beforeAll(async () => {
   payload = await opsPayload()
@@ -30,6 +35,33 @@ test.beforeAll(async () => {
       response: { text: 'Full model response' },
     },
   })
+  // A review page with a body (so the "SEO / research" block renders) and an
+  // unbroken long URL in the research hint — the measured cause of the
+  // 390px-viewport overflow on the article review page.
+  const overflowArticle = await seedArticle(payload, {
+    keyword: `${overflowMarker} subject`,
+    title: `${overflowMarker} title`,
+    status: 'needs_revision',
+    body: {
+      root: {
+        type: 'root',
+        direction: 'ltr',
+        format: '',
+        indent: 0,
+        version: 1,
+        children: [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'text', version: 1, text: 'Body content so the research block renders.' }],
+          },
+        ],
+      },
+    } as never,
+    research: { rankingPagesSummary: `https://example.com/${'overflow-check-'.repeat(50)}` },
+  })
+  overflowArticleId = overflowArticle.id
+  ids.push(overflowArticle.id)
 })
 test.afterAll(async () => {
   await retireArticles(payload, ids)
@@ -168,5 +200,18 @@ test('search keeps the requested tab while its response is delayed', async ({ pa
   } finally {
     release()
     await page.unrouteAll({ behavior: 'wait' })
+  }
+})
+
+test('no horizontal overflow at 390px on the key screens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const path of [
+    '/admin/ops/setup',
+    '/admin/ops/content',
+    `/admin/ops/articles/${overflowArticleId}`,
+  ]) {
+    await page.goto(path)
+    const w = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(w, path).toBeLessThanOrEqual(390)
   }
 })
