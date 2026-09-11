@@ -21,5 +21,6 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.execute(sql`
   -- Nothing to undo: which rows were originally 'onboarding' is not recorded
   -- anywhere, and the source no longer runs either way.
+  SELECT 1;
   `)
 }
