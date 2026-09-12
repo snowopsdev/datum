@@ -14,12 +14,11 @@ import { AssetStepper, hasSectionContent } from './AssetStepper'
 import { ICP_SECTION_COMPONENTS } from './icpSections'
 import { ICP_STEPS, type IcpDTO, type IcpStepId } from './icpTypes'
 import {
-  activateIcpAction,
   archiveIcpAction,
   createIcpAction,
   deleteIcpDraftAction,
+  saveAndActivateIcpAction,
   saveIcpAction,
-  setPrimaryIcpAction,
 } from './tenantActions'
 import './ops.css'
 
@@ -50,10 +49,18 @@ function mergeAssist(content: IcpContent, value: Record<string, unknown>): IcpCo
 export function IcpEditor({
   record,
   sitePagesFetchedAt,
+  hasOtherActiveAudience,
 }: {
   record: IcpDTO | null
   /** From the workspace profile: null warns that the assistant has nothing to read. */
   sitePagesFetchedAt: string | null
+  /**
+   * Whether some audience other than this one is already active. When it is
+   * not — nothing is active yet, or this record is the only active one —
+   * activating this audience makes it the workspace's sole audience, so
+   * "Save and activate" makes it primary automatically rather than asking.
+   */
+  hasOtherActiveAudience: boolean
 }) {
   const router = useRouter()
   const [content, setContent] = useState<IcpContent>(() =>
@@ -66,7 +73,15 @@ export function IcpEditor({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [makePrimary, setMakePrimary] = useState(record?.primary ?? false)
   const [pending, startTransition] = useTransition()
+
+  // Forced rather than merely defaulted: if nothing else is active, the
+  // activation gate is going to make this one primary regardless of what the
+  // checkbox says, so unchecking it would promise a choice the save cannot
+  // honour.
+  const primaryForced = !hasOtherActiveAudience
+  const effectiveMakePrimary = primaryForced || makePrimary
 
   const problems = icpCompletenessProblems(content)
   const current = ICP_STEPS[step].id
@@ -113,31 +128,26 @@ export function IcpEditor({
       router.refresh()
     })
 
-  const activate = () =>
+  const saveAndActivate = () =>
     run(async () => {
-      const savedId = await persist()
-      if (savedId == null) return
-      const result = await activateIcpAction(savedId)
+      const result = await saveAndActivateIcpAction(id, content, {
+        makePrimary: effectiveMakePrimary,
+      })
       if (!result.ok) {
         setError(result.error)
         return
+      }
+      if (id == null) {
+        setId(result.id)
+        router.replace(`${LIST_PATH}/${result.id}`)
       }
       setStatus('active')
-      setMessage('Active. New pieces can be written for this audience.')
-      router.refresh()
-    })
-
-  const makePrimary = () =>
-    run(async () => {
-      const savedId = await persist()
-      if (savedId == null) return
-      const result = await setPrimaryIcpAction(savedId)
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      setPrimary(true)
-      setMessage('This is now the audience every new piece starts with.')
+      setPrimary(result.primary)
+      setMessage(
+        result.primary
+          ? 'Active and primary. New pieces are written for this audience.'
+          : 'Active. New pieces can be written for this audience.',
+      )
       router.refresh()
     })
 
@@ -213,26 +223,27 @@ export function IcpEditor({
           >
             Save
           </button>
-          {status !== 'active' ? (
-            <button
-              type="button"
-              className="datum-ops__btn"
-              onClick={activate}
-              disabled={pending || problems.length > 0}
-              title={problems.length ? problems.join('; ') : undefined}
-            >
-              Activate
-            </button>
-          ) : null}
-          {status === 'active' && !primary ? (
-            <button
-              type="button"
-              className="datum-ops__btn"
-              onClick={makePrimary}
-              disabled={pending}
-            >
-              Make primary
-            </button>
+          {current === 'review' ? (
+            <>
+              <label className="datum-ops__inline-check">
+                <input
+                  type="checkbox"
+                  checked={effectiveMakePrimary}
+                  disabled={pending || primaryForced}
+                  onChange={(e) => setMakePrimary(e.target.checked)}
+                />
+                <span>Make this the primary audience</span>
+              </label>
+              <button
+                type="button"
+                className="datum-ops__btn"
+                onClick={saveAndActivate}
+                disabled={pending || problems.length > 0}
+                title={problems.length ? problems.join('; ') : undefined}
+              >
+                Save and activate
+              </button>
+            </>
           ) : null}
           {status === 'active' ? (
             <button type="button" className="datum-ops__btn" onClick={archive} disabled={pending}>

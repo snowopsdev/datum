@@ -8,6 +8,7 @@ import { getPayload } from 'payload'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { stageKpis } from '../../lib/opsKpis'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
 import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
@@ -209,21 +210,13 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
 
     let activity: RunActivityDTO | null = null
     if (calls) {
-      const byStage = new Map<string, { calls: number; costUsd: number }>()
-      let totalCostUsd = 0
-      for (const row of calls.docs) {
-        const stage = row.stage ?? 'unknown'
-        const entry = byStage.get(stage) ?? { calls: 0, costUsd: 0 }
-        entry.calls += 1
-        entry.costUsd += row.costUsd ?? 0
-        byStage.set(stage, entry)
-        totalCostUsd += row.costUsd ?? 0
-      }
+      const perStage = stageKpis(calls.docs)
+      const totalCostUsd = perStage.reduce((sum, s) => sum + s.costUsd, 0)
       const latest = calls.docs[0]
       activity = {
         totalCalls: calls.docs.length,
         totalCostUsd,
-        byStage: [...byStage.entries()].map(([stage, v]) => ({ stage, ...v })),
+        byStage: perStage.map(({ stage, calls: n, costUsd }) => ({ stage, calls: n, costUsd })),
         lastCallStage: latest?.stage ?? null,
         lastCallAtIso: latest?.createdAt ? new Date(latest.createdAt).toISOString() : null,
       }

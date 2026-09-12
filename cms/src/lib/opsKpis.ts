@@ -2,6 +2,17 @@
  * Pure aggregations behind the reports page's operational KPIs. Rows in,
  * numbers out — no Payload, so they unit-test without a database and the view
  * stays a thin query-and-render shell.
+ *
+ * `stageKpis` is the reducer every in-memory caller should reach for —
+ * `boardActions.ts`'s run-activity panel and the pipeline CLI's `report`
+ * command both feed it their (already fetched) cost-log rows rather than
+ * hand-rolling the same `Map<string, ...>` loop. `reportQueries.ts:13-40` is
+ * this function's SQL twin: the reports page's cost table is large enough
+ * that hydrating every row to reduce it in memory would be wasteful, so that
+ * query does the identical group-by-stage aggregation as a single Drizzle
+ * `GROUP BY` instead of calling `stageKpis` — the two are kept in step by
+ * `opsKpis.int.spec.ts` (this reducer) and `adminPerformance.int.spec.ts`
+ * (that query) rather than by shared code.
  */
 
 export type StageKpiRow = {

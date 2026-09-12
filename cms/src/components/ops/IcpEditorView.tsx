@@ -61,6 +61,19 @@ export async function IcpEditorView(props: AdminViewServerProps) {
     }
   }
 
+  // Whether "Save and activate" would land as the workspace's only active
+  // audience — and so is forced primary rather than offered as a choice.
+  const otherActive = await req.payload.count({
+    collection: 'icps',
+    where: {
+      and: [
+        { status: { equals: 'active' } },
+        ...(record ? [{ id: { not_equals: record.id } }] : []),
+      ],
+    },
+    overrideAccess: true,
+  })
+
   return (
     <DefaultTemplate
       i18n={req.i18n}
@@ -78,6 +91,7 @@ export async function IcpEditorView(props: AdminViewServerProps) {
           sitePagesFetchedAt={
             (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
           }
+          hasOtherActiveAudience={otherActive.totalDocs > 0}
         />
       </Gutter>
     </DefaultTemplate>

@@ -632,6 +632,15 @@
   gap: 8px;
 }
 
+/* A checkbox inline with the action buttons, e.g. "Save and activate". */
+.datum-ops__inline-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ops-ink-secondary);
+  font-size: 14px;
+}
+
 /* List pages: breathing room between the action row and the list or empty state. */
 .datum-ops__actions + .datum-ops__empty,
 .datum-ops__actions + .datum-ops__table {

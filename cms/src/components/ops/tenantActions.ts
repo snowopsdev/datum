@@ -262,6 +262,66 @@ export async function setPrimaryIcpAction(id: number): Promise<TenantActionResul
   }
 }
 
+/**
+ * Save, activate, and (optionally) make primary in one round trip.
+ *
+ * The editor's review step used to need three separate actions — persist,
+ * activate, make primary — each its own network call before the next could
+ * fire. This is the same three writes, still each carrying its own audit
+ * context (`icp_created`/`icp_updated`, `icp_activated`, `icp_primary_set`,
+ * exactly as a person clicking the old three buttons in sequence would leave
+ * behind), just composed so the editor asks for it once.
+ *
+ * `primary` in the result is read back from the record rather than echoing
+ * `options.makePrimary`: the activation gate makes the very first audience
+ * primary on its own (see `gateIcpActivation`), so a caller that asked for
+ * `makePrimary: false` can still get back `primary: true` — and one that
+ * asked for `true` should never see a stale `false` from before the cascade
+ * ran. `setPrimaryIcpAction` is skipped in that case rather than layering a
+ * second, redundant `icp_primary_set` row on top of a flag the gate already
+ * set.
+ */
+export async function saveAndActivateIcpAction(
+  id: number | null,
+  input: IcpContent,
+  options: { makePrimary: boolean },
+): Promise<
+  | { ok: true; id: number; status: 'active'; primary: boolean }
+  | { ok: false; error: string }
+> {
+  let savedId: number
+  if (id == null) {
+    const created = await createIcpAction(input)
+    if (!created.ok) return created
+    savedId = created.id
+  } else {
+    const saved = await saveIcpAction(id, input)
+    if (!saved.ok) return saved
+    savedId = id
+  }
+
+  const activated = await activateIcpAction(savedId)
+  if (!activated.ok) return activated
+
+  const { payload, user } = await requireUser()
+  const afterActivate = await payload.findByID({
+    collection: 'icps',
+    id: savedId,
+    depth: 0,
+    user,
+    overrideAccess: false,
+  })
+  let primary = afterActivate.primary === true
+
+  if (options.makePrimary && !primary) {
+    const primaried = await setPrimaryIcpAction(savedId)
+    if (!primaried.ok) return primaried
+    primary = true
+  }
+
+  return { ok: true, id: savedId, status: 'active', primary }
+}
+
 export async function archiveIcpAction(id: number): Promise<TenantActionResult> {
   try {
     const { payload, user } = await requireUser()
