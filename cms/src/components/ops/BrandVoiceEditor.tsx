@@ -75,6 +75,7 @@ function clampQuestion(step: number | null | undefined): number {
  */
 function initialStep(record: BrandVoiceDTO | null, mode: BrandVoiceMode | null): number {
   if (mode === 'guide') return GUIDE_STEP
+  if (mode === 'review') return REVIEW_STEP
   if (mode === 'onboarding') return clampQuestion(record?.onboardingStep)
   if (record && record.status === 'draft' && record.onboardingStep < STEP_COUNT) {
     return clampQuestion(record.onboardingStep)
@@ -219,7 +220,9 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
   const router = useRouter()
   const selected = records.find((r) => r.id === selectedId) ?? null
 
-  const [started, setStarted] = useState(records.length > 0 || initialMode === 'onboarding')
+  // Set while a voice is being made that has no record yet, which is the only
+  // case where a workspace with nothing saved still wants the rail.
+  const [drafting, setDrafting] = useState(initialMode === 'onboarding')
   const [seenSelectedId, setSeenSelectedId] = useState(selectedId)
   const [workingId, setWorkingId] = useState<number | null>(selectedId)
   const [content, setContent] = useState<BrandVoiceContent>(() => contentOf(selected))
@@ -288,8 +291,12 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
     return workingId
   }
 
-  /** Saving on a question means that question is answered; the tail steps add nothing. */
-  const answeredThrough = Math.min(step + 1, STEP_COUNT)
+  /**
+   * Saving on a question means that question is answered. The review, guide,
+   * and history steps answer nothing, so saving from one leaves the marker
+   * where the interview actually got to.
+   */
+  const answeredThrough = step < STEP_COUNT ? step + 1 : (record?.onboardingStep ?? 0)
 
   // The URL carries the mode, not the step: a reload comes back to the same
   // part of the flow without a server round trip on every click of the rail.
@@ -307,7 +314,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
     setStep(0)
     setMessage(null)
     setError(null)
-    setStarted(true)
+    setDrafting(true)
     setConfirmDelete(false)
   }
 
@@ -325,7 +332,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
           ? `Extracted "${file.name}" into a draft. Review it — ${result.warnings.join('; ')}.`
           : `Extracted "${file.name}" into a draft. Review every step, then activate.`,
       )
-      setStarted(true)
+      setDrafting(true)
       setStep(REVIEW_STEP)
       router.replace(`${VIEW_PATH}?id=${result.id}&mode=review`)
       router.refresh()
@@ -377,13 +384,17 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       if (workingId == null) return
       await deleteDraftAction(workingId)
       setConfirmDelete(false)
+      // Deleting the last voice puts the workspace back where it started, so
+      // the entry cards must come back with it.
+      setDrafting(false)
       router.replace(VIEW_PATH)
       router.refresh()
     })
 
   // ------------------------------------------------------------------ empty
-  // A workspace with no voice picks how to make one before it gets a rail.
-  if (!started) {
+  // A workspace with no voice picks how to make one before it gets a rail —
+  // including the workspace that just deleted its last one.
+  if (records.length === 0 && workingId == null && !drafting) {
     return (
       <div className="datum-ops">
         <div className="datum-ops__header">
@@ -420,7 +431,9 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
               <select
                 id="bv-record"
                 value={workingId ?? ''}
-                onChange={(e) => openRecord(Number(e.target.value))}
+                onChange={(e) => {
+                  if (e.target.value) openRecord(Number(e.target.value))
+                }}
                 disabled={pending}
               >
                 {workingId == null ? <option value="">New brand voice (unsaved)</option> : null}
@@ -454,6 +467,10 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       step={step}
       onStep={goToStep}
       disabled={pending}
+      // The review step lists these itself, right above the buttons. Every
+      // other step still needs to say why an active voice cannot be saved.
+      problems={status === 'active' && current !== 'review' ? problems : []}
+      problemsTitle={problemsTitle}
       error={error}
       message={message}
       actions={
