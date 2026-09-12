@@ -6,7 +6,7 @@ import React from 'react'
 
 import { buildArticleMetadata } from '@/lib/articleMetadata'
 import { findPublishedArticle } from '@/lib/findPublishedArticle'
-import { lexicalBodyToHtml } from '@/lib/lexicalHtml'
+import { lastH2HeadingText, lexicalBodyToHtml } from '@/lib/lexicalHtml'
 import './article.css'
 
 type Props = {
@@ -42,6 +42,9 @@ export default async function PublishedArticlePage({ params }: Props) {
 
   const html = lexicalBodyToHtml(article.body)
   const faq = article.faqItems ?? []
+  // The template's outline can already end with its own "FAQ" heading; render
+  // the items directly under it instead of adding a second one that repeats it.
+  const bodyEndsWithFaqHeading = (lastH2HeadingText(article.body) ?? '').toLowerCase() === 'faq'
 
   return (
     <div className="datum-public">
@@ -62,7 +65,7 @@ export default async function PublishedArticlePage({ params }: Props) {
         )}
         {faq.length > 0 ? (
           <section className="datum-public__faq">
-            <h2>FAQ</h2>
+            {bodyEndsWithFaqHeading ? null : <h2>FAQ</h2>}
             {faq.map((item) => (
               <div className="datum-public__faq-item" key={item.id ?? item.question}>
                 <strong>{item.question}</strong>
