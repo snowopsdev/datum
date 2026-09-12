@@ -116,7 +116,12 @@ test.describe('Content ops', () => {
   })
 
   test('webhooks global renders its settings form with the secret masked', async () => {
-    await page.goto('/admin/globals/webhook-settings')
+    // Payload's edit view posts its form state back to the server on mount and
+    // replaces the client state when the answer arrives, so a value typed
+    // before that lands is silently discarded. `data-form-ready` flips before
+    // those requests answer, so wait for the network to go quiet instead.
+    await page.goto('/admin/globals/webhook-settings', { waitUntil: 'networkidle' })
+    await expect(page.locator('form[data-form-ready="true"]')).toBeVisible()
     await expect(page.getByRole('checkbox', { name: 'Enabled' })).toBeChecked()
     await expect(page.getByRole('textbox', { name: 'Url' })).toHaveValue(listenerUrl)
     // The secret is a shared signing key. It is loaded, so it can be edited
@@ -133,16 +138,30 @@ test.describe('Content ops', () => {
     // back the same way, because the delivery tests sign with it.
     const storedSecret = async () =>
       (await payload.findGlobal({ slug: 'webhook-settings', depth: 0 }))?.secret
-    const save = async () => {
+    // Saving is three requests, not one: the save itself, then Payload posts
+    // the form state back and replaces the client state with the answer. A
+    // value typed between the save and that replace is silently discarded, and
+    // Save stays disabled because the form no longer counts as modified.
+    // `networkidle` is not enough (it fires between them), so wait for the
+    // form-state round trip explicitly before typing again.
+    const formStateSettled = () =>
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/admin/globals/webhook-settings' &&
+          (response.request().postData()?.length ?? 0) > 2,
+      )
+    const rotate = async (next: string) => {
+      await secret.fill(next)
+      await expect(secret).toHaveValue(next)
+      const settled = formStateSettled()
       await page.getByRole('button', { name: 'Save' }).first().click()
-      await expect(page.locator('.payload-toast-item').first()).toBeVisible()
+      await expect.poll(storedSecret).toBe(next)
+      await settled
+      await expect(secret).toHaveValue(next)
     }
-    await secret.fill(`${WEBHOOK_SECRET}-rotated`)
-    await save()
-    await expect.poll(storedSecret).toBe(`${WEBHOOK_SECRET}-rotated`)
-    await secret.fill(WEBHOOK_SECRET)
-    await save()
-    await expect.poll(storedSecret).toBe(WEBHOOK_SECRET)
+    await rotate(`${WEBHOOK_SECRET}-rotated`)
+    await rotate(WEBHOOK_SECRET)
   })
 
   test('review page renders stage metadata from the shared status table', async () => {
