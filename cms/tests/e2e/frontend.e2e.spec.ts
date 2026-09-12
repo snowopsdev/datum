@@ -46,7 +46,7 @@ test.describe('Frontend', () => {
       publishedAt: new Date().toISOString(),
       body: plainTextToLexical('## Overview\nSome article body text.'),
       faqItems: [{ question: 'Is this a test?', answer: 'Yes.' }],
-    } as never)
+    })
     seededIds.push(article.id)
 
     await page.goto(`/articles/${slug}`)
@@ -71,7 +71,7 @@ test.describe('Frontend', () => {
       publishedAt: new Date().toISOString(),
       body: plainTextToLexical('## Overview\nSome article body text.\n## FAQ'),
       faqItems: [{ question: 'Is this deduped?', answer: 'Yes.' }],
-    } as never)
+    })
     seededIds.push(article.id)
 
     await page.goto(`/articles/${slug}`)
