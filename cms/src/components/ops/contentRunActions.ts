@@ -30,13 +30,17 @@ export async function startContentRunAction(
 
   const setup = await loadWorkspaceSetup(payload)
   const { readiness } = setup
+  // Before the gate: a request naming a template that does not exist cannot
+  // start a run whatever readiness says, and asking someone to confirm a live
+  // cost first — only to refuse the run they just agreed to pay for — makes
+  // the confirmation look like it did nothing.
+  if (!setup.templates.some((template) => template.id === input.templateId)) {
+    return { ok: false, error: 'Choose an existing content template.' }
+  }
   // The one gate every run goes through, so a gap run is refused in the same
   // words as a run queued from the board or an article page.
   const refusal = gateRunReadiness(readiness, input.confirmLiveCost)
   if (refusal) return { ok: false, error: refusal }
-  if (!setup.templates.some((template) => template.id === input.templateId)) {
-    return { ok: false, error: 'Choose an existing content template.' }
-  }
 
   const runId = randomUUID()
   const requestedBy = user.email || String(user.id)

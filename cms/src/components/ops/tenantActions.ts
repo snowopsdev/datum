@@ -347,6 +347,10 @@ export async function saveAndActivateIcpAction(
     revalidateIcps(savedId)
     return { ok: true, id: savedId, status: 'active', primary }
   } catch (e) {
+    // The save may well have landed before the activation was refused, and the
+    // caller is handed its id to keep editing — so the list and the editor have
+    // to show the record that now exists, not the one they last rendered.
+    if (savedId != null) revalidateIcps(savedId)
     return {
       ok: false,
       error: errorMessage(e, 'Could not save and activate the audience.'),

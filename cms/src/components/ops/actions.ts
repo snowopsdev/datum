@@ -79,7 +79,8 @@ async function requireUser() {
 }
 
 function revalidateOps(articleId?: number | string) {
-  revalidatePath('/admin/ops/articles')
+  // No `/admin/ops/articles` list any more — the content board replaced it, so
+  // revalidating that path only ever refreshed a route that redirects.
   revalidatePath('/admin/ops/content')
   revalidatePath('/admin/ops/reports')
   if (articleId != null) {

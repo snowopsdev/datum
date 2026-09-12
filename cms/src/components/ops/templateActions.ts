@@ -131,7 +131,9 @@ export async function createTemplateAction(
 
     revalidatePath('/admin/ops/templates')
     revalidatePath('/admin/ops/content')
-    revalidatePath('/admin/ops/topics')
+    // New content, not the retired `/admin/ops/topics`: that screen lists the
+    // templates a piece can be made in, so a new one has to show up there.
+    revalidatePath('/admin/ops/new')
     return { ok: true, template: toTemplateDTO(created) }
   } catch (error) {
     const message =

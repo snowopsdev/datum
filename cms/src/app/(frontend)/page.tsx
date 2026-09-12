@@ -44,9 +44,12 @@ export default async function HomePage() {
       </header>
       <main className="datum-home__main">
         <h1>Published articles</h1>
-        <p className="datum-home__lede">
-          {profile.companyName ? `Articles from ${profile.companyName}` : 'Published articles'}
-        </p>
+        {/* No lede without a company name: the fallback repeated the heading
+            word for word, which reads as a rendering bug rather than a
+            subtitle. An unnamed workspace gets the heading alone. */}
+        {profile.companyName ? (
+          <p className="datum-home__lede">Articles from {profile.companyName}</p>
+        ) : null}
         {published.length === 0 ? (
           <p className="datum-home__empty">No published articles yet.</p>
         ) : (

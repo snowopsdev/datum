@@ -60,7 +60,7 @@ export async function runSelectedArticlesAction(input: {
     await queueRunForArticles(payload, user, docs, readiness)
     return {
       ok: true,
-      message: `Started a run for ${plural(docs.length, 'article')}. Progress shows above.`,
+      message: `Started a run for ${plural(docs.length, 'article')}. Progress shows in the run bar.`,
     }
   } catch (error) {
     if (error instanceof ActivePipelineRunError) {
@@ -127,7 +127,9 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
     }
 
     revalidatePath(BOARD_PATH)
-    revalidatePath('/admin/ops/topics')
+    // New content, not the retired `/admin/ops/topics`: the discovery panel
+    // there marks a keyword taken or removed, and archiving changes which.
+    revalidatePath('/admin/ops/new')
     return {
       ok: true,
       message: `Removed ${plural(docs.length, 'topic')} from the board. ${docs.length === 1 ? 'It is' : 'They are'} archived, not deleted — still in Article records if you want ${docs.length === 1 ? 'it' : 'them'} back.`,
