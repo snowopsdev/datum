@@ -10,14 +10,17 @@ const ICPS = [
   { id: 11, name: 'Marketing lead', primary: true, audienceLine: 'A marketing lead. Main pain: briefs.' },
   { id: 12, name: 'Founder', primary: false, audienceLine: 'A founder. Main pain: time.' },
 ]
+/** The workspace the next action sees. Tests flip `mode` to reach the live gate. */
+let readiness: Record<string, unknown>
+const freshReadiness = () => ({
+  mode: 'mock',
+  runtime: { ready: true, missing: [], problems: [], blockers: [] },
+  governance: { ready: true, activeVoiceId: 1, problems: [], blockers: [] },
+  content: { ready: true, templateCount: 3, models: [] },
+  configFingerprint: 'x',
+})
 const setupMock = vi.fn(async () => ({
-  readiness: {
-    mode: 'mock',
-    runtime: { ready: true, missing: [] },
-    governance: { ready: true, activeVoiceId: 1, problems: [] },
-    content: { ready: true, templateCount: 3, models: [] },
-    configFingerprint: 'x',
-  },
+  readiness,
   templates: [],
   icps: ICPS,
   latestRun: null,
@@ -66,6 +69,13 @@ beforeEach(() => {
   findByIDMock.mockReset()
   updateMock.mockReset()
   createRunMock.mockReset()
+  readiness = freshReadiness()
+  // `queueRunForArticles` queues the article the update wrote, so the update
+  // has to hand a document back the way Payload does.
+  updateMock.mockImplementation(async (args: unknown) => {
+    const { id, data } = args as { id: number; data: Record<string, unknown> }
+    return { id, template: 3, ...data } as never
+  })
 })
 
 describe('saveBriefAction', () => {
@@ -171,6 +181,42 @@ describe('approveBriefAction', () => {
     findByIDMock.mockResolvedValue(atBrief({ status: 'drafted' }))
     expect((await approveBriefAction(1)).ok).toBe(false)
     expect(createRunMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The one gate, reached from here too: approving a brief in live mode starts
+   * the expensive half of the pipeline, so it asks for the same confirmation
+   * the board's Run button does — and refuses in the same words.
+   */
+  it('refuses in live mode until the live cost is confirmed, and writes nothing', async () => {
+    readiness = { ...freshReadiness(), mode: 'live' }
+    findByIDMock.mockResolvedValue(atBrief())
+    const result = await approveBriefAction(1, edits)
+    expect(result).toEqual({
+      ok: false,
+      error: 'Confirm the live provider cost before starting this run.',
+    })
+    expect(updateMock).not.toHaveBeenCalled()
+    expect(createRunMock).not.toHaveBeenCalled()
+  })
+
+  it('approves and queues in live mode once the cost is confirmed', async () => {
+    readiness = { ...freshReadiness(), mode: 'live' }
+    findByIDMock.mockResolvedValue(atBrief())
+    const result = await approveBriefAction(1, edits, { confirmLiveCost: true })
+    expect(result.ok).toBe(true)
+    expect(createRunMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the shared gate wording when the runtime is not configured', async () => {
+    readiness = { ...freshReadiness(), runtime: { ready: false, missing: [], problems: [], blockers: ['OPENAI_API_KEY'] } }
+    findByIDMock.mockResolvedValue(atBrief())
+    const result = await approveBriefAction(1, edits)
+    expect(result).toEqual({
+      ok: false,
+      error: 'Configure the required environment variables: OPENAI_API_KEY.',
+    })
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })
 

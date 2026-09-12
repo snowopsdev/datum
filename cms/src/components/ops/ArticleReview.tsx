@@ -93,6 +93,7 @@ export function ArticleReview({
 
           <StatusPanel
             action={action}
+            activeRunIncludesArticle={activeRunIncludesArticle}
             article={article}
             editHref={editHref}
             mode={mode}

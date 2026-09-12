@@ -82,6 +82,33 @@ it('names the missing template too, so the notice is never a dead end', () => {
   ).toBe('/admin/ops/templates')
 })
 
+/**
+ * A missing API key is the commonest reason a live workspace cannot research
+ * anything, and it is a runtime blocker, not a governance one — so the notice
+ * used to fall back to a bare "Finish workspace setup" link that named
+ * nothing. Runtime blockers have no setup step to link to, so they are plain
+ * text beside the ones that do.
+ */
+it('names a runtime blocker in plain text, with no link to a step that cannot fix it', () => {
+  render(
+    React.createElement(NewContentFlow, {
+      templates,
+      mode: 'live' as const,
+      pipelineReady: false,
+      runActive: false,
+      blockers: [
+        { asset: 'voice' as const, message: 'Activate a brand voice' },
+        { asset: null, message: 'OPENAI_API_KEY' },
+      ],
+    }),
+  )
+
+  expect(screen.queryByText(/Finish workspace setup/)).toBeNull()
+  expect(screen.getByText('OPENAI_API_KEY').tagName).not.toBe('A')
+  expect(screen.queryByRole('link', { name: 'OPENAI_API_KEY' })).toBeNull()
+  expect(screen.getByRole('link', { name: 'Activate a brand voice' })).toBeTruthy()
+})
+
 it('creates as usual, and hands the gap form the card already chosen, when setup is done', () => {
   render(
     React.createElement(NewContentFlow, {

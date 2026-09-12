@@ -19,11 +19,18 @@ export type TemplateCard = {
 }
 
 /**
- * A governance blocker, plus the one thing this screen can be blocked by that
- * governance does not track: a workspace with no template has no shape to
- * make a piece in.
+ * A governance blocker, plus the two things this screen can be blocked by that
+ * governance does not track: a workspace with no template has no shape to make
+ * a piece in, and a runtime blocker (an unset API key) stops research outright.
+ *
+ * `asset: null` is the runtime case. There is no setup step that fixes an
+ * environment variable, so those entries are plain text — a link to a page
+ * that cannot help is worse than no link.
  */
-export type SetupBlocker = { asset: GovernanceBlocker['asset'] | 'templates'; message: string }
+export type SetupBlocker = {
+  asset: GovernanceBlocker['asset'] | 'templates' | null
+  message: string
+}
 
 type Props = {
   templates: TemplateCard[]
@@ -35,7 +42,7 @@ type Props = {
 }
 
 /** Where each asset is edited. Keyed by the tag readiness sets. */
-const FIX_HREF: Record<SetupBlocker['asset'], string> = {
+const FIX_HREF: Record<NonNullable<SetupBlocker['asset']>, string> = {
   voice: '/admin/ops/setup/brand-voice',
   workspace: '/admin/ops/setup/workspace',
   audiences: '/admin/ops/setup/audiences',
@@ -60,8 +67,12 @@ function SetupNotice({ blockers }: { blockers: SetupBlocker[] }) {
       ) : (
         <ul>
           {blockers.map((blocker) => (
-            <li key={blocker.asset}>
-              <Link href={FIX_HREF[blocker.asset]}>{blocker.message}</Link>
+            <li key={`${blocker.asset ?? 'runtime'}:${blocker.message}`}>
+              {blocker.asset ? (
+                <Link href={FIX_HREF[blocker.asset]}>{blocker.message}</Link>
+              ) : (
+                blocker.message
+              )}
             </li>
           ))}
         </ul>
@@ -84,6 +95,8 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive, bloc
   const [path, setPath] = useState<'suggest' | 'keyword'>('suggest')
   const [keyword, setKeyword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  /** Live mode only: creating starts research, and research calls paid APIs. */
+  const [confirming, setConfirming] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const chosen = templates.find((t) => t.id === templateId) ?? null
@@ -100,18 +113,46 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive, bloc
     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
   }
 
-  const createFromKeyword = (event: React.FormEvent) => {
-    event.preventDefault()
+  const create = (confirmLiveCost: boolean) => {
     if (!chosen || !pipelineReady) return
     setError(null)
+    setConfirming(false)
     startTransition(async () => {
-      const result = await createTopicsAction({ keywords: [keyword], templateId: chosen.id })
+      const result = await createTopicsAction({
+        keywords: [keyword],
+        templateId: chosen.id,
+        confirmLiveCost,
+      })
       if (!result.ok) {
         setError(result.error)
         return
       }
+      if (!result.researchQueued) {
+        // The piece exists; nothing is going to move it. Name what is in the
+        // way rather than opening a page that looks idle for no stated reason.
+        setError(
+          `Created "${result.primary}", but research did not start. ${
+            result.researchBlockedReason ?? 'The workspace is not ready to run.'
+          }`,
+        )
+        return
+      }
       router.push(`/admin/ops/articles/${result.articleId}`)
     })
+  }
+
+  /**
+   * Creating starts research, which in live mode is a paid call — so the same
+   * one-line confirm the run panel uses stands in front of it. The server
+   * refuses an unconfirmed live create either way.
+   */
+  const createFromKeyword = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (mode === 'live') {
+      setConfirming(true)
+      return
+    }
+    create(false)
   }
 
   return (
@@ -199,15 +240,39 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive, bloc
                     value={keyword}
                   />
                 </label>
-                <button
-                  className="datum-ops__btn datum-ops__btn--primary"
-                  disabled={pending || !pipelineReady || !keyword.trim()}
-                  type="submit"
-                >
-                  {pending ? 'Creating…' : `Create ${chosen.name.toLowerCase()}`}
-                </button>
+                {confirming ? (
+                  <>
+                    <button
+                      className="datum-ops__btn datum-ops__btn--primary"
+                      disabled={pending}
+                      onClick={() => create(true)}
+                      type="button"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      className="datum-ops__btn"
+                      disabled={pending}
+                      onClick={() => setConfirming(false)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="datum-ops__btn datum-ops__btn--primary"
+                    disabled={pending || !pipelineReady || !keyword.trim()}
+                    type="submit"
+                  >
+                    {pending ? 'Creating…' : `Create ${chosen.name.toLowerCase()}`}
+                  </button>
+                )}
               </form>
             )}
+            {confirming ? (
+              <p className="datum-ops__warn">This calls paid providers. Continue?</p>
+            ) : null}
             {error ? <p className="datum-ops__error">{error}</p> : null}
           </div>
         </section>

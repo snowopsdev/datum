@@ -10,7 +10,7 @@ import {
   STAGE_LABEL,
   STATUS_META,
 } from '../../articleStatus'
-import { OpenInAdmin } from '../ArchiveAction'
+import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
 import type { PanelProps } from '../types'
 
 /**
@@ -41,9 +41,15 @@ function oneLineHint(value: string | null): string | null {
  * panel: `queueRunForArticles` refuses an article with no template, so
  * assigning one and starting research is a single decision, and splitting it
  * across two blocks only made the first look optional.
+ *
+ * Archive is here too, but only while no run is carrying the piece. A stalled
+ * `researched`/`drafted`/`qa_passed` article is owned by a person, not a run —
+ * and with no Archive button on the only panel those statuses get, the sole
+ * way to take one off the board was to pay for the run first.
  */
 export function RunNextStagePanel({
   action,
+  activeRunIncludesArticle,
   article,
   editHref,
   mode,
@@ -150,6 +156,9 @@ export function RunNextStagePanel({
           >
             {needsTemplate ? 'Assign and start research' : 'Run next stage'}
           </button>
+          {activeRunIncludesArticle ? null : (
+            <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
+          )}
           <OpenInAdmin editHref={editHref} />
         </div>
       )}

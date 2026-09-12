@@ -26,6 +26,13 @@ export const DECISION_LABEL: Record<InformationGainRunView['decision'], string> 
  */
 export type PanelProps = {
   action: ReviewAction
+  /**
+   * Whether a `queued`/`running` pipeline run lists this article. A runnable
+   * status on its own says only that a run *would* pick the piece up, so a
+   * panel that offers a run-owner's controls has to ask this before it can
+   * claim anything is in flight — or withhold the ones a person owns.
+   */
+  activeRunIncludesArticle: boolean
   article: BoardArticle
   editHref: string
   mode: 'mock' | 'live'

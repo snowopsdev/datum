@@ -1,14 +1,13 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
-
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
-import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { type IcpOption, loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
 export type BriefActionResult = { ok: true; message: string } | { ok: false; error: string }
 
@@ -39,7 +38,9 @@ function errorMessage(e: unknown, fallback: string): string {
 }
 
 function revalidate(articleId: number) {
-  revalidatePath('/admin/ops/articles')
+  // The piece itself and the board it sits on. There is no `/admin/ops/articles`
+  // list any more — the content board replaced it — so revalidating that path
+  // only ever refreshed a route that redirects.
   revalidatePath(`/admin/ops/articles/${articleId}`)
   revalidatePath('/admin/ops/content')
 }
@@ -138,10 +139,17 @@ export async function saveBriefAction(
  * Approval moves the piece to `researched` — the generate stage's entry status
  * — and queues a run for it, so the editor never has to find a "start" button:
  * saying yes to the brief *is* starting.
+ *
+ * Which is exactly why it goes through `gateRunReadiness` like every other run
+ * entry point rather than asking its own question: an approval in live mode
+ * spends money, and this button owned a private readiness check whose wording
+ * had already drifted from the board's and which never asked for a live-cost
+ * confirmation at all.
  */
 export async function approveBriefAction(
   articleId: number,
   edits?: BriefEdits,
+  options?: { confirmLiveCost?: boolean },
 ): Promise<BriefActionResult> {
   try {
     const { payload, user } = await requireUser()
@@ -155,18 +163,11 @@ export async function approveBriefAction(
 
     const setup = await loadWorkspaceSetup(payload)
     const { readiness } = setup
-    if (!readiness.runtime.ready) {
-      return {
-        ok: false,
-        error: `Writing needs these configured first: ${readiness.runtime.blockers.join(', ')}.`,
-      }
-    }
-    if (!readiness.governance.ready) {
-      return {
-        ok: false,
-        error: `Finish setup before writing: ${readiness.governance.problems.join('; ')}.`,
-      }
-    }
+    // Before the status write, not after: an approval that moved the piece to
+    // `researched` and then found it could not run would leave it stranded at
+    // a status only a run advances, with the brief no longer editable.
+    const refusal = gateRunReadiness(readiness, options?.confirmLiveCost)
+    if (refusal) return { ok: false, error: refusal }
 
     const approvedAt = new Date().toISOString()
     const cleaned = edits ? cleanEdits(edits) : null
@@ -181,7 +182,7 @@ export async function approveBriefAction(
       approvedAt,
       approvedBy: actorOf(user),
     }
-    await payload.update({
+    const approved = await payload.update({
       collection: 'articles',
       id: articleId,
       data: {
@@ -202,20 +203,13 @@ export async function approveBriefAction(
       },
     })
 
-    const templateId =
-      typeof article.template === 'object' ? article.template.id : Number(article.template)
-    await createPipelineRun(payload, user, {
-      runId: randomUUID(),
-      source: 'selected',
-      templateId,
-      count: 1,
-      articleIds: [articleId],
-      requestedBy: actorOf(user),
-      readiness,
-    })
+    // The approved document, not the one read a moment ago: `queueRunForArticles`
+    // refuses a status no stage picks up, and `brief_review` is one of those.
+    await queueRunForArticles(payload, user, [approved], readiness)
 
+    // `queueRunForArticles` already revalidated the board and the dashboard's
+    // run banner; this is the article's own page.
     revalidate(articleId)
-    revalidatePath('/admin')
     return { ok: true, message: 'Brief approved. Writing has started.' }
   } catch (e) {
     if (e instanceof ActivePipelineRunError) {

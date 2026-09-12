@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import {
   publishArticleAction,
@@ -43,6 +43,19 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
    * changing a time is an edit rather than a retype.
    */
   const [scheduleAt, setScheduleAt] = useState(() => toUtcInputValue(article.publishAt))
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+  /**
+   * The picker's floor, written onto the element after mount rather than
+   * rendered: "now" read while server-rendering is a different instant from
+   * the one the browser reads, and the mismatch is a hydration error on the
+   * attribute. Until then the picker is exactly the one this always was.
+   */
+  const scheduleInput = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (scheduleInput.current) {
+      scheduleInput.current.min = toUtcInputValue(new Date().toISOString())
+    }
+  }, [])
 
   return (
     <div className="datum-ops__block">
@@ -92,11 +105,16 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
         <label htmlFor="publish-at">Publish at (UTC)</label>
         <input
           id="publish-at"
+          ref={scheduleInput}
           type="datetime-local"
           value={scheduleAt}
-          onChange={(e) => setScheduleAt(e.target.value)}
+          onChange={(e) => {
+            setScheduleError(null)
+            setScheduleAt(e.target.value)
+          }}
           disabled={pending}
         />
+        {scheduleError ? <span className="datum-ops__error">{scheduleError}</span> : null}
       </div>
       <div className="datum-ops__actions">
         <button
@@ -116,15 +134,22 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
           type="button"
           className="datum-ops__btn"
           disabled={pending || scheduleAt === ''}
-          onClick={() =>
+          onClick={() => {
+            // Caught here rather than in the action: the server refuses a past
+            // date too, but a thrown server-action message is redacted in a
+            // production build, so the reviewer would get "an error occurred"
+            // for a mistake the browser can name exactly.
+            const at = utcInputValueToIso(scheduleAt)
+            if (new Date(at).getTime() <= Date.now()) {
+              setScheduleError('Pick a time in the future to schedule this article.')
+              return
+            }
+            setScheduleError(null)
             runAction(async () => {
-              const { publishAt } = await scheduleArticleAction(
-                article.id,
-                utcInputValueToIso(scheduleAt),
-              )
+              const { publishAt } = await scheduleArticleAction(article.id, at)
               setNotice(`Scheduled for ${formatAuditTimestamp(publishAt)}`)
             })
-          }
+          }}
         >
           Schedule
         </button>

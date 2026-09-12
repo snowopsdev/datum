@@ -58,6 +58,12 @@ export async function NewContentView(props: AdminViewServerProps) {
             ...(r.content.ready
               ? []
               : [{ asset: 'templates' as const, message: 'Add a content template' }]),
+            // Runtime blockers — an unset provider key, most often — are the
+            // commonest reason a live workspace cannot research anything, and
+            // without them the notice fell back to a bare "Finish workspace
+            // setup" link that named nothing. No setup step fixes an
+            // environment variable, so they carry no link.
+            ...r.runtime.blockers.map((message) => ({ asset: null, message })),
           ]}
           mode={r.mode}
           pipelineReady={r.runtime.ready && r.governance.ready && r.content.ready}

@@ -40,6 +40,7 @@ vi.mock('@/components/ops/boardActions', () => ({ runSelectedArticlesAction: vi.
 vi.mock('@/components/ops/auditActions', () => ({ auditDetailsAction: vi.fn() }))
 
 const { PANEL_FOR_STATUS } = await import('@/components/ops/review')
+const { RunNextStagePanel } = await import('@/components/ops/review/panels/RunNextStagePanel')
 const { groupAuditEvents } = await import('@/components/ops/review/AuditTrail')
 const { Scorecard } = await import('@/components/ops/review/Scorecard')
 
@@ -74,6 +75,54 @@ const statusChange = (): AuditSummary =>
 
 it('maps every article status to exactly one panel', () => {
   for (const status of ARTICLE_STATUSES) expect(PANEL_FOR_STATUS[status]).toBeTypeOf('function')
+})
+
+/**
+ * A piece at `researched`, `drafted` or `qa_passed` that no run is carrying is
+ * stalled, and the only panel those statuses get used to offer nothing but
+ * "Run next stage" — so the way out of a piece nobody wants finished was to
+ * run it first. Archive belongs there whenever no run is carrying it.
+ */
+const runPanelProps = (over: Record<string, unknown> = {}) =>
+  ({
+    action: {
+      error: null,
+      notice: null,
+      pending: false,
+      runAction: () => {},
+      setNotice: () => {},
+    },
+    article: {
+      id: 1,
+      status: 'researched',
+      archived: false,
+      templateId: 3,
+      researchHint: null,
+    },
+    activeRunIncludesArticle: false,
+    editHref: '/admin/collections/articles/1',
+    mode: 'mock',
+    run: null,
+    runIsCurrent: false,
+    scheduleExpired: false,
+    scoreInvalidatedBy: null,
+    templates: [{ id: 3, name: 'Listicle' }],
+    ...over,
+  }) as never
+
+it('offers Archive on a stalled runnable piece', () => {
+  const { unmount } = render(React.createElement(RunNextStagePanel, runPanelProps()))
+  expect(screen.getByRole('button', { name: 'Archive' })).toBeTruthy()
+  unmount()
+})
+
+it('hides Archive while a run is carrying the piece', () => {
+  const { unmount } = render(
+    React.createElement(RunNextStagePanel, runPanelProps({ activeRunIncludesArticle: true })),
+  )
+  expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Run next stage' })).toBeTruthy()
+  unmount()
 })
 
 it('groups model calls per run in the audit trail', () => {
