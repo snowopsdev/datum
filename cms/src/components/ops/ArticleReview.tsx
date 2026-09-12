@@ -5,7 +5,7 @@ import React from 'react'
 import type { BriefIcpOption } from './BriefEditor'
 import { scoreInvalidationNotice, type AuditSummary } from './auditTypes'
 import type { BoardArticle, InformationGainRunView, TemplateOption } from './articleStatus'
-import { PANEL_FOR_STATUS } from './review'
+import { PANEL_FOR_KEY, panelKeyFor } from './review'
 import { ArticleBody } from './review/ArticleBody'
 import { AuditTrail } from './review/AuditTrail'
 import { ReviewHeader, ReviewTitle } from './review/ReviewHeader'
@@ -67,7 +67,7 @@ export function ArticleReview({
   const summaryRun = article.informationGain?.run
   const summaryRunId = typeof summaryRun === 'number' ? summaryRun : (summaryRun?.id ?? null)
   const runIsCurrent = run != null && summaryRunId === run.id
-  const StatusPanel = PANEL_FOR_STATUS[article.status]
+  const StatusPanel = PANEL_FOR_KEY[panelKeyFor(article)]
 
   return (
     <div className="datum-ops">

@@ -29,6 +29,7 @@ vi.mock('@/components/ops/actions', () => ({
   resetToDraftedAction: vi.fn(),
   scheduleArticleAction: vi.fn(),
   sendBackAction: vi.fn(),
+  unarchiveArticleAction: vi.fn(),
   unscheduleArticleAction: vi.fn(),
 }))
 vi.mock('@/components/ops/briefActions', () => ({
@@ -39,7 +40,8 @@ vi.mock('@/components/ops/briefActions', () => ({
 vi.mock('@/components/ops/boardActions', () => ({ runSelectedArticlesAction: vi.fn() }))
 vi.mock('@/components/ops/auditActions', () => ({ auditDetailsAction: vi.fn() }))
 
-const { PANEL_FOR_STATUS } = await import('@/components/ops/review')
+const { PANEL_FOR_STATUS, panelForArticle } = await import('@/components/ops/review')
+const { ArchivedPanel } = await import('@/components/ops/review/panels/ArchivedPanel')
 const { RunNextStagePanel } = await import('@/components/ops/review/panels/RunNextStagePanel')
 const { groupAuditEvents } = await import('@/components/ops/review/AuditTrail')
 const { Scorecard } = await import('@/components/ops/review/Scorecard')
@@ -123,6 +125,33 @@ it('hides Archive while a run is carrying the piece', () => {
   expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Run next stage' })).toBeTruthy()
   unmount()
+})
+
+/**
+ * Archived means off limits, not just off the board. The page swaps the
+ * status panel for a read-only one whose only control is Unarchive, so an
+ * archived approved piece cannot be published and an archived runnable one
+ * cannot queue a run the pipeline would skip anyway.
+ */
+it('replaces the status panel with a read-only one when the article is archived', () => {
+  const { unmount } = render(
+    React.createElement(
+      ArchivedPanel,
+      runPanelProps({ article: { id: 1, status: 'approved', archived: true } }),
+    ),
+  )
+  expect(screen.getByRole('button', { name: 'Unarchive' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Publish now' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Run next stage' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+  unmount()
+})
+
+it('picks the archived panel for every status once the article is archived', () => {
+  for (const status of ARTICLE_STATUSES) {
+    expect(panelForArticle({ status, archived: true } as never)).toBe(ArchivedPanel)
+    expect(panelForArticle({ status, archived: false } as never)).toBe(PANEL_FOR_STATUS[status])
+  }
 })
 
 it('groups model calls per run in the audit trail', () => {

@@ -107,6 +107,18 @@ describe('queueRunForArticles', () => {
     expect(createPipelineRunMock).not.toHaveBeenCalled()
   })
 
+  it('refuses an archived article, which the pipeline would skip', async () => {
+    await expect(
+      queueRunForArticles(
+        payload,
+        user,
+        [{ id: 1, status: 'drafted', template: 3, archived: true }] as never,
+        readiness(),
+      ),
+    ).rejects.toThrow('1 article is archived')
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
   it('refuses an empty selection', async () => {
     await expect(queueRunForArticles(payload, user, [], readiness())).rejects.toThrow(
       'Those articles no longer exist.',
@@ -127,7 +139,13 @@ describe('gateRunReadiness', () => {
   it('names the environment variables the runtime is missing', () => {
     expect(
       gateRunReadiness(
-        readiness({ runtime: { ready: false, missing: ['OPENAI_API_KEY'], blockers: ['OPENAI_API_KEY', 'an Ahrefs key'] } }),
+        readiness({
+          runtime: {
+            ready: false,
+            missing: ['OPENAI_API_KEY'],
+            blockers: ['OPENAI_API_KEY', 'an Ahrefs key'],
+          },
+        }),
       ),
     ).toBe('Configure the required environment variables: OPENAI_API_KEY, an Ahrefs key.')
   })

@@ -1,10 +1,7 @@
 import type { CollectionBeforeChangeHook } from 'payload'
 import { APIError } from 'payload'
 
-import {
-  SCORE_INVALIDATED_EVENT,
-  scoreInvalidatedSummary,
-} from '../components/ops/auditTypes'
+import { SCORE_INVALIDATED_EVENT, scoreInvalidatedSummary } from '../components/ops/auditTypes'
 import type { ArticleAuditContext } from './articleAudit'
 import { STATUS_META, type ArticleStatus } from './articleStatusMeta'
 
@@ -317,11 +314,7 @@ function valueAt(doc: Record<string, unknown> | undefined, path: string): unknow
  * `SCORED_CONTENT_FIELDS` is deliberately the fence: those are exactly the
  * fields whose mid-run edits corrupt or invalidate work already paid for.
  */
-export const gateReadOnlyStatus: CollectionBeforeChangeHook = ({
-  context,
-  data,
-  originalDoc,
-}) => {
+export const gateReadOnlyStatus: CollectionBeforeChangeHook = ({ context, data, originalDoc }) => {
   if (!originalDoc) return data
   const status = originalDoc.status as ArticleStatus
   if (!STATUS_META[status]?.readOnly) return data
@@ -372,10 +365,7 @@ export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
   if (changed.length === 0) return data
 
   data.informationGain = { ...CLEARED_INFORMATION_GAIN }
-  if (
-    original.status === 'verified' &&
-    !UNGATED_OVERRIDE_TARGETS.includes(data.status as never)
-  ) {
+  if (original.status === 'verified' && !UNGATED_OVERRIDE_TARGETS.includes(data.status as never)) {
     data.status = 'drafted'
     // Why the article moved, for the audit trail and for the notice the review
     // page shows above "Run next stage". Without it `auditArticleChange` falls
@@ -398,4 +388,33 @@ export const invalidateStaleInformationGain: CollectionBeforeChangeHook = ({
     }
   }
   return data
+}
+
+/**
+ * An archived article is off limits, not just off the board.
+ *
+ * Archiving only hides a piece; nothing used to stop the writes that move it:
+ * the review page rendered its status panel as before, so an archived approved
+ * piece could still be published and an archived runnable one could queue a
+ * run the pipeline would skip. This refuses every status change and every
+ * schedule while `archived` holds, from every writer at once — the ops
+ * actions, the raw doc view and the API — so the promise "archived means
+ * nothing happens to it" is kept by the collection rather than by each screen.
+ *
+ * Unarchiving is the one way out, and a write that unarchives may also carry a
+ * status in the same request (a reviewer restoring a piece straight into
+ * revision). Everything else — notes, a same-status re-save, the archiving
+ * write itself — passes.
+ */
+export const gateArchivedStatus: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+  if (!originalDoc || originalDoc.archived !== true) return data
+  if (data.archived === false) return data
+  const status = originalDoc.status as string | undefined
+  const changesStatus = typeof data.status === 'string' && data.status !== status
+  const schedules = data.publishAt != null && data.publishAt !== originalDoc.publishAt
+  if (!changesStatus && !schedules) return data
+  throw new APIError(
+    'This article is archived. Unarchive it before changing its status or scheduling it.',
+    400,
+  )
 }

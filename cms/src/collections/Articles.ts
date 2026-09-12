@@ -4,6 +4,7 @@ import { auditArticleChange } from '../lib/articleAudit'
 import { emitArticleStatusEvent } from '../lib/articleEvents'
 import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
+  gateArchivedStatus,
   gateReadOnlyStatus,
   gateReviewOverride,
   gateVerifiedStatus,
@@ -23,7 +24,9 @@ const SCORED_FIELD_DESCRIPTION =
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
-    // `invalidateStaleInformationGain` is first because it is a *dependency*:
+    // `gateArchivedStatus` runs first: an archived piece refuses every move,
+    // so nothing below needs to reason about one. Then
+    // `invalidateStaleInformationGain`, because it is a *dependency*:
     // it clears the decision an edited draft no longer deserves, and
     // `gateVerifiedStatus` has to see that clearance rather than the PASS it
     // replaced. `gateReadOnlyStatus` sits after it (readOnly statuses never
@@ -32,6 +35,7 @@ export const Articles: CollectionConfig = {
     // only — `gateVerifiedStatus` re-derives the fresh-justification test
     // rather than trusting the hook before it.
     beforeChange: [
+      gateArchivedStatus,
       invalidateStaleInformationGain,
       gateReadOnlyStatus,
       gateReviewOverride,

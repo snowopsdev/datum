@@ -403,6 +403,25 @@ export async function archiveArticleAction(articleId: number) {
   revalidateOps(articleId)
 }
 
+/**
+ * Puts an archived piece back on the board, at the status it had when it was
+ * archived. `gateArchivedStatus` refuses every status change and schedule
+ * while a piece is archived, so this is the one door out of that state; the
+ * status panel for wherever it lands takes over from there.
+ */
+export async function unarchiveArticleAction(articleId: number) {
+  const { payload, user } = await requireUser()
+  await payload.update({
+    collection: 'articles',
+    id: articleId,
+    data: { archived: false },
+    context: auditContext(user, 'article_unarchived', 'Article unarchived'),
+    user,
+    overrideAccess: false,
+  })
+  revalidateOps(articleId)
+}
+
 export async function sendBackAction(articleId: number, reviewNotes: string) {
   const { payload, user } = await requireUser()
   const note = reviewNotes.trim() || 'Editor sent back for revision.'

@@ -80,6 +80,15 @@ export async function queueRunForArticles(
 ): Promise<{ runId: string }> {
   if (docs.length === 0) throw new Error('Those articles no longer exist.')
 
+  // The pipeline passes archived articles over at selection, so a run queued
+  // for one would report success having done nothing. Say so up front.
+  const archived = docs.filter((doc) => doc.archived === true)
+  if (archived.length > 0) {
+    throw new Error(
+      `${plural(archived.length, 'article')} ${archived.length === 1 ? 'is' : 'are'} archived — unarchive ${archived.length === 1 ? 'it' : 'them'} before running.`,
+    )
+  }
+
   // A status with no stage waiting on it would be silently dropped by
   // `runPipeline`'s entry-status query, so the run would report success
   // having done nothing. Refuse instead of lying about it.
