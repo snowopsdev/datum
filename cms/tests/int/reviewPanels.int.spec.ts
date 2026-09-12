@@ -1,7 +1,9 @@
 import React from 'react'
+import { render, screen } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import type { AuditSummary } from '@/components/ops/auditTypes'
+import type { InformationGainRunView } from '@/components/ops/articleStatus'
 import { ARTICLE_STATUSES } from '@/lib/articleStatusMeta'
 
 /**
@@ -39,6 +41,7 @@ vi.mock('@/components/ops/auditActions', () => ({ auditDetailsAction: vi.fn() })
 
 const { PANEL_FOR_STATUS } = await import('@/components/ops/review')
 const { groupAuditEvents } = await import('@/components/ops/review/AuditTrail')
+const { Scorecard } = await import('@/components/ops/review/Scorecard')
 
 const entry = (overrides: Partial<AuditSummary>): AuditSummary => ({
   id: `entry-${Math.random()}`,
@@ -77,4 +80,79 @@ it('groups model calls per run in the audit trail', () => {
   const rows = groupAuditEvents([call('r1'), call('r1'), statusChange(), call('r2')])
   expect(rows.map((r) => r.kind)).toEqual(['run', 'status', 'run'])
   expect(rows[0]).toMatchObject({ runId: 'r1', calls: 2 })
+})
+
+/** A run whose single policy reason cites its single claim. */
+const scoredRun = (): InformationGainRunView => ({
+  id: 42,
+  createdAt: '2026-09-01T10:00:00.000Z',
+  createdAtLabel: '2026-09-01 10:00',
+  decision: 'REVISE',
+  policyVersion: 'ig-v1:test',
+  calibrated: false,
+  baselineAvailable: true,
+  scores: {
+    consensusCoverage: 0.5,
+    potentialGainUnits: 1,
+    verifiedGainUnits: 0.5,
+    verificationRatio: 0.5,
+    verifiedGainDensity: 0.1,
+    facetGainCoverage: 0.4,
+    internalDuplicationRate: 0.1,
+  },
+  claimSummary: {
+    totalClaims: 1,
+    materiallyNovelClaims: 1,
+    verifiedNovelClaims: 0,
+    unsupportedNovelClaims: 1,
+    contradictoryClaims: 0,
+    firstPartyClaims: 0,
+  },
+  reasons: [
+    {
+      policy: 'NOVEL_FACTUAL_CLAIM_REQUIRES_SUPPORT',
+      claimId: 'c1',
+      message: 'No usable evidence.',
+      severity: 'REVISE',
+    },
+  ],
+  claims: [
+    {
+      id: 'c1',
+      text: 'a claim',
+      excerpt: 'a claim',
+      section: null,
+      kind: 'unknown',
+      novelty: 0.5,
+      relevance: 0.5,
+      utility: 0.5,
+      intraDocumentNovelty: 0.5,
+      potentialGain: 1,
+      verifiedGain: 0.5,
+      evidenceIntegrity: 0.5,
+      verificationMode: 'unknown',
+      blocked: false,
+      requiresHumanReview: false,
+      materiallyNovel: true,
+      verifiedNovel: false,
+      evidence: [],
+      reasons: [],
+    },
+  ],
+  claimCount: 1,
+  claimsTruncated: false,
+  tokenCount: 100,
+  costUsd: 0.1,
+})
+
+/**
+ * A fragment link to a row inside a closed `<details>` scrolls nowhere, so the
+ * reason's claim link has to open the disclosure before the jump.
+ */
+it('opens the scorecard disclosure when a policy reason links to a claim', () => {
+  render(React.createElement(Scorecard, { run: scoredRun(), isCurrent: true, summaryRunId: 42 }))
+  const disclosure = document.querySelector('details') as HTMLDetailsElement
+  expect(disclosure.open).toBe(false)
+  screen.getByRole('link', { name: 'c1' }).click()
+  expect(disclosure.open).toBe(true)
 })

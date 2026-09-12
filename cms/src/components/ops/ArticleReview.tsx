@@ -95,7 +95,6 @@ export function ArticleReview({
             action={action}
             article={article}
             editHref={editHref}
-            icps={icps}
             mode={mode}
             run={run}
             runIsCurrent={runIsCurrent}

@@ -1,10 +1,20 @@
-import type { BriefIcpOption } from '../BriefEditor'
-import type {
-  BoardArticle,
-  InformationGainRunView,
-  TemplateOption,
-} from '../articleStatus'
+import type { BoardArticle, InformationGainRunView, TemplateOption } from '../articleStatus'
 import type { ReviewAction } from './useReviewAction'
+
+/**
+ * An information-gain verdict, said the way a reviewer reads it.
+ *
+ * Here rather than beside the scorecard that shows it: `VerifiedPanel` names
+ * the decision too, and importing the whole scorecard — tiles, claims table
+ * and all — for one lookup made a panel depend on a component it never
+ * renders.
+ */
+export const DECISION_LABEL: Record<InformationGainRunView['decision'], string> = {
+  PASS: 'Pass',
+  REVISE: 'Revise',
+  HUMAN_REVIEW: 'Human review',
+  BLOCK: 'Block',
+}
 
 /**
  * The one prop shape every status panel takes.
@@ -18,8 +28,6 @@ export type PanelProps = {
   action: ReviewAction
   article: BoardArticle
   editHref: string
-  /** Active audiences the brief may switch between. */
-  icps: BriefIcpOption[]
   mode: 'mock' | 'live'
   run: InformationGainRunView | null
   /** Whether `article.informationGain` still points at `run`. */

@@ -4,8 +4,7 @@ import React, { useState } from 'react'
 
 import { approveArticleAction, publishArticleAction, sendBackAction } from '../../actions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
-import { DECISION_LABEL } from '../Scorecard'
-import type { PanelProps } from '../types'
+import { DECISION_LABEL, type PanelProps } from '../types'
 
 /**
  * QA and information gain both cleared the draft; the decision is a person's.

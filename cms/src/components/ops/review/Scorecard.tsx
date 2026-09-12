@@ -1,17 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useRef } from 'react'
 
 import { FACET_GAIN_THRESHOLD } from '../../../lib/informationGain/scoring'
 import type { InformationGainRunView, ScorecardClaim } from '../articleStatus'
 import { dec, pct, ScorecardClaimsTable } from './ScorecardClaims'
-
-export const DECISION_LABEL: Record<InformationGainRunView['decision'], string> = {
-  PASS: 'Pass',
-  REVISE: 'Revise',
-  HUMAN_REVIEW: 'Human review',
-  BLOCK: 'Block',
-}
+import { DECISION_LABEL } from './types'
 
 /**
  * One headline number. `gated` marks the metrics a policy threshold actually
@@ -55,9 +49,16 @@ function IgMetric({
 function IgReasons({
   reasons,
   claimById,
+  onClaimLink,
 }: {
   reasons: InformationGainRunView['reasons']
   claimById: Map<string, ScorecardClaim>
+  /**
+   * Called before the fragment navigation, so the disclosure holding the
+   * claims table can open itself. A link to a row inside a closed `<details>`
+   * scrolls nowhere.
+   */
+  onClaimLink: () => void
 }) {
   if (reasons.length === 0) {
     return (
@@ -84,7 +85,12 @@ function IgReasons({
             </div>
             {reason.claimId ? (
               <div className="datum-ops__ig-reason-claim">
-                <a href={`#ig-claim-${encodeURIComponent(reason.claimId)}`}>{reason.claimId}</a>
+                <a
+                  href={`#ig-claim-${encodeURIComponent(reason.claimId)}`}
+                  onClick={onClaimLink}
+                >
+                  {reason.claimId}
+                </a>
                 <span>{claim?.excerpt || claim?.text || '(claim not in this run)'}</span>
               </div>
             ) : (
@@ -184,6 +190,7 @@ export function Scorecard({
   summaryRunId: number | null
 }) {
   const claimById = new Map(run.claims.map((c) => [c.id, c]))
+  const claimsDisclosure = useRef<HTMLDetailsElement>(null)
   return (
     <section className="datum-ops__ig" aria-labelledby="ig-scorecard-heading">
       <div className="datum-ops__ig-head">
@@ -218,9 +225,21 @@ export function Scorecard({
       )}
 
       <h3 className="datum-ops__ig-subhead">Why this decision</h3>
-      <IgReasons claimById={claimById} reasons={run.reasons} />
+      <IgReasons
+        claimById={claimById}
+        onClaimLink={() => {
+          // Synchronously, before the browser follows the fragment: the row
+          // has to be in the layout for the jump to land on it.
+          if (claimsDisclosure.current) claimsDisclosure.current.open = true
+        }}
+        reasons={run.reasons}
+      />
 
-      <details className="datum-ops__audit-details" style={{ marginTop: 12 }}>
+      <details
+        className="datum-ops__audit-details"
+        ref={claimsDisclosure}
+        style={{ marginTop: 12 }}
+      >
         <summary>Show scorecard</summary>
         <IgMetrics run={run} />
         <ScorecardClaimsTable run={run} />
