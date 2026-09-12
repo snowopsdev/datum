@@ -267,19 +267,26 @@ export async function setPrimaryIcpAction(id: number): Promise<TenantActionResul
  *
  * The editor's review step used to need three separate actions — persist,
  * activate, make primary — each its own network call before the next could
- * fire. This is the same three writes, still each carrying its own audit
- * context (`icp_created`/`icp_updated`, `icp_activated`, `icp_primary_set`,
- * exactly as a person clicking the old three buttons in sequence would leave
- * behind), just composed so the editor asks for it once.
+ * fire. This does the same three writes on one `requireUser()` session
+ * instead of composing the standalone actions (which would each re-authenticate
+ * on their own), and each write still carries its own audit context
+ * (`icp_created`/`icp_updated`, `icp_activated`, `icp_primary_set`) exactly as
+ * a person clicking the old three buttons in sequence would leave behind —
+ * except that the activate and make-primary writes are skipped entirely when
+ * the record is already in that state, so re-pressing this on an
+ * already-active, already-primary audience persists the edited fields without
+ * re-auditing a transition that did not happen.
  *
  * `primary` in the result is read back from the record rather than echoing
  * `options.makePrimary`: the activation gate makes the very first audience
  * primary on its own (see `gateIcpActivation`), so a caller that asked for
- * `makePrimary: false` can still get back `primary: true` — and one that
- * asked for `true` should never see a stale `false` from before the cascade
- * ran. `setPrimaryIcpAction` is skipped in that case rather than layering a
- * second, redundant `icp_primary_set` row on top of a flag the gate already
- * set.
+ * `makePrimary: false` can still get back `primary: true`.
+ *
+ * On failure, `id` is still returned when the create/update step already
+ * landed — an activation the gate rejects (incomplete audience) must not
+ * strand that saved draft as an id the caller has no way to find again; the
+ * editor adopts it so the next Save updates the same record instead of
+ * creating a duplicate.
  */
 export async function saveAndActivateIcpAction(
   id: number | null,
@@ -287,39 +294,65 @@ export async function saveAndActivateIcpAction(
   options: { makePrimary: boolean },
 ): Promise<
   | { ok: true; id: number; status: 'active'; primary: boolean }
-  | { ok: false; error: string }
+  | { ok: false; error: string; id?: number }
 > {
-  let savedId: number
-  if (id == null) {
-    const created = await createIcpAction(input)
-    if (!created.ok) return created
-    savedId = created.id
-  } else {
-    const saved = await saveIcpAction(id, input)
-    if (!saved.ok) return saved
-    savedId = id
+  let savedId: number | undefined
+  try {
+    const { payload, user } = await requireUser()
+    const content = icpContentOf(input)
+
+    let doc =
+      id == null
+        ? await payload.create({
+            collection: 'icps',
+            data: { ...icpFields(content), name: content.name || 'Untitled audience', status: 'draft' },
+            context: governanceAuditContext(user, 'icp_created', 'Audience drafted'),
+            user,
+            overrideAccess: false,
+          })
+        : await payload.update({
+            collection: 'icps',
+            id,
+            data: { ...icpFields(content), name: content.name || 'Untitled audience' },
+            context: governanceAuditContext(user, 'icp_updated', `Audience "${content.name}" saved`),
+            user,
+            overrideAccess: false,
+          })
+    savedId = doc.id
+
+    if (doc.status !== 'active') {
+      doc = await payload.update({
+        collection: 'icps',
+        id: savedId,
+        data: { status: 'active' },
+        context: governanceAuditContext(user, 'icp_activated', 'Audience activated'),
+        user,
+        overrideAccess: false,
+      })
+    }
+
+    let primary = doc.primary === true
+    if (options.makePrimary && !primary) {
+      doc = await payload.update({
+        collection: 'icps',
+        id: savedId,
+        data: { primary: true },
+        context: governanceAuditContext(user, 'icp_primary_set', 'Audience made primary'),
+        user,
+        overrideAccess: false,
+      })
+      primary = doc.primary === true
+    }
+
+    revalidateIcps(savedId)
+    return { ok: true, id: savedId, status: 'active', primary }
+  } catch (e) {
+    return {
+      ok: false,
+      error: errorMessage(e, 'Could not save and activate the audience.'),
+      id: savedId,
+    }
   }
-
-  const activated = await activateIcpAction(savedId)
-  if (!activated.ok) return activated
-
-  const { payload, user } = await requireUser()
-  const afterActivate = await payload.findByID({
-    collection: 'icps',
-    id: savedId,
-    depth: 0,
-    user,
-    overrideAccess: false,
-  })
-  let primary = afterActivate.primary === true
-
-  if (options.makePrimary && !primary) {
-    const primaried = await setPrimaryIcpAction(savedId)
-    if (!primaried.ok) return primaried
-    primary = true
-  }
-
-  return { ok: true, id: savedId, status: 'active', primary }
 }
 
 export async function archiveIcpAction(id: number): Promise<TenantActionResult> {

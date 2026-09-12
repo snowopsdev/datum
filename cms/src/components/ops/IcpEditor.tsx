@@ -133,13 +133,17 @@ export function IcpEditor({
       const result = await saveAndActivateIcpAction(id, content, {
         makePrimary: effectiveMakePrimary,
       })
+      // Adopt the id whether or not activation itself succeeded: the gate can
+      // still reject an incomplete audience after the create/update already
+      // landed, and that saved draft must not be orphaned — the next Save has
+      // to update it, not create a duplicate.
+      if (id == null && result.id != null) {
+        setId(result.id)
+        router.replace(`${LIST_PATH}/${result.id}`)
+      }
       if (!result.ok) {
         setError(result.error)
         return
-      }
-      if (id == null) {
-        setId(result.id)
-        router.replace(`${LIST_PATH}/${result.id}`)
       }
       setStatus('active')
       setPrimary(result.primary)

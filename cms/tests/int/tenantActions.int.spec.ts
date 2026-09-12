@@ -325,7 +325,7 @@ describe('saveAndActivateIcpAction', () => {
     expect(incumbent.primary).toBe(true)
   })
 
-  it('surfaces the activation gate’s error instead of throwing when the audience is incomplete', async () => {
+  it('surfaces the activation gate’s error instead of throwing, and still returns the created id', async () => {
     const result = await saveAndActivateIcpAction(
       null,
       emptyIcpContent(`Half done ${randomUUID().slice(0, 8)}`),
@@ -336,16 +336,45 @@ describe('saveAndActivateIcpAction', () => {
     expect(result.error).toContain('Cannot activate audience')
 
     // The create still went through; the gate only rejects the activation
-    // step, so the draft the operator was mid-typing is not lost.
-    const { docs } = await payload.find({
-      collection: 'icps',
-      where: { status: { equals: 'draft' } },
-      sort: '-createdAt',
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    if (docs[0]) createdIcpIds.push(docs[0].id)
+    // step, so the draft the operator was mid-typing is not lost — and its id
+    // comes back so the editor can adopt it instead of creating a duplicate
+    // on the next save.
+    expect(result.id).toEqual(expect.any(Number))
+    const savedId = result.id as number
+    createdIcpIds.push(savedId)
+
+    const doc = await payload.findByID({ collection: 'icps', id: savedId, depth: 0, overrideAccess: true })
+    expect(doc.status).toBe('draft')
+  })
+
+  it('audits an activation and a primary-set only once across two save-and-activate calls', async () => {
+    const forRecord = (rows: GovernanceAudit[], recordId: number) =>
+      rows.filter((row) => row.subject?.relationTo === 'icps' && row.subject.value === recordId)
+
+    const name = `Save-activate idempotent ${randomUUID().slice(0, 8)}`
+    const first = await saveAndActivateIcpAction(null, completeIcp(name), { makePrimary: true })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    createdIcpIds.push(first.id)
+
+    expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
+    expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
+
+    // Same id, already active and already primary: pressing "Save and
+    // activate" again edits the fields but must not re-audit a transition
+    // that did not happen.
+    const second = await saveAndActivateIcpAction(
+      first.id,
+      { ...completeIcp(name), who: 'Owns content for a 400-person company.' },
+      { makePrimary: true },
+    )
+    expect(second).toEqual({ ok: true, id: first.id, status: 'active', primary: true })
+
+    expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
+    expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
+
+    const doc = await payload.findByID({ collection: 'icps', id: first.id, depth: 0, overrideAccess: true })
+    expect(doc.who).toBe('Owns content for a 400-person company.')
   })
 })
 
