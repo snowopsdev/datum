@@ -75,10 +75,24 @@ test.describe('Admin Panel', () => {
       ['/admin/ops/setup/audiences', 'Audiences'],
       ['/admin/ops/setup/positioning', 'Positioning'],
       ['/admin/ops/setup/evidence', 'Evidence bank'],
+      ['/admin/ops/setup/brand-voice', 'Brand voice'],
     ] as const) {
       await page.goto(path)
       await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible()
     }
+
+    // Brand voice is edited on the same vertical stepper as the other assets,
+    // not on a tab strip of its own. A workspace with no voice yet still sees
+    // the entry cards first, so start onboarding before looking for the rail.
+    await page.goto('/admin/ops/setup/brand-voice')
+    const start = page.getByRole('button', { name: 'Start onboarding' })
+    if (await start.isVisible()) await start.click()
+    const rail = page.getByRole('list', { name: 'Setup progress' })
+    await expect(rail).toBeVisible()
+    await expect(rail.getByRole('button', { name: /Brand essence & mission/ })).toBeVisible()
+    await expect(rail.getByRole('button', { name: /Review & activate/ })).toBeVisible()
+    await expect(rail.getByRole('button', { name: /Export guide/ })).toBeVisible()
+    await expect(rail.getByRole('button', { name: /History/ })).toBeVisible()
   })
 
   test('the curated nav is the only nav, in five groups, and reaches the webhooks', async () => {

@@ -820,35 +820,6 @@
   }
 }
 
-/*
- * Brand voice reuses the template two-pane layout, but its left rail also holds
- * the "Replace this voice" cards. Those are `.datum-ops__entry-cards`, which ask
- * for `minmax(280px, 1fr)` — wider than the 220px column they sit in — so they
- * overflowed and the grid's `overflow: hidden` sheared them off mid-word. Give
- * the rail room and let the cards fill it in one column instead of demanding a
- * width the rail cannot give.
- */
-.datum-ops__bv {
-  grid-template-columns: 320px 1fr;
-}
-
-.datum-ops__bv .datum-ops__tpl-list {
-  overflow-y: auto;
-}
-
-.datum-ops__bv .datum-ops__entry-cards {
-  grid-template-columns: 1fr;
-  max-width: none;
-  gap: 10px;
-  padding: 12px;
-}
-
-@media (max-width: 800px) {
-  .datum-ops__bv {
-    grid-template-columns: 1fr;
-  }
-}
-
 .datum-ops__tpl-list {
   border-right: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
@@ -1182,12 +1153,6 @@
   max-width: 820px;
 }
 
-.datum-ops__entry-cards.is-compact {
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 10px 12px 14px;
-}
-
 .datum-ops__entry-card {
   border: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
@@ -1197,11 +1162,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card {
-  padding: 12px;
-  box-shadow: none;
 }
 
 .datum-ops__entry-card.is-disabled {
@@ -1225,19 +1185,11 @@
   letter-spacing: -0.02em;
 }
 
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card h3 {
-  font-size: 14px;
-}
-
 .datum-ops__entry-card p {
   margin: 0;
   color: var(--ops-ink-muted);
   font-size: 14px;
   line-height: 1.45;
-}
-
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card p {
-  font-size: 12px;
 }
 
 .datum-ops__entry-card input[type='file'] {
@@ -1246,6 +1198,54 @@
 
 .datum-ops__entry-card .datum-ops__btn {
   align-self: flex-start;
+}
+
+/*
+ * Brand voice sits above its rail: which voice is being edited, and — folded
+ * away while one is active — the two ways to make its replacement.
+ */
+.datum-ops__bv-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.datum-ops__bv-bar .datum-ops__field {
+  max-width: 460px;
+  margin: 0;
+}
+
+.datum-ops__bv-replace {
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  padding: 12px 14px;
+}
+
+/* `list-item`, not `block`: block drops the disclosure triangle in Chrome and
+   the row then reads as a heading nobody thinks to click. */
+.datum-ops__bv-replace > summary {
+  display: list-item;
+  list-style-position: inside;
+}
+
+.datum-ops__bv-replace > summary,
+.datum-ops__bv-replace > strong {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  color: var(--ops-ink-faint);
+  cursor: pointer;
+}
+
+.datum-ops__bv-replace > strong {
+  display: block;
+  cursor: default;
+}
+
+.datum-ops__bv-replace .datum-ops__entry-cards {
+  margin-top: 12px;
 }
 
 /* stepper */

@@ -99,14 +99,16 @@ export function PositioningEditor({
           </Link>
         </>
       }
-      sitePagesFetchedAt={sitePagesFetchedAt}
       steps={POSITIONING_STEPS}
       step={step}
       onStep={setStep}
-      asset="positioning"
-      sectionValue={sectionValueOf}
-      onAssist={applyAssist}
-      sectionHasContent={hasSectionContent(sectionValueOf(current))}
+      assist={{
+        asset: 'positioning',
+        sectionValue: sectionValueOf,
+        onAssist: applyAssist,
+        sectionHasContent: hasSectionContent(sectionValueOf(current)),
+        sitePagesFetchedAt,
+      }}
       disabled={pending}
       problems={current === 'review' ? problems : []}
       problemsTitle="A finished position still needs"

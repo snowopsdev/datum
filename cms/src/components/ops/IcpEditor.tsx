@@ -183,15 +183,17 @@ export function IcpEditor({
           </Link>
         </>
       }
-      sitePagesFetchedAt={sitePagesFetchedAt}
       steps={ICP_STEPS}
       step={step}
       onStep={setStep}
-      asset="icp"
-      {...(id != null ? { icpId: id } : {})}
-      sectionValue={sectionValueOf}
-      onAssist={(_stepId, value) => setContent((prev) => mergeAssist(prev, value))}
-      sectionHasContent={hasSectionContent(sectionValueOf(current))}
+      assist={{
+        asset: 'icp',
+        ...(id != null ? { icpId: id } : {}),
+        sectionValue: sectionValueOf,
+        onAssist: (_stepId, value) => setContent((prev) => mergeAssist(prev, value)),
+        sectionHasContent: hasSectionContent(sectionValueOf(current)),
+        sitePagesFetchedAt,
+      }}
       disabled={pending}
       problems={current === 'review' ? problems : []}
       problemsTitle={

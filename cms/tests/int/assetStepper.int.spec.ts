@@ -22,16 +22,24 @@ const steps = [
   { id: 'review', title: 'Review', blurb: 'Check it over.' },
 ] as const
 
-const stepper = (props: Record<string, unknown>) =>
+const stepper = (assist: Record<string, unknown> | null, props: Record<string, unknown> = {}) =>
   React.createElement(AssetStepper, {
     heading: 'Audience',
     lede: 'One reader.',
     steps,
     step: 0,
     onStep: vi.fn(),
-    asset: 'icp' as const,
-    sectionValue: () => ({}),
-    onAssist: vi.fn(),
+    ...(assist
+      ? {
+          assist: {
+            asset: 'icp' as const,
+            sectionValue: () => ({}),
+            onAssist: vi.fn(),
+            sectionHasContent: false,
+            ...assist,
+          },
+        }
+      : {}),
     disabled: false,
     actions: null,
     children: null,
@@ -76,6 +84,20 @@ it('says nothing once pages are fetched, or on a step with no assistant', () => 
   expect(screen.queryByText(/No site pages fetched yet/)).toBeNull()
 
   cleanup()
-  render(stepper({ sitePagesFetchedAt: null, step: 1 }))
+  render(stepper({ sitePagesFetchedAt: null }, { step: 1 }))
   expect(screen.queryByText(/No site pages fetched yet/)).toBeNull()
+})
+
+/**
+ * The brand voice is the one setup asset with no assistant, so its editor
+ * passes none — and the box, notes, and buttons must all go with it rather
+ * than sitting there doing nothing.
+ */
+it('offers no assistant at all to an asset that has none', () => {
+  render(stepper(null))
+
+  expect(screen.queryByRole('button', { name: 'Draft with AI' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Refine with AI' })).toBeNull()
+  expect(screen.queryByText(/No site pages fetched yet/)).toBeNull()
+  expect(screen.getByRole('list', { name: 'Setup progress' })).toBeTruthy()
 })

@@ -10,7 +10,7 @@ import { OWNER_LABEL, STAGE_LABEL, stageOf } from './articleStatus'
 import { removeTopicsAction, runSelectedArticlesAction } from './boardActions'
 import type { RunStatusDTO } from './boardTypes'
 import { RunStatusPanel } from './RunStatusPanel'
-import { Stepper } from './Stepper'
+import { PipelineStepper } from './PipelineStepper'
 import './ops.css'
 
 type Filter = ContentFilter
@@ -344,7 +344,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
                   </p>
                 </div>
                 <div className="datum-content__stage">
-                  <Stepper current={info} />
+                  <PipelineStepper current={info} />
                   <span className="datum-content__stage-label">
                     {STAGE_LABEL[info.stage]} · {info.label}
                   </span>

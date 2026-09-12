@@ -3,13 +3,12 @@
 import React from 'react'
 
 /**
- * The form primitives the setup editors share.
+ * The form primitives every setup editor shares — the workspace profile, the
+ * audiences, the positioning, and the brand voice.
  *
- * `brandVoiceSections.tsx` grew its own copies of these first and keeps them:
- * that file is working, tested, and out of scope here. These are the same
- * shapes generalised for the tenant assets, whose rows carry selects, dates,
- * and nested lists rather than only strings — which is why `RowsEditor` takes
- * a render function instead of a field table.
+ * Rows carry selects, dates, warnings, and nested lists rather than only
+ * strings, which is why `RowsEditor` takes a render function instead of a
+ * field table: the caller draws whatever that row is made of.
  */
 
 export function Field({

@@ -138,10 +138,12 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
       steps={STEPS}
       step={step}
       onStep={setStep}
-      asset="workspace"
-      sectionValue={() => ({ companyName, competitors, siteNotes })}
-      onAssist={applyAssist}
-      sectionHasContent={hasSectionContent({ companyName, competitors, siteNotes })}
+      assist={{
+        asset: 'workspace',
+        sectionValue: () => ({ companyName, competitors, siteNotes }),
+        onAssist: applyAssist,
+        sectionHasContent: hasSectionContent({ companyName, competitors, siteNotes }),
+      }}
       disabled={pending}
       problems={problems}
       problemsTitle="Before a run can research this workspace"

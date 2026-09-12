@@ -14,12 +14,15 @@ type Props = {
 /**
  * Where a piece is, on the five steps a person actually thinks in.
  *
+ * This is the read-only pipeline stage bar, not the setup rail: the editors a
+ * person fills in use `AssetStepper`.
+ *
  * Every internal status maps to one step (see `STATUS_STAGE`), so the same
  * component reads the same way in a list row and on the piece page. Colour
  * carries who has to act — blue for Datum, orange for you — because that is
  * the question a glance is asking.
  */
-export function Stepper({ current, size = 'compact' }: Props) {
+export function PipelineStepper({ current, size = 'compact' }: Props) {
   return (
     <ol
       aria-label={`Stage ${current.step} of ${CONTENT_STAGES.length}: ${STAGE_LABEL[current.stage]}`}

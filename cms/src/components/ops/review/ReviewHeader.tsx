@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import React from 'react'
 
-import { Stepper } from '../Stepper'
+import { PipelineStepper } from '../PipelineStepper'
 import {
   OWNER_LABEL,
   isStalled,
@@ -28,7 +28,7 @@ export function ReviewHeader({
         ← Content
       </Link>
       <div className="datum-ops__stage-header">
-        <Stepper current={stage} size="full" />
+        <PipelineStepper current={stage} size="full" />
         {/* Stalled wears the Needs-you colour: nothing moves until a person
             presses Run, which is the definition of work waiting on them. */}
         <span

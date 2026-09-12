@@ -12,6 +12,7 @@ import {
   TONE_DIALS,
 } from '../../lib/brandVoice'
 import type { StepId } from './brandVoiceTypes'
+import { Field, RowsEditor } from './setupFields'
 
 export type SectionProps = {
   content: BrandVoiceContent
@@ -19,146 +20,10 @@ export type SectionProps = {
   disabled: boolean
 }
 
-type RowField<T> = {
-  key: keyof T & string
-  label: string
-  multiline?: boolean
-  placeholder?: string
-}
-
-type RowsEditorProps<T extends Record<string, string>> = {
-  id: string
-  rows: T[]
-  onChange: (rows: T[]) => void
-  fields: RowField<T>[]
-  empty: () => T
-  addLabel: string
-  max?: number
-  disabled: boolean
-  warn?: (row: T) => string | null
-}
-
-function RowsEditor<T extends Record<string, string>>({
-  id,
-  rows,
-  onChange,
-  fields,
-  empty,
-  addLabel,
-  max,
-  disabled,
-  warn,
-}: RowsEditorProps<T>) {
-  const update = (index: number, key: keyof T & string, value: string) => {
-    onChange(rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
-  }
-  const remove = (index: number) => onChange(rows.filter((_, i) => i !== index))
-  const atMax = typeof max === 'number' && rows.length >= max
-
-  return (
-    <div className="datum-ops__rows">
-      {rows.length === 0 ? <p className="datum-ops__empty">Nothing added yet.</p> : null}
-      {rows.map((row, index) => {
-        const warning = warn?.(row) ?? null
-        return (
-          <div className="datum-ops__row-card" key={`${id}-${index}`}>
-            <div className="datum-ops__row-head">
-              <span>#{index + 1}</span>
-              <button
-                type="button"
-                className="datum-ops__link-btn"
-                onClick={() => remove(index)}
-                disabled={disabled}
-              >
-                Remove
-              </button>
-            </div>
-            {fields.map((field) => {
-              const inputId = `${id}-${index}-${field.key}`
-              return (
-                <div className="datum-ops__field" key={field.key}>
-                  <label htmlFor={inputId}>{field.label}</label>
-                  {field.multiline ? (
-                    <textarea
-                      id={inputId}
-                      value={row[field.key]}
-                      onChange={(e) => update(index, field.key, e.target.value)}
-                      disabled={disabled}
-                      placeholder={field.placeholder}
-                    />
-                  ) : (
-                    <input
-                      id={inputId}
-                      type="text"
-                      value={row[field.key]}
-                      onChange={(e) => update(index, field.key, e.target.value)}
-                      disabled={disabled}
-                      placeholder={field.placeholder}
-                    />
-                  )}
-                </div>
-              )
-            })}
-            {warning ? <p className="datum-ops__warn">{warning}</p> : null}
-          </div>
-        )
-      })}
-      <button
-        type="button"
-        className="datum-ops__btn"
-        onClick={() => onChange([...rows, empty()])}
-        disabled={disabled || atMax}
-      >
-        {atMax ? `Maximum ${max}` : addLabel}
-      </button>
-    </div>
-  )
-}
-
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  disabled,
-  multiline,
-  placeholder,
-  hint,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-  disabled: boolean
-  multiline?: boolean
-  placeholder?: string
-  hint?: string
-}) {
-  return (
-    <div className="datum-ops__field">
-      <label htmlFor={id}>{label}</label>
-      {multiline ? (
-        <textarea
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          placeholder={placeholder}
-        />
-      ) : (
-        <input
-          id={id}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          placeholder={placeholder}
-        />
-      )}
-      {hint ? <p className="datum-ops__hint">{hint}</p> : null}
-    </div>
-  )
-}
+/**
+ * One component per brand-voice step, keyed by step id at the bottom of this
+ * file, on the same `Field`/`RowsEditor` primitives as the other setup assets.
+ */
 
 export function EssenceSection({ content, onChange, disabled }: SectionProps) {
   const patch = (essence: Partial<BrandVoiceContent['essence']>) =>
@@ -200,19 +65,31 @@ export function ValuesSection({ content, onChange, disabled }: SectionProps) {
       id="bv-values"
       rows={content.coreValues}
       onChange={(coreValues) => onChange({ ...content, coreValues })}
-      fields={[
-        { key: 'value', label: 'Value', placeholder: 'Trust' },
-        {
-          key: 'description',
-          label: 'What it means for how we write',
-          multiline: true,
-          placeholder: 'Say what we know, what we guessed, and what we did not test.',
-        },
-      ]}
       empty={() => ({ value: '', description: '' })}
       addLabel="Add a value"
       max={MAX_CORE_VALUES}
       disabled={disabled}
+      renderRow={({ row, rowId, patch }) => (
+        <>
+          <Field
+            id={`${rowId}-value`}
+            label="Value"
+            value={row.value}
+            onChange={(value) => patch({ value })}
+            disabled={disabled}
+            placeholder="Trust"
+          />
+          <Field
+            id={`${rowId}-description`}
+            label="What it means for how we write"
+            value={row.description}
+            onChange={(description) => patch({ description })}
+            disabled={disabled}
+            multiline
+            placeholder="Say what we know, what we guessed, and what we did not test."
+          />
+        </>
+      )}
     />
   )
 }
@@ -296,16 +173,46 @@ export function AdjectivesSection({ content, onChange, disabled }: SectionProps)
         id="bv-adjectives"
         rows={content.voiceAdjectives}
         onChange={(voiceAdjectives) => onChange({ ...content, voiceAdjectives })}
-        fields={[
-          { key: 'adjective', label: 'Adjective', placeholder: 'Plain-spoken' },
-          { key: 'description', label: 'What it means', multiline: true },
-          { key: 'doExample', label: 'Do — a sentence that sounds like us', multiline: true },
-          { key: 'dontExample', label: 'Don’t — a sentence that does not', multiline: true },
-        ]}
         empty={() => ({ adjective: '', description: '', doExample: '', dontExample: '' })}
         addLabel="Add an adjective"
         max={MAX_ADJECTIVES}
         disabled={disabled}
+        renderRow={({ row, rowId, patch }) => (
+          <>
+            <Field
+              id={`${rowId}-adjective`}
+              label="Adjective"
+              value={row.adjective}
+              onChange={(adjective) => patch({ adjective })}
+              disabled={disabled}
+              placeholder="Plain-spoken"
+            />
+            <Field
+              id={`${rowId}-description`}
+              label="What it means"
+              value={row.description}
+              onChange={(description) => patch({ description })}
+              disabled={disabled}
+              multiline
+            />
+            <Field
+              id={`${rowId}-doExample`}
+              label="Do — a sentence that sounds like us"
+              value={row.doExample}
+              onChange={(doExample) => patch({ doExample })}
+              disabled={disabled}
+              multiline
+            />
+            <Field
+              id={`${rowId}-dontExample`}
+              label="Don’t — a sentence that does not"
+              value={row.dontExample}
+              onChange={(dontExample) => patch({ dontExample })}
+              disabled={disabled}
+              multiline
+            />
+          </>
+        )}
       />
       <Field
         id="bv-ownWords"
@@ -325,18 +232,30 @@ export function NotTraitsSection({ content, onChange, disabled }: SectionProps) 
       id="bv-notTraits"
       rows={content.notTraits}
       onChange={(notTraits) => onChange({ ...content, notTraits })}
-      fields={[
-        { key: 'trait', label: 'We are not…', placeholder: 'Sarcastic' },
-        {
-          key: 'boundaryNote',
-          label: 'Where the line is',
-          multiline: true,
-          placeholder: 'Dry humour is fine; jokes at the reader’s expense are not.',
-        },
-      ]}
       empty={() => ({ trait: '', boundaryNote: '' })}
       addLabel="Add a boundary"
       disabled={disabled}
+      renderRow={({ row, rowId, patch }) => (
+        <>
+          <Field
+            id={`${rowId}-trait`}
+            label="We are not…"
+            value={row.trait}
+            onChange={(trait) => patch({ trait })}
+            disabled={disabled}
+            placeholder="Sarcastic"
+          />
+          <Field
+            id={`${rowId}-boundaryNote`}
+            label="Where the line is"
+            value={row.boundaryNote}
+            onChange={(boundaryNote) => patch({ boundaryNote })}
+            disabled={disabled}
+            multiline
+            placeholder="Dry humour is fine; jokes at the reader’s expense are not."
+          />
+        </>
+      )}
     />
   )
 }
@@ -386,13 +305,29 @@ export function WordsSection({ content, onChange, disabled }: SectionProps) {
         id="bv-preferred"
         rows={content.preferredWords}
         onChange={(preferredWords) => onChange({ ...content, preferredWords })}
-        fields={[
-          { key: 'word', label: 'Word', placeholder: 'pick' },
-          { key: 'note', label: 'Note (optional)', placeholder: 'instead of “select”' },
-        ]}
         empty={() => ({ word: '', note: '' })}
         addLabel="Add a preferred word"
         disabled={disabled}
+        renderRow={({ row, rowId, patch }) => (
+          <>
+            <Field
+              id={`${rowId}-word`}
+              label="Word"
+              value={row.word}
+              onChange={(word) => patch({ word })}
+              disabled={disabled}
+              placeholder="pick"
+            />
+            <Field
+              id={`${rowId}-note`}
+              label="Note (optional)"
+              value={row.note}
+              onChange={(note) => patch({ note })}
+              disabled={disabled}
+              placeholder="instead of “select”"
+            />
+          </>
+        )}
       />
       <h3 className="datum-ops__section-title">Words we ban</h3>
       <p className="datum-ops__hint" style={{ marginBottom: 10 }}>
@@ -403,18 +338,35 @@ export function WordsSection({ content, onChange, disabled }: SectionProps) {
         id="bv-banned"
         rows={content.bannedWords}
         onChange={(bannedWords) => onChange({ ...content, bannedWords })}
-        fields={[
-          { key: 'word', label: 'Word or phrase', placeholder: 'synergy' },
-          { key: 'note', label: 'Why (optional)', placeholder: 'corporate filler' },
-        ]}
         empty={() => ({ word: '', note: '' })}
         addLabel="Add a banned word"
         disabled={disabled}
-        warn={(row) =>
-          row.word.trim() && row.word.trim().length < SHORT_BANNED_WORD_LENGTH
-            ? `“${row.word.trim()}” is very short and will match a lot of ordinary text. Consider a longer phrase.`
-            : null
-        }
+        renderRow={({ row, rowId, patch }) => (
+          <>
+            <Field
+              id={`${rowId}-word`}
+              label="Word or phrase"
+              value={row.word}
+              onChange={(word) => patch({ word })}
+              disabled={disabled}
+              placeholder="synergy"
+            />
+            <Field
+              id={`${rowId}-note`}
+              label="Why (optional)"
+              value={row.note}
+              onChange={(note) => patch({ note })}
+              disabled={disabled}
+              placeholder="corporate filler"
+            />
+            {row.word.trim() && row.word.trim().length < SHORT_BANNED_WORD_LENGTH ? (
+              <p className="datum-ops__warn">
+                “{row.word.trim()}” is very short and will match a lot of ordinary text. Consider a
+                longer phrase.
+              </p>
+            ) : null}
+          </>
+        )}
       />
     </>
   )
@@ -426,14 +378,30 @@ export function SamplesSection({ content, onChange, disabled }: SectionProps) {
       id="bv-samples"
       rows={content.samples}
       onChange={(samples) => onChange({ ...content, samples })}
-      fields={[
-        { key: 'title', label: 'Title (optional)', placeholder: 'Product pick intro' },
-        { key: 'text', label: 'Sample text', multiline: true },
-      ]}
       empty={() => ({ title: '', text: '' })}
       addLabel="Add a sample"
       max={MAX_SAMPLES}
       disabled={disabled}
+      renderRow={({ row, rowId, patch }) => (
+        <>
+          <Field
+            id={`${rowId}-title`}
+            label="Title (optional)"
+            value={row.title}
+            onChange={(title) => patch({ title })}
+            disabled={disabled}
+            placeholder="Product pick intro"
+          />
+          <Field
+            id={`${rowId}-text`}
+            label="Sample text"
+            value={row.text}
+            onChange={(text) => patch({ text })}
+            disabled={disabled}
+            multiline
+          />
+        </>
+      )}
     />
   )
 }

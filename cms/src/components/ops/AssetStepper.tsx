@@ -20,14 +20,14 @@ export type AssetStep<Id extends string = string> = {
   assist?: string
 }
 
-type Props<Id extends string> = {
-  heading: string
-  lede: string
-  /** Rendered next to the heading: a status, a pill, a link back to the list. */
-  headerExtra?: React.ReactNode
-  steps: readonly AssetStep<Id>[]
-  step: number
-  onStep: (index: number) => void
+/**
+ * Everything the setup assistant needs, or absent for an asset that has none.
+ *
+ * The brand voice is the asset with none: nobody wants a model inventing the
+ * words a company bans. Omitting this hides the assist box outright rather
+ * than showing buttons with nothing behind them.
+ */
+export type AssistConfig<Id extends string> = {
   asset: AssistAsset
   /** `asset === 'icp'`: which record the assistant is drafting for. */
   icpId?: number
@@ -42,13 +42,26 @@ type Props<Id extends string> = {
    * for.
    */
   sectionHasContent: boolean
-  disabled: boolean
   /**
    * When the workspace last fetched its own site pages, or null for never.
    * The assistant drafts from those pages, so a step that offers it with none
    * stored is offering a draft from almost nothing, and says so.
    */
   sitePagesFetchedAt?: string | null
+}
+
+type Props<Id extends string> = {
+  heading: string
+  lede: string
+  /** Rendered next to the heading: a status, a pill, a link back to the list. */
+  headerExtra?: React.ReactNode
+  /** Full width above the rail: a record picker, an entry panel. */
+  beforeSteps?: React.ReactNode
+  steps: readonly AssetStep<Id>[]
+  step: number
+  onStep: (index: number) => void
+  assist?: AssistConfig<Id>
+  disabled: boolean
   /** The step's fields. */
   children: React.ReactNode
   /** Save, activate, archive — whatever this asset's footer offers. */
@@ -89,14 +102,14 @@ export function hasSectionContent(value: unknown): boolean {
 }
 
 /**
- * The step navigation, notes box, assist buttons, and footer every tenant
- * asset editor shares.
+ * The step navigation, notes box, assist buttons, and footer every setup
+ * editor shares — the workspace profile, the audiences, the positioning, and
+ * the brand voice.
  *
- * `BrandVoiceEditor.tsx` is deliberately not refactored onto this: it works,
- * it is covered, and its onboarding flow has rules (a stored `onboardingStep`,
- * an upload path) that no other asset has. This is the same shape, minus that
- * history, plus the thing the tenant assets need and the voice does not — an
- * assistant that drafts a section from the workspace's own words.
+ * The brand voice keeps two things no other asset has: a stored
+ * `onboardingStep` it resumes from, and an upload-and-extract entry. Both live
+ * in `BrandVoiceEditor.tsx`, which passes the first as a step index and the
+ * second through `beforeSteps`; neither leaks in here.
  *
  * Notes are per step and live only in this component. They are assist input:
  * what an operator scribbles to steer one draft is not an asset field, and
@@ -106,16 +119,12 @@ export function AssetStepper<Id extends string>({
   heading,
   lede,
   headerExtra,
+  beforeSteps,
   steps,
   step,
   onStep,
-  asset,
-  icpId,
-  sectionValue,
-  onAssist,
-  sectionHasContent,
+  assist,
   disabled,
-  sitePagesFetchedAt,
   children,
   actions,
   problems = [],
@@ -133,19 +142,22 @@ export function AssetStepper<Id extends string>({
   const current = steps[Math.max(0, Math.min(steps.length - 1, step))]
   const busy = disabled || pending
 
+  /** The assist box is offered only where both the step and the asset have one. */
+  const stepAssist = current.assist && assist ? { section: current.assist, ...assist } : null
+
   const runAssist = (mode: 'draft' | 'refine') => {
-    if (!current.assist) return
+    if (!stepAssist) return
     setAssistError(null)
     setWarnings([])
     setAssistNote(null)
     startTransition(async () => {
       const result = await assistAction({
-        asset,
-        section: current.assist as string,
+        asset: stepAssist.asset,
+        section: stepAssist.section,
         mode,
         notes: notes[current.id] ?? '',
-        current: mode === 'refine' ? sectionValue(current.id) : null,
-        ...(icpId != null ? { icpId } : {}),
+        current: mode === 'refine' ? stepAssist.sectionValue(current.id) : null,
+        ...(stepAssist.icpId != null ? { icpId: stepAssist.icpId } : {}),
       })
       if (!result.ok) {
         setAssistError(result.error)
@@ -156,7 +168,7 @@ export function AssetStepper<Id extends string>({
         setAssistError('The assistant returned nothing usable for this step.')
         return
       }
-      onAssist(current.id, value)
+      stepAssist.onAssist(current.id, value)
       setMock(result.mock)
       setWarnings(result.warnings)
       setAssistNote(
@@ -174,6 +186,7 @@ export function AssetStepper<Id extends string>({
         {headerExtra}
       </div>
       <p className="datum-ops__lede">{lede}</p>
+      {beforeSteps}
 
       <div className="datum-ops__stepper">
         <ol className="datum-ops__progress" aria-label="Setup progress">
@@ -200,7 +213,7 @@ export function AssetStepper<Id extends string>({
 
           {children}
 
-          {current.assist ? (
+          {stepAssist ? (
             <div className="datum-ops__assist">
               <div className="datum-ops__assist-head">
                 <strong title={step === 0 ? undefined : ASSIST_EXPLANATION}>
@@ -209,7 +222,7 @@ export function AssetStepper<Id extends string>({
                 {mock ? <span className="datum-ops__pill datum-ops__pill--muted">mock</span> : null}
               </div>
               {step === 0 ? <p className="datum-ops__hint">{ASSIST_EXPLANATION}</p> : null}
-              <SitePagesHint fetchedAt={sitePagesFetchedAt} />
+              <SitePagesHint fetchedAt={stepAssist.sitePagesFetchedAt} />
               <div className="datum-ops__field">
                 <label htmlFor={`assist-notes-${current.id}`}>
                   Your notes for this step (optional)
@@ -235,8 +248,8 @@ export function AssetStepper<Id extends string>({
                   type="button"
                   className="datum-ops__btn"
                   onClick={() => runAssist('refine')}
-                  disabled={busy || !sectionHasContent}
-                  title={!sectionHasContent ? 'Nothing in this step yet to refine.' : undefined}
+                  disabled={busy || !stepAssist.sectionHasContent}
+                  title={!stepAssist.sectionHasContent ? 'Nothing in this step yet to refine.' : undefined}
                 >
                   Refine with AI
                 </button>
