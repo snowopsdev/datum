@@ -60,6 +60,22 @@ export function lexicalBodyToHtml(body: Article['body']): string {
   return parts.join('\n')
 }
 
+/**
+ * Trimmed text of the body's last H2 heading, or `null` when it has none.
+ *
+ * Used to decide whether the reader page's own "FAQ" heading would duplicate
+ * one the body already ends in — templates increasingly write their own FAQ
+ * section straight into the outline.
+ */
+export function lastH2HeadingText(body: Article['body']): string | null {
+  const children = (body?.root?.children as LexNode[] | undefined) ?? []
+  let last: string | null = null
+  for (const child of children) {
+    if (child.type === 'heading' && child.tag === 'h2') last = textOf(child).trim()
+  }
+  return last
+}
+
 /** Lexical → plain lines for config textareas (#/##/### preserved when present). */
 export function lexicalToPlainText(body: RichText | null | undefined): string {
   if (!body?.root?.children?.length) return ''

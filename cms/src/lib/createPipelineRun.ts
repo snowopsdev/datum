@@ -4,7 +4,7 @@ import { createLocalReq, type Payload, type TypedUser } from 'payload'
 import type { WorkspaceReadiness } from './workspaceReadiness'
 
 export interface CreatePipelineRunInput {
-  source: 'onboarding' | 'admin' | 'selected'
+  source: 'admin' | 'selected'
   templateId: number
   count: number
   requestedBy: string
@@ -62,19 +62,17 @@ export async function createPipelineRun(
     // Runs started by creating a piece or approving a brief are implicit —
     // nobody is watching a button — so two in a row must queue, not fail. The
     // job task already serialises on the `content-pipeline` concurrency key,
-    // so queued runs execute one at a time. Discovery and onboarding runs keep
-    // the one-at-a-time rule: both create articles, and two at once would
+    // so queued runs execute one at a time. A discovery run keeps the
+    // one-at-a-time rule too: it creates articles, and two at once would
     // double-buy topics.
     if (active.docs[0] && input.source !== 'selected') {
       throw new ActivePipelineRunError(active.docs[0].runId)
     }
 
     const requestedCount =
-      input.source === 'onboarding'
-        ? 1
-        : input.source === 'selected'
-          ? Math.max(1, Math.min(50, input.articleIds?.length ?? 0))
-          : Math.max(1, Math.min(5, input.count))
+      input.source === 'selected'
+        ? Math.max(1, Math.min(50, input.articleIds?.length ?? 0))
+        : Math.max(1, Math.min(5, input.count))
     await payload.create({
       collection: 'pipeline-runs',
       overrideAccess: true,

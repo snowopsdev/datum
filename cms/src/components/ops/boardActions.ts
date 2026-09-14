@@ -1,16 +1,16 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
-
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
-import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { ActivePipelineRunError } from '../../lib/createPipelineRun'
+import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { stageKpis } from '../../lib/opsKpis'
+import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
-import { isRunnableStatus } from './articleStatus'
 import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/content'
@@ -23,12 +23,6 @@ async function requireUser() {
   const { user } = await payload.auth({ headers })
   if (!user) throw new Error('Sign in to manage the board.')
   return { payload, user }
-}
-
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
-    return e.message
-  return fallback
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -53,18 +47,8 @@ export async function runSelectedArticlesAction(input: {
 
     const setup = await loadWorkspaceSetup(payload)
     const { readiness } = setup
-    if (!readiness.runtime.ready) {
-      return {
-        ok: false,
-        error: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
-      }
-    }
-    if (!readiness.governance.ready) {
-      return { ok: false, error: 'Activate a brand voice before running the pipeline.' }
-    }
-    if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
-      return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
-    }
+    const notReady = gateRunReadiness(readiness, input.confirmLiveCost)
+    if (notReady) return { ok: false, error: notReady }
 
     const { docs } = await payload.find({
       collection: 'articles',
@@ -73,47 +57,10 @@ export async function runSelectedArticlesAction(input: {
       limit: ids.length,
       depth: 0,
     })
-    if (docs.length === 0) return { ok: false, error: 'Those articles no longer exist.' }
-
-    // A status with no stage waiting on it would be silently dropped by
-    // `runPipeline`'s entry-status query, so the run would report success
-    // having done nothing. Refuse instead of lying about it.
-    const stalled = docs.filter((doc) => !isRunnableStatus(doc.status))
-    if (stalled.length > 0) {
-      return {
-        ok: false,
-        error: `${plural(stalled.length, 'article')} cannot be advanced by a run — open ${stalled.length === 1 ? 'it' : 'them'} to decide what happens next.`,
-      }
-    }
-    const untemplated = docs.filter((doc) => !doc.template)
-    if (untemplated.length > 0) {
-      return {
-        ok: false,
-        error: `Assign a template to ${plural(untemplated.length, 'article')} first — the pipeline skips articles without one.`,
-      }
-    }
-
-    // The run row needs one template for its own record; each article is still
-    // written against its own, so a mixed selection runs correctly either way.
-    const first = docs[0].template
-    const templateId = typeof first === 'object' && first ? first.id : Number(first)
-
-    const runId = randomUUID()
-    await createPipelineRun(payload, user, {
-      runId,
-      source: 'selected',
-      templateId,
-      count: docs.length,
-      articleIds: docs.map((doc) => doc.id),
-      requestedBy: user.email || String(user.id),
-      readiness,
-    })
-
-    revalidatePath(BOARD_PATH)
-    revalidatePath('/admin')
+    await queueRunForArticles(payload, user, docs, readiness)
     return {
       ok: true,
-      message: `Started a run for ${plural(docs.length, 'article')}. Progress shows above.`,
+      message: `Started a run for ${plural(docs.length, 'article')}. Progress shows in the run bar.`,
     }
   } catch (error) {
     if (error instanceof ActivePipelineRunError) {
@@ -180,7 +127,9 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
     }
 
     revalidatePath(BOARD_PATH)
-    revalidatePath('/admin/ops/topics')
+    // New content, not the retired `/admin/ops/topics`: the discovery panel
+    // there marks a keyword taken or removed, and archiving changes which.
+    revalidatePath('/admin/ops/new')
     return {
       ok: true,
       message: `Removed ${plural(docs.length, 'topic')} from the board. ${docs.length === 1 ? 'It is' : 'They are'} archived, not deleted — still in Article records if you want ${docs.length === 1 ? 'it' : 'them'} back.`,
@@ -263,21 +212,13 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
 
     let activity: RunActivityDTO | null = null
     if (calls) {
-      const byStage = new Map<string, { calls: number; costUsd: number }>()
-      let totalCostUsd = 0
-      for (const row of calls.docs) {
-        const stage = row.stage ?? 'unknown'
-        const entry = byStage.get(stage) ?? { calls: 0, costUsd: 0 }
-        entry.calls += 1
-        entry.costUsd += row.costUsd ?? 0
-        byStage.set(stage, entry)
-        totalCostUsd += row.costUsd ?? 0
-      }
+      const perStage = stageKpis(calls.docs)
+      const totalCostUsd = perStage.reduce((sum, s) => sum + s.costUsd, 0)
       const latest = calls.docs[0]
       activity = {
         totalCalls: calls.docs.length,
         totalCostUsd,
-        byStage: [...byStage.entries()].map(([stage, v]) => ({ stage, ...v })),
+        byStage: perStage.map(({ stage, calls: n, costUsd }) => ({ stage, calls: n, costUsd })),
         lastCallStage: latest?.stage ?? null,
         lastCallAtIso: latest?.createdAt ? new Date(latest.createdAt).toISOString() : null,
       }
@@ -302,7 +243,10 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       failures: toRunFailures(run.warnings),
       errorSummary: run.errorSummary ?? null,
     }
-  } catch {
-    throw new Error('Could not load run status.')
+  } catch (error) {
+    // The cause, not a house-brand sentence: this is polled from every admin
+    // page, and "could not load run status" on its own has sent people looking
+    // at the pipeline when the answer was a closed database connection.
+    throw new Error(`Could not load run status: ${errorMessage(error, 'unknown error')}`)
   }
 }

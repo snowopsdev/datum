@@ -1,4 +1,4 @@
-import { CODEX_MODEL_PREFIX, type LlmProvider } from './llmProvider'
+import type { LlmProvider } from './llmProvider'
 
 /**
  * Models operators can pick in the admin (Models global). One source of truth
@@ -18,7 +18,7 @@ export interface LlmModel {
 
 export const DEFAULT_MODEL = 'claude-opus-5'
 
-const BASE_CATALOG: readonly LlmModel[] = [
+export const LLM_CATALOG: readonly LlmModel[] = [
   // Anthropic — Claude 5 family
   { id: 'claude-fable-5', label: 'Claude Fable 5', provider: 'anthropic', input: 10, output: 50, note: 'Most capable' },
   { id: 'claude-opus-5', label: 'Claude Opus 5', provider: 'anthropic', input: 5, output: 25, note: 'Default; strong long-form writing' },
@@ -37,42 +37,10 @@ const BASE_CATALOG: readonly LlmModel[] = [
   { id: 'gpt-5-nano', label: 'GPT-5 nano', provider: 'openai', input: 0.05, output: 0.4, note: '' },
 ]
 
-/**
- * The subset of `BASE_CATALOG` the ChatGPT plan actually serves through Codex,
- * read from the `models` slugs in `~/.codex/models_cache.json`. It is narrower
- * than the API catalog and moves independently of it, so re-check against a
- * live cache before editing this list.
- */
-export const CODEX_MIRRORED_MODELS = [
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-5.5',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-] as const
-
-function codexMirror(id: string): LlmModel {
-  const base = BASE_CATALOG.find((m) => m.id === id)
-  if (!base) throw new Error(`CODEX_MIRRORED_MODELS lists "${id}", which is not in the catalog`)
-  return {
-    ...base,
-    id: `${CODEX_MODEL_PREFIX}${base.id}`,
-    provider: 'codex',
-    label: `${base.label} via Codex (mock only)`,
-    note: 'Local Codex execution is disabled; select an API-backed model for live runs',
-  }
-}
-
-export const LLM_CATALOG: readonly LlmModel[] = [
-  ...BASE_CATALOG,
-  ...CODEX_MIRRORED_MODELS.map(codexMirror),
-]
-
 const PROVIDER_LABEL: Record<LlmProvider, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
-  codex: 'Codex (ChatGPT plan)',
+  unknown: 'Unsupported',
 }
 
 const money = (n: number): string => `$${n % 1 === 0 ? n.toFixed(0) : n.toString()}`

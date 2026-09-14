@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ArticleAuditContext } from '@/lib/articleAudit'
 import {
   CLEARED_INFORMATION_GAIN,
+  gateArchivedStatus,
   gateReviewOverride,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
@@ -10,6 +12,11 @@ import {
   SCORED_CONTENT_FIELDS,
   UNGATED_OVERRIDE_TARGETS,
 } from '@/lib/articleReviewGate'
+import {
+  SCORE_INVALIDATED_EVENT,
+  scoreInvalidatedFields,
+  scoreInvalidatedSummary,
+} from '@/components/ops/auditTypes'
 
 describe('article review-override gate', () => {
   it('throws when moving needs_review to verified without a justification', () => {
@@ -611,16 +618,21 @@ describe('stale information-gain invalidation', () => {
 
   /** The hook, called the way Payload calls it. */
   const run = (data: Record<string, unknown>, originalDoc?: Record<string, unknown>) =>
-    invalidateStaleInformationGain({ data, originalDoc, req: { user: null }, context: {} } as never) as Record<
-      string,
-      unknown
-    >
+    invalidateStaleInformationGain({
+      data,
+      originalDoc,
+      req: { user: null },
+      context: {},
+    } as never) as Record<string, unknown>
 
   const summaryOf = (result: Record<string, unknown>) =>
     result.informationGain as Record<string, unknown> | undefined
 
   for (const [what, mutate] of [
-    ['body', (d: Record<string, unknown>) => ((d.body as typeof body).root.children[0].text = 'rewritten')],
+    [
+      'body',
+      (d: Record<string, unknown>) => ((d.body as typeof body).root.children[0].text = 'rewritten'),
+    ],
     ['title', (d: Record<string, unknown>) => (d.title = 'A Different Headline')],
     ['keyword', (d: Record<string, unknown>) => (d.keyword = 'conical burr grinders')],
     [
@@ -635,7 +647,9 @@ describe('stale information-gain invalidation', () => {
     [
       'research.queryCluster',
       (d: Record<string, unknown>) =>
-        ((d.research as { queryCluster: unknown }).queryCluster = [{ id: 'q1', text: 'best grinder' }]),
+        ((d.research as { queryCluster: unknown }).queryCluster = [
+          { id: 'q1', text: 'best grinder' },
+        ]),
     ],
   ] as const) {
     it(`clears the decision and leaves verified when ${what} changes`, () => {
@@ -690,7 +704,11 @@ describe('stale information-gain invalidation', () => {
     // researched → drafted: generateStage rewrites title/body/meta wholesale on
     // an article that carries no decision, so there is nothing to invalidate
     // and nothing to demote.
-    const original = { ...scoredContent(), status: 'researched', informationGain: { decision: null } }
+    const original = {
+      ...scoredContent(),
+      status: 'researched',
+      informationGain: { decision: null },
+    }
     const data = {
       ...scoredContent(),
       status: 'drafted',
@@ -707,15 +725,25 @@ describe('stale information-gain invalidation', () => {
   it('leaves the scoring stage alone when it writes a fresh verdict', () => {
     // qa_passed → verified: the stage writes status and summary together and
     // touches no content. Its own verdict must survive its own write.
-    const original = { ...scoredContent(), status: 'qa_passed', informationGain: { decision: null } }
+    const original = {
+      ...scoredContent(),
+      status: 'qa_passed',
+      informationGain: { decision: null },
+    }
     const data = { ...scoredContent(), status: 'verified', informationGain: { ...PASS_SUMMARY } }
     const result = run(data as unknown as Record<string, unknown>, original as never)
     expect(summaryOf(result)).toEqual(PASS_SUMMARY)
     expect(result.status).toBe('verified')
     // And the transition gate accepts it, so the happy path still ends verified.
     expect(
-      (gateVerifiedStatus({ data: result, originalDoc: original, req: { user: null }, context: {} } as never) as
-        Record<string, unknown>).status,
+      (
+        gateVerifiedStatus({
+          data: result,
+          originalDoc: original,
+          req: { user: null },
+          context: {},
+        } as never) as Record<string, unknown>
+      ).status,
     ).toBe('verified')
   })
 
@@ -753,9 +781,90 @@ describe('stale information-gain invalidation', () => {
     const original = { ...verifiedDoc(), status: 'published' }
     const data = { ...verifiedDoc(), status: 'published' }
     ;(data.body as typeof body).root.children[0].text = 'rewritten'
-    const result = run(data as unknown as Record<string, unknown>, original)
+    const context: Record<string, unknown> = {}
+    const result = invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: original,
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
     expect(summaryOf(result)).toEqual(CLEARED_INFORMATION_GAIN)
     expect(result.status).toBe('published')
+    // The audit reason is scoped to the demotion. `gateReviewOverride` writes
+    // its own reason into the same slot and only when it is empty, so claiming
+    // it on every invalidation would swallow an override recorded in the same
+    // write. See the comment on the hook.
+    expect(context.articleAudit).toBeUndefined()
+  })
+
+  /**
+   * The demotion on its own reaches the audit trail as a bare `status_changed`,
+   * which tells a reviewer their article moved but not that *their edit* is why.
+   * The hook supplies the reason so `auditArticleChange` writes it instead.
+   */
+  it('records a score_invalidated reason naming the fields that were edited', () => {
+    const context: Record<string, unknown> = {}
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    ;(data.body as typeof body).root.children[0].text = 'rewritten'
+    const result = invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never) as Record<string, unknown>
+
+    expect(result.status).toBe('drafted')
+    const audit = context.articleAudit as ArticleAuditContext | undefined
+    expect(audit?.event).toBe(SCORE_INVALIDATED_EVENT)
+    expect(audit?.summary).toBe(scoreInvalidatedSummary(['title', 'body']))
+    expect(audit?.summary).toContain('title')
+    expect(audit?.details).toEqual({ changedFields: ['title', 'body'] })
+    // The summary has to survive the round trip: the review page reads the
+    // field list back out of it to explain the demotion.
+    expect(scoreInvalidatedFields(audit?.summary ?? '')).toBe('title, body')
+  })
+
+  it('leaves actorType unset so the read-only gate is not exempted', () => {
+    // `gateReadOnlyStatus` waves through any write whose context claims
+    // actorType pipeline/system. This hook runs first, so claiming one here
+    // would open that exemption to every hand edit.
+    const context: Record<string, unknown> = {}
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect((context.articleAudit as ArticleAuditContext | undefined)?.actorType).toBeUndefined()
+  })
+
+  it('does not overwrite an audit reason the caller already supplied', () => {
+    const context: Record<string, unknown> = {
+      articleAudit: { event: 'article_sent_back', summary: 'Reviewer sent it back' },
+    }
+    const data = verifiedDoc()
+    data.title = 'A Different Headline'
+    invalidateStaleInformationGain({
+      data: data as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect((context.articleAudit as ArticleAuditContext).event).toBe('article_sent_back')
+  })
+
+  it('records no reason when nothing scored changed', () => {
+    const context: Record<string, unknown> = {}
+    invalidateStaleInformationGain({
+      data: verifiedDoc() as unknown as Record<string, unknown>,
+      originalDoc: verifiedDoc(),
+      req: { user: null },
+      context,
+    } as never)
+    expect(context.articleAudit).toBeUndefined()
   })
 
   it('does nothing on a create', () => {
@@ -766,7 +875,11 @@ describe('stale information-gain invalidation', () => {
   it('stops the cleared decision from authorising a later move to verified', () => {
     // The whole point: an edited draft must not be able to spend the PASS its
     // previous text earned. Both hooks, in the order Articles.ts runs them.
-    const original = { ...scoredContent(), status: 'qa_passed', informationGain: { ...PASS_SUMMARY } }
+    const original = {
+      ...scoredContent(),
+      status: 'qa_passed',
+      informationGain: { ...PASS_SUMMARY },
+    }
     const data = { ...scoredContent(), status: 'verified', informationGain: { ...PASS_SUMMARY } }
     ;(data.body as typeof body).root.children[0].text = 'rewritten by hand'
     const afterInvalidation = run(data as unknown as Record<string, unknown>, original)
@@ -778,5 +891,53 @@ describe('stale information-gain invalidation', () => {
         context: {},
       } as never),
     ).toThrow('decision none')
+  })
+})
+
+/**
+ * An archived article is off the board, but until this gate it was not off
+ * limits: the review page still rendered its status panel, so an archived
+ * approved piece could be published and an archived runnable one queued. The
+ * gate refuses status and schedule changes while `archived` holds, from every
+ * writer at once — the ops actions, the raw doc view and the API.
+ */
+describe('archived articles refuse status and schedule changes', () => {
+  const hook = (data: Record<string, unknown>, originalDoc: Record<string, unknown>) =>
+    gateArchivedStatus({ data, originalDoc, req: { user: null }, context: {} } as never)
+
+  it('refuses a status change while archived', () => {
+    expect(() => hook({ status: 'published' }, { archived: true, status: 'approved' })).toThrow(
+      /archived/,
+    )
+  })
+
+  it('refuses scheduling while archived', () => {
+    expect(() =>
+      hook({ publishAt: '2099-01-01T09:00:00.000Z' }, { archived: true, status: 'approved' }),
+    ).toThrow(/archived/)
+  })
+
+  it('lets an archived article be unarchived, alone or with a status in the same write', () => {
+    expect(hook({ archived: false }, { archived: true, status: 'approved' })).toEqual({
+      archived: false,
+    })
+    expect(
+      hook({ archived: false, status: 'needs_revision' }, { archived: true, status: 'approved' }),
+    ).toEqual({ archived: false, status: 'needs_revision' })
+  })
+
+  it('lets a same-status re-save and non-status edits through while archived', () => {
+    expect(
+      hook({ status: 'approved', reviewNotes: 'x' }, { archived: true, status: 'approved' }),
+    ).toEqual({ status: 'approved', reviewNotes: 'x' })
+  })
+
+  it('ignores articles that are not archived, and the archiving write itself', () => {
+    expect(hook({ status: 'published' }, { archived: false, status: 'approved' })).toEqual({
+      status: 'published',
+    })
+    expect(hook({ archived: true }, { archived: false, status: 'approved' })).toEqual({
+      archived: true,
+    })
   })
 })

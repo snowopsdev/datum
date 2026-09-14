@@ -9,7 +9,7 @@ import './ops.css'
 
 export type SetupChecklistData = {
   mode: 'mock' | 'live'
-  /** `governance.ready`: a piece can be researched and written. */
+  /** `readiness.ready`: a piece can be created, researched, and written. */
   ready: boolean
   voice: { name: string | null; active: boolean }
   workspace: {
@@ -23,6 +23,12 @@ export type SetupChecklistData = {
     sitePagesFetchedLabel: string | null
   }
   audiences: { ready: boolean; count: number; primaryName: string | null }
+  /** Templates are seeded on install, but a workspace can delete every one. */
+  templateCount: number
+  /** Whether anybody has chosen a model on the global, rather than inheriting one. */
+  modelsConfigured: boolean
+  /** Whether a `PIPELINE_MODEL_*` variable chose one instead. */
+  modelsFromEnv: boolean
   positioning: { status: 'missing' | 'partial' | 'ready'; problems: string[] }
   evidence: {
     status: 'missing' | 'ready'
@@ -40,7 +46,8 @@ type Row = {
   blurb: string
   state: string
   done: boolean
-  recommended?: boolean
+  /** False for the rows that sharpen a draft without blocking one. */
+  required: boolean
   href: string
   action: string
 }
@@ -79,7 +86,7 @@ function evidenceState(evidence: SetupChecklistData['evidence']): string {
   return parts.join(' · ')
 }
 
-/** Required rows first, then the two that sharpen a draft without gating one. */
+/** Required rows first, then the three that sharpen a draft without gating one. */
 export function checklistRows(data: SetupChecklistData): Row[] {
   return [
     {
@@ -88,6 +95,7 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       blurb: 'Which site Datum writes about, and who it writes against.',
       state: workspaceState(data.workspace),
       done: data.workspace.ready,
+      required: true,
       href: '/admin/ops/setup/workspace',
       action: data.workspace.targetDomain ? 'Edit' : 'Set the domain',
     },
@@ -99,7 +107,8 @@ export function checklistRows(data: SetupChecklistData): Row[] {
         ? `Active: ${data.voice.name || 'Untitled brand voice'}`
         : 'No active voice — drafts would run on the platform style guide alone',
       done: data.voice.active,
-      href: '/admin/ops/governance/brand-voice',
+      required: true,
+      href: '/admin/ops/setup/brand-voice',
       action: data.voice.active ? 'Edit' : 'Set up',
     },
     {
@@ -112,8 +121,21 @@ export function checklistRows(data: SetupChecklistData): Row[] {
           }`
         : 'None yet',
       done: data.audiences.ready,
+      required: true,
       href: '/admin/ops/setup/audiences',
       action: data.audiences.count ? 'Edit' : 'Add an audience',
+    },
+    {
+      id: 'templates',
+      title: 'Templates',
+      blurb: 'The shapes a piece can take. Seeded on install; add your own any time.',
+      state: data.templateCount
+        ? plural(data.templateCount, 'template')
+        : 'None — nothing can be created until one exists',
+      done: data.templateCount > 0,
+      required: true,
+      href: '/admin/ops/templates',
+      action: data.templateCount ? 'Edit' : 'Add a template',
     },
     {
       id: 'positioning',
@@ -121,7 +143,7 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       blurb: 'The category you claim and the words you claim it in.',
       state: positioningState(data.positioning),
       done: data.positioning.status === 'ready',
-      recommended: true,
+      required: false,
       href: '/admin/ops/setup/positioning',
       action: data.positioning.status === 'missing' ? 'Add positioning' : 'Edit',
     },
@@ -131,22 +153,38 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       blurb: 'Everything a draft may state about you as fact, and what it may not.',
       state: evidenceState(data.evidence),
       done: data.evidence.status === 'ready',
-      recommended: true,
+      required: false,
       href: '/admin/ops/setup/evidence',
       action: data.evidence.status === 'missing' ? 'Add evidence' : 'Edit',
+    },
+    {
+      id: 'models',
+      title: 'Models',
+      blurb: 'Which model runs each step. Blank uses the platform default.',
+      state: data.modelsConfigured
+        ? 'Chosen for this workspace'
+        : data.modelsFromEnv
+          ? 'Set by PIPELINE_MODEL_* in the environment'
+          : 'Platform defaults everywhere',
+      // An environment override is somebody's choice too, so the row is done
+      // and the action offers to move it into the admin global.
+      done: data.modelsConfigured || data.modelsFromEnv,
+      required: false,
+      href: '/admin/globals/llm-settings',
+      action: data.modelsConfigured ? 'Edit' : 'Choose models',
     },
   ]
 }
 
 /**
- * The whole of setup on one page: five assets, what each one says right now,
+ * The whole of setup on one page: seven assets, what each one says right now,
  * and where to fix it.
  *
  * It replaces `FirstRun`, which asked one question at a time and could only
- * answer "what is missing" as a list of sentences. Five assets need five
- * states, and the two recommended ones need to look different from the three
- * that block a run — a workspace with no evidence bank writes fine, it just
- * writes with nothing to cite.
+ * answer "what is missing" as a list of sentences. Each asset needs its own
+ * state, and the recommended ones need to look different from the ones that
+ * block a run — a workspace with no evidence bank writes fine, it just writes
+ * with nothing to cite.
  *
  * The same component is the `/admin` landing page and the permanent
  * `/admin/ops/setup` page, because the questions do not stop being interesting
@@ -157,7 +195,8 @@ export function SetupChecklist(props: SetupChecklistData) {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const rows = checklistRows(props)
-  const blockers = rows.filter((row) => !row.recommended && !row.done)
+  const required = rows.filter((row) => row.required)
+  const blockers = required.filter((row) => !row.done)
 
   const useDemo = () => {
     setError(null)
@@ -176,7 +215,7 @@ export function SetupChecklist(props: SetupChecklistData) {
       <p className="datum-ops__eyebrow">
         {props.ready
           ? 'Ready'
-          : blockers.length === rows.length - 2
+          : blockers.length === required.length
             ? 'A few things first'
             : 'Nearly there'}
       </p>
@@ -184,7 +223,7 @@ export function SetupChecklist(props: SetupChecklistData) {
       <p className="datum-ops__lede">
         {props.ready
           ? 'Everything a piece is researched, written, and checked against lives here. Edit any of it whenever you like — changes reach the next run.'
-          : 'Datum writes as you, for someone, about a site. Fill in the three required rows and you can make your first piece; the other two make every draft sound more like you.'}
+          : 'Datum writes as you, for someone, about a site, in a shape. Fill in the required rows and you can make your first piece; the rest make every draft sound more like you.'}
       </p>
 
       <ul className="datum-setup__rows">
@@ -193,15 +232,15 @@ export function SetupChecklist(props: SetupChecklistData) {
             <span
               aria-hidden="true"
               className={`datum-setup__mark${row.done ? ' is-done' : ''}${
-                row.recommended ? ' is-optional' : ''
+                row.required ? '' : ' is-optional'
               }`}
             >
-              {row.done ? '✓' : row.recommended ? '·' : ''}
+              {row.done ? '✓' : row.required ? '' : '·'}
             </span>
             <div className="datum-setup__body">
               <div className="datum-setup__title">
                 <strong>{row.title}</strong>
-                {row.recommended ? <em className="datum-first__optional">Recommended</em> : null}
+                {row.required ? null : <em className="datum-first__optional">Recommended</em>}
               </div>
               <p className="datum-setup__state">{row.state}</p>
               <p className="datum-ops__hint">{row.blurb}</p>

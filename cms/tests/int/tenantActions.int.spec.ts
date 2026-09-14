@@ -49,6 +49,7 @@ const {
   archiveIcpAction,
   createIcpAction,
   deleteIcpDraftAction,
+  saveAndActivateIcpAction,
   saveEvidenceBankAction,
   saveIcpAction,
   savePositioningAction,
@@ -257,6 +258,123 @@ describe('audience lifecycle', () => {
     expect(refused.ok).toBe(false)
     if (refused.ok) return
     expect(refused.error).toContain('Only draft audiences can be deleted')
+  })
+})
+
+describe('saveAndActivateIcpAction', () => {
+  it('creates, activates, and marks primary in one call', async () => {
+    const name = `Save-activate ${randomUUID().slice(0, 8)}`
+    const saved = await saveAndActivateIcpAction(null, completeIcp(name), { makePrimary: true })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    createdIcpIds.push(saved.id)
+    expect(saved.status).toBe('active')
+    expect(saved.primary).toBe(true)
+
+    const doc = await payload.findByID({ collection: 'icps', id: saved.id, depth: 0, overrideAccess: true })
+    expect(doc.status).toBe('active')
+    expect(doc.primary).toBe(true)
+    expect((await auditRows('icp_activated')).some((row) => row.summary?.includes('activated'))).toBe(true)
+  })
+
+  it('updates an existing draft, then activates and marks it primary', async () => {
+    const name = `Save-activate update ${randomUUID().slice(0, 8)}`
+    const created = await createIcpAction(completeIcp(name))
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    createdIcpIds.push(created.id)
+
+    const saved = await saveAndActivateIcpAction(
+      created.id,
+      { ...completeIcp(name), who: 'Owns content for a 200-person company.' },
+      { makePrimary: true },
+    )
+    expect(saved).toEqual({ ok: true, id: created.id, status: 'active', primary: true })
+
+    const doc = await payload.findByID({ collection: 'icps', id: created.id, depth: 0, overrideAccess: true })
+    expect(doc.who).toBe('Owns content for a 200-person company.')
+    expect(doc.status).toBe('active')
+    expect(doc.primary).toBe(true)
+  })
+
+  it('leaves primary alone when another audience already holds it and makePrimary is false', async () => {
+    const alreadyActive = await createIcpAction(completeIcp(`Incumbent ${randomUUID().slice(0, 8)}`))
+    expect(alreadyActive.ok).toBe(true)
+    if (!alreadyActive.ok) return
+    createdIcpIds.push(alreadyActive.id)
+    expect(await activateIcpAction(alreadyActive.id)).toEqual({ ok: true })
+    // Made primary explicitly rather than relying on the gate's
+    // first-activation auto-primary: other specs in this file leave their
+    // own audiences active, so "no other active audience" cannot be assumed.
+    expect(await setPrimaryIcpAction(alreadyActive.id)).toEqual({ ok: true })
+
+    const name = `Save-activate no-primary ${randomUUID().slice(0, 8)}`
+    const saved = await saveAndActivateIcpAction(null, completeIcp(name), { makePrimary: false })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    createdIcpIds.push(saved.id)
+    expect(saved.status).toBe('active')
+    expect(saved.primary).toBe(false)
+
+    const incumbent = await payload.findByID({
+      collection: 'icps',
+      id: alreadyActive.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(incumbent.primary).toBe(true)
+  })
+
+  it('surfaces the activation gate’s error instead of throwing, and still returns the created id', async () => {
+    const result = await saveAndActivateIcpAction(
+      null,
+      emptyIcpContent(`Half done ${randomUUID().slice(0, 8)}`),
+      { makePrimary: false },
+    )
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('Cannot activate audience')
+
+    // The create still went through; the gate only rejects the activation
+    // step, so the draft the operator was mid-typing is not lost — and its id
+    // comes back so the editor can adopt it instead of creating a duplicate
+    // on the next save.
+    expect(result.id).toEqual(expect.any(Number))
+    const savedId = result.id as number
+    createdIcpIds.push(savedId)
+
+    const doc = await payload.findByID({ collection: 'icps', id: savedId, depth: 0, overrideAccess: true })
+    expect(doc.status).toBe('draft')
+  })
+
+  it('audits an activation and a primary-set only once across two save-and-activate calls', async () => {
+    const forRecord = (rows: GovernanceAudit[], recordId: number) =>
+      rows.filter((row) => row.subject?.relationTo === 'icps' && row.subject.value === recordId)
+
+    const name = `Save-activate idempotent ${randomUUID().slice(0, 8)}`
+    const first = await saveAndActivateIcpAction(null, completeIcp(name), { makePrimary: true })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    createdIcpIds.push(first.id)
+
+    expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
+    expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
+
+    // Same id, already active and already primary: pressing "Save and
+    // activate" again edits the fields but must not re-audit a transition
+    // that did not happen.
+    const second = await saveAndActivateIcpAction(
+      first.id,
+      { ...completeIcp(name), who: 'Owns content for a 400-person company.' },
+      { makePrimary: true },
+    )
+    expect(second).toEqual({ ok: true, id: first.id, status: 'active', primary: true })
+
+    expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
+    expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
+
+    const doc = await payload.findByID({ collection: 'icps', id: first.id, depth: 0, overrideAccess: true })
+    expect(doc.who).toBe('Owns content for a 400-person company.')
   })
 })
 

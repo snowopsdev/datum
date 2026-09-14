@@ -16,6 +16,7 @@ import type {
   ArticleStatus,
   ColumnOwner,
   ContentStage,
+  PipelineStageName,
   RunnableStatus,
   StatusMeta,
 } from '../../lib/articleStatusMeta'
@@ -29,8 +30,10 @@ export { ARTICLE_STATUSES, CONTENT_STAGES, STATUS_META }
 export type { ArticleStatus, ColumnOwner, ContentStage, RunnableStatus }
 
 /**
- * The statuses a pipeline stage waits on, and the board copy for what picks
- * each up. Derived from the table's `pickupStage` column.
+ * The statuses a pipeline stage waits on, named after the stage that picks
+ * each up. Derived from the table's `pickupStage` column, and the registry
+ * `isRunnableStatus` answers from. Use `NEXT_STAGE_VERB_FOR_STATUS` for copy
+ * that has to read as a sentence.
  *
  * A single run walks all four stages in order, so an article that starts at
  * `topic_selected` normally comes out the far end scored. The middle three only
@@ -47,6 +50,44 @@ export const NEXT_STAGE_FOR_STATUS = Object.fromEntries(
 /** Whether starting a run would actually move this article. */
 export function isRunnableStatus(status: string): status is RunnableStatus {
   return Object.hasOwn(NEXT_STAGE_FOR_STATUS, status)
+}
+
+/**
+ * What a run will *do* to this piece, as a verb phrase that finishes the
+ * sentence "Datum will … on the next run."
+ *
+ * `PIPELINE_STAGE_LABEL` names the stages ("QA checks", "Information-gain
+ * scoring") for column headings and status pills, and reads as nonsense in a
+ * sentence — "Datum will Information-gain scoring this piece". These are the
+ * same four stages said as actions, so the run panel can tell an operator what
+ * pressing the button does in one readable line.
+ */
+export const NEXT_STAGE_VERB: Record<PipelineStageName, string> = {
+  research: 'research what already ranks',
+  generate: 'write the draft',
+  qa: 'run the checks',
+  informationGain: 'score information gain',
+}
+
+/** `NEXT_STAGE_VERB` resolved per status, the way `NEXT_STAGE_FOR_STATUS` is. */
+export const NEXT_STAGE_VERB_FOR_STATUS = Object.fromEntries(
+  ARTICLE_STATUSES.flatMap((status) => {
+    const { pickupStage } = STATUS_META[status]
+    return pickupStage ? [[status, NEXT_STAGE_VERB[pickupStage]]] : []
+  }),
+) as Record<RunnableStatus, string>
+
+/**
+ * A piece a run would advance, that no run is advancing.
+ *
+ * The board used to label every one of these "Datum is working", which is only
+ * true while a `queued`/`running` pipeline run actually lists the article. When
+ * a run stopped part-way — or nobody ever started one — the card sat there
+ * claiming work was happening and gave the operator no way to make it happen.
+ * `inActiveRun` is that membership, resolved by whoever loaded the article.
+ */
+export function isStalled(status: string, inActiveRun: boolean): boolean {
+  return isRunnableStatus(status) && !inActiveRun
 }
 
 export const STAGE_LABEL: Record<ContentStage, string> = {
@@ -105,6 +146,14 @@ export type BoardArticle = {
   title: string | null
   keyword: string
   status: ArticleStatus
+  /** The public path's last segment, once one has been generated. */
+  slug: string | null
+  /** When the piece went live; null until it has. */
+  publishedAt: string | null
+  /** A scheduled publish time the `publish-due` job will act on; null when unscheduled. */
+  publishAt: string | null
+  /** Taken off the board. Nothing runs on it and no action but un-archiving applies. */
+  archived: boolean
   templateName: string | null
   templateId: number | null
   totalCostUsd: number | null
@@ -191,6 +240,10 @@ export function toBoardArticle(doc: Article): BoardArticle {
     title: doc.title ?? null,
     keyword: doc.keyword,
     status: doc.status,
+    slug: doc.slug ?? null,
+    publishedAt: doc.publishedAt ?? null,
+    publishAt: doc.publishAt ?? null,
+    archived: doc.archived === true,
     templateName: template?.name ?? null,
     templateId: template?.id ?? (typeof doc.template === 'number' ? doc.template : null),
     totalCostUsd: doc.totalCostUsd ?? null,
@@ -224,6 +277,22 @@ export type AuditTimelineEntry = {
   stage: string | null
   summary: string
   toStatus: string | null
+}
+
+/**
+ * Whether a scheduled publish time has already gone by.
+ *
+ * A function taking `now` rather than a value computed where it is used: the
+ * only honest answer is "as of this instant", and the one caller is a server
+ * render the browser hydrates a moment later — so the instant has to be
+ * pinned once, on the server, instead of being read again during hydration
+ * and producing different markup. An unparseable date is not expired; it is
+ * not a schedule at all.
+ */
+export function isScheduleExpired(publishAt: string | null, now: number = Date.now()): boolean {
+  if (!publishAt) return false
+  const at = Date.parse(publishAt)
+  return !Number.isNaN(at) && at <= now
 }
 
 export function formatAuditTimestamp(iso: string): string {
@@ -273,10 +342,8 @@ const HEADING_FIX: Record<string, string> = {
     'Add the missing H2 section. The template requires it and QA checks for it by name.',
 }
 
-const vNum = (v: unknown): number | null =>
-  typeof v === 'number' && Number.isFinite(v) ? v : null
-const vStr = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null
+const vNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+const vStr = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 /**
  * Turn one structural violation into something a person can act on.
@@ -409,6 +476,20 @@ export const QA_CHECK_LABEL: Record<QaFailure['check'], string> = {
   qualitativeReview: 'Style',
   evidenceCheck: 'Evidence',
 }
+
+/**
+ * Human labels for the reports page's pass-rate rows, keyed the way
+ * `summarizeReportArticles` names them (`structural`/`factCheck`/`qualitative`)
+ * rather than by the QA-result field names `QA_CHECK_LABEL` uses — the two
+ * check-name vocabularies read differently in a digest card versus a rollup
+ * table, so they get their own label table instead of sharing one.
+ */
+export const CHECK_LABEL = {
+  structural: 'Structure',
+  factCheck: 'Fact check',
+  qualitative: 'Qualitative review',
+  evidence: 'Evidence',
+} as const satisfies Record<string, string>
 
 export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFailure[] {
   const out: QaFailure[] = []

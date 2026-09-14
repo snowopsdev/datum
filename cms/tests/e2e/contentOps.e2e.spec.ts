@@ -8,6 +8,8 @@ import { verifyWebhookSignature } from '../../src/jobs/webhookDeliver.js'
 import { login } from '../helpers/login'
 import {
   cleanupOpsUser,
+  ensureRunReadiness,
+  firstTemplateId,
   opsPayload,
   opsTestUser,
   retireArticles,
@@ -44,11 +46,16 @@ let previousWebhookSettings: { enabled: boolean; url: string | null; secret: str
 const deliveries: Delivery[] = []
 const seededIds: number[] = []
 const WEBHOOK_SECRET = 'e2e-suite-secret'
+/** A runnable piece no run is carrying — the state the run controls exist for. */
+let researchedId: number
 
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Content ops', () => {
   test.beforeAll(async ({ browser }) => {
+    // Seeding here creates the governance assets a run needs, which is more
+    // work than the default hook budget allows on a cold database.
+    test.setTimeout(120_000)
     payload = await opsPayload()
     await seedOpsUser(payload)
 
@@ -77,6 +84,20 @@ test.describe('Content ops', () => {
     }
     await setWebhookSettings(payload, { enabled: true, url: listenerUrl, secret: WEBHOOK_SECRET })
 
+    // The run controls refuse a workspace that cannot write, so the suite has
+    // to be able to answer "yes" before it can test the button.
+    await ensureRunReadiness(payload)
+    const researched = await seedArticle(payload, {
+      // Nothing in the title may contain "Stalled": the test asserts on the
+      // header pill by text, and the heading would match it too.
+      keyword: `e2e run controls ${Date.now()}`,
+      title: 'E2E run controls',
+      status: 'researched',
+      template: await firstTemplateId(payload),
+    })
+    researchedId = researched.id
+    seededIds.push(researchedId)
+
     const context = await browser.newContext()
     page = await context.newPage()
     await login({ page, user: opsTestUser })
@@ -94,11 +115,53 @@ test.describe('Content ops', () => {
     )
   })
 
-  test('webhooks global renders its settings form', async () => {
-    await page.goto('/admin/globals/webhook-settings')
+  test('webhooks global renders its settings form with the secret masked', async () => {
+    // Payload's edit view posts its form state back to the server on mount and
+    // replaces the client state when the answer arrives, so a value typed
+    // before that lands is silently discarded. `data-form-ready` flips before
+    // those requests answer, so wait for the network to go quiet instead.
+    await page.goto('/admin/globals/webhook-settings', { waitUntil: 'networkidle' })
+    await expect(page.locator('form[data-form-ready="true"]')).toBeVisible()
     await expect(page.getByRole('checkbox', { name: 'Enabled' })).toBeChecked()
     await expect(page.getByRole('textbox', { name: 'Url' })).toHaveValue(listenerUrl)
-    await expect(page.getByRole('textbox', { name: 'Secret' })).toHaveValue(WEBHOOK_SECRET)
+    // The secret is a shared signing key. It is loaded, so it can be edited
+    // and saved, but it is never on screen until someone asks for it.
+    const secret = page.locator('#field-secret')
+    await expect(secret).toHaveAttribute('type', 'password')
+    await expect(secret).toHaveValue(WEBHOOK_SECRET)
+    await page.getByRole('button', { name: 'Show secret' }).click()
+    await expect(secret).toHaveAttribute('type', 'text')
+    await page.getByRole('button', { name: 'Hide secret' }).click()
+    await expect(secret).toHaveAttribute('type', 'password')
+    // A custom field component owns its own form state, so prove a typed
+    // secret still reaches the database — then put the suite's own secret
+    // back the same way, because the delivery tests sign with it.
+    const storedSecret = async () =>
+      (await payload.findGlobal({ slug: 'webhook-settings', depth: 0 }))?.secret
+    // Saving is three requests, not one: the save itself, then Payload posts
+    // the form state back and replaces the client state with the answer. A
+    // value typed between the save and that replace is silently discarded, and
+    // Save stays disabled because the form no longer counts as modified.
+    // `networkidle` is not enough (it fires between them), so wait for the
+    // form-state round trip explicitly before typing again.
+    const formStateSettled = () =>
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/admin/globals/webhook-settings' &&
+          (response.request().postData()?.length ?? 0) > 2,
+      )
+    const rotate = async (next: string) => {
+      await secret.fill(next)
+      await expect(secret).toHaveValue(next)
+      const settled = formStateSettled()
+      await page.getByRole('button', { name: 'Save' }).first().click()
+      await expect.poll(storedSecret).toBe(next)
+      await settled
+      await expect(secret).toHaveValue(next)
+    }
+    await rotate(`${WEBHOOK_SECRET}-rotated`)
+    await rotate(WEBHOOK_SECRET)
   })
 
   test('review page renders stage metadata from the shared status table', async () => {
@@ -112,7 +175,9 @@ test.describe('Content ops', () => {
     await page.goto(`/admin/ops/articles/${article.id}`)
     await expect(page.getByText('Needs you · Publish: signed off')).toBeVisible()
     await expect(page.getByRole('list', { name: /stage 5 of 5: publish/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Publish' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Publish now' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Schedule' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Archive' })).toBeVisible()
   })
 
   test('publishing delivers a signed webhook and serves the public page', async () => {
@@ -126,8 +191,12 @@ test.describe('Content ops', () => {
     seededIds.push(article.id)
 
     await page.goto(`/admin/ops/articles/${article.id}`)
-    await page.getByRole('button', { name: 'Publish' }).click()
-    await page.waitForURL(/\/admin\/ops\/content/)
+    await page.getByRole('button', { name: 'Publish now' }).click()
+    // Publishing keeps the reviewer on the article: the page re-renders in
+    // place and the panel for the new status replaces the one just used.
+    await expect(page.getByText('Published · view it')).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/admin/ops/articles/${article.id}`))
+    await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible()
 
     // Delivery is asynchronous: the afterChange hook queues a job and dev
     // autoRun drains the webhooks queue every two seconds.
@@ -148,7 +217,12 @@ test.describe('Content ops', () => {
     })!
     expect(delivery.event).toBe('article.status_changed')
     expect(
-      verifyWebhookSignature(WEBHOOK_SECRET, delivery.timestamp, delivery.rawBody, delivery.signature),
+      verifyWebhookSignature(
+        WEBHOOK_SECRET,
+        delivery.timestamp,
+        delivery.rawBody,
+        delivery.signature,
+      ),
     ).toBe(true)
     expect(JSON.parse(delivery.rawBody)).toMatchObject({
       from: 'approved',
@@ -160,6 +234,34 @@ test.describe('Content ops', () => {
 
     await page.goto(`/articles/${slug}`)
     await expect(page.getByRole('heading', { level: 1, name: 'E2E publish walk' })).toBeVisible()
+  })
+
+  /**
+   * Archiving is offered on every panel a person owns, including the brief —
+   * the cheapest moment to drop a topic is before anything has been written
+   * for it. The walk ends on the content list because an archive that hid the
+   * piece from every tab, Archived included, would be a delete.
+   */
+  test('a brief awaiting review can be archived and is then findable only under Archived', async () => {
+    const keyword = `e2e brief archive ${Date.now()}`
+    const article = await seedArticle(payload, {
+      keyword,
+      title: 'E2E brief archive',
+      status: 'brief_review',
+      template: await firstTemplateId(payload),
+    })
+    seededIds.push(article.id)
+
+    await page.goto(`/admin/ops/articles/${article.id}`)
+    await page.getByRole('button', { name: 'Archive' }).click()
+    await page.getByRole('button', { name: 'Confirm: archive' }).click()
+    await expect(page.getByText('Archived — it is off the content board.')).toBeVisible()
+
+    const search = `?q=${encodeURIComponent(keyword)}&page=1`
+    await page.goto(`/admin/ops/content${search}&filter=all`)
+    await expect(page.getByRole('link', { name: 'E2E brief archive' })).toHaveCount(0)
+    await page.goto(`/admin/ops/content${search}&filter=archived`)
+    await expect(page.getByRole('link', { name: 'E2E brief archive' })).toBeVisible()
   })
 
   test('read-only gate blocks content edits while the machine owns the article', async () => {
@@ -177,6 +279,20 @@ test.describe('Content ops', () => {
     // Leave the dirty form so the next navigation is not blocked by the
     // unsaved-changes dialog.
     page.on('dialog', (dialog) => void dialog.accept())
+  })
+
+  // `.datum-ops` rather than `main`: the Payload admin shell renders no
+  // `<main>`, and this root is exactly the operator-facing copy under test.
+  test('no operator copy mentions the CLI', async () => {
+    await page.goto(`/admin/ops/articles/${researchedId}`)
+    await expect(page.locator('.datum-ops')).not.toContainText('pipeline:run')
+  })
+
+  test('a stalled article can be run from the review page', async () => {
+    await page.goto(`/admin/ops/articles/${researchedId}`)
+    await expect(page.getByText('Stalled')).toBeVisible()
+    await page.getByRole('button', { name: 'Run next stage' }).click()
+    await expect(page.getByText(/Started a run/)).toBeVisible()
   })
 
   test('reports page shows the pipeline runs panel', async () => {

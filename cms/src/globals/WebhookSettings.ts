@@ -42,6 +42,12 @@ export const WebhookSettings: GlobalConfig = {
       type: 'text',
       admin: {
         description: `Shared secret that signs each delivery. Blank uses ${WEBHOOK_SECRET_ENV_VAR}.`,
+        // Off screen until someone asks for it. The value stays readable to
+        // the API: delivery resolves it through `payload.findGlobal`, and a
+        // blank secret is documented to fall back to the environment.
+        components: {
+          Field: '/components/ops/SecretField#SecretField',
+        },
       },
     },
   ],

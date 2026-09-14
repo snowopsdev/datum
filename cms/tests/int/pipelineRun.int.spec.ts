@@ -43,7 +43,6 @@ describe('pipeline run launch', () => {
       models: null,
       activeVoice: { id: 1, updatedAt: new Date(0).toISOString() },
       templates: [{ id: templateId, name: 'Atomic run', updatedAt: new Date(0).toISOString() }],
-      verification: null,
       profile: resolveWorkspaceProfile(null, {}, { mockDefault: true }),
       icps: [{ id: 5, updatedAt: new Date(0).toISOString(), name: 'Demo audience', primary: true }],
       positioning: { content: null, updatedAt: null },
@@ -88,7 +87,6 @@ describe('pipeline run launch', () => {
       models: null,
       activeVoice: { id: 1, updatedAt: new Date(0).toISOString() },
       templates: [{ id: templateId, name: 'Snapshot run', updatedAt: new Date(0).toISOString() }],
-      verification: null,
       profile: resolveWorkspaceProfile({ targetDomain: 'acme.example' }, {}),
       icps: [
         { id: 5, updatedAt: new Date(0).toISOString(), name: 'Primary audience', primary: true },
@@ -163,7 +161,6 @@ describe('pipeline run launch', () => {
       models: null,
       activeVoice: { id: 1, updatedAt: new Date(0).toISOString() },
       templates: [{ id: templateId, name: 'Gate', updatedAt: new Date(0).toISOString() }],
-      verification: null,
       profile: resolveWorkspaceProfile({ targetDomain: 'acme.example' }, {}),
       icps: [],
       positioning: { content: null, updatedAt: null },
@@ -177,5 +174,33 @@ describe('pipeline run launch', () => {
     // among the things a run waits on.
     expect(withoutIcp.tenant.positioning.status).toBe('missing')
     expect(withoutIcp.tenant.recommendations).toEqual(['Add positioning', 'Add an evidence bank'])
+  })
+
+  // `onboarding` is gone as a run source (Task 1 removed the demo it fed);
+  // the collection's `source` select no longer offers it, so Payload itself
+  // is the gate here, not application code.
+  it('rejects an onboarding source', async () => {
+    const readiness = evaluateWorkspaceReadiness({
+      env: { MOCK_MODE: 'true' },
+      models: null,
+      activeVoice: { id: 1, updatedAt: new Date(0).toISOString() },
+      templates: [{ id: templateId, name: 'Rejected source', updatedAt: new Date(0).toISOString() }],
+      profile: resolveWorkspaceProfile(null, {}, { mockDefault: true }),
+      icps: [{ id: 5, updatedAt: new Date(0).toISOString(), name: 'Demo audience', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-09-02' },
+    })
+    const user = { id: 1, collection: 'users', email: 'admin@datum.local' } as TypedUser
+    const runId = randomUUID()
+    runIds.push(runId)
+    const baseInput = {
+      runId,
+      source: 'admin' as const,
+      templateId,
+      count: 1,
+      requestedBy: 'admin@datum.local',
+      readiness,
+    }
+    await expect(createPipelineRun(payload, user, { ...baseInput, source: 'onboarding' as never })).rejects.toThrow()
   })
 })

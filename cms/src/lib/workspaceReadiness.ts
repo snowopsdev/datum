@@ -38,21 +38,11 @@ export interface ReadinessTemplate extends ReadinessEntity {
   name: string
 }
 
-export interface VerificationSnapshot {
-  runId: string
-  status: 'failed' | 'queued' | 'running' | 'succeeded'
-  articleStatus: string | null
-  configFingerprint: string
-  completedAt: string | null
-}
-
 export interface WorkspaceReadinessInput {
   env: Record<string, string | undefined>
   models: LlmSettingsDoc | null
   activeVoice: ReadinessEntity | null
   templates: ReadinessTemplate[]
-  verification: VerificationSnapshot | null
-  codexLoggedIn?: boolean
   /**
    * The workspace profile as the pipeline will resolve it — admin global first,
    * then env. Passed in rather than read from `env` here so this evaluator and
@@ -89,7 +79,8 @@ export interface ModelReadiness {
   model: string
   source: 'admin' | 'default' | 'env'
   provider: LlmProvider
-  requirement: ProviderRequirement['kind']
+  /** `env` when the model has a key to set; `none` when we cannot serve it at all. */
+  requirement: ProviderRequirement['kind'] | 'none'
   envVar: string | null
   configured: boolean
 }
@@ -127,6 +118,14 @@ export interface TenantReadiness {
   recommendations: string[]
 }
 
+/** The setup asset that fixes a governance problem, so a caller can link to it. */
+export type GovernanceAsset = 'voice' | 'workspace' | 'audiences'
+
+export interface GovernanceBlocker {
+  asset: GovernanceAsset
+  message: string
+}
+
 export interface WorkspaceReadiness {
   ready: boolean
   mode: PipelineMode
@@ -135,12 +134,16 @@ export interface WorkspaceReadiness {
   runtime: {
     ready: boolean
     missing: string[]
-    needsCodexLogin: boolean
-    unsupportedModels: string[]
     /**
-     * Everything unmet, in the words an operator acts on. `missing` holds
-     * environment variable names only, so callers that interpolate it render an
-     * empty sentence when the sole blocker is a Codex login.
+     * What is unmet and is not an environment variable name — a selected model
+     * no provider serves, say — already phrased as an instruction. Kept apart
+     * from `missing` so a banner never has to subtract one list from the other
+     * to work out which sentence a blocker belongs in.
+     */
+    problems: string[]
+    /**
+     * Everything unmet, in the words an operator acts on: `missing` then
+     * `problems`. Callers that print one sentence interpolate this.
      */
     blockers: string[]
   }
@@ -153,18 +156,17 @@ export interface WorkspaceReadiness {
      * the content-run action, and the brief all say the same thing.
      */
     problems: string[]
+    /**
+     * The same list, each sentence tagged with the asset that fixes it. A
+     * screen that links a problem to its setup step reads this rather than
+     * matching words in the prose.
+     */
+    blockers: GovernanceBlocker[]
   }
   content: {
     ready: boolean
     templateCount: number
     models: ModelReadiness[]
-  }
-  verification: {
-    ready: boolean
-    stale: boolean
-    runId: string | null
-    articleStatus: string | null
-    completedAt: string | null
   }
 }
 
@@ -172,9 +174,8 @@ function configured(value: string | undefined): boolean {
   return Boolean(value?.trim())
 }
 
-// A Codex login is deliberately absent here, matching `pipeline/src/config.ts`:
-// a dev machine that happens to carry one must not be flipped into live runs by
-// it. A codex-only workspace reaches live by setting MOCK_MODE=false.
+// Only an API key flips a workspace live on its own, matching
+// `pipeline/src/config.ts`: nothing else a dev machine happens to carry counts.
 export function modeFromEnv(env: Record<string, string | undefined>): PipelineMode {
   const value = env.MOCK_MODE?.trim().toLowerCase()
   if (value === 'false' || value === '0' || value === 'no') return 'live'
@@ -187,10 +188,9 @@ function fingerprint(value: unknown): string {
 }
 
 export function evaluateRuntimeReadiness(
-  input: Pick<WorkspaceReadinessInput, 'env' | 'models' | 'profile' | 'codexLoggedIn'>,
+  input: Pick<WorkspaceReadinessInput, 'env' | 'models' | 'profile'>,
 ): { mode: PipelineMode; models: ModelReadiness[]; runtime: WorkspaceReadiness['runtime'] } {
   const mode = modeFromEnv(input.env)
-  const codexLoggedIn = input.codexLoggedIn ?? false
   const resolved = resolveStageModels(input.models, input.env)
   const models: ModelReadiness[] = PIPELINE_STAGES.map((stage) => {
     const selection = resolved[stage]
@@ -200,62 +200,68 @@ export function evaluateRuntimeReadiness(
       model: selection.model,
       source: selection.source,
       provider: providerForModel(selection.model),
-      requirement: requirement.kind,
-      envVar: requirement.kind === 'env' ? requirement.envVar : null,
-      configured:
-        mode === 'mock' ||
-        (requirement.kind === 'env'
-          ? configured(input.env[requirement.envVar])
-          : requirement.kind === 'codex-login' && codexLoggedIn),
+      requirement: requirement?.kind ?? 'none',
+      envVar: requirement?.envVar ?? null,
+      // A model with no requirement has no credential that could ever satisfy
+      // it, so outside mock mode it stays unconfigured and blocks the run.
+      configured: mode === 'mock' || (requirement !== null && configured(input.env[requirement.envVar])),
     }
   })
-  const needsCodexLogin = models.some(
-    (model) => model.requirement === 'codex-login' && !model.configured,
-  )
+  // Stored selections from a provider we no longer serve — `codex/*` ids left
+  // over from the removed Codex integration, say. The migration nulls the ones
+  // in the database; a PIPELINE_MODEL_* override can still name one.
   const unsupportedModels = [
     ...new Set(
-      models
-        .filter((model) => model.requirement === 'codex-disabled' && !model.configured)
-        .map((model) => model.model),
+      models.filter((model) => model.requirement === 'none' && !model.configured).map((m) => m.model),
     ),
   ].sort()
 
   const profile = input.profile
   const missing = new Set<string>()
+  // Variables that are set, to the values `.env.example` ships. Naming them
+  // as missing sends whoever deploys this to a file that already has them, so
+  // they get a sentence of their own instead.
+  const placeholderVars: string[] = []
   if (mode === 'live') {
     if (!configured(input.env.AHREFS_API_KEY)) missing.add('AHREFS_API_KEY')
     // The env vars are the fallback, not the source of truth: a workspace whose
     // Workspace global names the domain has nothing missing, so naming the
     // variable would send an operator to fix something that is already set.
-    if (!profile.targetDomain) missing.add(TARGET_DOMAIN_ENV_VAR)
-    if (profile.competitors.length === 0) missing.add(COMPETITOR_DOMAINS_ENV_VAR)
+    if (profile.placeholderDomain) placeholderVars.push(TARGET_DOMAIN_ENV_VAR)
+    else if (!profile.targetDomain) missing.add(TARGET_DOMAIN_ENV_VAR)
+    if (profile.placeholderCompetitors.length > 0) placeholderVars.push(COMPETITOR_DOMAINS_ENV_VAR)
+    else if (profile.competitors.length === 0) missing.add(COMPETITOR_DOMAINS_ENV_VAR)
     for (const model of models) {
       if (!model.configured && model.envVar) missing.add(model.envVar)
     }
   }
 
+  const sortedMissing = [...missing].sort()
+  const problems = [
+    ...(placeholderVars.length > 0
+      ? [
+          `Replace the .env.example placeholders in ${placeholderVars.join(', ')}, or fill in the Workspace step (what is saved there is used instead)`,
+        ]
+      : []),
+    ...(unsupportedModels.length > 0
+      ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
+      : []),
+  ]
+
   return {
     mode,
     models,
     runtime: {
-      ready: missing.size === 0 && !needsCodexLogin && unsupportedModels.length === 0,
-      missing: [...missing].sort(),
-      needsCodexLogin,
-      unsupportedModels,
-      blockers: [
-        ...[...missing].sort(),
-        ...(needsCodexLogin ? ['`codex login` on this host'] : []),
-        ...(unsupportedModels.length > 0
-          ? [`Select an API-backed model instead of ${unsupportedModels.join(', ')}`]
-          : []),
-      ],
+      ready: missing.size === 0 && problems.length === 0,
+      missing: sortedMissing,
+      problems,
+      blockers: [...sortedMissing, ...problems],
     },
   }
 }
 
 export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): WorkspaceReadiness {
   const { mode, models, runtime } = evaluateRuntimeReadiness(input)
-  const codexLoggedIn = input.codexLoggedIn ?? false
   const profile = input.profile
   const configFingerprint = fingerprint({
     mode,
@@ -269,14 +275,7 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       competitors: profile.competitors.map((competitor) => competitor.domain),
       providers: [...new Set(models.map((model) => model.envVar ?? model.requirement))]
         .sort()
-        .map((name) => [
-          name,
-          name === 'codex-login'
-            ? codexLoggedIn
-            : name === 'codex-disabled'
-              ? false
-              : configured(input.env[name]),
-        ]),
+        .map((name) => [name, name === 'none' ? false : configured(input.env[name])]),
     },
     voice: input.activeVoice ? [input.activeVoice.id, input.activeVoice.updatedAt] : null,
     // Editing an audience or the position changes every prompt the next run
@@ -294,23 +293,39 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     models: models.map(({ stage, model, source }) => [stage, model, source]),
   })
 
-  const terminalArticle =
-    input.verification?.articleStatus === 'qa_passed' ||
-    input.verification?.articleStatus === 'needs_revision'
-  const verificationCurrent = input.verification?.configFingerprint === configFingerprint
-  const verificationReady =
-    input.verification?.status === 'succeeded' && terminalArticle && verificationCurrent
   const primaryIcp = input.icps.find((icp) => icp.primary) ?? input.icps[0] ?? null
   const icpsReady = input.icps.length > 0
   const profileReady = profile.targetDomain !== null
   // Governance is now three assets, not one. A workspace with a voice but no
   // domain researches the wrong site; one with no audience writes for nobody.
-  const governanceProblems = [
-    ...(input.activeVoice === null ? ['Activate a brand voice'] : []),
-    ...(profileReady ? [] : ['Set the target domain']),
-    ...(icpsReady ? [] : ['Add and activate at least one audience (ICP)']),
+  const governanceBlockers: GovernanceBlocker[] = [
+    ...(input.activeVoice === null
+      ? [{ asset: 'voice' as const, message: 'Activate a brand voice' }]
+      : []),
+    ...(profileReady
+      ? []
+      : [
+          {
+            asset: 'workspace' as const,
+            // An inherited `.env.example` is not a blank workspace, and being
+            // told to "set the target domain" when TARGET_DOMAIN is already
+            // set sends an operator looking in the wrong place.
+            message: profile.placeholderDomain
+              ? `Set the site Datum writes about (${profile.placeholderDomain} is the placeholder from .env.example)`
+              : 'Set the target domain',
+          },
+        ]),
+    ...(icpsReady
+      ? []
+      : [
+          {
+            asset: 'audiences' as const,
+            message: 'Add and activate at least one audience (ICP)',
+          },
+        ]),
   ]
-  const governanceReady = governanceProblems.length === 0
+  const governanceProblems = governanceBlockers.map((blocker) => blocker.message)
+  const governanceReady = governanceBlockers.length === 0
   const contentReady = input.templates.length > 0
 
   // Recommendations, not problems: a workspace with no position writes fine,
@@ -370,18 +385,12 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
       ready: governanceReady,
       activeVoiceId: input.activeVoice?.id ?? null,
       problems: governanceProblems,
+      blockers: governanceBlockers,
     },
     content: {
       ready: contentReady,
       templateCount: input.templates.length,
       models,
-    },
-    verification: {
-      ready: verificationReady,
-      stale: Boolean(input.verification && !verificationCurrent),
-      runId: input.verification?.runId ?? null,
-      articleStatus: input.verification?.articleStatus ?? null,
-      completedAt: input.verification?.completedAt ?? null,
     },
   }
 }

@@ -18,7 +18,7 @@ import { detectKind, extractText, UnsupportedUploadError } from '../../lib/extra
 import type { LlmSettingsDoc } from '../../lib/llmSettings'
 import type { BrandVoiceInput } from './brandVoiceTypes'
 
-const VIEW_PATH = '/admin/ops/governance/brand-voice'
+const VIEW_PATH = '/admin/ops/setup/brand-voice'
 
 async function requireUser() {
   const headers = await getHeaders()

@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import type { ContentFilter, ContentPage } from './contentListData'
+import { isContentFilter } from './contentListData'
 import { OWNER_LABEL, STAGE_LABEL, stageOf } from './articleStatus'
-import { removeTopicsAction } from './boardActions'
+import { removeTopicsAction, runSelectedArticlesAction } from './boardActions'
 import type { RunStatusDTO } from './boardTypes'
 import { RunStatusPanel } from './RunStatusPanel'
-import { Stepper } from './Stepper'
+import { PipelineStepper } from './PipelineStepper'
 import './ops.css'
 
 type Filter = ContentFilter
@@ -33,7 +34,11 @@ const FILTER_LABEL: Record<Filter, string> = {
   working: 'In progress',
   done: 'Done',
   all: 'All',
+  archived: 'Archived',
 }
+
+/** Tab order. `archived` sits last: it is where things go, not where work is. */
+const FILTERS: Filter[] = ['you', 'working', 'done', 'all', 'archived']
 
 /**
  * The primary content screen: every piece, where it is, and who it is waiting
@@ -48,6 +53,8 @@ export function ContentList({ content, latestRun, mode }: Props) {
   const [requestedFilter, setRequestedFilter] = useState(filter)
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  /** Articles a live-mode run is waiting on a cost confirmation for. */
+  const [pendingRun, setPendingRun] = useState<number[] | null>(null)
   const [pending, startTransition] = useTransition()
   const [navigating, startNavigation] = useTransition()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -66,6 +73,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
     }
     setRequestedQueries(external ? [] : requestedQueries.slice(requestIndex + 1))
     setPicked(new Set())
+    setPendingRun(null)
   }
   useEffect(() => {
     if (committed.external && timer.current) clearTimeout(timer.current)
@@ -77,18 +85,12 @@ export function ContentList({ content, latestRun, mode }: Props) {
       const restoredQuery = restored.get('q') ?? ''
       const restoredFilter = restored.get('filter')
       setRequestedFilter(
-        restoredFilter === 'you' ||
-          restoredFilter === 'working' ||
-          restoredFilter === 'done' ||
-          restoredFilter === 'all'
-          ? restoredFilter
-          : counts.you > 0
-            ? 'you'
-            : 'all',
+        isContentFilter(restoredFilter) ? restoredFilter : counts.you > 0 ? 'you' : 'all',
       )
       setQuery(restoredQuery)
       setRequestedQueries([restoredQuery.trim()])
       setPicked(new Set())
+      setPendingRun(null)
     }
     window.addEventListener('popstate', onHistory)
     return () => window.removeEventListener('popstate', onHistory)
@@ -102,6 +104,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
   const navigate = (nextFilter: Filter, nextQuery: string, nextPage: number) => {
     if (timer.current) clearTimeout(timer.current)
     setPicked(new Set())
+    setPendingRun(null)
     setRequestedFilter(nextFilter)
     setRequestedQueries((queries) => [...queries, nextQuery.trim()])
     const params = new URLSearchParams({
@@ -119,7 +122,12 @@ export function ContentList({ content, latestRun, mode }: Props) {
   }
   const visible = articles
 
-  const removable = articles.filter((a) => a.status === 'topic_selected' && picked.has(a.id))
+  const removable = articles.filter(
+    (a) => !a.archived && a.status === 'topic_selected' && picked.has(a.id),
+  )
+  // Only the stalled ones: an article an active run already carries would
+  // queue a second run over the top of the first.
+  const runnable = articles.filter((a) => a.stalled && picked.has(a.id))
 
   const remove = () => {
     setMessage(null)
@@ -131,6 +139,31 @@ export function ContentList({ content, latestRun, mode }: Props) {
         router.refresh()
       }
     })
+  }
+
+  const run = (ids: number[], confirmLiveCost: boolean) => {
+    setMessage(null)
+    setPendingRun(null)
+    startTransition(async () => {
+      const result = await runSelectedArticlesAction({ articleIds: ids, confirmLiveCost })
+      setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
+      if (result.ok) {
+        setPicked(new Set())
+        router.refresh()
+      }
+    })
+  }
+
+  /**
+   * In live mode the run spends money, so it is one question away rather than
+   * one click: `runSelectedArticlesAction` refuses without the confirmation
+   * anyway, and asking here means the refusal is never what an operator sees.
+   */
+  const requestRun = (ids: number[]) => {
+    if (ids.length === 0) return
+    setMessage(null)
+    if (mode === 'live') setPendingRun(ids)
+    else run(ids, false)
   }
 
   return (
@@ -151,7 +184,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
 
       <div className="datum-content__toolbar">
         <div className="datum-ops__tabs datum-ops__tabs--pills" role="tablist">
-          {(['you', 'working', 'done', 'all'] as Filter[]).map((f) => (
+          {FILTERS.map((f) => (
             <button
               aria-selected={requestedFilter === f}
               className={requestedFilter === f ? 'is-active' : undefined}
@@ -179,22 +212,62 @@ export function ContentList({ content, latestRun, mode }: Props) {
           ? 'Loading content…'
           : `${totalDocs} matching pieces · Page ${page} of ${totalPages}`}
       </p>
-      {removable.length > 0 ? (
+      {picked.size > 0 ? (
         <div className="datum-content__bulk">
           <span>
-            {removable.length} topic{removable.length === 1 ? '' : 's'} selected
+            {removable.length > 0
+              ? `${removable.length} topic${removable.length === 1 ? '' : 's'} selected`
+              : `${picked.size} piece${picked.size === 1 ? '' : 's'} selected`}
           </span>
+          {runnable.length > 0 ? (
+            <button
+              className="datum-ops__btn datum-ops__btn--primary"
+              disabled={pending || navigating}
+              onClick={() => requestRun(runnable.map((a) => a.id))}
+              type="button"
+            >
+              Run selected
+            </button>
+          ) : null}
+          {/* The hint explains the button beside it, so it goes when the
+              button does: with two stalled drafts picked there is nothing to
+              remove and nothing the sentence would be answering. */}
+          {removable.length > 0 ? (
+            <>
+              <button
+                className="datum-ops__btn datum-ops__btn--danger"
+                disabled={pending || navigating}
+                onClick={remove}
+                type="button"
+              >
+                Remove from content
+              </button>
+              <span className="datum-ops__hint">
+                Only topics research has not started can be removed.
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      {pendingRun ? (
+        <div className="datum-content__bulk">
+          <span>This calls paid providers. Continue?</span>
           <button
-            className="datum-ops__btn datum-ops__btn--danger"
-            disabled={pending || navigating}
-            onClick={remove}
+            className="datum-ops__btn datum-ops__btn--primary"
+            disabled={pending}
+            onClick={() => run(pendingRun, true)}
             type="button"
           >
-            Remove from content
+            Confirm
           </button>
-          <span className="datum-ops__hint">
-            Only topics research has not started can be removed.
-          </span>
+          <button
+            className="datum-ops__btn"
+            disabled={pending}
+            onClick={() => setPendingRun(null)}
+            type="button"
+          >
+            Cancel
+          </button>
         </div>
       ) : null}
       {message ? (
@@ -222,6 +295,8 @@ export function ContentList({ content, latestRun, mode }: Props) {
                   : 'Everything is either done or waiting to be started.'}
               </p>
             </>
+          ) : filter === 'archived' ? (
+            <p>Nothing is archived.</p>
           ) : (
             <p>No pieces match.</p>
           )}
@@ -231,9 +306,15 @@ export function ContentList({ content, latestRun, mode }: Props) {
           {visible.map((a) => {
             const info = stageOf(a.status)
             const href = `/admin/ops/articles/${a.id}`
+            // A stalled piece is waiting on a person to press Run, so it wears
+            // the Needs-you colour rather than claiming Datum is working.
+            const tone = a.stalled ? 'stalled' : info.owner
             return (
-              <li className={`datum-content__row datum-content__row--${info.owner}`} key={a.id}>
-                {a.status === 'topic_selected' ? (
+              <li
+                className={`datum-content__row datum-content__row--${a.stalled ? 'you' : info.owner}`}
+                key={a.id}
+              >
+                {!a.archived && (a.status === 'topic_selected' || a.stalled) ? (
                   <input
                     aria-label={`Select ${a.title || a.keyword}`}
                     checked={picked.has(a.id)}
@@ -263,16 +344,33 @@ export function ContentList({ content, latestRun, mode }: Props) {
                   </p>
                 </div>
                 <div className="datum-content__stage">
-                  <Stepper current={info} />
+                  <PipelineStepper current={info} />
                   <span className="datum-content__stage-label">
                     {STAGE_LABEL[info.stage]} · {info.label}
                   </span>
                 </div>
-                <span className={`datum-content__owner datum-content__owner--${info.owner}`}>
-                  {OWNER_LABEL[info.owner]}
+                <span className={`datum-content__owner datum-content__owner--${tone}`}>
+                  {a.archived
+                    ? `Archived · ${info.label}`
+                    : a.stalled
+                      ? `Stalled · ${info.label}`
+                      : OWNER_LABEL[info.owner]}
                 </span>
                 <div className="datum-content__action">
-                  {info.action ? (
+                  {a.archived ? (
+                    <Link className="datum-ops__link-btn" href={href} prefetch={false}>
+                      Open
+                    </Link>
+                  ) : a.stalled ? (
+                    <button
+                      className="datum-ops__btn datum-ops__btn--primary"
+                      disabled={pending || navigating}
+                      onClick={() => requestRun([a.id])}
+                      type="button"
+                    >
+                      Run
+                    </button>
+                  ) : info.action ? (
                     <Link
                       className={`datum-ops__btn${info.owner === 'you' ? ' datum-ops__btn--primary' : ''}`}
                       href={href}

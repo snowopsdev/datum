@@ -23,7 +23,6 @@ function toDTO(doc: BrandVoice): BrandVoiceDTO {
     sourceFile:
       file && file.url ? { id: file.id, filename: file.filename ?? 'guide', url: file.url } : null,
     updatedAt: doc.updatedAt,
-    editHref: `/admin/collections/brand-voices/${doc.id}`,
   }
 }
 

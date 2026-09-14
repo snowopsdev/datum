@@ -1,6 +1,6 @@
 import { sql } from '@payloadcms/db-postgres'
 import { executeAccess, Forbidden, type PayloadRequest } from 'payload'
-import type { CostReport, SpendRow } from '../components/ops/ReportsPanel'
+import type { CostReport, SpendRow } from './reportTypes'
 import type { StageKpiRow } from './opsKpis'
 
 /** The report's supported filters, bound as values rather than SQL fragments. */
@@ -9,7 +9,17 @@ export type ReportCostFilter = {
   pipelineRunId?: string
 }
 
-/** Aggregate in one database snapshot without hydrating individual cost logs. */
+/**
+ * Aggregate in one database snapshot without hydrating individual cost logs.
+ *
+ * This is `stageKpis`'s SQL twin (`cms/src/lib/opsKpis.ts`): the reports page
+ * can be looking at every cost-log row a workspace has ever written, so this
+ * groups by stage and model in Postgres instead of fetching every row and
+ * reducing them with `stageKpis` in memory. Callers with an already-small,
+ * already-fetched batch of rows (a single run's activity, the pipeline CLI's
+ * report) use `stageKpis` directly; keep the two aggregations in step by hand
+ * when either one's grouping changes.
+ */
 export async function loadReportCosts(
   req: PayloadRequest,
   filter: ReportCostFilter,

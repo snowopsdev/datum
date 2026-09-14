@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { runHealth, stageKpis } from '@/lib/opsKpis'
 import { describe, expect, it } from 'vitest'
 
@@ -18,6 +21,22 @@ describe('stageKpis', () => {
 
   it('returns an empty list for no rows', () => {
     expect(stageKpis([])).toEqual([])
+  })
+})
+
+/**
+ * The two in-memory callers reduce cost-log rows with this file's `stageKpis`
+ * rather than hand-rolling their own `Map<string, ...>` loop — see the doc
+ * comment atop `opsKpis.ts` for why the reports page's SQL aggregate
+ * (`reportQueries.ts`) is exempt.
+ */
+describe('one cost aggregation', () => {
+  it('boardActions and the pipeline CLI report use stageKpis', () => {
+    const boardActions = readFileSync('src/components/ops/boardActions.ts', 'utf8')
+    expect(boardActions).toContain('stageKpis(')
+
+    const pipelineReport = readFileSync(path.join('..', 'pipeline', 'src', 'report.ts'), 'utf8')
+    expect(pipelineReport).toContain('stageKpis(')
   })
 })
 

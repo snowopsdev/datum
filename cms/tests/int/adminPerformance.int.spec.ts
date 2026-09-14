@@ -86,8 +86,10 @@ describe('admin queries against Postgres', () => {
     expect(first.totalPages).toBe(2)
     expect(JSON.stringify(first)).not.toContain('UNUSED_RESEARCH_MARKER')
     expect(Object.keys(first.articles[0]).sort()).toEqual([
+      'archived',
       'id',
       'keyword',
+      'stalled',
       'status',
       'templateName',
       'title',
@@ -102,6 +104,29 @@ describe('admin queries against Postgres', () => {
     expect(search.counts).toEqual(first.counts)
     expect((await loadContentPage(req, { filter: 'all', q: prefix, page: '99999' })).page).toBe(2)
     expect((await loadContentPage(req, { filter: 'all', q: prefix, page: '-1' })).page).toBe(1)
+  })
+
+  /**
+   * Archiving is this workspace's delete, so the one thing it must not do is
+   * make a piece unreachable: it comes off the four working tabs and lands on
+   * the Archived one, where it is readable and carries no Run affordance a
+   * run would refuse.
+   */
+  it('keeps archived pieces off every tab but the Archived one', async () => {
+    const all = await loadContentPage(req, { filter: 'all', q: prefix })
+    expect(all.articles.map((a) => a.id)).not.toContain(ids[64])
+    // The counts are workspace-wide (they never take `q`), so the assertion
+    // that matters is the partition: no row is on both sides of it.
+    expect(all.counts.all).toBe(all.counts.you + all.counts.working + all.counts.done)
+    expect(all.counts.archived).toBeGreaterThanOrEqual(1)
+    expect(all.totalDocs).toBe(64)
+
+    const archived = await loadContentPage(req, { filter: 'archived', q: prefix })
+    expect(archived.filter).toBe('archived')
+    expect(archived.articles.map((a) => a.id)).toEqual([ids[64]])
+    expect(archived.articles[0]).toMatchObject({ archived: true, stalled: false })
+    // The tab counts describe the same workspace whichever tab is open.
+    expect(archived.counts).toEqual(all.counts)
   })
 
   it('returns evidence only for the requested article and event kind', async () => {

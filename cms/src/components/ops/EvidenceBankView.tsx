@@ -21,11 +21,10 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
 
   if (!req.user) redirect('/admin/login')
 
-  const doc = await req.payload.findGlobal({
-    slug: 'evidence-bank',
-    depth: 0,
-    overrideAccess: true,
-  })
+  const [doc, profile] = await Promise.all([
+    req.payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
+    req.payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+  ])
 
   return (
     <DefaultTemplate
@@ -41,6 +40,9 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
       <Gutter>
         <EvidenceBankEditor
           initial={emptyEvidenceBankDraft(evidenceBankContentOf(doc))}
+          sitePagesFetchedAt={
+            (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
+          }
           today={new Date().toISOString().slice(0, 10)}
         />
       </Gutter>

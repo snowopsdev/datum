@@ -10,7 +10,7 @@ import {
   positioningContentOf,
   positioningStatus,
 } from '../../lib/tenant/positioning'
-import { AssetStepper } from './AssetStepper'
+import { AssetStepper, hasSectionContent } from './AssetStepper'
 import {
   POSITIONING_SECTION_COMPONENTS,
   POSITIONING_STEPS,
@@ -30,7 +30,14 @@ const SECTION_KEYS: Record<Exclude<PositioningStepId, 'review'>, (keyof Position
   openRulings: ['openRulings'],
 }
 
-export function PositioningEditor({ initial }: { initial: PositioningContent }) {
+export function PositioningEditor({
+  initial,
+  sitePagesFetchedAt,
+}: {
+  initial: PositioningContent
+  /** From the workspace profile: null warns that the assistant has nothing to read. */
+  sitePagesFetchedAt: string | null
+}) {
   const router = useRouter()
   const [content, setContent] = useState(initial)
   const [step, setStep] = useState(0)
@@ -41,6 +48,13 @@ export function PositioningEditor({ initial }: { initial: PositioningContent }) 
   const problems = positioningCompletenessProblems(content)
   const status = positioningStatus(content)
   const current = POSITIONING_STEPS[step].id
+
+  const sectionValueOf = (stepId: PositioningStepId): unknown => {
+    if (stepId === 'review') return null
+    const value: Record<string, unknown> = {}
+    for (const key of SECTION_KEYS[stepId]) value[key] = content[key]
+    return value
+  }
 
   const save = () =>
     startTransition(async () => {
@@ -88,14 +102,13 @@ export function PositioningEditor({ initial }: { initial: PositioningContent }) 
       steps={POSITIONING_STEPS}
       step={step}
       onStep={setStep}
-      asset="positioning"
-      sectionValue={(stepId) => {
-        if (stepId === 'review') return null
-        const value: Record<string, unknown> = {}
-        for (const key of SECTION_KEYS[stepId]) value[key] = content[key]
-        return value
+      assist={{
+        asset: 'positioning',
+        sectionValue: sectionValueOf,
+        onAssist: applyAssist,
+        sectionHasContent: hasSectionContent(sectionValueOf(current)),
+        sitePagesFetchedAt,
       }}
-      onAssist={applyAssist}
       disabled={pending}
       problems={current === 'review' ? problems : []}
       problemsTitle="A finished position still needs"

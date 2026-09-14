@@ -34,21 +34,16 @@ const baseInput = (): WorkspaceReadinessInput => ({
   icps: [
     { id: 11, updatedAt: '2026-08-25T12:00:00.000Z', name: 'Marketing lead', primary: true },
   ],
-  verification: null,
 })
 
 describe('workspace readiness', () => {
-  it('shows a governed mock workspace as ready, independent of verification', () => {
+  it('shows a governed mock workspace as ready', () => {
     const readiness = evaluateWorkspaceReadiness(baseInput())
 
     assert.equal(readiness.mode, 'mock')
     assert.equal(readiness.runtime.ready, true)
     assert.equal(readiness.governance.ready, true)
     assert.equal(readiness.content.ready, true)
-    // `ready` is a run-time question — can Datum write and score content — not
-    // an onboarding one, so it does not wait on a verification run nobody has
-    // done yet.
-    assert.equal(readiness.verification.ready, false)
     assert.equal(readiness.ready, true)
     assert.deepEqual(readiness.runtime.missing, [])
   })
@@ -58,7 +53,7 @@ describe('workspace readiness', () => {
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       OPENAI_API_KEY: 'configured',
     }
@@ -95,23 +90,23 @@ describe('workspace readiness', () => {
     )
   })
 
-  it('blocks live Codex stages before a run can be queued', () => {
+  it('blocks a model no provider serves before a run can be queued', () => {
     const input = baseInput()
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       ANTHROPIC_API_KEY: 'configured',
     }
     input.profile = envProfile(input.env)
+    // A selection left behind by the removed Codex integration: the migration
+    // nulls stored ones, but a PIPELINE_MODEL_* override can still name one.
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
 
     const blocked = evaluateWorkspaceReadiness(input)
-    assert.equal(blocked.runtime.needsCodexLogin, false)
     assert.equal(blocked.runtime.ready, false)
     assert.deepEqual(blocked.runtime.missing, [])
-    assert.deepEqual(blocked.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
     assert.deepEqual(blocked.runtime.blockers, [
       'Select an API-backed model instead of codex/gpt-5.6-terra',
     ])
@@ -122,65 +117,31 @@ describe('workspace readiness', () => {
         model.provider,
         model.configured,
       ])[0],
-      ['generate', 'codex/gpt-5.6-terra', 'codex', false],
+      ['generate', 'codex/gpt-5.6-terra', 'unknown', false],
     )
     assert.equal(blocked.content.models[0]!.envVar, null)
-    assert.equal(blocked.content.models[0]!.requirement, 'codex-disabled')
-
-    input.codexLoggedIn = true
-    const loggedIn = evaluateWorkspaceReadiness(input)
-    assert.equal(loggedIn.content.models[0]!.configured, false)
-    assert.equal(loggedIn.runtime.needsCodexLogin, false)
-    assert.equal(loggedIn.runtime.ready, false)
-    assert.equal(loggedIn.configFingerprint, blocked.configFingerprint)
+    assert.equal(blocked.content.models[0]!.requirement, 'none')
   })
 
-  it('runtime-only readiness keeps live Codex disabled without inspecting login state', () => {
-    const input = baseInput()
-    input.env = {
-      MOCK_MODE: 'false',
-      AHREFS_API_KEY: 'configured',
-      ANTHROPIC_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
-      COMPETITOR_DOMAINS: 'competitor.example',
-    }
-    input.profile = envProfile(input.env)
-    input.models = { generateModel: 'codex/gpt-5.6-terra' }
-    // This is the reduced input used by runtimeStatusAction.
-    const runtimeInput = { env: input.env, models: input.models, profile: input.profile }
-    const omitted = evaluateRuntimeReadiness(runtimeInput)
-    assert.equal(omitted.runtime.needsCodexLogin, false)
-    assert.equal(omitted.runtime.ready, false)
-    assert.deepEqual(omitted.runtime.unsupportedModels, ['codex/gpt-5.6-terra'])
-    for (const codexLoggedIn of [false, true]) {
-      assert.deepEqual(
-        evaluateRuntimeReadiness({ ...runtimeInput, codexLoggedIn }).runtime,
-        omitted.runtime,
-      )
-      assert.deepEqual(
-        evaluateWorkspaceReadiness({ ...input, codexLoggedIn }).runtime,
-        omitted.runtime,
-      )
-    }
-  })
-
-  it('treats a Codex stage as configured in mock mode, logged in or not', () => {
+  it('treats an unservable stage as configured in mock mode', () => {
     const input = baseInput()
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
 
     const readiness = evaluateWorkspaceReadiness(input)
     assert.equal(readiness.content.models[0]!.configured, true)
-    assert.equal(readiness.runtime.needsCodexLogin, false)
-    assert.deepEqual(readiness.runtime.unsupportedModels, [])
+    assert.deepEqual(readiness.runtime.blockers, [])
     assert.equal(readiness.runtime.ready, true)
   })
 
-  it('fingerprints a workspace with no Codex stage exactly as it did before Codex', () => {
+  it('fingerprints an API-backed workspace exactly as it always has', () => {
     // Frozen inputs and hashes: the fingerprint decides whether a verification
     // run is still current, so a change here stales every existing run. Only
-    // recompute these when that is the intent. They last moved when the
-    // fingerprint started covering the evidence-bank global's timestamp, which
-    // decides what a draft may state about the workspace. (Before that they
+    // recompute these when that is the intent. The live hash last moved when
+    // `example.com` became a placeholder the resolver ignores and this fixture
+    // had to name a domain a workspace could really own; the mock hash is
+    // untouched by that. Before that they moved when the fingerprint started
+    // covering the evidence-bank global's timestamp, which decides what a
+    // draft may state about the workspace. (Before that they
     // moved for the positioning global and the `evidenceCheck` stage joining
     // the model list, before that for the active audiences, and before that for
     // the resolved target domain and competitor list rather than "is
@@ -196,7 +157,6 @@ describe('workspace readiness', () => {
       ],
       positioning: { content: null, updatedAt: null },
       evidenceBank: { content: null, updatedAt: null, asOf: '2026-09-02' },
-      verification: null,
     }
     assert.equal(
       evaluateWorkspaceReadiness(mock).configFingerprint,
@@ -206,7 +166,7 @@ describe('workspace readiness', () => {
     const liveEnv = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       OPENAI_API_KEY: 'configured',
     }
@@ -222,7 +182,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(live).configFingerprint,
-      'f3a8cc08bde7aee291080b2c12d6aa7daed06cc2222fa9e9b35e4b85e7d8a37d',
+      '017ebcc15ef931f391775c0047b998c686dbd857040cad0f183ce59eb949b901',
     )
   })
 
@@ -346,60 +306,31 @@ describe('workspace readiness', () => {
     input.icps = []
     assert.notEqual(evaluateWorkspaceReadiness(input).configFingerprint, before)
   })
-
-  it('accepts a terminal QA result only when its configuration fingerprint is current', () => {
-    const input = baseInput()
-    const current = evaluateWorkspaceReadiness(input)
-    input.verification = {
-      runId: 'onboarding:1',
-      status: 'succeeded',
-      articleStatus: 'needs_revision',
-      configFingerprint: current.configFingerprint,
-      completedAt: '2026-08-25T12:05:00.000Z',
-    }
-
-    const verified = evaluateWorkspaceReadiness(input)
-    assert.equal(verified.verification.ready, true)
-    assert.equal(verified.ready, true)
-
-    input.activeVoice = {
-      ...input.activeVoice!,
-      updatedAt: '2026-08-25T12:10:00.000Z',
-    }
-    const stale = evaluateWorkspaceReadiness(input)
-    assert.equal(stale.verification.ready, false)
-    assert.equal(stale.verification.stale, true)
-    // A config change stales the verification snapshot, but governance and
-    // templates are unaffected, so the workspace is still ready to run.
-    assert.equal(stale.ready, true)
-  })
 })
 
-describe('unsupported Codex models are reported to blocked actions', () => {
+describe('models no provider serves are reported to blocked actions', () => {
   it('lists the model migration among blockers so action errors are never empty', () => {
     const input = baseInput()
     input.env = {
       MOCK_MODE: 'false',
       AHREFS_API_KEY: 'configured',
-      TARGET_DOMAIN: 'example.com',
+      TARGET_DOMAIN: 'acme.example',
       COMPETITOR_DOMAINS: 'competitor.example',
       ANTHROPIC_API_KEY: 'configured',
     }
     input.profile = envProfile(input.env)
     input.models = { generateModel: 'codex/gpt-5.6-terra' }
-    input.codexLoggedIn = false
 
     const readiness = evaluateWorkspaceReadiness(input)
 
     assert.deepEqual(readiness.runtime.missing, [])
-    assert.equal(readiness.runtime.needsCodexLogin, false)
     // The action messages interpolate this list; an empty one renders
     // "Configure the required environment variables: ." and helps nobody.
     assert.ok(readiness.runtime.blockers.length > 0)
     assert.match(readiness.runtime.blockers.join(' '), /API-backed model/)
   })
 
-  it('leaves blockers equal to missing when no codex stage is selected', () => {
+  it('leaves blockers equal to missing when every stage is API-backed', () => {
     const input = baseInput()
     input.env = { MOCK_MODE: 'false', OPENAI_API_KEY: 'configured' }
     input.profile = envProfile(input.env)

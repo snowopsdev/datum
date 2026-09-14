@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+import { stageKpis } from '../../cms/src/lib/opsKpis'
 import type { Article, CostLog, InformationGainRun } from '../../cms/src/payload-types'
 
 export type ReportPeriod = 'week' | 'month'
@@ -183,17 +184,16 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
 
   // ---- Spend ----
   const totalSpend = costRows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0)
-  const byStage = new Map<string, number>()
+  const perStage = stageKpis(costRows)
   const byModel = new Map<string, number>()
   for (const row of costRows) {
-    byStage.set(row.stage ?? '(unknown)', (byStage.get(row.stage ?? '(unknown)') ?? 0) + (row.costUsd ?? 0))
     byModel.set(row.model ?? '(unknown)', (byModel.get(row.model ?? '(unknown)') ?? 0) + (row.costUsd ?? 0))
   }
   lines.push('')
   lines.push(`== Spend (${costRows.length} cost-log row(s) in period) ==`)
   lines.push(`total: ${usd(totalSpend)}`)
   lines.push('by stage:')
-  for (const [stage, spend] of byStage) lines.push(`  ${stage}: ${usd(spend)}`)
+  for (const s of perStage) lines.push(`  ${s.stage}: ${usd(s.costUsd)}`)
   lines.push('by model:')
   for (const [model, spend] of byModel) lines.push(`  ${model}: ${usd(spend)}`)
 

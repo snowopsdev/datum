@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { ArticleAudit } from '@/collections/ArticleAudit'
 import { CostLog } from '@/collections/CostLog'
 import { formatAuditTimestamp } from '@/components/ops/articleStatus'
+import {
+  auditEventLabel,
+  SCORE_INVALIDATED_EVENT,
+  scoreInvalidatedFields,
+  scoreInvalidatedSummary,
+  scoreInvalidationNotice,
+} from '@/components/ops/auditTypes'
 import { auditArticleChange } from '@/lib/articleAudit'
 
 describe('article audit trail', () => {
@@ -96,6 +103,58 @@ describe('article audit trail', () => {
     expect(await remove?.({} as never)).toBe(false)
     expect(() => beforeChange?.({ operation: 'update' } as never)).toThrow('append-only')
     expect(() => beforeDelete?.({} as never)).toThrow('append-only')
+  })
+
+  it('labels score invalidation and humanises every other event', () => {
+    expect(auditEventLabel(SCORE_INVALIDATED_EVENT)).toBe('Score invalidated by edit')
+    expect(auditEventLabel('status_changed')).toBe('status changed')
+  })
+
+  it('round-trips the edited fields through the score-invalidation summary', () => {
+    // The review page reads the field list back out of the summary, so the
+    // builder and the reader have to agree; an unrelated summary yields null
+    // rather than a nonsense notice.
+    const summary = scoreInvalidatedSummary(['title', 'body'])
+    expect(summary).toBe('Score invalidated by an edit to title, body')
+    expect(scoreInvalidatedFields(summary)).toBe('title, body')
+    expect(scoreInvalidatedFields('Reviewer overrode blocked')).toBeNull()
+    expect(scoreInvalidatedFields(scoreInvalidatedSummary([]))).toBeNull()
+  })
+
+  describe('score-invalidation notice on the review page', () => {
+    const auditRow = (event: string, summary: string) => ({
+      event,
+      summary,
+      source: { kind: 'audit' as const, recordId: 1 },
+    })
+    const costRow = {
+      event: 'model_call_completed',
+      summary: 'generate call completed',
+      source: { kind: 'cost' as const, recordId: 2 },
+    }
+    const invalidated = auditRow(SCORE_INVALIDATED_EVENT, scoreInvalidatedSummary(['title']))
+
+    it('names the edited fields when the invalidation is the newest audit row', () => {
+      expect(scoreInvalidationNotice('drafted', [invalidated])).toBe('title')
+    })
+
+    it('looks past cost-log rows, which nobody did', () => {
+      expect(scoreInvalidationNotice('drafted', [costRow, invalidated])).toBe('title')
+    })
+
+    it('goes quiet once something else has happened to the article', () => {
+      const later = auditRow('status_changed', 'status changed')
+      expect(scoreInvalidationNotice('drafted', [later, invalidated])).toBeNull()
+    })
+
+    it('goes quiet once the article has moved on from drafted', () => {
+      expect(scoreInvalidationNotice('qa_passed', [invalidated])).toBeNull()
+    })
+
+    it('says nothing on an article with no audit trail at all', () => {
+      expect(scoreInvalidationNotice('drafted', [])).toBeNull()
+      expect(scoreInvalidationNotice('drafted', [costRow])).toBeNull()
+    })
   })
 
   it('formats audit timestamps deterministically in UTC', () => {

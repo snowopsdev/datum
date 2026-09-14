@@ -16,6 +16,11 @@ export const WorkspaceProfile: GlobalConfig = {
   label: 'Workspace',
   admin: {
     group: false,
+    // One surface per asset: this global is edited at /admin/ops/setup/workspace, which
+    // writes it through a server action. Hiding it here removes the second,
+    // unguided raw form; `payload.updateGlobal` and `findGlobal` ignore
+    // `admin.hidden`, so nothing server-side changes.
+    hidden: true,
     description:
       'The site this workspace writes for and the competitors it is measured against. ' +
       `Leave the domain fields blank to use the ${TARGET_DOMAIN_ENV_VAR} / ${COMPETITOR_DOMAINS_ENV_VAR} ` +

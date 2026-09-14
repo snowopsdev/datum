@@ -302,10 +302,13 @@ export interface Article {
    * Hidden from the article board and skipped by every pipeline run.
    */
   archived?: boolean | null;
+  /**
+   * Editing this while the piece is verified clears its score and sends it back to Writing.
+   */
   title?: string | null;
   slug?: string | null;
   /**
-   * The primary keyword this article targets.
+   * The primary keyword this article targets. Editing this while the piece is verified clears its score and sends it back to Writing.
    */
   keyword: string;
   /**
@@ -413,6 +416,9 @@ export interface Article {
     approvedAt?: string | null;
     approvedBy?: string | null;
   };
+  /**
+   * Editing this while the piece is verified clears its score and sends it back to Writing.
+   */
   body?: {
     root: {
       type: string;
@@ -1385,7 +1391,7 @@ export interface PipelineRun {
   /**
    * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.
    */
-  source: 'onboarding' | 'admin' | 'cli' | 'selected';
+  source: 'admin' | 'cli' | 'selected';
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   mode: 'mock' | 'live';
   template: number | Template;
@@ -2664,7 +2670,7 @@ export interface EvidenceBank {
   createdAt?: string | null;
 }
 /**
- * Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY). Local codex/ execution is disabled for application content; those choices are available only for mock fixtures.
+ * Which model handles each step. Live runs require the selected API provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-settings".
@@ -2690,12 +2696,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2717,12 +2717,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2744,12 +2738,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2771,12 +2759,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2798,12 +2780,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2825,12 +2801,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2852,12 +2822,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2879,12 +2843,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   /**
@@ -2906,12 +2864,6 @@ export interface LlmSetting {
         | 'gpt-5'
         | 'gpt-5-mini'
         | 'gpt-5-nano'
-        | 'codex/gpt-5.6-sol'
-        | 'codex/gpt-5.6-terra'
-        | 'codex/gpt-5.6-luna'
-        | 'codex/gpt-5.5'
-        | 'codex/gpt-5.4'
-        | 'codex/gpt-5.4-mini'
       )
     | null;
   updatedAt?: string | null;

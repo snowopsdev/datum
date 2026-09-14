@@ -8,10 +8,11 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { gateRunReadiness } from '../../lib/queueRunForArticles'
 
 export interface StartContentRunInput {
-  source: 'onboarding' | 'admin'
   templateId: number
   count: number
   confirmLiveCost?: boolean
@@ -29,31 +30,24 @@ export async function startContentRunAction(
 
   const setup = await loadWorkspaceSetup(payload)
   const { readiness } = setup
-  if (!readiness.runtime.ready) {
-    return {
-      ok: false,
-      error: `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`,
-    }
-  }
-  if (!readiness.governance.ready) {
-    return {
-      ok: false,
-      error: `Finish setup before starting a content run: ${readiness.governance.problems.join('; ')}.`,
-    }
-  }
+  // Before the gate: a request naming a template that does not exist cannot
+  // start a run whatever readiness says, and asking someone to confirm a live
+  // cost first — only to refuse the run they just agreed to pay for — makes
+  // the confirmation look like it did nothing.
   if (!setup.templates.some((template) => template.id === input.templateId)) {
     return { ok: false, error: 'Choose an existing content template.' }
   }
-  if (readiness.mode === 'live' && input.confirmLiveCost !== true) {
-    return { ok: false, error: 'Confirm the live provider cost before starting this run.' }
-  }
+  // The one gate every run goes through, so a gap run is refused in the same
+  // words as a run queued from the board or an article page.
+  const refusal = gateRunReadiness(readiness, input.confirmLiveCost)
+  if (refusal) return { ok: false, error: refusal }
 
   const runId = randomUUID()
   const requestedBy = user.email || String(user.id)
   try {
     await createPipelineRun(payload, user, {
       runId,
-      source: input.source,
+      source: 'admin',
       templateId: input.templateId,
       count: input.count,
       requestedBy,
@@ -61,7 +55,11 @@ export async function startContentRunAction(
     })
   } catch (error) {
     if (error instanceof ActivePipelineRunError) return { ok: false, error: error.message }
-    return { ok: false, error: 'Another content run started at the same time. Try again shortly.' }
+    // Anything else is not a race — it is a transaction that failed, a job
+    // queue that refused, or a database that went away. Guessing "try again
+    // shortly" at all of those sent people retrying a run that could never
+    // start.
+    return { ok: false, error: `Could not start the run: ${errorMessage(error, 'unknown error')}` }
   }
 
   revalidatePath('/admin')

@@ -1,6 +1,9 @@
 import { getPayload, type Payload } from 'payload'
 import config from '../../src/payload.config.js'
 
+import { BRAND_VOICE_FIXTURE } from '../../src/lib/brandVoiceFixture.js'
+import { ICP_FIXTURE } from '../../src/lib/tenant/fixtures.js'
+import type { IcpContent } from '../../src/lib/tenant/index.js'
 import type { Article } from '../../src/payload-types.js'
 
 /**
@@ -8,6 +11,28 @@ import type { Article } from '../../src/payload-types.js'
  * against the same database as the app under test, the same way
  * `seedUser.ts` does.
  */
+
+/** The fixture audience in the shape the `icps` collection stores it. */
+const icpDocFields = (icp: IcpContent) => ({
+  name: icp.name,
+  who: icp.who,
+  pains: icp.pains.map((pain) => ({
+    statement: pain.statement,
+    evidence: pain.evidence.map((row) => ({ ref: row.ref, note: row.note })),
+    confidence: pain.confidence,
+  })),
+  motivation: { ...icp.motivation },
+  solution: {
+    mechanism: icp.solution.mechanism,
+    sampleLines: icp.solution.sampleLines.map((text) => ({ text })),
+    confidence: icp.solution.confidence,
+  },
+  competition: icp.competition.map((row) => ({ ...row })),
+  whyUs: { ...icp.whyUs },
+  channels: icp.channels.map((row) => ({ ...row })),
+  churnTriggers: icp.churnTriggers.map((text) => ({ text })),
+  notOurUser: icp.notOurUser.map((text) => ({ text })),
+})
 
 export async function opsPayload(): Promise<Payload> {
   return getPayload({ config })
@@ -83,4 +108,76 @@ export async function setWebhookSettings(
     overrideAccess: true,
     data: { url: null, secret: null, ...data },
   })
+}
+
+/**
+ * The template every seeded article that has to be runnable points at.
+ *
+ * `queueRunForArticles` refuses an article with no template, so a fixture that
+ * exists to exercise the run controls needs one. The seed puts four in, and
+ * which one a fixture uses is irrelevant — only that it has one.
+ */
+export async function firstTemplateId(payload: Payload): Promise<number> {
+  const { docs } = await payload.find({
+    collection: 'templates',
+    limit: 1,
+    depth: 0,
+    sort: 'id',
+    overrideAccess: true,
+  })
+  const id = docs[0]?.id
+  if (typeof id !== 'number') {
+    throw new Error('No templates in the test database — run `npm run seed --workspace cms`.')
+  }
+  return id
+}
+
+/**
+ * Make the workspace able to start a run, without disturbing one that already
+ * can.
+ *
+ * `gateRunReadiness` refuses every entry point until the workspace has an
+ * active brand voice, a target domain and an active audience, so a test of the
+ * run buttons is a test of that gate unless the governance assets are there.
+ * Create-only, the way `fillDemoIcps` is: a database that already has an
+ * operator's own voice or audience keeps it, and nothing is deactivated
+ * afterwards — activation cascades (single active voice, single primary
+ * audience) make "put it back" a lie rather than a cleanup.
+ */
+export async function ensureRunReadiness(payload: Payload): Promise<void> {
+  const [voices, icps] = await Promise.all([
+    payload.find({
+      collection: 'brand-voices',
+      where: { status: { equals: 'active' } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'icps',
+      where: { status: { equals: 'active' } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+  if (voices.docs.length === 0) {
+    await payload.create({
+      collection: 'brand-voices',
+      overrideAccess: true,
+      data: {
+        ...BRAND_VOICE_FIXTURE,
+        status: 'active',
+        source: 'onboarding',
+        onboardingStep: 9,
+      } as never,
+    })
+  }
+  if (icps.docs.length === 0) {
+    await payload.create({
+      collection: 'icps',
+      overrideAccess: true,
+      data: { ...icpDocFields(ICP_FIXTURE), status: 'active', primary: true } as never,
+    })
+  }
 }

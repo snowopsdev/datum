@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { Articles } from '@/collections/Articles'
-import { ARTICLE_STATUSES, CONTENT_STAGES, STATUS_STAGE, stageOf } from '@/components/ops/articleStatus'
+import {
+  ARTICLE_STATUSES,
+  CONTENT_STAGES,
+  isRunnableStatus,
+  isScheduleExpired,
+  isStalled,
+  NEXT_STAGE_VERB_FOR_STATUS,
+  STATUS_STAGE,
+  stageOf,
+} from '@/components/ops/articleStatus'
 import { gateReviewOverride } from '@/lib/articleReviewGate'
 
 describe('article status configuration', () => {
@@ -39,7 +48,41 @@ describe('article status configuration', () => {
     expect(stageOf('something_new').stage).toBe('research')
   })
 
+  it('isStalled is true for runnable statuses outside an active run', () => {
+    expect(isStalled('researched', false)).toBe(true)
+    expect(isStalled('researched', true)).toBe(false)
+    expect(isStalled('verified', false)).toBe(false)
+  })
+
+  /**
+   * The run panel reads "Datum will {phrase} on the next run.", so every
+   * phrase has to be a lowercase verb phrase. A stage name ("QA checks",
+   * "Information-gain scoring") dropped in there is what this guards against.
+   */
+  it('gives every runnable status a lowercase verb phrase for the next stage', () => {
+    const runnable = ARTICLE_STATUSES.filter(isRunnableStatus)
+    expect(runnable.length).toBeGreaterThan(0)
+    for (const status of runnable) {
+      const phrase = NEXT_STAGE_VERB_FOR_STATUS[status]
+      expect(phrase, status).toBeTruthy()
+      expect(phrase, status).toMatch(/^[a-z]+( |$)/)
+      expect(`Datum will ${phrase} on the next run.`, status).not.toContain('  ')
+    }
+  })
+
   it('registers gateReviewOverride as a beforeChange hook on Articles', () => {
     expect(Articles.hooks?.beforeChange).toContain(gateReviewOverride)
+  })
+
+  // The review panel reads "Scheduled for" or "Schedule expired on" off this,
+  // so the boundary and the junk cases are the whole behaviour.
+  it('calls a schedule expired only once its moment has actually passed', () => {
+    const now = Date.parse('2026-06-01T12:00:00.000Z')
+    expect(isScheduleExpired(null, now)).toBe(false)
+    expect(isScheduleExpired('', now)).toBe(false)
+    expect(isScheduleExpired('not a date', now)).toBe(false)
+    expect(isScheduleExpired('2026-06-01T12:00:01.000Z', now)).toBe(false)
+    expect(isScheduleExpired('2026-06-01T12:00:00.000Z', now)).toBe(true)
+    expect(isScheduleExpired('2026-05-31T12:00:00.000Z', now)).toBe(true)
   })
 })

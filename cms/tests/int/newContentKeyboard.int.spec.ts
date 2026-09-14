@@ -18,7 +18,7 @@ it('offers one template tab stop and selects adjacent templates with arrow keys'
       { id: 1, name: 'Listicle', intent: null, requiredSections: 2 },
       { id: 2, name: 'How-To', intent: null, requiredSections: 3 },
       { id: 3, name: 'Comparison', intent: null, requiredSections: 4 },
-    ], mode: 'mock', pipelineReady: true, runActive: false,
+    ], mode: 'mock', pipelineReady: true, runActive: false, blockers: [],
   }))
   const radios = screen.getAllByRole('radio')
   expect(radios.map((radio) => radio.tabIndex)).toEqual([0, -1, -1])

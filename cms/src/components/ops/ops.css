@@ -463,11 +463,13 @@
 
 .datum-ops__review-main {
   padding-right: 24px;
+  min-width: 0;
 }
 
 .datum-ops__review-aside {
   border-left: 1px solid var(--ops-hairline);
   padding-left: 20px;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -499,6 +501,7 @@
   background: var(--ops-canvas);
   padding: 20px 22px;
   border-radius: var(--ops-radius-lg);
+  overflow-wrap: anywhere;
 }
 
 .datum-ops__prose h3 {
@@ -519,6 +522,7 @@
   color: var(--ops-ink-secondary);
   font-size: 15px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .datum-ops__body h2 {
@@ -605,6 +609,7 @@
   margin-bottom: 6px;
 }
 
+.datum-ops__field input,
 .datum-ops__field select,
 .datum-ops__field textarea {
   width: 100%;
@@ -627,6 +632,15 @@
   gap: 8px;
 }
 
+/* A checkbox inline with the action buttons, e.g. "Save and activate". */
+.datum-ops__inline-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ops-ink-secondary);
+  font-size: 14px;
+}
+
 /* List pages: breathing room between the action row and the list or empty state. */
 .datum-ops__actions + .datum-ops__empty,
 .datum-ops__actions + .datum-ops__table {
@@ -641,9 +655,15 @@
 
 .datum-ops__metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .datum-ops__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .datum-ops__metric {
@@ -805,35 +825,6 @@
 
 @media (max-width: 800px) {
   .datum-ops__tpl {
-    grid-template-columns: 1fr;
-  }
-}
-
-/*
- * Brand voice reuses the template two-pane layout, but its left rail also holds
- * the "Replace this voice" cards. Those are `.datum-ops__entry-cards`, which ask
- * for `minmax(280px, 1fr)` — wider than the 220px column they sit in — so they
- * overflowed and the grid's `overflow: hidden` sheared them off mid-word. Give
- * the rail room and let the cards fill it in one column instead of demanding a
- * width the rail cannot give.
- */
-.datum-ops__bv {
-  grid-template-columns: 320px 1fr;
-}
-
-.datum-ops__bv .datum-ops__tpl-list {
-  overflow-y: auto;
-}
-
-.datum-ops__bv .datum-ops__entry-cards {
-  grid-template-columns: 1fr;
-  max-width: none;
-  gap: 10px;
-  padding: 12px;
-}
-
-@media (max-width: 800px) {
-  .datum-ops__bv {
     grid-template-columns: 1fr;
   }
 }
@@ -1171,12 +1162,6 @@
   max-width: 820px;
 }
 
-.datum-ops__entry-cards.is-compact {
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 10px 12px 14px;
-}
-
 .datum-ops__entry-card {
   border: 1px solid var(--ops-hairline);
   background: var(--ops-canvas);
@@ -1186,11 +1171,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card {
-  padding: 12px;
-  box-shadow: none;
 }
 
 .datum-ops__entry-card.is-disabled {
@@ -1214,19 +1194,11 @@
   letter-spacing: -0.02em;
 }
 
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card h3 {
-  font-size: 14px;
-}
-
 .datum-ops__entry-card p {
   margin: 0;
   color: var(--ops-ink-muted);
   font-size: 14px;
   line-height: 1.45;
-}
-
-.datum-ops__entry-cards.is-compact .datum-ops__entry-card p {
-  font-size: 12px;
 }
 
 .datum-ops__entry-card input[type='file'] {
@@ -1235,6 +1207,54 @@
 
 .datum-ops__entry-card .datum-ops__btn {
   align-self: flex-start;
+}
+
+/*
+ * Brand voice sits above its rail: which voice is being edited, and — folded
+ * away while one is active — the two ways to make its replacement.
+ */
+.datum-ops__bv-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.datum-ops__bv-bar .datum-ops__field {
+  max-width: 460px;
+  margin: 0;
+}
+
+.datum-ops__bv-replace {
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
+  padding: 12px 14px;
+}
+
+/* `list-item`, not `block`: block drops the disclosure triangle in Chrome and
+   the row then reads as a heading nobody thinks to click. */
+.datum-ops__bv-replace > summary {
+  display: list-item;
+  list-style-position: inside;
+}
+
+.datum-ops__bv-replace > summary,
+.datum-ops__bv-replace > strong {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.125px;
+  color: var(--ops-ink-faint);
+  cursor: pointer;
+}
+
+.datum-ops__bv-replace > strong {
+  display: block;
+  cursor: default;
+}
+
+.datum-ops__bv-replace .datum-ops__entry-cards {
+  margin-top: 12px;
 }
 
 /* stepper */
@@ -1413,14 +1433,6 @@
 /* review */
 .datum-ops__tab-panel--wide {
   max-width: 860px;
-}
-
-.datum-ops__tpl-group-label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.125px;
-  color: var(--ops-ink-faint);
-  padding: 12px 16px 4px;
 }
 
 .datum-ops__tpl-new {
@@ -2430,6 +2442,8 @@
 
 .datum-ops__tabs--pills {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 4px;
   border: 0;
   padding: 3px;
@@ -2573,6 +2587,19 @@
 .datum-content__owner--you {
   background: rgba(221, 91, 0, 0.12);
   color: var(--ops-orange);
+}
+
+/*
+ * Stalled wears the Needs-you colour — nothing moves until a person presses
+ * Run — but carries the state as well as the owner ("Stalled · running
+ * checks"), which is longer than the 130px owner column. It is the one pill
+ * allowed to wrap rather than run under the button beside it.
+ */
+.datum-content__owner--stalled {
+  background: rgba(221, 91, 0, 0.12);
+  color: var(--ops-orange);
+  white-space: normal;
+  text-align: center;
 }
 
 .datum-content__owner--done {
@@ -2907,6 +2934,8 @@
   cursor: pointer;
   text-decoration: none;
   box-shadow: var(--ops-shadow);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .datum-first__card:hover {
@@ -2930,6 +2959,7 @@
   top: 0;
   z-index: 90;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
@@ -2949,16 +2979,6 @@
 
 .datum-runtime code {
   font-size: 12px;
-}
-
-.datum-runtime__close {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  color: inherit;
 }
 
 /* Folded nav section */
@@ -3020,13 +3040,15 @@
 
 .datum-setup__row {
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: start;
   gap: 14px;
   padding: 16px 18px;
   border: 1px solid var(--ops-hairline, var(--theme-elevation-150));
   border-radius: var(--ops-radius-lg, 8px);
   background: var(--ops-canvas, transparent);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .datum-setup__mark {
@@ -3135,4 +3157,44 @@
 
 .datum-ops__table th {
   white-space: nowrap;
+}
+
+/* The webhook signing secret: a password input with a deliberate reveal. */
+.datum-secret-field__wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.datum-secret-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 3px;
+  background: var(--theme-input-bg);
+  color: var(--theme-elevation-800);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.datum-secret-field__input:focus-visible {
+  outline: 2px solid var(--theme-elevation-400);
+  outline-offset: 1px;
+}
+
+.datum-secret-field__toggle {
+  flex: 0 0 auto;
+  padding: 0 0.9rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 3px;
+  background: var(--theme-elevation-50);
+  color: var(--theme-elevation-800);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.datum-secret-field__toggle:hover {
+  background: var(--theme-elevation-100);
 }

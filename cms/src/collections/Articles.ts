@@ -4,16 +4,29 @@ import { auditArticleChange } from '../lib/articleAudit'
 import { emitArticleStatusEvent } from '../lib/articleEvents'
 import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
 import {
+  gateArchivedStatus,
   gateReadOnlyStatus,
   gateReviewOverride,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
 } from '../lib/articleReviewGate'
 
+/**
+ * Shown on every field in `SCORED_CONTENT_FIELDS` that an editor can reach in
+ * the admin panel, because `invalidateStaleInformationGain` acts on a save with
+ * no warning of its own: the article silently loses its verdict and drops out
+ * of the review queue. Saying so up front is the difference between a rule and
+ * a surprise.
+ */
+const SCORED_FIELD_DESCRIPTION =
+  'Editing this while the piece is verified clears its score and sends it back to Writing.'
+
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
-    // `invalidateStaleInformationGain` is first because it is a *dependency*:
+    // `gateArchivedStatus` runs first: an archived piece refuses every move,
+    // so nothing below needs to reason about one. Then
+    // `invalidateStaleInformationGain`, because it is a *dependency*:
     // it clears the decision an edited draft no longer deserves, and
     // `gateVerifiedStatus` has to see that clearance rather than the PASS it
     // replaced. `gateReadOnlyStatus` sits after it (readOnly statuses never
@@ -22,6 +35,7 @@ export const Articles: CollectionConfig = {
     // only — `gateVerifiedStatus` re-derives the fresh-justification test
     // rather than trusting the hook before it.
     beforeChange: [
+      gateArchivedStatus,
       invalidateStaleInformationGain,
       gateReadOnlyStatus,
       gateReviewOverride,
@@ -52,6 +66,7 @@ export const Articles: CollectionConfig = {
     {
       name: 'title',
       type: 'text',
+      admin: { description: SCORED_FIELD_DESCRIPTION },
     },
     {
       name: 'slug',
@@ -61,7 +76,9 @@ export const Articles: CollectionConfig = {
       name: 'keyword',
       type: 'text',
       required: true,
-      admin: { description: 'The primary keyword this article targets.' },
+      admin: {
+        description: `The primary keyword this article targets. ${SCORED_FIELD_DESCRIPTION}`,
+      },
     },
     {
       // Chosen by the operator in topic discovery, before research runs, so it
@@ -205,6 +222,7 @@ export const Articles: CollectionConfig = {
     {
       name: 'body',
       type: 'richText',
+      admin: { description: SCORED_FIELD_DESCRIPTION },
     },
     {
       name: 'titleTag',
@@ -258,8 +276,11 @@ export const Articles: CollectionConfig = {
     {
       // Scheduled publishing: the publish-due job (jobs/publishDue.ts) moves
       // due approved articles to published through the normal update path.
-      // The value survives status moves as inert intent; only `approved` is
-      // ever picked up, so a stray date on a reviewed-back article does nothing.
+      // Only `approved` is ever picked up, so the date is inert everywhere
+      // else — but it is not left lying there: every ops action that moves an
+      // article off `approved` nulls it (`CLEARED_SCHEDULE` in
+      // `components/ops/actions.ts`), because a date kept through a send-back
+      // fires the instant the piece is approved again.
       name: 'publishAt',
       type: 'date',
       index: true,

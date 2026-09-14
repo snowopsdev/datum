@@ -1,7 +1,6 @@
 import type { Payload, TypedUser } from 'payload'
 
-import { codexAuthFilePresent } from './codexAuth'
-import type { LlmSettingsDoc } from './llmSettings'
+import { llmSettingsConfigured, type LlmSettingsDoc } from './llmSettings'
 import {
   evidenceBankContentOf,
   icpAudienceLine,
@@ -19,7 +18,7 @@ import {
 export interface PipelineRunSummary {
   id: number | string
   runId: string
-  source: 'onboarding' | 'admin' | 'cli' | 'selected'
+  source: 'admin' | 'cli' | 'selected'
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   mode: 'mock' | 'live'
   configFingerprint: string
@@ -41,6 +40,12 @@ export interface IcpOption {
 export interface WorkspaceSetupData {
   readiness: WorkspaceReadiness
   templates: Array<{ id: number | string; name: string }>
+  /**
+   * Whether anybody has chosen a model on the `llm-settings` global. Readiness
+   * itself only reports the resolved model per stage, which cannot tell a
+   * deliberate choice from the platform default.
+   */
+  modelsConfigured: boolean
   /** Active audiences, primary first. Empty when setup is not finished. */
   icps: IcpOption[]
   latestRun: PipelineRunSummary | null
@@ -129,14 +134,6 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
   }))
   const rawRun = runs.docs[0] as (typeof runs.docs)[number] | undefined
   const articleIds = relationshipIds(rawRun?.articles)
-  const article = articleIds[0]
-    ? await payload.findByID({
-        collection: 'articles',
-        id: articleIds[0],
-        depth: 0,
-        overrideAccess: true,
-      })
-    : null
   const latestRun = rawRun
     ? ({
         id: rawRun.id,
@@ -165,35 +162,25 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     }),
     icps: icpsForReadiness,
     // `updatedAt` alongside the content: the evaluator judges completeness from
-    // the content and stales a verification run from the timestamp, and a
-    // global that has never been saved has neither.
+    // the content, and the fingerprint from the timestamp, and a global that
+    // has never been saved has neither.
     positioning: {
       content: positioningContentOf(positioningDoc),
       updatedAt: (positioningDoc as { updatedAt?: string | null }).updatedAt ?? null,
     },
-    // Same shape, same reason: the counts come from the content and the stale
-    // flag from the timestamp. `asOf` is left to default to today, so an
+    // Same shape, same reason: the counts come from the content and the
+    // fingerprint from the timestamp. `asOf` is left to default to today, so an
     // operator looking at the hub sees the claims that expired overnight.
     evidenceBank: {
       content: evidenceBankContentOf(evidenceBankDoc),
       updatedAt: (evidenceBankDoc as { updatedAt?: string | null }).updatedAt ?? null,
     },
-    verification: latestRun
-      ? {
-          runId: latestRun.runId,
-          status: latestRun.status,
-          articleStatus: article?.status ?? null,
-          configFingerprint: latestRun.configFingerprint,
-          completedAt: latestRun.completedAt,
-        }
-      : null,
-    // Presence only: never reads credentials or launches the local CLI.
-    codexLoggedIn: codexAuthFilePresent(process.env),
   })
 
   return {
     readiness,
     templates: templates.map(({ id, name }) => ({ id, name })),
+    modelsConfigured: llmSettingsConfigured(settings as LlmSettingsDoc),
     icps,
     latestRun,
   }

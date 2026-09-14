@@ -17,6 +17,11 @@ type Props = {
   mode: 'mock' | 'live'
   /** Chosen on the New content screen; when set, the picker below is hidden. */
   templateId?: number
+  /**
+   * False when setup is unfinished. Creating then makes a piece nothing will
+   * research, so the create button is off and the screen above says why.
+   */
+  pipelineReady?: boolean
 }
 
 /** Rough guide next to a keyword difficulty score, so a number means something. */
@@ -34,7 +39,12 @@ const compact = (n: number): string =>
       ? `${Math.round(n / 1_000)}k`
       : String(n)
 
-export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }: Props) {
+export function TopicDiscovery({
+  templates,
+  mode,
+  templateId: fixedTemplateId,
+  pipelineReady = true,
+}: Props) {
   const router = useRouter()
   const [seed, setSeed] = useState('')
   const [pickedTemplateId, setTemplateId] = useState(templates[0]?.id ?? 0)
@@ -47,6 +57,8 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
   const [cached, setCached] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [recent, setRecent] = useState<RecentSearch[]>([])
+  /** Live mode only: creating starts research, and research calls paid APIs. */
+  const [confirming, setConfirming] = useState(false)
   const [pending, startTransition] = useTransition()
 
   // Previous subjects survive leaving the screen, so coming back does not mean
@@ -94,9 +106,10 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
     runSearch(seed)
   }
 
-  const create = () => {
+  const create = (confirmLiveCost: boolean) => {
     setError(null)
     setDone(null)
+    setConfirming(false)
     startTransition(async () => {
       // `picked` is a Set, ordered by click order, not opportunity — spreading
       // it directly would let whichever keyword was ticked first become the
@@ -105,17 +118,24 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
       // is what `createTopicsAction` assumes and what the hint text below
       // promises.
       const ordered = (candidates ?? []).filter((c) => picked.has(c.keyword)).map((c) => c.keyword)
-      const result = await createTopicsAction({ keywords: ordered, templateId })
+      const result = await createTopicsAction({ keywords: ordered, templateId, confirmLiveCost })
       if (!result.ok) {
         setError(result.error)
         return
       }
-      setDone(
-        result.researchQueued
-          ? `Created "${result.primary}". Researching it now — opening the piece.`
-          : `Created "${result.primary}". Research will start once the workspace is ready.`,
-      )
       setPicked(new Set())
+      if (!result.researchQueued) {
+        // The piece exists but nothing is going to move it, so say what is in
+        // the way rather than navigating to a page that looks idle for no
+        // stated reason.
+        setError(
+          `Created "${result.primary}", but research did not start. ${
+            result.researchBlockedReason ?? 'The workspace is not ready to run.'
+          }`,
+        )
+        return
+      }
+      setDone(`Created "${result.primary}". Researching it now — opening the piece.`)
       // The piece is where everything happens next; go there rather than
       // leaving the editor to find it in a list.
       router.push(`/admin/ops/articles/${result.articleId}`)
@@ -270,19 +290,43 @@ export function TopicDiscovery({ templates, mode, templateId: fixedTemplateId }:
                       ))}
                     </select>
                   </label>
-                  <button
-                    className="datum-ops__btn datum-ops__btn--primary"
-                    disabled={pending || picked.size === 0}
-                    onClick={create}
-                    type="button"
-                  >
-                    {pending
-                      ? 'Creating…'
-                      : picked.size > 1
-                        ? `Create 1 piece covering ${picked.size} searches`
-                        : 'Create piece'}
-                  </button>
+                  {confirming ? (
+                    <>
+                      <button
+                        className="datum-ops__btn datum-ops__btn--primary"
+                        disabled={pending}
+                        onClick={() => create(true)}
+                        type="button"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        className="datum-ops__btn"
+                        disabled={pending}
+                        onClick={() => setConfirming(false)}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="datum-ops__btn datum-ops__btn--primary"
+                      disabled={pending || !pipelineReady || picked.size === 0}
+                      onClick={() => (mode === 'live' ? setConfirming(true) : create(false))}
+                      type="button"
+                    >
+                      {pending
+                        ? 'Creating…'
+                        : picked.size > 1
+                          ? `Create 1 piece covering ${picked.size} searches`
+                          : 'Create piece'}
+                    </button>
+                  )}
                 </div>
+                {confirming ? (
+                  <p className="datum-ops__warn">This calls paid providers. Continue?</p>
+                ) : null}
                 {picked.size > 1 ? (
                   <p className="datum-ops__hint">
                     These {picked.size} searches become <strong>one article</strong>, not{' '}

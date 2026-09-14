@@ -13,6 +13,8 @@ import * as migration_20260903_022301_icps_collection_and_article_icp from './20
 import * as migration_20260903_024506_positioning_global_and_llm_stage_schema from './20260903_024506_positioning_global_and_llm_stage_schema';
 import * as migration_20260903_030748_evidence_bank_global_and_qa from './20260903_030748_evidence_bank_global_and_qa';
 import * as migration_20260905_232800_graphql_policy_options from './20260905_232800_graphql_policy_options';
+import * as migration_20260911_145800_drop_codex_model_options from './20260911_145800_drop_codex_model_options';
+import * as migration_20260911_152559_pipeline_runs_drop_onboarding_source from './20260911_152559_pipeline_runs_drop_onboarding_source';
 
 export const migrations = [
   {
@@ -83,11 +85,21 @@ export const migrations = [
   {
     up: migration_20260903_030748_evidence_bank_global_and_qa.up,
     down: migration_20260903_030748_evidence_bank_global_and_qa.down,
-    name: '20260903_030748_evidence_bank_global_and_qa'
+    name: '20260903_030748_evidence_bank_global_and_qa',
   },
   {
     up: migration_20260905_232800_graphql_policy_options.up,
     down: migration_20260905_232800_graphql_policy_options.down,
     name: '20260905_232800_graphql_policy_options',
+  },
+  {
+    up: migration_20260911_145800_drop_codex_model_options.up,
+    down: migration_20260911_145800_drop_codex_model_options.down,
+    name: '20260911_145800_drop_codex_model_options',
+  },
+  {
+    up: migration_20260911_152559_pipeline_runs_drop_onboarding_source.up,
+    down: migration_20260911_152559_pipeline_runs_drop_onboarding_source.down,
+    name: '20260911_152559_pipeline_runs_drop_onboarding_source'
   },
 ];

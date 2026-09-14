@@ -16,6 +16,11 @@ export const Positioning: GlobalConfig = {
   label: 'Positioning',
   admin: {
     group: false,
+    // One surface per asset: this global is edited at /admin/ops/setup/positioning, which
+    // writes it through a server action. Hiding it here removes the second,
+    // unguided raw form; `payload.updateGlobal` and `findGlobal` ignore
+    // `admin.hidden`, so nothing server-side changes.
+    hidden: true,
     description:
       'What this company is to the reader: the category it competes in, the slot it wants to own, and the words it claims them in. ' +
       'Recommended, not required — anything you fill in reaches the writer and the reviewer; anything you leave blank is simply left out.',

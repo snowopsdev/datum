@@ -5,12 +5,13 @@ import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
 import type { Article, InformationGainRun, Template } from '../../payload-types'
+import { activeRunIncludesArticle } from '../../lib/activeRuns'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { loadActiveAudienceOptions } from '../../lib/loadWorkspaceReadiness'
 import { modeFromEnv } from '../../lib/workspaceReadiness'
 import { ArticleReview } from './ArticleReview'
 import type { AuditSummary } from './auditTypes'
-import { formatAuditTimestamp, toBoardArticle, toRunView } from './articleStatus'
+import { formatAuditTimestamp, isScheduleExpired, toBoardArticle, toRunView } from './articleStatus'
 
 export async function ArticleReviewView(props: AdminViewServerProps) {
   const { initPageResult, params, searchParams } = props
@@ -44,64 +45,81 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  const [{ docs: templateDocs }, { docs: auditDocs }, { docs: costDocs }, { docs: runDocs }, icps] =
-    await Promise.all([
-      req.payload.find({
-        collection: 'templates',
-        select: { name: true },
-        depth: 0,
-        limit: 50,
-        pagination: false,
-        sort: 'name',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      req.payload.find({
-        collection: 'article-audit',
-        select: {
-          actor: true,
-          actorType: true,
-          createdAt: true,
-          event: true,
-          fromStatus: true,
-          pipelineRunId: true,
-          stage: true,
-          summary: true,
-          toStatus: true,
-        },
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 100,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      req.payload.find({
-        collection: 'cost-log',
-        select: { provider: true, model: true, createdAt: true, pipelineRunId: true, stage: true },
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 100,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      // The latest scorecard for this article. `ArticleReview` cross-checks its
-      // id against `article.informationGain.run` before presenting the two as
-      // one state, so a run written after the article's summary was cleared (or
-      // an article re-scored since) is shown as stale rather than silently
-      // merged with the article's headline numbers.
-      req.payload.find({
-        collection: 'information-gain-runs',
-        where: { article: { equals: article.id } },
-        depth: 0,
-        limit: 1,
-        sort: '-createdAt',
-        user: req.user,
-        overrideAccess: false,
-      }),
-      loadActiveAudienceOptions(req.payload, req.user),
-    ])
+  const [
+    { docs: templateDocs },
+    { docs: auditDocs },
+    { docs: costDocs },
+    { docs: runDocs },
+    icps,
+    inActiveRun,
+  ] = await Promise.all([
+    req.payload.find({
+      collection: 'templates',
+      select: { name: true },
+      depth: 0,
+      limit: 50,
+      pagination: false,
+      sort: 'name',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    req.payload.find({
+      collection: 'article-audit',
+      select: {
+        actor: true,
+        actorType: true,
+        createdAt: true,
+        event: true,
+        fromStatus: true,
+        pipelineRunId: true,
+        stage: true,
+        summary: true,
+        toStatus: true,
+      },
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 100,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    req.payload.find({
+      collection: 'cost-log',
+      select: {
+        provider: true,
+        model: true,
+        costUsd: true,
+        createdAt: true,
+        pipelineRunId: true,
+        stage: true,
+      },
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 100,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    // The latest scorecard for this article. `ArticleReview` cross-checks its
+    // id against `article.informationGain.run` before presenting the two as
+    // one state, so a run written after the article's summary was cleared (or
+    // an article re-scored since) is shown as stale rather than silently
+    // merged with the article's headline numbers.
+    req.payload.find({
+      collection: 'information-gain-runs',
+      where: { article: { equals: article.id } },
+      depth: 0,
+      limit: 1,
+      sort: '-createdAt',
+      user: req.user,
+      overrideAccess: false,
+    }),
+    loadActiveAudienceOptions(req.payload, req.user),
+    // Whether a run is actually carrying this piece. Its status alone only
+    // says a run *would* pick it up, and the header used to read that as
+    // "Datum is working" on articles nothing had touched for days.
+    activeRunIncludesArticle(req.payload, req.user, article.id),
+  ])
 
   const latestRun = (runDocs as InformationGainRun[])[0] ?? null
 
@@ -127,6 +145,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
       actorType: 'pipeline' as const,
       createdAt: entry.createdAt,
       createdAtLabel: formatAuditTimestamp(entry.createdAt),
+      costUsd: entry.costUsd ?? 0,
       source: { kind: 'cost', recordId: entry.id },
       event: 'model_call_completed',
       fromStatus: null,
@@ -150,7 +169,15 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     >
       <Gutter>
         <ArticleReview
+          activeRunIncludesArticle={inActiveRun}
           article={toBoardArticle(article)}
+          /* The `publish-due` job runs on a five-minute cron, so an expired
+             schedule is the gap before the next tick — or a worker that is
+             not running. Either way the panel has to stop reading a date the
+             piece should already have gone out on as a plan. Asked here, on
+             the server, so the page does not render one answer and hydrate
+             another. */
+          scheduleExpired={isScheduleExpired(article.publishAt ?? null)}
           mode={modeFromEnv(process.env)}
           icps={icps}
           templates={templates}

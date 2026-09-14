@@ -28,6 +28,14 @@ export async function IcpEditorView(props: AdminViewServerProps) {
   const idSegment = segments[3]
   if (!idSegment || Array.isArray(idSegment)) notFound()
 
+  // The assistant on every step drafts from the workspace's own pages, so the
+  // editor has to be able to say when there are none.
+  const profile = await req.payload.findGlobal({
+    slug: 'workspace-profile',
+    depth: 0,
+    overrideAccess: true,
+  })
+
   let record: IcpDTO | null = null
   if (idSegment !== 'new') {
     const id = Number(idSegment)
@@ -53,6 +61,19 @@ export async function IcpEditorView(props: AdminViewServerProps) {
     }
   }
 
+  // Whether "Save and activate" would land as the workspace's only active
+  // audience — and so is forced primary rather than offered as a choice.
+  const otherActive = await req.payload.count({
+    collection: 'icps',
+    where: {
+      and: [
+        { status: { equals: 'active' } },
+        ...(record ? [{ id: { not_equals: record.id } }] : []),
+      ],
+    },
+    overrideAccess: true,
+  })
+
   return (
     <DefaultTemplate
       i18n={req.i18n}
@@ -65,7 +86,13 @@ export async function IcpEditorView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
-        <IcpEditor record={record} />
+        <IcpEditor
+          record={record}
+          sitePagesFetchedAt={
+            (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
+          }
+          hasOtherActiveAudience={otherActive.totalDocs > 0}
+        />
       </Gutter>
     </DefaultTemplate>
   )

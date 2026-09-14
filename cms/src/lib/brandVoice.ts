@@ -246,10 +246,6 @@ export function preferredWordsOf(bv: BrandVoiceContent): string[] {
   return [...new Set(bv.preferredWords.map((w) => w.word.trim()).filter(Boolean))]
 }
 
-export function notTraitsOf(bv: BrandVoiceContent): string[] {
-  return bv.notTraits.map((t) => t.trait.trim()).filter(Boolean)
-}
-
 // ---------------------------------------------------------------------------
 // Activation rules
 // ---------------------------------------------------------------------------

@@ -1,7 +1,5 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
-
 import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
 import { headers as getHeaders } from 'next/headers'
@@ -10,8 +8,9 @@ import { getPayload, type Payload } from 'payload'
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 import { config as pipelineConfig } from '../../../../pipeline/src/config'
 import { resolveWorkspaceProfile } from '../../../../pipeline/src/tenant'
-import { ActivePipelineRunError, createPipelineRun } from '../../lib/createPipelineRun'
+import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 import type {
   CreateTopicsResult,
   DiscoverResult,
@@ -188,10 +187,16 @@ export async function recentSearchesAction(limit = 6): Promise<RecentSearch[]> {
  * becomes the primary keyword (it is what the SERP research and the corpus
  * snapshot key on) and the rest ride along as secondaries, which reach both the
  * generate prompt and the scored query cluster.
+ *
+ * Creating is not the same decision as running, so the two are reported
+ * separately: the article is written whatever readiness says, and whether its
+ * research started — and why not, when it did not — comes back beside it.
  */
 export async function createTopicsAction(input: {
   keywords: string[]
   templateId: number
+  /** True once a person has been shown what a live run costs and agreed. */
+  confirmLiveCost?: boolean
 }): Promise<CreateTopicsResult> {
   try {
     const { payload, user } = await requireUser()
@@ -248,27 +253,23 @@ export async function createTopicsAction(input: {
     })
 
     // Research starts on its own. There is no "run" button to find afterwards:
-    // the next thing the editor sees is the brief. If the workspace is not
-    // ready (no brand voice, missing keys) the piece still exists and the
-    // list says what it is waiting on.
+    // the next thing the editor sees is the brief. If the workspace cannot run
+    // — missing keys, unfinished governance, or a live run nobody has agreed
+    // to pay for — the piece still exists and the refusal comes back with it,
+    // because "research will start once the workspace is ready" on its own
+    // never told anyone what to go and fix.
     let researchQueued = false
     const { readiness } = setup
-    if (readiness.runtime.ready && readiness.governance.ready) {
+    let researchBlockedReason = gateRunReadiness(readiness, input.confirmLiveCost)
+    if (!researchBlockedReason) {
       try {
-        await createPipelineRun(payload, user, {
-          runId: randomUUID(),
-          source: 'selected',
-          templateId: input.templateId,
-          count: 1,
-          articleIds: [created.id],
-          requestedBy: typeof user.email === 'string' ? user.email : String(user.id),
-          readiness,
-        })
+        await queueRunForArticles(payload, user, [created], readiness)
         researchQueued = true
       } catch (e) {
         // `selected` runs queue behind an active one, so this is only reached
         // on a real failure; the piece is still there for a later run.
         if (!(e instanceof ActivePipelineRunError)) throw e
+        researchBlockedReason = e.message
       }
     }
 
@@ -281,6 +282,7 @@ export async function createTopicsAction(input: {
       covered: free.length,
       skipped: wanted.length - free.length,
       researchQueued,
+      researchBlockedReason,
     }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not create that topic.') }

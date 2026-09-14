@@ -262,6 +262,103 @@ export async function setPrimaryIcpAction(id: number): Promise<TenantActionResul
   }
 }
 
+/**
+ * Save, activate, and (optionally) make primary in one round trip.
+ *
+ * The editor's review step used to need three separate actions — persist,
+ * activate, make primary — each its own network call before the next could
+ * fire. This does the same three writes on one `requireUser()` session
+ * instead of composing the standalone actions (which would each re-authenticate
+ * on their own), and each write still carries its own audit context
+ * (`icp_created`/`icp_updated`, `icp_activated`, `icp_primary_set`) exactly as
+ * a person clicking the old three buttons in sequence would leave behind —
+ * except that the activate and make-primary writes are skipped entirely when
+ * the record is already in that state, so re-pressing this on an
+ * already-active, already-primary audience persists the edited fields without
+ * re-auditing a transition that did not happen.
+ *
+ * `primary` in the result is read back from the record rather than echoing
+ * `options.makePrimary`: the activation gate makes the very first audience
+ * primary on its own (see `gateIcpActivation`), so a caller that asked for
+ * `makePrimary: false` can still get back `primary: true`.
+ *
+ * On failure, `id` is still returned when the create/update step already
+ * landed — an activation the gate rejects (incomplete audience) must not
+ * strand that saved draft as an id the caller has no way to find again; the
+ * editor adopts it so the next Save updates the same record instead of
+ * creating a duplicate.
+ */
+export async function saveAndActivateIcpAction(
+  id: number | null,
+  input: IcpContent,
+  options: { makePrimary: boolean },
+): Promise<
+  | { ok: true; id: number; status: 'active'; primary: boolean }
+  | { ok: false; error: string; id?: number }
+> {
+  let savedId: number | undefined
+  try {
+    const { payload, user } = await requireUser()
+    const content = icpContentOf(input)
+
+    let doc =
+      id == null
+        ? await payload.create({
+            collection: 'icps',
+            data: { ...icpFields(content), name: content.name || 'Untitled audience', status: 'draft' },
+            context: governanceAuditContext(user, 'icp_created', 'Audience drafted'),
+            user,
+            overrideAccess: false,
+          })
+        : await payload.update({
+            collection: 'icps',
+            id,
+            data: { ...icpFields(content), name: content.name || 'Untitled audience' },
+            context: governanceAuditContext(user, 'icp_updated', `Audience "${content.name}" saved`),
+            user,
+            overrideAccess: false,
+          })
+    savedId = doc.id
+
+    if (doc.status !== 'active') {
+      doc = await payload.update({
+        collection: 'icps',
+        id: savedId,
+        data: { status: 'active' },
+        context: governanceAuditContext(user, 'icp_activated', 'Audience activated'),
+        user,
+        overrideAccess: false,
+      })
+    }
+
+    let primary = doc.primary === true
+    if (options.makePrimary && !primary) {
+      doc = await payload.update({
+        collection: 'icps',
+        id: savedId,
+        data: { primary: true },
+        context: governanceAuditContext(user, 'icp_primary_set', 'Audience made primary'),
+        user,
+        overrideAccess: false,
+      })
+      primary = doc.primary === true
+    }
+
+    revalidateIcps(savedId)
+    return { ok: true, id: savedId, status: 'active', primary }
+  } catch (e) {
+    // The save may well have landed before the activation was refused, and the
+    // caller is handed its id to keep editing — so the list and the editor have
+    // to show the record that now exists, not the one they last rendered.
+    if (savedId != null) revalidateIcps(savedId)
+    return {
+      ok: false,
+      error: errorMessage(e, 'Could not save and activate the audience.'),
+      id: savedId,
+    }
+  }
+}
+
 export async function archiveIcpAction(id: number): Promise<TenantActionResult> {
   try {
     const { payload, user } = await requireUser()
@@ -607,19 +704,22 @@ export async function activateDefaultBrandVoiceAction(): Promise<TenantActionRes
     }
     revalidatePath('/admin')
     revalidatePath(HUB_PATH)
-    revalidatePath('/admin/ops/governance/brand-voice')
+    revalidatePath('/admin/ops/setup/brand-voice')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not activate the default voice.') }
   }
 }
 
-/** What the runtime banner needs: live mode with anything missing. */
+/** What the runtime banner needs: live mode that cannot run, and why. */
 export async function runtimeStatusAction(): Promise<{
   mode: 'mock' | 'live'
+  /** False when a live run would fail. The banner shows nothing otherwise. */
+  ready: boolean
+  /** Environment variable names. */
   missing: string[]
-  needsCodexLogin: boolean
-  unsupportedModels: string[]
+  /** Everything else unmet, already phrased as an instruction. */
+  problems: string[]
 }> {
   try {
     const { payload } = await requireUser()
@@ -636,12 +736,14 @@ export async function runtimeStatusAction(): Promise<{
     })
     return {
       mode: readiness.mode,
+      ready: readiness.runtime.ready,
       missing: readiness.runtime.missing,
-      needsCodexLogin: readiness.runtime.needsCodexLogin,
-      unsupportedModels: readiness.runtime.unsupportedModels,
+      problems: readiness.runtime.problems,
     }
   } catch {
-    return { mode: 'mock', missing: [], needsCodexLogin: false, unsupportedModels: [] }
+    // Nothing could be read, so nothing can be claimed: the banner stays away
+    // rather than accusing a deploy it never saw.
+    return { mode: 'mock', ready: true, missing: [], problems: [] }
   }
 }
 
@@ -674,7 +776,7 @@ export async function activateDefaultTenantAction(): Promise<TenantActionResult>
     revalidatePath('/admin/ops/setup/audiences')
     revalidatePath('/admin/ops/setup/positioning')
     revalidatePath('/admin/ops/setup/evidence')
-    revalidatePath('/admin/ops/governance/brand-voice')
+    revalidatePath('/admin/ops/setup/brand-voice')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not set up the demo workspace.') }

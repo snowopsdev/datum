@@ -189,6 +189,11 @@ export const EvidenceBank: GlobalConfig = {
   label: 'Evidence bank',
   admin: {
     group: false,
+    // One surface per asset: this global is edited at /admin/ops/setup/evidence, which
+    // writes it through a server action. Hiding it here removes the second,
+    // unguided raw form; `payload.updateGlobal` and `findGlobal` ignore
+    // `admin.hidden`, so nothing server-side changes.
+    hidden: true,
     description:
       'Everything this company may say about itself. A draft may state a first-party fact only if it is in here, and must cite the row’s ref. ' +
       'Proof travels with the claim: a row with no source and no limits is an assertion. A softened version of an unsupported claim is still unsupported.',

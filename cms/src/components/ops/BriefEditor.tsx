@@ -51,6 +51,8 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
   const [notes, setNotes] = useState(initial.notes)
   const [newHeading, setNewHeading] = useState('')
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  /** Live mode only: approving is one confirmation away from spending money. */
+  const [confirming, setConfirming] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const edits = (): BriefEdits => ({ angle, audience, sections, notes, icpId })
@@ -88,10 +90,16 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
     })
   }
 
-  const approve = () => {
+  /**
+   * Approve, and with it start writing. In live mode that is a paid call, so
+   * the same one-line confirm the run panel uses stands in front of it — the
+   * server refuses an unconfirmed live approval either way.
+   */
+  const approve = (confirmLiveCost: boolean) => {
     setMessage(null)
+    setConfirming(false)
     startTransition(async () => {
-      const result = await approveBriefAction(articleId, edits())
+      const result = await approveBriefAction(articleId, edits(), { confirmLiveCost })
       setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
       if (result.ok) router.refresh()
     })
@@ -289,18 +297,42 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
       <p className="datum-brief__actions-note">
         Happy with the plan? Approve to start writing. Not sure yet? Save and come back.
       </p>
+      {confirming ? <p className="datum-ops__warn">This calls paid providers. Continue?</p> : null}
       <div className="datum-brief__actions">
-        <button
-          className="datum-ops__btn datum-ops__btn--primary"
-          disabled={pending}
-          onClick={approve}
-          type="button"
-        >
-          {pending ? 'Working…' : 'Approve and write'}
-        </button>
-        <button className="datum-ops__btn" disabled={pending} onClick={save} type="button">
-          Save for later
-        </button>
+        {confirming ? (
+          <>
+            <button
+              className="datum-ops__btn datum-ops__btn--primary"
+              disabled={pending}
+              onClick={() => approve(true)}
+              type="button"
+            >
+              Confirm
+            </button>
+            <button
+              className="datum-ops__btn"
+              disabled={pending}
+              onClick={() => setConfirming(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="datum-ops__btn datum-ops__btn--primary"
+              disabled={pending}
+              onClick={() => (mode === 'live' ? setConfirming(true) : approve(false))}
+              type="button"
+            >
+              {pending ? 'Working…' : 'Approve and write'}
+            </button>
+            <button className="datum-ops__btn" disabled={pending} onClick={save} type="button">
+              Save for later
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

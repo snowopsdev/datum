@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import type { SitePage } from '../../lib/tenant/workspaceProfile'
-import { AssetStepper, type AssetStep } from './AssetStepper'
+import { AssetStepper, hasSectionContent, type AssetStep } from './AssetStepper'
 import { Field, RowsEditor } from './setupFields'
 import { refreshSitePagesAction } from './setupActions'
 import { saveWorkspaceProfileAction } from './tenantActions'
@@ -138,9 +138,12 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
       steps={STEPS}
       step={step}
       onStep={setStep}
-      asset="workspace"
-      sectionValue={() => ({ companyName, competitors, siteNotes })}
-      onAssist={applyAssist}
+      assist={{
+        asset: 'workspace',
+        sectionValue: () => ({ companyName, competitors, siteNotes }),
+        onAssist: applyAssist,
+        sectionHasContent: hasSectionContent({ companyName, competitors, siteNotes }),
+      }}
       disabled={pending}
       problems={problems}
       problemsTitle="Before a run can research this workspace"
