@@ -31,7 +31,7 @@
     "linkedom": "^0.18.13",
     "openai": "^7.8.0",
     "payload": "3.88.0",
-    "undici": "^8.10.0"
+    "undici": "^8.10.2"
   },
   "devDependencies": {
     "@types/node": "26.4.1",
