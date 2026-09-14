@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/snowopsdev/datum/compare/v0.6.4...v0.7.0) (2026-09-14)
+
+
+### Features
+
+* **cms:** polish the operator journey, consolidate surfaces, remove legacy code ([#110](https://github.com/snowopsdev/datum/issues/110)) ([7bb204f](https://github.com/snowopsdev/datum/commit/7bb204fdddfed797b2b7985fd1da1e07f24f3b3a))
+
 ## [0.6.4](https://github.com/snowopsdev/datum/compare/v0.6.3...v0.6.4) (2026-09-11)
 
 
