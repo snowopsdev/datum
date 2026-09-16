@@ -1,10 +1,14 @@
 'use client'
 
+import Link from 'next/link'
 import React, { useState, useTransition } from 'react'
 
 import { assistAction, type AssistAsset } from './setupActions'
 import { SitePagesHint } from './SitePagesHint'
 import './ops.css'
+
+/** Where every asset editor returns to once its last step is done. */
+const SETUP_HUB_PATH = '/admin/ops/setup'
 
 /**
  * One step of a tenant-asset editor.
@@ -278,14 +282,23 @@ export function AssetStepper<Id extends string>({
               >
                 ← Back
               </button>
-              <button
-                type="button"
-                className="datum-ops__btn"
-                onClick={() => onStep(step + 1)}
-                disabled={busy || step === steps.length - 1}
-              >
-                Next →
-              </button>
+              {step === steps.length - 1 ? (
+                // The last step has nowhere further to go inside this asset;
+                // a dead "Next" reads as broken, so send the editor back to
+                // the checklist for the next asset instead.
+                <Link href={SETUP_HUB_PATH} className="datum-ops__btn">
+                  Done → Setup
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  onClick={() => onStep(step + 1)}
+                  disabled={busy}
+                >
+                  Next →
+                </button>
+              )}
             </div>
             <div className="datum-ops__actions">{actions}</div>
           </div>
