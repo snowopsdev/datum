@@ -298,6 +298,20 @@ describe('fetchPage (live branch)', () => {
     assert.equal(page.reason, 'socket hang up')
   })
 
+  it('names the cause when fetch wraps the real error', async () => {
+    // undici's `fetch` throws a bare TypeError('fetch failed') and puts the
+    // network error on `cause`; without it the reason is useless.
+    const page = await fetchPage('https://example.com/boom', {
+      mock: false,
+      lookupImpl: publicLookup,
+      fetchImpl: stubFetch(() => {
+        throw new TypeError('fetch failed', { cause: new Error('connect ECONNREFUSED 93.184.216.34:443') })
+      }),
+    })
+    assert.equal(page.status, 'failed')
+    assert.equal(page.reason, 'fetch failed: connect ECONNREFUSED 93.184.216.34:443')
+  })
+
   it('fails a host that does not resolve', async () => {
     const page = await fetchPage('https://nowhere.example.com/x', {
       mock: false,

@@ -36,6 +36,7 @@ import { lookup as dnsLookup } from 'node:dns/promises'
 
 import { Readability } from '@mozilla/readability'
 import { parseHTML } from 'linkedom'
+import { Agent, fetch as undiciFetch } from 'undici'
 
 import { config } from '../config'
 import { normaliseWhitespace } from '../informationGain/lib'
@@ -203,14 +204,13 @@ interface PinnedDispatcher {
 /**
  * An undici dispatcher that will only ever connect to `addresses`.
  *
- * undici is imported dynamically so the module stays loadable — and the tests
- * stay hermetic — without it: an injected `fetchImpl` never reaches this.
+ * The `Agent` and the `fetch` that drives it must come from the same undici,
+ * which is why both are the package's and neither is Node's global.
  */
 async function pinnedDispatcher(
   host: string,
   addresses: ResolvedAddress[],
 ): Promise<PinnedDispatcher> {
-  const { Agent } = await import('undici')
   return new Agent({ connect: { lookup: pinnedLookup(host, addresses) } })
 }
 
@@ -349,7 +349,10 @@ export async function fetchPage(
       fetchedAt,
     }) satisfies FetchedPage
 
-  const doFetch = opts.fetchImpl ?? fetch
+  // The package's own `fetch`, not the global: the pinned dispatcher below is
+  // the package's `Agent`, and Node's bundled undici (a different major) cannot
+  // drive it — every request fails with "invalid onRequestStart method".
+  const doFetch = opts.fetchImpl ?? (undiciFetch as unknown as typeof fetch)
   const lookupImpl = opts.lookupImpl ?? defaultLookup
   const userAgent = opts.userAgent?.trim() || USER_AGENT
   const controller = new AbortController()
@@ -440,11 +443,13 @@ export async function fetchPage(
       }
     }
   } catch (error) {
-    const err = error as { name?: string; message?: string }
-    return failure(
-      'failed',
-      err?.name === 'AbortError' ? 'timeout' : (err?.message ?? 'fetch failed'),
-    )
+    const err = error as { name?: string; message?: string; cause?: unknown }
+    if (err?.name === 'AbortError') return failure('failed', 'timeout')
+    const message = err?.message ?? 'fetch failed'
+    // undici's `fetch` throws a bare "fetch failed" and keeps the real network
+    // error on `cause`; the reason is only useful with both.
+    const cause = (err?.cause as { message?: string } | undefined)?.message
+    return failure('failed', cause ? `${message}: ${cause}` : message)
   } finally {
     clearTimeout(timer)
     // By here every body is read, cancelled, or aborted, so nothing is in
