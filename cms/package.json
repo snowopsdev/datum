@@ -44,7 +44,7 @@
     "payload": "3.88.0",
     "pdf-parse": "^2.4.5",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react-dom": "19.3.0",
     "sharp": "0.35.4"
   },
   "devDependencies": {
@@ -52,7 +52,7 @@
     "@testing-library/react": "16.3.3",
     "@types/node": "26.5.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7",
+    "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "eslint": "^10.10.0",
     "eslint-config-next": "16.3.4",
