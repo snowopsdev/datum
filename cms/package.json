@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
-    "@payloadcms/db-postgres": "3.88.0",
+    "@payloadcms/db-postgres": "3.89.0",
     "@payloadcms/next": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
     "@payloadcms/ui": "3.88.0",
