@@ -1,15 +1,12 @@
+import { buildStageContext, loadStageInputs } from './runContext'
 import { randomUUID } from 'node:crypto'
 
 import { createAhrefsClient } from './ahrefs'
-import { loadActiveBrandVoice } from './brandVoice'
 import { config } from './config'
 import { type FetchContext, fetchTopics } from './fetchTopics'
-import { loadEvidenceSources, loadInformationGainPolicy } from './informationGain/policy'
-import { loadStageModels } from './models'
 import { initPayload } from './payloadClient'
 import { printReport, type ReportPeriod } from './report'
-import { describeFailures, runPipeline, type StageContext } from './stages'
-import { loadStyleGuide } from './styleGuide'
+import { describeFailures, runPipeline } from './stages'
 import { loadTenantContext } from './tenant'
 
 interface CliArgs {
@@ -99,18 +96,14 @@ async function main(): Promise<number> {
   }
 
   const mode = config.mockMode ? 'mock' : 'live'
-  // Loaded before anything Ahrefs-shaped: the profile is what tells the client
-  // which site it is comparing against, and it is the only place that knows
-  // whether a live run has a target domain at all.
-  const tenant = await loadTenantContext(payload, { mode })
-  const fetchCtx: FetchContext = {
-    payload,
-    runId,
-    mode,
-    ahrefs: createAhrefsClient(mode, tenant.profile),
-  }
-
   if (args.command === 'fetch') {
+    const tenant = await loadTenantContext(payload, { mode })
+    const fetchCtx: FetchContext = {
+      payload,
+      runId,
+      mode,
+      ahrefs: createAhrefsClient(mode, tenant.profile),
+    }
     // Ahrefs-only, no LLM call — skip loading models/style guide/brand voice
     // so a report/fetch run never fails on a provider key it doesn't need.
     const templateId = await resolveTemplateId(payload, args.template as string)
@@ -120,17 +113,10 @@ async function main(): Promise<number> {
       icpId: (tenant.icps.find((icp) => icp.primary)?.id as number | undefined) ?? null,
     })
   } else if (args.command === 'run') {
-    const brandVoice = await loadActiveBrandVoice(payload)
+    const inputs = await loadStageInputs(payload, mode)
+    const { brandVoice } = inputs
     console.log(`[pipeline] brand voice: ${brandVoice ? `"${brandVoice.name}"` : 'none'}`)
-    const ctx: StageContext = {
-      ...fetchCtx,
-      styleGuide: loadStyleGuide(),
-      models: await loadStageModels(payload),
-      brandVoice,
-      policy: await loadInformationGainPolicy(payload),
-      evidenceSources: await loadEvidenceSources(payload),
-      tenant,
-    }
+    const ctx = buildStageContext(payload, runId, mode, inputs)
     const summary = await runPipeline(ctx)
     const warned = summary.stages.reduce((sum, entry) => sum + entry.warned, 0)
     if (warned > 0) {

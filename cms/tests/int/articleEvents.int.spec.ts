@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import config from '@/payload.config'
 import { ARTICLE_STATUS_EVENT } from '@/lib/articleEvents'
-import { getPayload, type Payload } from 'payload'
+import { createLocalReq, getPayload, initTransaction, killTransaction, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 let payload: Payload
@@ -85,6 +85,31 @@ describe('article status events', () => {
     expect(events).toHaveLength(2)
     expect(events[1].body).toMatchObject({ from: 'topic_selected', to: 'brief_review' })
     expect(typeof events[1].body.occurredAt).toBe('string')
+  })
+
+  it('rolls back the status event together with a cancelled save transaction', async () => {
+    const article = await payload.create({
+      collection: 'articles',
+      overrideAccess: true,
+      data: { keyword: `rolled back ${randomUUID()}`, status: 'topic_selected' },
+    })
+    const req = await createLocalReq({}, payload)
+    expect(await initTransaction(req)).toBe(true)
+    try {
+      await payload.update({
+        collection: 'articles',
+        id: article.id,
+        overrideAccess: true,
+        req,
+        data: { status: 'brief_review' },
+      })
+    } finally {
+      await killTransaction(req)
+    }
+    expect(await queuedEvents(article.id)).toHaveLength(1)
+    expect(
+      (await payload.findByID({ collection: 'articles', id: article.id, depth: 0 })).status,
+    ).toBe('topic_selected')
   })
 
   it('queues nothing while webhooks are unconfigured', async () => {

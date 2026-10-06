@@ -1,17 +1,8 @@
 import type { Payload, TaskConfig } from 'payload'
 
-import { createAhrefsClient } from '../../../pipeline/src/ahrefs'
-import { loadActiveBrandVoice } from '../../../pipeline/src/brandVoice'
-import { type FetchContext, fetchTopics } from '../../../pipeline/src/fetchTopics'
-import {
-  loadEvidenceSources,
-  loadInformationGainPolicy,
-} from '../../../pipeline/src/informationGain/policy'
-import { createLlmClient } from '../../../pipeline/src/llm'
-import { loadStageModels } from '../../../pipeline/src/models'
-import { runPipeline, type StageContext } from '../../../pipeline/src/stages'
-import { loadStyleGuide } from '../../../pipeline/src/styleGuide'
-import { loadTenantContext } from '../../../pipeline/src/tenant'
+import { fetchTopics } from '../../../pipeline/src/fetchTopics'
+import { buildStageContext, loadStageInputs } from '../../../pipeline/src/runContext'
+import { runPipeline } from '../../../pipeline/src/stages'
 import type { PipelineRun } from '../payload-types'
 
 type ContentRunTask = {
@@ -40,21 +31,15 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
   try {
     const templateId = typeof run.template === 'object' ? run.template.id : run.template
     let articleIds: number[]
-    // The workspace this run writes for: the `workspace-profile` global (with
-    // TARGET_DOMAIN / COMPETITOR_DOMAINS as the fallback) plus the active
-    // audiences. It decides which site the gap report compares against, how the
-    // crawler identifies itself, and who every draft is written for.
-    const tenant = await loadTenantContext(payload, { mode: run.mode })
-    const models = await loadStageModels(payload, {
-      env: process.env,
-      mockMode: run.mode === 'mock',
-    })
-    const fetchContext: FetchContext = {
-      payload,
-      runId: run.runId,
-      mode: run.mode,
-      ahrefs: createAhrefsClient(run.mode, tenant.profile),
+    const inputs = await loadStageInputs(payload, run.mode)
+    const { tenant, brandVoice } = inputs
+    // Re-check before discovery: a queued run may outlive an asset's activation.
+    if (!brandVoice || !tenant.profile.targetDomain || tenant.icps.length === 0) {
+      throw new Error(
+        'Finish setup: brand voice, target domain, and at least one active audience (ICP) are required.',
+      )
     }
+    const stageContext = buildStageContext(payload, run.runId, run.mode, inputs)
 
     if (run.source === 'selected') {
       // The articles were chosen by a person and attached when the run was
@@ -67,7 +52,7 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
         throw new Error('This run has no articles attached.')
       }
     } else {
-      const fetched = await fetchTopics(fetchContext, {
+      const fetched = await fetchTopics(stageContext, {
         count: run.requestedCount,
         templateId,
         icpId: (tenant.icps.find((icp) => icp.primary)?.id as number | undefined) ?? null,
@@ -85,25 +70,6 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       data: { articles: articleIds },
     })
 
-    const brandVoice = await loadActiveBrandVoice(payload)
-    // Belt and braces: every caller already checks readiness before creating
-    // the run row, but a job queued before an audience was archived would
-    // otherwise write a whole batch against nobody.
-    if (!brandVoice || !tenant.profile.targetDomain || tenant.icps.length === 0) {
-      throw new Error(
-        'Finish setup: brand voice, target domain, and at least one active audience (ICP) are required.',
-      )
-    }
-    const stageContext: StageContext = {
-      ...fetchContext,
-      styleGuide: loadStyleGuide(),
-      models,
-      brandVoice,
-      policy: await loadInformationGainPolicy(payload),
-      evidenceSources: await loadEvidenceSources(payload),
-      tenant,
-      llm: createLlmClient(run.mode),
-    }
     const result = await runPipeline(stageContext, { articleIds })
     const completedAt = new Date().toISOString()
     // A run that advanced nothing is not a success, whatever the job queue
