@@ -48,11 +48,7 @@ const textRows = (name: 'churnTriggers' | 'notOurUser', description: string): Fi
  * the first audience to be activated becomes primary on its own, so a
  * workspace is never active-but-unpointed after doing the obvious thing.
  */
-export const gateIcpActivation: CollectionBeforeChangeHook = async ({
-  data,
-  originalDoc,
-  req,
-}) => {
+export const gateIcpActivation: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   const merged = { ...(originalDoc ?? {}), ...data }
   const effectiveStatus = merged.status
   if (merged.primary === true && effectiveStatus !== 'active') {
@@ -111,6 +107,7 @@ export const cascadeSinglePrimary: CollectionAfterChangeHook = async ({ context,
   if ((context as CascadeContext).icpPrimaryCascade) return doc
   await req.payload.update({
     collection: 'icps',
+    depth: 0,
     where: {
       and: [{ primary: { equals: true } }, { id: { not_equals: doc.id } }],
     },
@@ -181,7 +178,10 @@ export const Icps: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
-      admin: { description: 'How the team refers to this audience, e.g. "Growth marketer at a Series B SaaS".' },
+      admin: {
+        description:
+          'How the team refers to this audience, e.g. "Growth marketer at a Series B SaaS".',
+      },
     },
     {
       name: 'status',
@@ -219,13 +219,18 @@ export const Icps: CollectionConfig = {
     {
       name: 'who',
       type: 'textarea',
-      admin: { description: 'One line: their role, the kind of company, and what they are measured on.' },
+      admin: {
+        description: 'One line: their role, the kind of company, and what they are measured on.',
+      },
     },
     // --- PAIN ---------------------------------------------------------------
     {
       name: 'pains',
       type: 'array',
-      admin: { description: 'What hurts, most important first. The first one becomes the brief’s audience line.' },
+      admin: {
+        description:
+          'What hurts, most important first. The first one becomes the brief’s audience line.',
+      },
       fields: [
         { name: 'statement', type: 'textarea', required: true },
         {
@@ -251,7 +256,9 @@ export const Icps: CollectionConfig = {
           name: 'hypothesis',
           type: 'checkbox',
           defaultValue: false,
-          admin: { description: 'Marked in the prompt so the writer never states it as a finding.' },
+          admin: {
+            description: 'Marked in the prompt so the writer never states it as a finding.',
+          },
         },
         confidence('How sure are you about this motivation?'),
       ],
@@ -260,7 +267,9 @@ export const Icps: CollectionConfig = {
     {
       name: 'solution',
       type: 'group',
-      admin: { description: 'The mechanism, not the benefit: what actually happens that fixes the pain.' },
+      admin: {
+        description: 'The mechanism, not the benefit: what actually happens that fixes the pain.',
+      },
       fields: [
         { name: 'mechanism', type: 'textarea' },
         {
@@ -285,7 +294,9 @@ export const Icps: CollectionConfig = {
           name: 'competitor',
           type: 'text',
           required: true,
-          admin: { description: 'Usually a name from the Workspace competitor list; free text is fine.' },
+          admin: {
+            description: 'Usually a name from the Workspace competitor list; free text is fine.',
+          },
         },
         { name: 'claim', type: 'textarea' },
         { name: 'claimedAt', type: 'date' },
@@ -313,7 +324,10 @@ export const Icps: CollectionConfig = {
     },
     // --- BOUNDARIES ---------------------------------------------------------
     textRows('churnTriggers', 'What makes this audience leave.'),
-    textRows('notOurUser', 'Who looks like this audience but is not, so the writer does not aim at them.'),
+    textRows(
+      'notOurUser',
+      'Who looks like this audience but is not, so the writer does not aim at them.',
+    ),
     // --- OPERATOR NOTES -----------------------------------------------------
     {
       name: 'notes',

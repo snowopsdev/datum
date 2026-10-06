@@ -1,11 +1,7 @@
+import { sumArticleCost } from '../costs'
 import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
 import { completeJSONLogged } from '../llm'
-import {
-  extractHeadings,
-  lexicalToMarkdown,
-  lexicalToPlainText,
-  type RichText,
-} from '../richtext'
+import { extractHeadings, lexicalToMarkdown, lexicalToPlainText, type RichText } from '../richtext'
 import { resolveTemplate, type Stage } from '../stages'
 import {
   checkEvidenceRefs,
@@ -67,7 +63,7 @@ const EVIDENCE_CHECK_SYSTEM =
   '{company}, its product, customers, pricing, results, or measurements, or a comparative ' +
   'statement about a named competitor. Public facts about the wider topic are not your concern. ' +
   'Judge each first-party claim against the Evidence bank:\n' +
-  '- backed: it restates an entry (cite its ref) within that entry\'s limits;\n' +
+  "- backed: it restates an entry (cite its ref) within that entry's limits;\n" +
   '- overreach: it cites or relies on an entry but goes beyond its limits or changes a number;\n' +
   '- unbacked: no entry supports it;\n' +
   '- rejected: it states, or paraphrases, an entry under "Never state these".\n' +
@@ -141,20 +137,13 @@ export const qaStage: Stage = {
     // article as repeating itself, an unfixable complaint: removing either copy
     // breaks a rule the template enforces. Say which is which instead.
     const bodyHasFaqSection = article.body
-      ? extractHeadings(article.body as RichText).some((h) => /\bfaq\b|frequently asked/i.test(h.text))
+      ? extractHeadings(article.body as RichText).some((h) =>
+          /\bfaq\b|frequently asked/i.test(h.text),
+        )
       : false
     const faqBlock = bodyHasFaqSection
       ? `FAQ entries (structured data for search engines — these intentionally mirror the article's own FAQ section, so do not report them as duplicated content):\n${faqText}`
       : `FAQ entries (structured data for search engines, not part of the body):\n${faqText}`
-
-    const factResult = await completeJSONLogged(ctx, 'factCheck', article.id, {
-      system:
-        'You are a rigorous fact checker. Verify the factual claims in the article using web search. ' +
-        'Return JSON: {"passed": boolean, "notes": string, "sources": string[]} where sources are the URLs you used.',
-      user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\n${faqBlock}`,
-      needWebSearch: true,
-    })
-    const factCheck = parseFactCheck(factResult.json)
 
     const dos = template.dos?.map((d) => `- ${d.text}`).join('\n') || '(none)'
     const donts = template.donts?.map((d) => `- ${d.text}`).join('\n') || '(none)'
@@ -175,20 +164,9 @@ export const qaStage: Stage = {
       `OG title: ${article.ogTitle ?? '(none)'}`,
       `OG description: ${article.ogDescription ?? '(none)'}`,
     ].join('\n')
-    const qualResult = await completeJSONLogged(ctx, 'qualitativeReview', article.id, {
-      system:
-        BASE_QUALITATIVE_SYSTEM +
-        (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE) +
-        (positioningBlock ? POSITIONING_SHAPE : ''),
-      user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
-    })
-    const qualitativeReview = parseQualitative(qualResult.json)
-
-    // The evidence check, after the fact check: both read the same draft, and
-    // running them in this order keeps the cost-log rows in the order a
-    // reviewer reads the results. It runs on every article, bank or no bank —
-    // an unbacked first-party claim in a workspace with no bank is exactly the
-    // thing worth flagging, and the block below says so in as many words.
+    // All three reviewers read the same draft independently. Calls and their
+    // cost rows finish in completion order; a failed attempt may still bill
+    // calls already in flight. Evidence checks run even without a bank.
     const companyName =
       ctx.tenant.profile.companyName || ctx.tenant.profile.targetDomain || 'this company'
     const bankBlock =
@@ -201,22 +179,40 @@ export const qaStage: Stage = {
         cap: Infinity,
       }) ?? 'There is no evidence bank for this workspace, so every first-party claim is unbacked.'
     const workspaceBlock = workspaceProfileToPrompt(ctx.tenant.profile)
-    const evidenceResult = await completeJSONLogged(ctx, 'evidenceCheck', article.id, {
-      system: EVIDENCE_CHECK_SYSTEM.replace('{company}', companyName),
-      user: [
-        workspaceBlock,
-        bankBlock,
-        declaredRefsBlock(article.evidenceCitations),
-        // The meta fields go to the auditor for the same reason they go to the
-        // reviewer: they are generated text about the company, they are the
-        // first thing a reader sees, and a title tag is where an unbacked
-        // superlative is likeliest to survive a careful body.
-        `Article "${article.title}":\n\n${metaText}\n\n${bodyText}`,
-        faqBlock,
-      ]
-        .filter((block) => block.trim().length > 0)
-        .join('\n\n'),
-    })
+    const [factResult, qualResult, evidenceResult] = await Promise.all([
+      completeJSONLogged(ctx, 'factCheck', article.id, {
+        system:
+          'You are a rigorous fact checker. Verify the factual claims in the article using web search. ' +
+          'Return JSON: {"passed": boolean, "notes": string, "sources": string[]} where sources are the URLs you used.',
+        user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\n${faqBlock}`,
+        needWebSearch: true,
+      }),
+      completeJSONLogged(ctx, 'qualitativeReview', article.id, {
+        system:
+          BASE_QUALITATIVE_SYSTEM +
+          (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE) +
+          (positioningBlock ? POSITIONING_SHAPE : ''),
+        user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
+      }),
+      completeJSONLogged(ctx, 'evidenceCheck', article.id, {
+        system: EVIDENCE_CHECK_SYSTEM.replace('{company}', companyName),
+        user: [
+          workspaceBlock,
+          bankBlock,
+          declaredRefsBlock(article.evidenceCitations),
+          // The meta fields go to the auditor for the same reason they go to the
+          // reviewer: they are generated text about the company, they are the
+          // first thing a reader sees, and a title tag is where an unbacked
+          // superlative is likeliest to survive a careful body.
+          `Article "${article.title}":\n\n${metaText}\n\n${bodyText}`,
+          faqBlock,
+        ]
+          .filter((block) => block.trim().length > 0)
+          .join('\n\n'),
+      }),
+    ])
+    const factCheck = parseFactCheck(factResult.json)
+    const qualitativeReview = parseQualitative(qualResult.json)
     const evidenceVerdict = parseEvidenceCheck(evidenceResult.json)
     const evidence = decideEvidence(
       evidenceVerdict,
@@ -243,13 +239,7 @@ export const qaStage: Stage = {
 
     // Sum after the QA calls so this article's own factCheck/qualitativeReview
     // rows are included in its total.
-    const costRows = await ctx.payload.find({
-      collection: 'cost-log',
-      where: { article: { equals: article.id } },
-      pagination: false,
-      depth: 0,
-    })
-    const totalCostUsd = costRows.docs.reduce((sum, row) => sum + (row.costUsd ?? 0), 0)
+    const totalCostUsd = await sumArticleCost(ctx.payload, article.id)
 
     const structuralPassed = violations.length === 0
     const allPassed =

@@ -5,7 +5,6 @@ import type { AdminViewServerProps } from 'payload'
 import React from 'react'
 
 import { icpContentOf } from '../../lib/tenant/icp'
-import type { Icp } from '../../payload-types'
 import { formatAuditTimestamp } from './articleStatus'
 import { IcpEditor } from './IcpEditor'
 import type { IcpDTO } from './icpTypes'
@@ -28,51 +27,47 @@ export async function IcpEditorView(props: AdminViewServerProps) {
   const idSegment = segments[3]
   if (!idSegment || Array.isArray(idSegment)) notFound()
 
-  // The assistant on every step drafts from the workspace's own pages, so the
-  // editor has to be able to say when there are none.
-  const profile = await req.payload.findGlobal({
-    slug: 'workspace-profile',
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  let record: IcpDTO | null = null
-  if (idSegment !== 'new') {
-    const id = Number(idSegment)
-    if (!Number.isFinite(id)) notFound()
-    let doc: Icp
-    try {
-      doc = (await req.payload.findByID({
-        collection: 'icps',
-        id,
-        depth: 0,
-        user: req.user,
-        overrideAccess: false,
-      })) as Icp
-    } catch {
-      notFound()
-    }
-    record = {
-      ...icpContentOf(doc),
-      id: doc.id,
-      updatedAt: doc.updatedAt,
-      updatedAtLabel: formatAuditTimestamp(doc.updatedAt),
-      editHref: `/admin/collections/icps/${doc.id}`,
-    }
-  }
-
-  // Whether "Save and activate" would land as the workspace's only active
-  // audience — and so is forced primary rather than offered as a choice.
-  const otherActive = await req.payload.count({
-    collection: 'icps',
-    where: {
-      and: [
-        { status: { equals: 'active' } },
-        ...(record ? [{ id: { not_equals: record.id } }] : []),
-      ],
-    },
-    overrideAccess: true,
-  })
+  const id = idSegment === 'new' ? null : Number(idSegment)
+  if (id !== null && !Number.isFinite(id)) notFound()
+  const [profile, doc, otherActive] = await Promise.all([
+    req.payload.findGlobal({
+      slug: 'workspace-profile',
+      select: { sitePagesFetchedAt: true },
+      depth: 0,
+      overrideAccess: true,
+    }),
+    id === null
+      ? Promise.resolve(null)
+      : req.payload
+          .findByID({
+            collection: 'icps',
+            id,
+            depth: 0,
+            user: req.user,
+            overrideAccess: false,
+          })
+          .catch(() => null),
+    req.payload.count({
+      collection: 'icps',
+      where: {
+        and: [
+          { status: { equals: 'active' } },
+          ...(id === null ? [] : [{ id: { not_equals: id } }]),
+        ],
+      },
+      overrideAccess: true,
+    }),
+  ])
+  if (id !== null && !doc) notFound()
+  const record: IcpDTO | null = doc
+    ? {
+        ...icpContentOf(doc),
+        id: doc.id,
+        updatedAt: doc.updatedAt,
+        updatedAtLabel: formatAuditTimestamp(doc.updatedAt),
+        editHref: `/admin/collections/icps/${doc.id}`,
+      }
+    : null
 
   return (
     <DefaultTemplate

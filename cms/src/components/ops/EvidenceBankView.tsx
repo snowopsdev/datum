@@ -23,7 +23,12 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
 
   const [doc, profile] = await Promise.all([
     req.payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
-    req.payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+    req.payload.findGlobal({
+      slug: 'workspace-profile',
+      select: { sitePagesFetchedAt: true },
+      depth: 0,
+      overrideAccess: true,
+    }),
   ])
 
   return (

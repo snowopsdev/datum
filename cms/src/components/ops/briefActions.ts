@@ -6,7 +6,11 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
-import { type IcpOption, loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import {
+  type IcpOption,
+  loadActiveAudienceOptions,
+  loadWorkspaceSetup,
+} from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
 export type BriefActionResult = { ok: true; message: string } | { ok: false; error: string }
@@ -33,7 +37,8 @@ const actorOf = (user: { email?: string | null; id: number | string }) =>
   typeof user.email === 'string' && user.email ? user.email : String(user.id)
 
 function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
+    return e.message
   return fallback
 }
 
@@ -98,7 +103,7 @@ export async function saveBriefAction(
       return { ok: false, error: 'This brief has already been approved; the piece has moved on.' }
     }
     const next = cleanEdits(edits)
-    const { icps } = await loadWorkspaceSetup(payload)
+    const icps = await loadActiveAudienceOptions(payload, user)
     const previousIcpId = icpIdOf(article.icp)
     const nextIcpId = edits.icpId ?? previousIcpId
     next.audience = resolveAudience(next, previousIcpId, nextIcpId, icps)
@@ -215,7 +220,10 @@ export async function approveBriefAction(
     if (e instanceof ActivePipelineRunError) {
       // The status change already happened, so the next run picks it up.
       revalidate(articleId)
-      return { ok: true, message: 'Brief approved. Writing will start when the current run finishes.' }
+      return {
+        ok: true,
+        message: 'Brief approved. Writing will start when the current run finishes.',
+      }
     }
     return { ok: false, error: errorMessage(e, 'Could not approve the brief.') }
   }

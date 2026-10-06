@@ -42,11 +42,17 @@ const fakePayload = (
       where,
       overrideAccess,
     }: {
-      where: { domain: { equals: string } }
+      where: { domain: { equals?: string; in?: string[] } }
       overrideAccess?: boolean
     }) => {
       calls.push({ op: 'find', overrideAccess })
-      return { docs: rows.filter((row) => row.domain === where.domain.equals) }
+      return {
+        docs: rows.filter((row) =>
+          where.domain.in
+            ? where.domain.in.includes(row.domain as string)
+            : row.domain === where.domain.equals,
+        ),
+      }
     },
     create: async ({
       data,
@@ -116,7 +122,12 @@ describe('recordCandidateSightings', () => {
     const { payload, calls } = fakePayload()
     const result = await recordCandidateSightings(payload, [
       sighting({ citations: 2 }),
-      sighting({ kind: 'serp', citations: undefined, position: 3, domainRating: 61 }),
+      sighting({
+        kind: 'serp',
+        citations: undefined,
+        position: 3,
+        domainRating: 61,
+      }),
     ])
 
     assert.deepEqual(result, { created: 1, updated: 0 })
@@ -178,7 +189,10 @@ describe('recordCandidateSightings', () => {
 
   it('does nothing when there is nothing to record', async () => {
     const { payload, calls } = fakePayload()
-    assert.deepEqual(await recordCandidateSightings(payload, []), { created: 0, updated: 0 })
+    assert.deepEqual(await recordCandidateSightings(payload, []), {
+      created: 0,
+      updated: 0,
+    })
     assert.deepEqual(calls, [])
   })
 })

@@ -1,3 +1,5 @@
+import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
+import { loadSourceReviewArticles } from '@/components/ops/sourceReviewData'
 import { randomUUID } from 'node:crypto'
 import {
   createLocalReq,
@@ -79,6 +81,43 @@ afterAll(async () => {
 })
 
 describe('admin queries against Postgres', () => {
+  it('never loads site-page text into workspace setup', async () => {
+    const previous = await payload.findGlobal({ slug: 'workspace-profile', depth: 0 })
+    await payload.updateGlobal({
+      slug: 'workspace-profile',
+      overrideAccess: true,
+      data: { sitePages: [{ url: 'https://local.test', text: 'UNUSED_SITEPAGE_MARKER' }] },
+    })
+    const findGlobal = vi.spyOn(payload, 'findGlobal')
+    try {
+      await loadWorkspaceSetup(payload)
+      const index = findGlobal.mock.calls.findIndex(
+        ([options]) => options.slug === 'workspace-profile',
+      )
+      expect(index).toBeGreaterThanOrEqual(0)
+      const loaded = await findGlobal.mock.results[index].value
+      expect(JSON.stringify(loaded)).not.toContain('UNUSED_SITEPAGE_MARKER')
+    } finally {
+      findGlobal.mockRestore()
+      await payload.updateGlobal({
+        slug: 'workspace-profile',
+        data: { sitePages: previous.sitePages },
+      })
+    }
+  })
+
+  it('never loads article research for the source-review lookup', async () => {
+    const find = vi.spyOn(payload, 'find')
+    try {
+      const lookup = await loadSourceReviewArticles(payload, user, [ids[0]])
+      expect(lookup.get(ids[0])?.keyword).toContain(prefix)
+      const loaded = await find.mock.results[0].value
+      expect(JSON.stringify(loaded)).not.toContain('UNUSED_RESEARCH_MARKER')
+    } finally {
+      find.mockRestore()
+    }
+  })
+
   it('returns only 50 small rows and searches past the first page', async () => {
     const first = await loadContentPage(req, { filter: 'all', q: prefix })
     expect(first.articles).toHaveLength(50)
@@ -193,7 +232,9 @@ describe('admin queries against Postgres', () => {
         outputTokens: 5026,
       })
       expect(JSON.stringify(result)).not.toContain('UNUSED_COST_REQUEST')
-      expect(find.mock.calls.filter(([options]) => options.collection === 'cost-log')).toHaveLength(0)
+      expect(find.mock.calls.filter(([options]) => options.collection === 'cost-log')).toHaveLength(
+        0,
+      )
     } finally {
       find.mockRestore()
     }
@@ -204,7 +245,13 @@ describe('admin queries against Postgres', () => {
   it('preserves stage/model totals, null buckets, and inclusive period filters', async () => {
     const pipelineRunId = `${prefix}-quoted'run`
     const rows = [
-      { stage: 'generate' as const, model: 'alpha', costUsd: 0.5, inputTokens: 5, createdAt: '2026-01-01T00:00:00.000Z' },
+      {
+        stage: 'generate' as const,
+        model: 'alpha',
+        costUsd: 0.5,
+        inputTokens: 5,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
       { stage: 'generate' as const, model: 'alpha', costUsd: 0.25, outputTokens: 2 },
       { stage: 'factCheck' as const, model: 'beta', costUsd: 1, inputTokens: 8, outputTokens: 3 },
       {},
@@ -221,18 +268,32 @@ describe('admin queries against Postgres', () => {
     expect(all.aggregate).toEqual({
       rowCount: 5,
       totalUsd: 1.875,
-      byStage: [{ label: 'factCheck', usd: 1 }, { label: 'generate', usd: 0.75 }, { label: '(unknown)', usd: 0.125 }],
-      byModel: [{ label: 'beta', usd: 1 }, { label: 'alpha', usd: 0.75 }, { label: '(unknown)', usd: 0.125 }],
+      byStage: [
+        { label: 'factCheck', usd: 1 },
+        { label: 'generate', usd: 0.75 },
+        { label: '(unknown)', usd: 0.125 },
+      ],
+      byModel: [
+        { label: 'beta', usd: 1 },
+        { label: 'alpha', usd: 0.75 },
+        { label: '(unknown)', usd: 0.125 },
+      ],
     })
     expect(all.stages).toEqual([
       { stage: 'factCheck', calls: 1, costUsd: 1, inputTokens: 8, outputTokens: 3 },
       { stage: 'generate', calls: 2, costUsd: 0.75, inputTokens: 5, outputTokens: 2 },
       { stage: '(unknown)', calls: 2, costUsd: 0.125, inputTokens: 0, outputTokens: 0 },
     ])
-    const recent = await loadReportCosts(req, { pipelineRunId, createdAtFrom: '2026-02-01T00:00:00.000Z' })
+    const recent = await loadReportCosts(req, {
+      pipelineRunId,
+      createdAtFrom: '2026-02-01T00:00:00.000Z',
+    })
     expect(recent.aggregate.rowCount).toBe(4)
     expect(recent.aggregate.totalUsd).toBe(1.375)
-    const empty = await loadReportCosts(req, { pipelineRunId, createdAtFrom: '2026-03-01T00:00:00.000Z' })
+    const empty = await loadReportCosts(req, {
+      pipelineRunId,
+      createdAtFrom: '2026-03-01T00:00:00.000Z',
+    })
     expect(empty.aggregate).toEqual({ rowCount: 0, totalUsd: 0, byStage: [], byModel: [] })
     expect(empty.stages).toEqual([])
   })

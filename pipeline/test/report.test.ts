@@ -23,8 +23,8 @@ function fakePayload(articles: FakeArticle[], runs: { id: number; reasons: unkno
       if (collection === 'articles') return { docs: articles }
       if (collection === 'cost-log') return { docs: [] }
       if (collection === 'information-gain-runs') {
-        const id = (where as { id?: { equals?: number } } | undefined)?.id?.equals
-        return { docs: runs.filter((run) => run.id === id) }
+        const ids = (where as { id?: { in?: number[] } } | undefined)?.id?.in ?? []
+        return { docs: runs.filter((run) => ids.includes(run.id)) }
       }
       throw new Error(`unexpected collection ${collection}`)
     },
@@ -71,8 +71,26 @@ test('the review queue lists articles a human still owes a decision', async () =
       },
     ],
     [
-      { id: 11, reasons: [{ policy: 'coverage', message: 'thin coverage', severity: 'HUMAN_REVIEW' }] },
-      { id: 12, reasons: [{ policy: 'evidence', message: 'contradicted number', severity: 'BLOCK' }] },
+      {
+        id: 11,
+        reasons: [
+          {
+            policy: 'coverage',
+            message: 'thin coverage',
+            severity: 'HUMAN_REVIEW',
+          },
+        ],
+      },
+      {
+        id: 12,
+        reasons: [
+          {
+            policy: 'evidence',
+            message: 'contradicted number',
+            severity: 'BLOCK',
+          },
+        ],
+      },
     ],
   )
   const queue = reviewQueue(report)
@@ -102,7 +120,16 @@ test('an overridden article leaves the review queue even though its decision sta
     },
   ]
   const report = await reportOf(articles, [
-    { id: 11, reasons: [{ policy: 'coverage', message: 'thin coverage', severity: 'HUMAN_REVIEW' }] },
+    {
+      id: 11,
+      reasons: [
+        {
+          policy: 'coverage',
+          message: 'thin coverage',
+          severity: 'HUMAN_REVIEW',
+        },
+      ],
+    },
     { id: 12, reasons: [] },
   ])
   const queue = reviewQueue(report)
@@ -119,7 +146,12 @@ test('a needs_review article whose decision was cleared is not queued', async ()
   // `invalidateStaleInformationGain` and the send-back actions null the summary;
   // with no decision left there is nothing for the queue to report on.
   const report = await reportOf([
-    { id: 1, keyword: 'burr grinders', status: 'needs_review', informationGain: null },
+    {
+      id: 1,
+      keyword: 'burr grinders',
+      status: 'needs_review',
+      informationGain: null,
+    },
   ])
   assert.match(report, /Information gain \(0 article\(s\) scored\)/)
 })

@@ -1,121 +1,134 @@
 # Graph Report - datum  (2026-10-06)
 
 ## Corpus Check
-- 395 files · ~1,003,116 words
+- 398 files · ~1,004,206 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 7, .css 3, .example 2)
 
 ## Summary
-- 2885 nodes · 7371 edges · 110 communities (100 shown, 10 thin omitted)
+- 2895 nodes · 7410 edges · 123 communities (114 shown, 9 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 250 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `871ec9c1`
+- Built from commit: `52efec42`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - articleStatus.ts
-- passes.ts
-- evidenceBank.int.spec.ts
-- setupActions.ts
+- batching.ts
+- tenant.ts
+- sitePages.int.spec.ts
 - payload-types.ts
 - scorecard.ts
 - igPolicy.test.ts
-- llmCatalog.ts
+- igScoring.test.ts
 - exactness.ts
 - lib/brandVoice.ts
-- igCoverage.test.ts
+- qa/index.ts
 - pipeline/package.json
 - Field
 - payload.config.ts
-- BrandVoiceView.tsx
-- next
+- governanceAudit.ts
+- react
 - webhookDeliver.int.spec.ts
 - stages.ts
-- lib/llmProvider.ts
-- graphqlSchema.int.spec.ts
+- tenantLib.test.ts
+- src/informationGain/index.ts
 - ref_payload
 - src/index.ts
-- llmSettings.ts
+- loadWorkspaceReadiness.ts
 - DESIGN.md
-- Quick start
-- ref_node_test
-- seedContentOps.ts
+- research.ts
+- report.ts
+- seed.ts
 - [slug]/page.tsx
 - tenantActions.ts
 - auditTypes.ts
 - icp.ts
 - GlobalRunBar.tsx
-- ref_node_assert
+- config.ts
 - assist.ts
 - tenantActions.int.spec.ts
-- tenant.ts
+- ahrefs.ts
 - richtext.ts
-- qa/index.ts
+- NewContentFlow.tsx
 - actions.ts
 - snapshot.ts
 - Changelog
 - cms/package.json
 - articleReviewGate.ts
-- brandVoiceTypes.ts
+- BrandVoiceEditor.tsx
 - evidenceBank.test.ts
 - parsers.ts
-- react
+- review/index.ts
 - evidenceBank.ts
 - workspaceReadiness.ts
-- igCandidates.test.ts
-- resolveWorkspaceProfile
+- lib/informationGain/candidates.ts
+- qaStagePrompts.test.ts
 - fetchPage.ts
 - EvidenceBankEditor.tsx
-- tenantLib.test.ts
+- positioning.ts
 - package.json
 - sourceReviewActions.ts
-- activeRuns.ts
+- setupActions.ts
+- boardActions.ts
+- igCandidates.test.ts
 - compilerOptions
 - sourceReviewTypes.ts
 - topicDiscoveryActions.ts
-- icps.int.spec.ts
+- BrandVoiceView.tsx
+- Icps.ts
 - briefActions.ts
-- tenant/fixtures.ts
+- assist.test.ts
 - llm.ts
 - dependencies
-- boardActions.ts
+- ContentList.tsx
 - ArticleReview.tsx
-- Findings
+- README.md
+- NeedsRevisionPanel.tsx
 - devDependencies
 - ReportsPanel.tsx
-- extractText.ts
+- corpusSnapshots.int.spec.ts
 - scripts
 - reviewPanels.int.spec.ts
 - EvidenceBank.ts
-- brandVoiceExtract.ts
-- igText.test.ts
+- llmSettings.ts
+- Brand voice and style guide
+- Security Policy
 - compilerOptions
 - Datum
-- lib/informationGain/index.ts
-- src/informationGain/candidates.ts
+- fetchPage.test.ts
+- src/fixtures.ts
 - generatePrompt.ts
-- governanceAudit.ts
+- generateStage.test.ts
+- mockPages.ts
+- findPublishedArticle.ts
+- Template
+- tenantPrompts.test.ts
 - Contributor Covenant Code of Conduct
-- BrandVoiceEditor.tsx
-- lib/informationGain/candidates.ts
+- addressGuard.ts
+- payloadClient.ts
+- brandVoiceActions.ts
+- RealAhrefsClient
+- dependencies
 - checkEvidenceRefs
 - Contributing to Datum
 - open-source-checklist.md
 - Agent instructions
-- README.md
+- Tenant context
 - informationGainRuns.int.spec.ts
+- evidenceBankToPrompt
+- scripts
 - ig-e2e.sh
+- devDependencies
 - Operations
 - [...slug]/route.ts
-- corpusSnapshots.int.spec.ts
+- repository
 - @payloadcms/db-postgres
-- Brand voice and style guide
 - PULL_REQUEST_TEMPLATE.md
 - .prettierrc.json
-- Security Policy
 - eslint.config.mjs
 - repository
 - release-please-config.json
@@ -127,13 +140,13 @@
 - InformationGainPolicy.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 81 edges
+1. `react` - 82 edges
 2. `vitest` - 61 edges
 3. `next` - 54 edges
 4. `resolveWorkspaceProfile()` - 45 edges
 5. `loadWorkspaceSetup()` - 32 edges
 6. `Field()` - 31 edges
-7. `Article` - 29 edges
+7. `Article` - 27 edges
 8. `@payloadcms/db-postgres` - 22 edges
 9. `@payloadcms/next` - 22 edges
 10. `getOrBuildSnapshot()` - 22 edges
@@ -145,223 +158,231 @@
   docs/audits/2026-09-11-ui-workflow-audit.md → cms/src/components/ops/SetupChecklist.tsx
 - `Content list` --references--> `latestRunAction()`  [INFERRED]
   docs/audits/2026-09-11-ui-workflow-audit.md → cms/src/components/ops/boardActions.ts
-- `Webhooks` --references--> `verifyWebhookSignature()`  [INFERRED]
-  docs/operations.md → cms/src/jobs/webhookDeliver.ts
 - `Task 1: Remove `codex/*` end to end (L-1, L-2, F-013)` --references--> `providerForModel()`  [INFERRED]
   docs/superpowers/plans/2026-09-11-phase2-ui-workflow-polish.md → cms/src/lib/llmProvider.ts
+- `Model, mock mode, and cost` --references--> `resolveSetupAssistModel()`  [INFERRED]
+  docs/tenant-context.md → cms/src/lib/llmSettings.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (110 total, 10 thin omitted)
+## Communities (123 total, 9 thin omitted)
 
 ### Community 0 - "articleStatus.ts"
-Cohesion: 0.05
-Nodes (55): ArticleReviewView(), asRecord(), asRecordArray(), asStringSet(), DECISIONS, describeViolation(), EvidenceCitationRow, evidenceCitationsOf() (+47 more)
+Cohesion: 0.07
+Nodes (40): asRecord(), asRecordArray(), asStringSet(), DECISIONS, describeViolation(), EvidenceCitationRow, evidenceCitationsOf(), EvidenceFindingRow (+32 more)
 
-### Community 1 - "passes.ts"
-Cohesion: 0.05
-Nodes (55): DEFAULT_MAX_DRAFT_CLAIMS, DEFAULT_POLICY, CLAIM_TYPES, DraftClaim, Facet, QueryClusterEntry, Claims nobody checked, Cost (+47 more)
+### Community 1 - "batching.ts"
+Cohesion: 0.07
+Nodes (27): DEFAULT_POLICY, excerptFoundIn(), keywordTokens(), nearDuplicateJaccard(), normaliseWhitespace(), STOPWORDS, tokenOverlap(), BaselineContextOptions (+19 more)
 
-### Community 2 - "evidenceBank.int.spec.ts"
-Cohesion: 0.24
-Nodes (6): EvidenceBank, clear(), EMPTY_GLOBAL, readGlobal(), refsOf(), startFresh()
+### Community 2 - "tenant.ts"
+Cohesion: 0.11
+Nodes (22): hasSectionContent(), PositioningEditor(), SECTION_KEYS, PositioningView(), loadAssistContext(), upsertEvidenceBank(), evidenceBankContentOf(), isEvidenceBankEmpty() (+14 more)
 
-### Community 3 - "setupActions.ts"
-Cohesion: 0.05
-Nodes (49): asRecord(), AssetStep, AssetStepper(), AssistConfig, Props, assistAction(), assistError(), AssistInput (+41 more)
+### Community 3 - "sitePages.int.spec.ts"
+Cohesion: 0.11
+Nodes (15): candidatePagePaths(), FetchedPageLike, hostKey(), isSameSite(), MAX_DISCOVERED_PAGES, MAX_SITE_PAGES, pathKey(), SITE_PAGE_PATH_PATTERN (+7 more)
 
 ### Community 4 - "payload-types.ts"
 Cohesion: 0.04
 Nodes (56): ArticleAudit, ArticleAuditSelect, ArticlesSelect, Auth, BrandVoiceFile, BrandVoiceFilesSelect, BrandVoicesSelect, CollectionsWidget (+48 more)
 
 ### Community 5 - "scorecard.ts"
-Cohesion: 0.04
-Nodes (54): internalDuplicationRate(), JudgeSignals, VerifierSignals, clamp01(), clampImportance(), estimateTokens(), evidenceFloorFor(), FACET_GAIN_THRESHOLD (+46 more)
+Cohesion: 0.06
+Nodes (39): internalDuplicationRate(), JudgeSignals, VerifierSignals, hostnameOf(), resolveSourceQuality(), SOURCE_QUALITY_SCORE, UNKNOWN_DOMAIN_CAP, BaselineClaimSource (+31 more)
 
 ### Community 6 - "igPolicy.test.ts"
 Cohesion: 0.07
-Nodes (36): canonicalise(), decidePolicy(), dedupe(), DEFAULTS_BY_KEY, FALSE_WORDS, fromAdmin(), fromEnv(), InformationGainPolicy (+28 more)
+Nodes (31): canonicalise(), decidePolicy(), dedupe(), DEFAULTS_BY_KEY, FALSE_WORDS, fromAdmin(), fromEnv(), InformationGainPolicy (+23 more)
 
-### Community 7 - "llmCatalog.ts"
-Cohesion: 0.18
-Nodes (12): catalogModel(), DEFAULT_MODEL, LLM_CATALOG, LLM_MODEL_OPTIONS, LlmModel, money(), PROVIDER_LABEL, LlmProvider (+4 more)
+### Community 7 - "igScoring.test.ts"
+Cohesion: 0.07
+Nodes (30): compareValues(), clamp01(), clampImportance(), estimateTokens(), evidenceFloorFor(), FACET_GAIN_THRESHOLD, IMPORTANCE_RANGE, ratio() (+22 more)
 
 ### Community 8 - "exactness.ts"
 Cohesion: 0.07
-Nodes (38): AMOUNT, attests(), COMPARATIVE_LABEL, comparativeCompatible(), comparativeOf(), compareValues(), CURRENCY_BY_SYMBOL, DIGIT_AMOUNT (+30 more)
+Nodes (35): AMOUNT, attests(), COMPARATIVE_LABEL, comparativeCompatible(), comparativeOf(), CURRENCY_BY_SYMBOL, DIGIT_AMOUNT, directionCompatible() (+27 more)
 
 ### Community 9 - "lib/brandVoice.ts"
 Cohesion: 0.08
-Nodes (40): BrandVoices, BrandVoiceStatus, CascadeContext, cascadeSingleActive(), draftOnlyDelete(), gateActivation(), BrandVoiceGuide(), downloadMarkdown() (+32 more)
+Nodes (42): BrandVoiceFiles, BrandVoices, BrandVoiceStatus, CascadeContext, cascadeSingleActive(), draftOnlyDelete(), gateActivation(), BrandVoiceGuide() (+34 more)
 
-### Community 10 - "igCoverage.test.ts"
-Cohesion: 0.21
-Nodes (7): applyTemplateHints(), consensusCoverage(), facetWeights(), normaliseHint(), safeWeight(), usableTotalOf(), weightOf()
+### Community 10 - "qa/index.ts"
+Cohesion: 0.09
+Nodes (22): sumArticleCost(), qaStage, CLAIM_STATUSES, decideEvidence(), decideQualitative(), EvidenceCheckVerdict, EvidenceClaimFinding, EvidenceClaimStatus (+14 more)
 
 ### Community 11 - "pipeline/package.json"
-Cohesion: 0.05
-Nodes (42): bugs, url, dependencies, @anthropic-ai/sdk, dotenv, linkedom, @mozilla/readability, openai (+34 more)
+Cohesion: 0.10
+Nodes (20): bugs, url, description, engines, node, homepage, @anthropic-ai/sdk, dotenv (+12 more)
 
 ### Community 12 - "Field"
-Cohesion: 0.10
-Nodes (37): AdjectivesSection(), AudienceSection(), EssenceSection(), NotTraitsSection(), PersonaSection(), SamplesSection(), SECTION_COMPONENTS, SectionProps (+29 more)
+Cohesion: 0.11
+Nodes (35): AdjectivesSection(), AudienceSection(), EssenceSection(), NotTraitsSection(), PersonaSection(), SamplesSection(), SectionProps, ValuesSection() (+27 more)
 
 ### Community 13 - "payload.config.ts"
-Cohesion: 0.07
-Nodes (17): dirname, __filename, nextConfig, BrandVoiceFiles, Media, PipelineRuns, Templates, TopicSearches (+9 more)
+Cohesion: 0.06
+Nodes (22): dirname, __filename, nextConfig, GET, OPTIONS, POST, EvidenceSourceCandidates, EvidenceSources (+14 more)
 
-### Community 14 - "BrandVoiceView.tsx"
-Cohesion: 0.24
-Nodes (10): BrandVoiceAuditEntry, BrandVoiceMode, BrandVoiceView(), MODES, param(), toAuditEntry(), toDTO(), brandVoiceContentOf() (+2 more)
+### Community 14 - "governanceAudit.ts"
+Cohesion: 0.17
+Nodes (16): GovernanceAudit, auditArticleChange(), AuditRequestContext, auditActor(), changedFieldsOf(), humanize(), auditGlobalChange(), auditGovernanceChange() (+8 more)
 
-### Community 15 - "next"
-Cohesion: 0.07
-Nodes (35): importMap, Args, Args, GET, OPTIONS, POST, Args, ExtraOpsNavLinks() (+27 more)
+### Community 15 - "react"
+Cohesion: 0.08
+Nodes (31): importMap, Args, Args, Args, ArticleReviewView(), formatAuditTimestamp(), isScheduleExpired(), toBoardArticle() (+23 more)
 
 ### Community 16 - "webhookDeliver.int.spec.ts"
-Cohesion: 0.11
-Nodes (26): POST(), WebhookSettings, DELIVERY_RETRIES, DELIVERY_TIMEOUT_MS, EVENT_HEADER, SIGNATURE_HEADER, signWebhookBody(), TIMESTAMP_HEADER (+18 more)
+Cohesion: 0.10
+Nodes (28): POST(), WebhookSettings, DELIVERY_RETRIES, DELIVERY_TIMEOUT_MS, EVENT_HEADER, SIGNATURE_HEADER, signWebhookBody(), TIMESTAMP_HEADER (+20 more)
 
 ### Community 17 - "stages.ts"
-Cohesion: 0.06
-Nodes (32): PipelineStageName, stripEvidenceRefs(), Article, repoRoot, InternalCorpusDoc, EvidenceCitation, extractEvidenceCitations(), GeneratedArticle (+24 more)
+Cohesion: 0.10
+Nodes (17): PipelineStageName, EvidenceSourceRule, Article, InternalCorpusDoc, LlmClient, StageModels, ArticleStatus, RunPipelineOptions (+9 more)
 
-### Community 18 - "lib/llmProvider.ts"
-Cohesion: 0.51
-Nodes (7): apiKeyForModel(), ApiKeyProvider, envVarNameForModel(), PROVIDER_ENV_VAR_NAME, providerForModel(), ProviderRequirement, requirementForModel()
+### Community 18 - "tenantLib.test.ts"
+Cohesion: 0.09
+Nodes (17): HomePage(), WorkspaceProfile, ICP_FIXTURE_SECONDARY, clean(), Competitor, COMPETITOR_DOMAINS_ENV_VAR, competitorsFromDoc(), MOCK_COMPETITOR_DOMAINS (+9 more)
+
+### Community 19 - "src/informationGain/index.ts"
+Cohesion: 0.09
+Nodes (23): DEFAULT_MAX_DRAFT_CLAIMS, CLAIM_TYPES, DraftClaim, CorpusSnapshot, VerificationCandidate, IG_COST_STAGES, informationGainStage, firstPartyMatches() (+15 more)
 
 ### Community 20 - "ref_payload"
-Cohesion: 0.08
-Nodes (23): StartContentRunInput, StartContentRunResult, ActivePipelineRunError, createPipelineRun(), CreatePipelineRunInput, IcpOption, PipelineRunSummary, relationshipIds() (+15 more)
+Cohesion: 0.09
+Nodes (19): StartContentRunInput, StartContentRunResult, loadSourceReviewArticles(), ActivePipelineRunError, createPipelineRun(), CreatePipelineRunInput, AFFECTED_PATHS, plural() (+11 more)
 
 ### Community 21 - "src/index.ts"
-Cohesion: 0.10
-Nodes (30): executeContentRun(), safeError(), articleId, [articleIdArg, ...templateNameParts], templateName, CLEARED, [command, ...rest], FetchContext (+22 more)
+Cohesion: 0.14
+Nodes (24): executeContentRun(), safeError(), PipelineRun, createAhrefsClient(), FetchContext, fetchTopics(), FetchTopicsOptions, FetchTopicsResult (+16 more)
 
-### Community 22 - "llmSettings.ts"
-Cohesion: 0.16
-Nodes (18): LlmSettings, clean(), EXTRACTION_ENV_VAR, LLM_SETTING_FIELDS, llmSettingsConfigured(), LlmSettingsDoc, ModelSource, PIPELINE_STAGES (+10 more)
+### Community 22 - "loadWorkspaceReadiness.ts"
+Cohesion: 0.20
+Nodes (17): OnboardingDashboardView(), checklistRows(), evidenceState(), plural(), positioningState(), Row, SetupChecklist(), SetupChecklistData (+9 more)
 
 ### Community 23 - "DESIGN.md"
 Cohesion: 0.06
 Nodes (35): Border Radius Scale, Brand & Accent, Breakpoints, Buttons, Cards & Containers, Collapsing Strategy, Colors, Components (+27 more)
 
-### Community 24 - "Quick start"
-Cohesion: 0.50
-Nodes (4): First run and making content, Pipeline mock mode, Quick start, Seeded local admin
+### Community 24 - "research.ts"
+Cohesion: 0.08
+Nodes (17): applyTemplateHints(), consensusCoverage(), facetWeights(), normaliseHint(), safeWeight(), usableTotalOf(), weightOf(), buildQueryCluster() (+9 more)
 
-### Community 25 - "ref_node_test"
-Cohesion: 0.14
-Nodes (17): stageKpis(), CostLog, articleIdOf(), IG_DECISIONS, meanOf(), PassCounter, printReport(), rate() (+9 more)
+### Community 25 - "report.ts"
+Cohesion: 0.07
+Nodes (34): stageKpis(), Consolidation proposals, Content list, Findings, Globals rendered raw, How to read this, Journey map, Legacy removal list (+26 more)
 
-### Community 26 - "seedContentOps.ts"
-Cohesion: 0.14
-Nodes (22): ids, user, deliveries, Delivery, seededIds, seededIds, login(), LoginOptions (+14 more)
+### Community 26 - "seed.ts"
+Cohesion: 0.08
+Nodes (35): evidenceSources, heading(), Node, paragraph(), RichText, seed(), templates, TemplateSeed (+27 more)
 
 ### Community 27 - "[slug]/page.tsx"
-Cohesion: 0.09
-Nodes (28): generateMetadata(), Props, PublishedArticlePage(), revalidate, metadata, metadataBase, createTemplateAction(), requireUser() (+20 more)
+Cohesion: 0.22
+Nodes (11): generateMetadata(), Props, PublishedArticlePage(), revalidate, findPublishedArticle, escapeHtml(), lastH2HeadingText(), lexicalBodyToHtml() (+3 more)
 
 ### Community 28 - "tenantActions.ts"
-Cohesion: 0.10
-Nodes (42): CascadeContext, gateIcpActivation(), IcpEditor(), IcpReview(), mergeAssist(), IcpEditorView(), ICP_STEPS, IcpDTO (+34 more)
+Cohesion: 0.17
+Nodes (35): gateIcpActivation(), IcpEditor(), IcpReview(), mergeAssist(), IcpEditorView(), IcpDTO, activateDefaultBrandVoiceAction(), activateDefaultTenantAction() (+27 more)
 
 ### Community 29 - "auditTypes.ts"
 Cohesion: 0.12
-Nodes (21): ArticleAudit, CostLog, auditDetailsAction(), AuditEvidence(), State, AUDIT_EVENT_LABELS, AuditDetailResult, auditEventLabel() (+13 more)
+Nodes (21): ArticleAudit, CostLog, AuditTimelineEntry, auditDetailsAction(), AuditEvidence(), State, AUDIT_EVENT_LABELS, AuditDetailResult (+13 more)
 
 ### Community 30 - "icp.ts"
-Cohesion: 0.14
-Nodes (26): Confidence, CONFIDENCE_LABEL, CONFIDENCE_LEGEND, CONFIDENCE_OPTIONS, CONFIDENCE_USAGE, CONFIDENCE_USAGE_HINT, confidenceOf(), confidenceTag() (+18 more)
+Cohesion: 0.11
+Nodes (31): Confidence, CONFIDENCE_LABEL, CONFIDENCE_LEGEND, CONFIDENCE_LEVELS, CONFIDENCE_OPTIONS, CONFIDENCE_USAGE, CONFIDENCE_USAGE_HINT, confidenceOf() (+23 more)
 
 ### Community 31 - "GlobalRunBar.tsx"
-Cohesion: 0.11
-Nodes (20): CALL_LABELS, callLabel(), RunActivityDTO, RunArticleDTO, RunFailureDTO, runProgress(), RunStatusDTO, STAGE_PROGRESS (+12 more)
+Cohesion: 0.13
+Nodes (18): CALL_LABELS, callLabel(), RunActivityDTO, RunArticleDTO, RunFailureDTO, runProgress(), RunStatusDTO, STAGE_PROGRESS (+10 more)
 
-### Community 32 - "ref_node_assert"
-Cohesion: 0.24
-Nodes (4): buildQueryCluster(), KEYWORD_WEIGHT, RELATED_QUESTION_WEIGHT, SECONDARY_KEYWORD_WEIGHT
+### Community 32 - "config.ts"
+Cohesion: 0.11
+Nodes (11): execute, all, extra, results, routes, viewports, buildConfig(), here (+3 more)
 
 ### Community 33 - "assist.ts"
-Cohesion: 0.09
-Nodes (40): applyEvidenceRules(), asRecord(), ASSET_MEANING, ASSIST_ASSETS, ASSIST_CONFIDENCE_LEVELS, ASSIST_PAGE_TEXT_CAP, ASSIST_SECTIONS, AssistMode (+32 more)
+Cohesion: 0.11
+Nodes (30): applyEvidenceRules(), asRecord(), ASSET_MEANING, ASSIST_ASSETS, ASSIST_CONFIDENCE_LEVELS, AssistMode, assistRules(), assistSectionKeys() (+22 more)
 
 ### Community 34 - "tenantActions.int.spec.ts"
 Cohesion: 0.05
 Nodes (26): GovernanceAudit, authMock, { createPipelineRunMock, loadWorkspaceSetupMock }, findMock, readyReadiness(), readySetup(), authMock, createRunMock (+18 more)
 
-### Community 35 - "tenant.ts"
-Cohesion: 0.07
-Nodes (19): AhrefsClient, AhrefsClientOptions, AhrefsProfile, createAhrefsClient(), GapKeyword, MatchingTermRow, MockAhrefsClient, opportunityScore() (+11 more)
+### Community 35 - "ahrefs.ts"
+Cohesion: 0.11
+Nodes (11): AhrefsClient, AhrefsClientOptions, AhrefsProfile, GapKeyword, MatchingTermRow, MockAhrefsClient, OrganicKeywordRow, SerpPage (+3 more)
 
 ### Community 36 - "richtext.ts"
-Cohesion: 0.12
-Nodes (26): Template, bannedPhraseViolations(), countSyllables(), escapeRegex(), fleschKincaidGrade(), HeadingProblem, headingViolations(), runStructuralChecks() (+18 more)
-
-### Community 37 - "qa/index.ts"
 Cohesion: 0.10
-Nodes (21): qaStage, CLAIM_STATUSES, decideEvidence(), decideQualitative(), EvidenceCheckVerdict, EvidenceClaimFinding, EvidenceClaimStatus, EvidenceDecision (+13 more)
+Nodes (27): BRAND_VOICE_FIXTURE, bannedPhraseViolations(), countSyllables(), escapeRegex(), fleschKincaidGrade(), HeadingProblem, headingViolations(), runStructuralChecks() (+19 more)
+
+### Community 37 - "NewContentFlow.tsx"
+Cohesion: 0.15
+Nodes (14): startContentRunAction(), ContentRunForm(), submit(), Props, FIX_HREF, NewContentFlow(), Props, SetupBlocker (+6 more)
 
 ### Community 38 - "actions.ts"
-Cohesion: 0.18
-Nodes (28): approveArticleAction(), archiveArticleAction(), assignTemplateAction(), auditContext(), CLEARED_SCHEDULE, currentInformationGainRun(), NULL_QA_RESULTS, overrideReviewAction() (+20 more)
+Cohesion: 0.22
+Nodes (23): approveArticleAction(), archiveArticleAction(), assignTemplateAction(), auditContext(), CLEARED_SCHEDULE, currentInformationGainRun(), NULL_QA_RESULTS, overrideReviewAction() (+15 more)
 
 ### Community 39 - "snapshot.ts"
-Cohesion: 0.11
-Nodes (37): parsePageClaims(), excerptFoundIn(), selectInternalCorpus(), BaselineClaim, InformationGap, CorpusSnapshot, Baseline claims and facets, Corpus snapshots (+29 more)
+Cohesion: 0.12
+Nodes (34): selectInternalCorpus(), BaselineClaim, QueryClusterEntry, Corpus snapshots, adopt(), articleText(), cachedClaims(), countUnverifiedExcerpts() (+26 more)
 
 ### Community 40 - "Changelog"
 Cohesion: 0.07
 Nodes (28): 0.1.0 (2026-08-25), [0.2.0](https://github.com/snowopsdev/datum/compare/v0.1.0...v0.2.0) (2026-08-26), [0.3.0](https://github.com/snowopsdev/datum/compare/v0.2.0...v0.3.0) (2026-08-27), [0.4.0](https://github.com/snowopsdev/datum/compare/v0.3.0...v0.4.0) (2026-08-31), [0.5.0](https://github.com/snowopsdev/datum/compare/v0.4.0...v0.5.0) (2026-09-03), [0.6.0](https://github.com/snowopsdev/datum/compare/v0.5.0...v0.6.0) (2026-09-03), [0.6.1](https://github.com/snowopsdev/datum/compare/v0.6.0...v0.6.1) (2026-09-04), [0.6.2](https://github.com/snowopsdev/datum/compare/v0.6.1...v0.6.2) (2026-09-04) (+20 more)
 
 ### Community 41 - "cms/package.json"
-Cohesion: 0.08
-Nodes (24): description, homepage, @anthropic-ai/sdk, dotenv, openai, payload, tsx, @types/node (+16 more)
+Cohesion: 0.07
+Nodes (27): description, homepage, @anthropic-ai/sdk, dotenv, openai, payload, tsx, @types/node (+19 more)
 
 ### Community 42 - "articleReviewGate.ts"
-Cohesion: 0.12
-Nodes (24): Articles, scoreInvalidatedSummary(), ArticleAuditContext, CLEARED_INFORMATION_GAIN, freshJustification(), gateArchivedStatus(), gateReadOnlyStatus(), gateReviewOverride() (+16 more)
+Cohesion: 0.14
+Nodes (24): Articles, SCORE_INVALIDATED_EVENT, scoreInvalidatedSummary(), ArticleAuditContext, CLEARED_INFORMATION_GAIN, freshJustification(), gateArchivedStatus(), gateReadOnlyStatus() (+16 more)
 
-### Community 43 - "brandVoiceTypes.ts"
-Cohesion: 0.11
-Nodes (18): AuditTimelineEntry, Props, BRAND_VOICE_STEPS, BrandVoiceDTO, BrandVoiceInput, BrandVoiceSource, BrandVoiceStatus, BrandVoiceStepId (+10 more)
+### Community 43 - "BrandVoiceEditor.tsx"
+Cohesion: 0.10
+Nodes (32): AuditTimeline(), Props, BrandVoiceEditor(), BrandVoiceReview(), clampQuestion(), contentOf(), EntryCards(), initialStep() (+24 more)
 
 ### Community 44 - "evidenceBank.test.ts"
 Cohesion: 0.10
-Nodes (10): claimProblems(), evidenceBankSummary, expiredClaims(), incompleteClaims(), isClaimComplete(), MAX_PROMPT_CLAIMS, neverUseClaims(), verifiedClaimProblems() (+2 more)
+Nodes (9): evidenceBankSummary, expiredClaims(), incompleteClaims(), isClaimComplete(), MAX_PROMPT_CLAIMS, neverUseClaims(), verifiedClaimProblems(), What makes a claim usable (+1 more)
 
 ### Community 45 - "parsers.ts"
 Cohesion: 0.09
-Nodes (35): arrayField(), asClaimType(), asProbability(), asRecord(), asStringArray(), asText(), asTrimmed(), ClaimCore (+27 more)
+Nodes (38): arrayField(), asClaimType(), asProbability(), asRecord(), asStringArray(), asText(), asTrimmed(), ClaimCore (+30 more)
 
-### Community 46 - "react"
+### Community 46 - "review/index.ts"
 Cohesion: 0.23
-Nodes (19): evidenceFindingsOf(), ArchiveAction(), OpenInAdmin(), EvidenceCard(), PANEL_FOR_STATUS, ArchivedPanel(), BriefPanel(), IgReasonsAside() (+11 more)
+Nodes (19): sendBackAction(), isRunnableStatus(), ArchiveAction(), OpenInAdmin(), PANEL_FOR_STATUS, ApprovedPanel(), toUtcInputValue(), utcInputValueToIso() (+11 more)
 
 ### Community 47 - "evidenceBank.ts"
-Cohesion: 0.19
-Nodes (20): asArray(), asDay(), asRecord(), asString(), depthOf(), emptyEvidenceBankContent(), evidenceBankToPrompt(), EvidenceRefCheck (+12 more)
+Cohesion: 0.16
+Nodes (21): asArray(), asDay(), asRecord(), asString(), ClearedSurface, depthOf(), emptyEvidenceBankContent(), EvidenceRefCheck (+13 more)
 
 ### Community 48 - "workspaceReadiness.ts"
-Cohesion: 0.09
-Nodes (32): HomePage(), AssistContext, EvidenceBankContent, IcpContent, icpIdOf(), selectIcp(), TenantContext, tenantFingerprint() (+24 more)
+Cohesion: 0.10
+Nodes (27): runtimeStatusAction(), LlmSettingsDoc, AssistContext, EvidenceBankContent, WORKSPACE_PROFILE_FIXTURE, IcpContent, icpIdOf(), selectIcp() (+19 more)
 
-### Community 50 - "resolveWorkspaceProfile"
-Cohesion: 0.17
-Nodes (16): emptyTenantContext(), resolveWorkspaceProfile(), LlmRequest, loadWorkspaceProfile(), namedOnly(), tenantFor(), withBank(), ctxWith() (+8 more)
+### Community 49 - "lib/informationGain/candidates.ts"
+Cohesion: 0.18
+Nodes (15): CANDIDATE_RANK, CandidateKind, collectCandidateSightings(), isSighting(), MAX_CANDIDATE_SIGHTINGS, mergeSightings(), modalBy(), SERP_SECONDARY_MIN_DR (+7 more)
+
+### Community 50 - "qaStagePrompts.test.ts"
+Cohesion: 0.12
+Nodes (18): emptyTenantContext(), emptyPositioningContent(), LlmRequest, loadStyleGuide(), parseBannedPhrases(), namedOnly(), tenantFor(), withBank() (+10 more)
 
 ### Community 51 - "fetchPage.ts"
-Cohesion: 0.05
-Nodes (52): normaliseWhitespace(), RFC-1918, Mock mode, INTERNAL_SUFFIXES, isBlockedAddress(), isBlockedHostname(), isBlockedIPv4(), normaliseHostname() (+44 more)
+Cohesion: 0.11
+Nodes (16): Mock mode, ALLOWED_PROTOCOLS, cancelBody(), Cleared, CrawlRequestInit, extractReadableText(), FETCH_TIMEOUT_MS, FetchedPage (+8 more)
 
 ### Community 52 - "EvidenceBankEditor.tsx"
-Cohesion: 0.12
-Nodes (21): AssistPanel(), DEPTH_LABEL, EvidenceBankEditor(), SURFACE_LABEL, Tab, TAB_BLURB, TABS, EvidenceBankView() (+13 more)
+Cohesion: 0.08
+Nodes (30): asRecord(), AssetStep, AssetStepper(), AssistConfig, Props, AssistPanel(), claimProblems(), DEPTH_LABEL (+22 more)
 
-### Community 53 - "tenantLib.test.ts"
-Cohesion: 0.09
-Nodes (24): hasSectionContent(), PositioningEditor(), SECTION_KEYS, PositioningView(), loadAssistContext(), upsertPositioning(), icpsFromDocs(), asArray() (+16 more)
+### Community 53 - "positioning.ts"
+Cohesion: 0.20
+Nodes (14): asArray(), asRecord(), asString(), evidenceRefOf(), Loose, OpenRulingStatus, parsePositioningContent(), PositioningClaim (+6 more)
 
 ### Community 54 - "package.json"
 Cohesion: 0.08
@@ -371,9 +392,17 @@ Nodes (23): bugs, url, description, engines, node, homepage, license, name (+15 
 Cohesion: 0.17
 Nodes (18): ActionResult, actorOf(), approveCandidateAction(), dismissCandidateAction(), errorMessage(), governanceAuditContext(), isQualityClass(), reopenCandidateAction() (+10 more)
 
-### Community 57 - "activeRuns.ts"
-Cohesion: 0.43
-Nodes (4): ACTIVE_RUN_STATUSES, activeRunArticleIds(), activeRunIncludesArticle(), Self-review
+### Community 56 - "setupActions.ts"
+Cohesion: 0.20
+Nodes (17): assistAction(), assistError(), AssistMode, AssistResult, governanceAuditContext(), pageWarning(), refreshSitePagesAction(), RefreshSitePagesResult (+9 more)
+
+### Community 57 - "boardActions.ts"
+Cohesion: 0.14
+Nodes (21): queueRunAfterRework(), BoardActionResult, latestRunAction(), plural(), removeTopicsAction(), requireUser(), runSelectedArticlesAction(), toRunFailures() (+13 more)
+
+### Community 58 - "igCandidates.test.ts"
+Cohesion: 0.11
+Nodes (7): CandidateSighting, isDuplicateKey(), latestRating(), numberOr(), recordCandidateSightings(), upsertDomain(), Call
 
 ### Community 59 - "compilerOptions"
 Cohesion: 0.10
@@ -384,52 +413,56 @@ Cohesion: 0.15
 Nodes (14): ArticleLookup, asRecordArray(), CandidateCitation, CandidateStatus, CoveringRule, formatSeenAt(), MAX_SERP_BADGES, num() (+6 more)
 
 ### Community 61 - "topicDiscoveryActions.ts"
-Cohesion: 0.09
-Nodes (35): startContentRunAction(), ContentRunForm(), submit(), Props, FIX_HREF, NewContentFlow(), Props, SetupBlocker (+27 more)
+Cohesion: 0.23
+Nodes (17): compact(), difficultyLabel(), Props, TopicDiscovery(), createTopicsAction(), discoverTopicsAction(), errorMessage(), isFresh() (+9 more)
 
-### Community 63 - "icps.int.spec.ts"
-Cohesion: 0.11
-Nodes (16): Icps, create(), createdArticleIds, createdIds, icpData(), read(), Shared code graph, Global Constraints (+8 more)
+### Community 62 - "BrandVoiceView.tsx"
+Cohesion: 0.31
+Nodes (8): BrandVoiceView(), MODES, param(), toAuditEntry(), toDTO(), brandVoiceContentOf(), BrandVoice, loadActiveBrandVoice()
+
+### Community 63 - "Icps.ts"
+Cohesion: 0.10
+Nodes (10): CascadeContext, Icps, ICP_FIXTURE, create(), createdArticleIds, createdIds, icpData(), read() (+2 more)
 
 ### Community 64 - "briefActions.ts"
-Cohesion: 0.44
-Nodes (11): actorOf(), approveBriefAction(), BriefActionResult, cleanEdits(), errorMessage(), icpIdOf(), requireUser(), resolveAudience() (+3 more)
+Cohesion: 0.34
+Nodes (13): actorOf(), approveBriefAction(), BriefActionResult, BriefEdits, cleanEdits(), errorMessage(), icpIdOf(), requireUser() (+5 more)
 
-### Community 65 - "tenant/fixtures.ts"
-Cohesion: 0.07
-Nodes (34): AssistInput, ASSIST_MOCK_WARNING, assistMock(), FIXTURE_CONTENT, CONFIDENCE_LEVELS, EVIDENCE_BANK_FIXTURE, ICP_FIXTURE, ICP_FIXTURE_SECONDARY (+26 more)
+### Community 65 - "assist.test.ts"
+Cohesion: 0.11
+Nodes (16): AssistInput, ASSIST_PAGE_TEXT_CAP, ASSIST_SECTIONS, AssistAsset, AssistInput, ASSIST_MOCK_WARNING, FIXTURE_CONTENT, EVIDENCE_BANK_FIXTURE (+8 more)
 
 ### Community 66 - "llm.ts"
-Cohesion: 0.10
-Nodes (28): PipelineStage, costUsd(), ModelReadiness, draftClaimsFixture, evidenceCheckFixture, evidenceVerificationFixture, facetClusteringFixture, factCheckFixture (+20 more)
+Cohesion: 0.13
+Nodes (18): costUsd(), Cost, mapWithConcurrency(), mockUsage, pickForVerification(), runVerifier(), completeJSON(), completeJSONAnthropic() (+10 more)
 
 ### Community 67 - "dependencies"
 Cohesion: 0.12
 Nodes (17): dependencies, @anthropic-ai/sdk, cross-env, dotenv, graphql, mammoth, next, openai (+9 more)
 
-### Community 68 - "boardActions.ts"
-Cohesion: 0.09
-Nodes (36): queueRunAfterRework(), BoardActionResult, latestRunAction(), plural(), removeTopicsAction(), requireUser(), runSelectedArticlesAction(), toRunFailures() (+28 more)
+### Community 68 - "ContentList.tsx"
+Cohesion: 0.08
+Nodes (34): isStalled(), OWNER_LABEL, STAGE_LABEL, StageInfo, stageOf(), ageLabel(), ContentList(), Filter (+26 more)
 
 ### Community 69 - "ArticleReview.tsx"
-Cohesion: 0.17
-Nodes (18): ArticleReview(), Props, BoardArticle, TemplateOption, BriefEdits, BriefEditor(), BriefIcpOption, Props (+10 more)
+Cohesion: 0.19
+Nodes (16): ArticleReview(), Props, BoardArticle, BriefEditor(), BriefIcpOption, Props, Section, ArticleBody() (+8 more)
 
-### Community 71 - "Findings"
-Cohesion: 0.10
-Nodes (21): qaFailures(), CheckRow(), QaFailures(), QaTriage(), sourceLabel(), Consolidation proposals, Content list, Findings (+13 more)
+### Community 71 - "NeedsRevisionPanel.tsx"
+Cohesion: 0.33
+Nodes (9): evidenceFindingsOf(), qaFailures(), EvidenceCard(), IgReasonsAside(), NeedsRevisionPanel(), CheckRow(), QaFailures(), QaTriage() (+1 more)
 
 ### Community 72 - "devDependencies"
 Cohesion: 0.12
 Nodes (16): devDependencies, eslint, eslint-config-next, jsdom, @playwright/test, prettier, @testing-library/react, tsx (+8 more)
 
 ### Community 73 - "ReportsPanel.tsx"
-Cohesion: 0.07
-Nodes (32): CHECK_LABEL, BarList(), isPipelineStageName(), money(), Props, ReportsPanel(), stageLabel(), statusLabel() (+24 more)
+Cohesion: 0.12
+Nodes (26): CHECK_LABEL, BarList(), isPipelineStageName(), money(), Props, ReportsPanel(), stageLabel(), statusLabel() (+18 more)
 
-### Community 74 - "extractText.ts"
-Cohesion: 0.15
-Nodes (11): docxToText(), ExtractedKind, ExtractedText, hideArrayPrototypePollution(), MAX_EXTRACT_CHARS, MIME_KINDS, normalise(), pdfToText() (+3 more)
+### Community 74 - "corpusSnapshots.int.spec.ts"
+Cohesion: 0.33
+Nodes (4): CorpusSnapshots, internalCorpusSubfields, pagesSubfields, topLevelFields
 
 ### Community 75 - "scripts"
 Cohesion: 0.13
@@ -437,59 +470,87 @@ Nodes (15): scripts, build, dev, devsafe, generate:importmap, generate:types, jo
 
 ### Community 76 - "reviewPanels.int.spec.ts"
 Cohesion: 0.19
-Nodes (15): InformationGainRunView, AuditSummary, IgMetric(), IgMetrics(), IgReasons(), Scorecard(), ClaimEvidence(), ClaimFlags() (+7 more)
+Nodes (15): InformationGainRunView, IgMetric(), IgMetrics(), IgReasons(), Scorecard(), ClaimEvidence(), ClaimFlags(), dec() (+7 more)
 
 ### Community 77 - "EvidenceBank.ts"
-Cohesion: 0.22
-Nodes (16): ArrayField, ARRAYS, assignEvidenceRefs(), counterOf(), highestRefIn(), idOf(), Prefix, REF_FIELD (+8 more)
-
-### Community 78 - "brandVoiceExtract.ts"
-Cohesion: 0.12
-Nodes (22): BrandVoiceContent, BrandVoiceExtractionError, extractBrandVoiceFromText(), EXTRACTION_SYSTEM_PROMPT, extractionMockMode(), extractionModel(), ExtractionResult, logExtractionCost() (+14 more)
-
-### Community 80 - "igText.test.ts"
 Cohesion: 0.20
-Nodes (4): keywordTokens(), nearDuplicateJaccard(), STOPWORDS, tokenOverlap()
+Nodes (17): ArrayField, ARRAYS, assignEvidenceRefs(), counterOf(), EvidenceBank, highestRefIn(), idOf(), Prefix (+9 more)
+
+### Community 78 - "llmSettings.ts"
+Cohesion: 0.06
+Nodes (54): LlmSettings, BrandVoiceExtractionError, extractBrandVoiceFromText(), EXTRACTION_SYSTEM_PROMPT, extractionMockMode(), extractionModel(), ExtractionResult, mockExtraction() (+46 more)
+
+### Community 79 - "Brand voice and style guide"
+Cohesion: 0.33
+Nodes (6): Banned phrases, Brand voice and style guide, Formatting conventions, Structure, Voice, Words we prefer
+
+### Community 80 - "Security Policy"
+Cohesion: 0.40
+Nodes (4): Non-security bugs, Reporting a vulnerability, Security Policy, Supported versions
 
 ### Community 81 - "compilerOptions"
 Cohesion: 0.13
 Nodes (14): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, lib, module, moduleResolution, noEmit (+6 more)
 
 ### Community 82 - "Datum"
-Cohesion: 0.15
-Nodes (13): Article status flow, Datum, Documentation, Environment variables, License, Pipeline and data integration, Prerequisites, Root scripts (+5 more)
+Cohesion: 0.12
+Nodes (17): Article status flow, Datum, Documentation, Environment variables, First run and making content, License, Pipeline and data integration, Pipeline mock mode (+9 more)
 
-### Community 83 - "lib/informationGain/index.ts"
-Cohesion: 0.27
-Nodes (4): EvidenceSourceCandidates, EvidenceSources, CANDIDATE_CLASSES, SOURCE_QUALITY_CLASSES
+### Community 83 - "fetchPage.test.ts"
+Cohesion: 0.12
+Nodes (12): FETCH_MAX_BYTES, LookupFn, MAX_REDIRECTS, PAGE_TEXT_CAP_CHARS, ResolvedAddress, USER_AGENT, bodyOf(), encoder (+4 more)
 
-### Community 84 - "src/informationGain/candidates.ts"
-Cohesion: 0.24
-Nodes (7): suggestClass(), isDuplicateKey(), latestRating(), numberOr(), recordCandidateSightings(), upsertDomain(), Call
+### Community 84 - "src/fixtures.ts"
+Cohesion: 0.12
+Nodes (14): PipelineStage, ModelReadiness, draftClaimsFixture, evidenceCheckFixture, evidenceVerificationFixture, facetClusteringFixture, factCheckFixture, fixtures (+6 more)
 
 ### Community 85 - "generatePrompt.ts"
-Cohesion: 0.08
-Nodes (26): brandVoiceSamplesToPrompt(), evidenceRules(), Gap-fed generation, BriefDraft, BriefSection, BriefSectionSource, buildBrief(), clean() (+18 more)
+Cohesion: 0.10
+Nodes (24): brandVoiceSamplesToPrompt(), evidenceRules(), Gap-fed generation, BriefDraft, BriefSection, BriefSectionSource, buildBrief(), clean() (+16 more)
 
-### Community 89 - "governanceAudit.ts"
+### Community 86 - "generateStage.test.ts"
 Cohesion: 0.14
-Nodes (18): GovernanceAudit, WorkspaceProfile, auditArticleChange(), AuditRequestContext, auditActor(), changedFieldsOf(), humanize(), auditGlobalChange() (+10 more)
+Nodes (10): stripEvidenceRefs(), EvidenceCitation, extractEvidenceCitations(), GeneratedArticle, generateStage, sentencesOf(), RichText, article (+2 more)
+
+### Community 87 - "mockPages.ts"
+Cohesion: 0.13
+Nodes (13): competitorOne, competitorTwo, genericPage, industryMag, MockPage, mockPageText(), PAGES_BY_HOST, pathOf() (+5 more)
+
+### Community 88 - "findPublishedArticle.ts"
+Cohesion: 0.22
+Nodes (8): metadata, metadataBase, buildArticleMetadata(), publicFields, PublishedArticle, getMetadataBase(), getSiteUrl(), article()
+
+### Community 89 - "Template"
+Cohesion: 0.27
+Nodes (12): createTemplateAction(), requireUser(), saveTemplateConfigAction(), TemplateConfigInput, Props, Tab, TemplateConfigEditor(), TemplateConfigDTO (+4 more)
+
+### Community 90 - "tenantPrompts.test.ts"
+Cohesion: 0.14
+Nodes (6): positioningToPrompt(), sentence(), term(), buildSystemPrompt(), ICP, POSITIONING
 
 ### Community 91 - "Contributor Covenant Code of Conduct"
 Cohesion: 0.17
 Nodes (12): 1. Correction, 2. Warning, 3. Temporary Ban, 4. Permanent Ban, Attribution, Contributor Covenant Code of Conduct, Enforcement, Enforcement Guidelines (+4 more)
 
-### Community 94 - "BrandVoiceEditor.tsx"
-Cohesion: 0.17
-Nodes (26): AuditTimeline(), activateBrandVoiceAction(), archiveBrandVoiceAction(), createBrandVoiceDraftAction(), deleteDraftAction(), errorMessage(), extractBrandVoiceFromUploadAction(), governanceAuditContext() (+18 more)
+### Community 92 - "addressGuard.ts"
+Cohesion: 0.36
+Nodes (10): RFC-1918, INTERNAL_SUFFIXES, isBlockedAddress(), isBlockedHostname(), isBlockedIPv4(), normaliseHostname(), parseIPv4(), parseIPv6() (+2 more)
 
-### Community 96 - "lib/informationGain/candidates.ts"
-Cohesion: 0.15
-Nodes (18): CANDIDATE_RANK, CandidateClass, CandidateKind, CandidateSighting, collectCandidateSightings(), isSighting(), MAX_CANDIDATE_SIGHTINGS, mergeSightings() (+10 more)
+### Community 93 - "payloadClient.ts"
+Cohesion: 0.28
+Nodes (6): articleId, [articleIdArg, ...templateNameParts], templateName, CLEARED, [command, ...rest], initPayload()
+
+### Community 94 - "brandVoiceActions.ts"
+Cohesion: 0.13
+Nodes (26): activateBrandVoiceAction(), archiveBrandVoiceAction(), createBrandVoiceDraftAction(), deleteDraftAction(), errorMessage(), extractBrandVoiceFromUploadAction(), governanceAuditContext(), requireUser() (+18 more)
+
+### Community 96 - "dependencies"
+Cohesion: 0.25
+Nodes (8): dependencies, @anthropic-ai/sdk, dotenv, linkedom, @mozilla/readability, openai, payload, undici
 
 ### Community 97 - "checkEvidenceRefs"
-Cohesion: 0.20
-Nodes (11): checkEvidenceRefs(), cleared(), expired(), usableClaims(), Evidence bank, Expiry, Information gain, Prompt size (+3 more)
+Cohesion: 0.25
+Nodes (8): checkEvidenceRefs(), Evidence bank, Expiry, Information gain, Prompt size, Readiness, Refs, The QA evidence check
 
 ### Community 98 - "Contributing to Datum"
 Cohesion: 0.20
@@ -503,33 +564,45 @@ Nodes (9): 1. Settings → General → Danger Zone → Change visibility → Pub
 Cohesion: 0.22
 Nodes (8): Agent instructions, Commands, Commit attribution, File-scoped commands, graphify, Key conventions, Package manager, Project map
 
+### Community 101 - "Tenant context"
+Cohesion: 0.29
+Nodes (6): Gating, How prompts use them, Positioning, Tenant context, The assets, The site crawl
+
 ### Community 102 - "informationGainRuns.int.spec.ts"
 Cohesion: 0.25
 Nodes (5): InformationGainRuns, claimIdsSubfields, claimSummarySubfields, scoresSubfields, topLevelFields
+
+### Community 103 - "evidenceBankToPrompt"
+Cohesion: 0.40
+Nodes (6): cleared(), evidenceBankToPrompt(), renderClaim(), renderFact(), sentence(), usableClaims()
+
+### Community 104 - "scripts"
+Cohesion: 0.33
+Nodes (6): scripts, fetch, report, run, test, typecheck
 
 ### Community 105 - "ig-e2e.sh"
 Cohesion: 0.42
 Nodes (8): assert_eq(), assert_ge(), assert_ne(), info(), log(), ig-e2e.sh script, probe(), value_of()
 
+### Community 106 - "devDependencies"
+Cohesion: 0.50
+Nodes (4): devDependencies, tsx, @types/node, typescript
+
 ### Community 107 - "Operations"
-Cohesion: 0.25
-Nodes (7): Cache and revalidation, Fixed limits worth knowing, Job queues, Modes and money, Operations, Scheduled publishing, Webhooks
+Cohesion: 0.29
+Nodes (6): Cache and revalidation, Fixed limits worth knowing, Job queues, Modes and money, Operations, Scheduled publishing
 
 ### Community 108 - "[...slug]/route.ts"
 Cohesion: 0.29
 Nodes (6): DELETE, GET, OPTIONS, PATCH, POST, PUT
 
-### Community 109 - "corpusSnapshots.int.spec.ts"
-Cohesion: 0.33
-Nodes (4): CorpusSnapshots, internalCorpusSubfields, pagesSubfields, topLevelFields
+### Community 109 - "repository"
+Cohesion: 0.50
+Nodes (4): repository, directory, type, url
 
 ### Community 112 - "@payloadcms/db-postgres"
 Cohesion: 0.05
 Nodes (3): up(), migrations, @payloadcms/db-postgres
-
-### Community 114 - "Brand voice and style guide"
-Cohesion: 0.33
-Nodes (6): Banned phrases, Brand voice and style guide, Formatting conventions, Structure, Voice, Words we prefer
 
 ### Community 115 - "PULL_REQUEST_TEMPLATE.md"
 Cohesion: 0.33
@@ -538,10 +611,6 @@ Nodes (5): Anything reviewers should know, How this affects developers, How this
 ### Community 116 - ".prettierrc.json"
 Cohesion: 0.40
 Nodes (4): printWidth, semi, singleQuote, trailingComma
-
-### Community 118 - "Security Policy"
-Cohesion: 0.40
-Nodes (4): Non-security bugs, Reporting a vulnerability, Security Policy, Supported versions
 
 ### Community 119 - "eslint.config.mjs"
 Cohesion: 0.50
@@ -556,24 +625,24 @@ Cohesion: 0.24
 Nodes (7): ABBREVIATIONS, humaniseKey(), InformationGainPolicy, OUTCOME_COPY, policyField(), POLICY_FIELDS, PolicyFieldDef
 
 ## Knowledge Gaps
-- **794 isolated node(s):** `singleQuote`, `trailingComma`, `printWidth`, `semi`, `eslintConfig` (+789 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1061 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **798 isolated node(s):** `singleQuote`, `trailingComma`, `printWidth`, `semi`, `eslintConfig` (+793 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1066 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **9 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `next` connect `next` to `articleStatus.ts`, `setupActions.ts`, `payload.config.ts`, `BrandVoiceView.tsx`, `ref_payload`, `[slug]/page.tsx`, `tenantActions.ts`, `auditTypes.ts`, `GlobalRunBar.tsx`, `actions.ts`, `cms/package.json`, `react`, `workspaceReadiness.ts`, `EvidenceBankEditor.tsx`, `tenantLib.test.ts`, `sourceReviewActions.ts`, `sourceReviewTypes.ts`, `topicDiscoveryActions.ts`, `briefActions.ts`, `boardActions.ts`, `ArticleReview.tsx`, `ReportsPanel.tsx`, `BrandVoiceEditor.tsx`?**
-  _High betweenness centrality (0.052) - this node is a cross-community bridge._
-- **What connects `singleQuote`, `trailingComma`, `printWidth` to the rest of the system?**
-  _794 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `articleStatus.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05403348554033485 - nodes in this community are weakly interconnected._
-- **Why does `react` connect `react` to `articleStatus.ts`, `setupActions.ts`, `lib/brandVoice.ts`, `Field`, `BrandVoiceView.tsx`, `next`, `[slug]/page.tsx`, `tenantActions.ts`, `auditTypes.ts`, `icp.ts`, `GlobalRunBar.tsx`, `actions.ts`, `cms/package.json`, `brandVoiceTypes.ts`, `workspaceReadiness.ts`, `EvidenceBankEditor.tsx`, `tenantLib.test.ts`, `sourceReviewActions.ts`, `sourceReviewTypes.ts`, `topicDiscoveryActions.ts`, `boardActions.ts`, `ArticleReview.tsx`, `Findings`, `ReportsPanel.tsx`, `reviewPanels.int.spec.ts`, `BrandVoiceEditor.tsx`?**
+- **Why does `react` connect `react` to `tenant.ts`, `lib/brandVoice.ts`, `Field`, `tenantLib.test.ts`, `loadWorkspaceReadiness.ts`, `[slug]/page.tsx`, `tenantActions.ts`, `auditTypes.ts`, `icp.ts`, `GlobalRunBar.tsx`, `NewContentFlow.tsx`, `cms/package.json`, `BrandVoiceEditor.tsx`, `review/index.ts`, `EvidenceBankEditor.tsx`, `sourceReviewActions.ts`, `topicDiscoveryActions.ts`, `BrandVoiceView.tsx`, `ContentList.tsx`, `ArticleReview.tsx`, `NeedsRevisionPanel.tsx`, `ReportsPanel.tsx`, `reviewPanels.int.spec.ts`, `findPublishedArticle.ts`, `Template`?**
   _High betweenness centrality (0.051) - this node is a cross-community bridge._
-- **Should `passes.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05136986301369863 - nodes in this community are weakly interconnected._
-- **Why does `vitest` connect `ref_payload` to `articleStatus.ts`, `evidenceBank.int.spec.ts`, `setupActions.ts`, `lib/brandVoice.ts`, `payload.config.ts`, `InformationGainPolicy.ts`, `next`, `webhookDeliver.int.spec.ts`, `graphqlSchema.int.spec.ts`, `llmSettings.ts`, `[slug]/page.tsx`, `auditTypes.ts`, `GlobalRunBar.tsx`, `tenantActions.int.spec.ts`, `cms/package.json`, `articleReviewGate.ts`, `brandVoiceTypes.ts`, `EvidenceBankEditor.tsx`, `activeRuns.ts`, `sourceReviewTypes.ts`, `topicDiscoveryActions.ts`, `icps.int.spec.ts`, `tenant/fixtures.ts`, `ReportsPanel.tsx`, `reviewPanels.int.spec.ts`, `brandVoiceExtract.ts`, `lib/informationGain/index.ts`, `governanceAudit.ts`, `informationGainRuns.int.spec.ts`, `corpusSnapshots.int.spec.ts`, `@payloadcms/db-postgres`?**
+- **What connects `singleQuote`, `trailingComma`, `printWidth` to the rest of the system?**
+  _798 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `articleStatus.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.06914893617021277 - nodes in this community are weakly interconnected._
+- **Why does `next` connect `react` to `tenant.ts`, `payload.config.ts`, `webhookDeliver.int.spec.ts`, `tenantLib.test.ts`, `ref_payload`, `loadWorkspaceReadiness.ts`, `[slug]/page.tsx`, `tenantActions.ts`, `auditTypes.ts`, `GlobalRunBar.tsx`, `NewContentFlow.tsx`, `actions.ts`, `cms/package.json`, `BrandVoiceEditor.tsx`, `review/index.ts`, `EvidenceBankEditor.tsx`, `sourceReviewActions.ts`, `setupActions.ts`, `boardActions.ts`, `topicDiscoveryActions.ts`, `BrandVoiceView.tsx`, `briefActions.ts`, `ContentList.tsx`, `ArticleReview.tsx`, `ReportsPanel.tsx`, `findPublishedArticle.ts`, `Template`, `brandVoiceActions.ts`?**
   _High betweenness centrality (0.050) - this node is a cross-community bridge._
-- **Should `setupActions.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.053555750658472345 - nodes in this community are weakly interconnected._
+- **Should `batching.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.06859903381642513 - nodes in this community are weakly interconnected._
+- **Why does `vitest` connect `ref_payload` to `articleStatus.ts`, `tenant.ts`, `sitePages.int.spec.ts`, `lib/brandVoice.ts`, `payload.config.ts`, `governanceAudit.ts`, `InformationGainPolicy.ts`, `webhookDeliver.int.spec.ts`, `react`, `tenantLib.test.ts`, `loadWorkspaceReadiness.ts`, `auditTypes.ts`, `GlobalRunBar.tsx`, `config.ts`, `tenantActions.int.spec.ts`, `NewContentFlow.tsx`, `cms/package.json`, `articleReviewGate.ts`, `BrandVoiceEditor.tsx`, `EvidenceBankEditor.tsx`, `sourceReviewTypes.ts`, `Icps.ts`, `assist.test.ts`, `ContentList.tsx`, `corpusSnapshots.int.spec.ts`, `reviewPanels.int.spec.ts`, `llmSettings.ts`, `findPublishedArticle.ts`, `brandVoiceActions.ts`, `informationGainRuns.int.spec.ts`, `@payloadcms/db-postgres`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Should `tenant.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.1066066066066066 - nodes in this community are weakly interconnected._

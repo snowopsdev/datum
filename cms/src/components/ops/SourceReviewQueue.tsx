@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useMemo, useState, useTransition } from 'react'
 
-import { SOURCE_QUALITY_CLASSES, type SourceQualityClass } from '../../lib/informationGain'
+import { SOURCE_QUALITY_CLASSES, type SourceQualityClass } from '../../lib/informationGain/types'
 import {
   approveCandidateAction,
   dismissCandidateAction,

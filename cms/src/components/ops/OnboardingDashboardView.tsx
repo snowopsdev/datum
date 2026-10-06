@@ -24,7 +24,7 @@ export async function OnboardingDashboardView(props: AdminViewServerProps) {
   ])
   if (setup.readiness.governance.ready && pieces.totalDocs > 0) redirect('/admin/ops/content')
 
-  const data = await loadSetupChecklistData(req.payload)
+  const data = await loadSetupChecklistData(req.payload, setup)
 
   return (
     <Gutter>

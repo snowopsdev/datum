@@ -35,7 +35,6 @@ import type { SerpResearch } from '../ahrefs'
 import { config } from '../config'
 import {
   type BaselineClaim,
-  excerptFoundIn,
   type Facet,
   hostnameOf,
   type InformationGap,
@@ -52,8 +51,8 @@ import { mapWithConcurrency } from './concurrency'
 import { fetchPage, type FetchedPage } from './fetchPage'
 import {
   type InternalCorpusDoc,
-  type InternalCorpusEntry,
   internalCorpusEntry,
+  countUnverifiedExcerpts,
 } from './internalCorpus'
 import {
   FACET_CLUSTERING_SYSTEM,
@@ -202,9 +201,7 @@ type PageRow = NonNullable<CorpusSnapshot['pages']>[number]
  * dropping would cause false passes, which is worse than a soft claim. The
  * count is recorded per document so PR3 can decide whether to weight or drop.
  */
-export function countUnverifiedExcerpts(claims: BaselineClaim[], text: string): number {
-  return claims.filter((claim) => !excerptFoundIn(claim.excerpt, text)).length
-}
+export { countUnverifiedExcerpts } from './internalCorpus'
 
 /**
  * The corpus snapshot for this article's keyword: an existing one when it is
@@ -231,7 +228,9 @@ export async function getOrBuildSnapshot(
 
   const { docs: existing } = await ctx.payload.find({
     collection: 'corpus-snapshots',
-    where: { and: [{ keywordKey: { equals: key } }, { country: { equals: country } }] },
+    where: {
+      and: [{ keywordKey: { equals: key } }, { country: { equals: country } }],
+    },
     sort: '-capturedAt',
     limit: REUSE_LOOKBACK,
     depth: 0,
@@ -251,7 +250,10 @@ export async function getOrBuildSnapshot(
   const fetched = await mapWithConcurrency(serpPages, CONCURRENCY, (page) =>
     fetchPage(page.url, { userAgent }),
   )
-  const crawled = serpPages.map((page, index) => ({ page, fetched: fetched[index] as FetchedPage }))
+  const crawled = serpPages.map((page, index) => ({
+    page,
+    fetched: fetched[index] as FetchedPage,
+  }))
   const okPages = crawled.filter((entry) => entry.fetched.status === 'ok')
   // A skipped page (a PDF, say) is as unusable as a failed one for the baseline.
   const unusablePages = crawled.length - okPages.length
@@ -281,26 +283,48 @@ export async function getOrBuildSnapshot(
   // Our own published articles on the same topic.
   const { docs: published } = await ctx.payload.find({
     collection: 'articles',
-    where: { and: [{ status: { equals: 'published' } }, { id: { not_equals: article.id } }] },
+    where: {
+      and: [{ status: { equals: 'published' } }, { id: { not_equals: article.id } }],
+    },
     depth: 0,
     // Most-recently-touched first, so once the site passes 200 published
     // articles the window we score against is at least the current content
     // rather than an arbitrary slice.
     sort: '-updatedAt',
     limit: 200,
-    select: { keyword: true, updatedAt: true, title: true, body: true, faqItems: true },
+    select: { keyword: true, updatedAt: true },
   })
   const internalDocs = selectInternalCorpus(
     article.keyword,
     published as InternalCorpusDoc[],
     INTERNAL_CORPUS_CAP,
   )
-  // Sequential, not concurrent: each entry may hit the snapshot cache, and a
-  // cache hit costs one query instead of a whole extraction call.
-  const internalEntries: InternalCorpusEntry[] = []
-  for (const doc of internalDocs) {
-    internalEntries.push(await internalCorpusEntry(ctx, article.id, article.keyword, doc))
-  }
+  // Rank small rows first, then read bodies only for the selected documents.
+  const { docs: selectedDocs } =
+    internalDocs.length > 0
+      ? await ctx.payload.find({
+          collection: 'articles',
+          where: { id: { in: internalDocs.map((doc) => doc.id) } },
+          select: {
+            keyword: true,
+            updatedAt: true,
+            title: true,
+            body: true,
+            faqItems: true,
+          },
+          depth: 0,
+          pagination: false,
+        })
+      : { docs: [] }
+  const byId = new Map(selectedDocs.map((doc) => [doc.id, doc]))
+  const orderedDocs = internalDocs.flatMap((doc) => {
+    const selected = byId.get(doc.id)
+    return selected ? [selected] : []
+  })
+  // Cache checks and extraction both benefit from bounded concurrency.
+  const internalEntries = await mapWithConcurrency(orderedDocs, CONCURRENCY, (doc) =>
+    internalCorpusEntry(ctx, article.id, article.keyword, doc),
+  )
 
   const claims: BaselineClaim[] = [
     ...serpClaims.flatMap((entry) => entry.claims),

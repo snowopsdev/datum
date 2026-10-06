@@ -287,7 +287,6 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       return id
     }
     await saveBrandVoiceDraftAction(workingId, { ...content, onboardingStep })
-    router.refresh()
     return workingId
   }
 
@@ -366,7 +365,6 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
         return
       }
       setMessage(`${content.name || 'Brand voice'} is now active and governs every pipeline run.`)
-      router.refresh()
     })
 
   const archive = () =>
@@ -376,7 +374,6 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       setMessage(
         'Archived. The pipeline runs on the platform style guide alone until you activate another voice.',
       )
-      router.refresh()
     })
 
   const remove = () =>

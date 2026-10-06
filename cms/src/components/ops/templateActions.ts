@@ -70,7 +70,6 @@ export async function saveTemplateConfigAction(templateId: number, input: Templa
     overrideAccess: false,
   })
   revalidatePath('/admin/ops/templates')
-  revalidatePath(`/admin/ops/templates/${templateId}`)
 }
 
 /**

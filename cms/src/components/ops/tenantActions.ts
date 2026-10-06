@@ -305,7 +305,11 @@ export async function saveAndActivateIcpAction(
       id == null
         ? await payload.create({
             collection: 'icps',
-            data: { ...icpFields(content), name: content.name || 'Untitled audience', status: 'draft' },
+            data: {
+              ...icpFields(content),
+              name: content.name || 'Untitled audience',
+              status: 'draft',
+            },
             context: governanceAuditContext(user, 'icp_created', 'Audience drafted'),
             user,
             overrideAccess: false,
@@ -314,7 +318,11 @@ export async function saveAndActivateIcpAction(
             collection: 'icps',
             id,
             data: { ...icpFields(content), name: content.name || 'Untitled audience' },
-            context: governanceAuditContext(user, 'icp_updated', `Audience "${content.name}" saved`),
+            context: governanceAuditContext(
+              user,
+              'icp_updated',
+              `Audience "${content.name}" saved`,
+            ),
             user,
             overrideAccess: false,
           })
@@ -725,7 +733,7 @@ export async function runtimeStatusAction(): Promise<{
     const { payload } = await requireUser()
     const [models, profile] = await Promise.all([
       payload.findGlobal({ slug: 'llm-settings', depth: 0 }),
-      payload.findGlobal({ slug: 'workspace-profile', depth: 0 }),
+      payload.findGlobal({ slug: 'workspace-profile', select: { sitePages: false }, depth: 0 }),
     ])
     const readiness = evaluateRuntimeReadiness({
       env: process.env,

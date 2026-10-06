@@ -20,8 +20,6 @@
  * signal here is an uncalibrated LLM estimate.
  */
 
-import type { Where } from 'payload'
-
 import type { CorpusSnapshot } from '../../../cms/src/payload-types'
 import { completeJSONLogged } from '../llm'
 import { lexicalToPlainText, type RichText } from '../richtext'
@@ -79,10 +77,15 @@ function relationshipId(value: unknown): number | null {
 async function resolveSnapshot(
   ctx: StageContext,
   snapshotId: number | null,
-): Promise<CorpusSnapshot | null> {
+): Promise<Pick<CorpusSnapshot, 'id' | 'status' | 'baselineClaims' | 'pages'> | null> {
   if (snapshotId === null) return null
   const { docs } = await ctx.payload.find({
     collection: 'corpus-snapshots',
+    select: {
+      status: true,
+      baselineClaims: true,
+      pages: { url: true, domain: true, position: true, domainRating: true },
+    },
     where: { id: { equals: snapshotId } },
     limit: 1,
     depth: 0,
@@ -183,11 +186,17 @@ export const informationGainStage: Stage = {
       facets,
       (id) => facetById.get(id) ?? null,
     )
-    const scorecard = buildScorecard({ claims, scores, facets, policy, baselineAvailable })
+    const scorecard = buildScorecard({
+      claims,
+      scores,
+      facets,
+      policy,
+      baselineAvailable,
+    })
     const { decision, reasons } = decidePolicy(scorecard, claims, policy)
 
     // After every LLM call above, so this run's own rows are counted.
-    const costUsd = await sumCost(ctx, article.id, ctx.runId)
+    const { costUsd, totalCostUsd } = await sumCosts(ctx, article.id)
     const run = await ctx.payload.create({
       collection: 'information-gain-runs',
       overrideAccess: true,
@@ -240,7 +249,6 @@ export const informationGainStage: Stage = {
       console.error(`[informationGain] article ${article.id} candidate write failed`, error)
     }
 
-    const totalCostUsd = await sumCost(ctx, article.id)
     console.log(
       `[informationGain] article ${article.id}: ${decision} ` +
         `(coverage ${fmt(scorecard.scores.consensusCoverage)}, ` +
@@ -269,17 +277,24 @@ const fmt = (value: number | null): string => (value === null ? 'n/a' : value.to
  * This article's spend: the whole cost-log for `totalCostUsd`, or only this
  * run's information-gain rows for the run record's own `costUsd`.
  */
-async function sumCost(ctx: StageContext, articleId: number, runId?: string): Promise<number> {
-  const and: Where[] = [{ article: { equals: articleId } }]
-  if (runId !== undefined) {
-    and.push({ pipelineRunId: { equals: runId } }, { stage: { in: IG_COST_STAGES } })
-  }
+async function sumCosts(
+  ctx: StageContext,
+  articleId: number,
+): Promise<{ costUsd: number; totalCostUsd: number }> {
   const { docs } = await ctx.payload.find({
     collection: 'cost-log',
-    where: { and },
+    where: { article: { equals: articleId } },
+    select: { costUsd: true, pipelineRunId: true, stage: true },
     pagination: false,
     depth: 0,
     overrideAccess: true,
   })
-  return docs.reduce((sum, row) => sum + (row.costUsd ?? 0), 0)
+  let costUsd = 0
+  let totalCostUsd = 0
+  for (const row of docs) {
+    const cost = row.costUsd ?? 0
+    totalCostUsd += cost
+    if (row.pipelineRunId === ctx.runId && IG_COST_STAGES.includes(row.stage ?? '')) costUsd += cost
+  }
+  return { costUsd, totalCostUsd }
 }
