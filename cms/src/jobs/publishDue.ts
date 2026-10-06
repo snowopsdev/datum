@@ -53,6 +53,7 @@ export const PublishDueTask: TaskConfig<PublishDueTask> = {
         // an unconditional write by id would publish it anyway, undoing them.
         const result = await req.payload.update({
           collection: 'articles',
+          depth: 0,
           where: {
             and: [
               { id: { equals: article.id } },

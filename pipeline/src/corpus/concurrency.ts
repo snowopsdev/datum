@@ -7,8 +7,8 @@
 /**
  * Runs `fn` over `items` with at most `limit` calls in flight. Results come
  * back in input order, not completion order. A limit below 1 is treated as 1.
- * The first rejection wins: the returned promise rejects with it and no further
- * items are started (calls already in flight are left to settle on their own).
+ * The first rejection stops new work. Wait for every in-flight call (including
+ * its cost logging) before rejecting with that first error.
  */
 export async function mapWithConcurrency<T, R>(
   items: readonly T[],
@@ -21,6 +21,7 @@ export async function mapWithConcurrency<T, R>(
 
   let next = 0
   let failed = false
+  let firstError: unknown
   const run = async (): Promise<void> => {
     while (!failed) {
       const index = next
@@ -29,12 +30,13 @@ export async function mapWithConcurrency<T, R>(
       try {
         results[index] = await fn(items[index] as T, index)
       } catch (error) {
+        if (!failed) firstError = error
         failed = true
-        throw error
       }
     }
   }
 
   await Promise.all(Array.from({ length: workers }, () => run()))
+  if (failed) throw firstError
   return results
 }

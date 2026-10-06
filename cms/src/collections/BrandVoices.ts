@@ -1,3 +1,4 @@
+import { auditActor } from '../lib/auditFields'
 import type {
   CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
@@ -40,7 +41,7 @@ export const gateActivation: CollectionBeforeChangeHook = ({ data, originalDoc, 
   if (data.status === 'active' && originalDoc?.status !== 'active') {
     const user = req.user as { email?: string; id?: number | string } | null | undefined
     data.activatedAt = new Date().toISOString()
-    data.activatedBy = user?.email ?? (user?.id != null ? String(user.id) : 'system')
+    data.activatedBy = auditActor(user)
   }
   return data
 }
@@ -70,6 +71,7 @@ export const cascadeSingleActive: CollectionAfterChangeHook = async ({ context, 
   if ((context as CascadeContext).brandVoiceCascade) return doc
   await req.payload.update({
     collection: 'brand-voices',
+    depth: 0,
     where: {
       and: [{ status: { equals: 'active' } }, { id: { not_equals: doc.id } }],
     },
@@ -192,7 +194,10 @@ export const BrandVoices: CollectionConfig = {
     {
       name: 'coreValues',
       type: 'array',
-      admin: { description: 'What the business stands for (e.g. trust, speed). The voice must reflect these.' },
+      admin: {
+        description:
+          'What the business stands for (e.g. trust, speed). The voice must reflect these.',
+      },
       fields: [
         { name: 'value', type: 'text', required: true },
         { name: 'description', type: 'textarea' },
@@ -218,7 +223,8 @@ export const BrandVoices: CollectionConfig = {
       name: 'persona',
       type: 'textarea',
       admin: {
-        description: 'Your brand as a real person at a party: how do they talk, joke, or help others?',
+        description:
+          'Your brand as a real person at a party: how do they talk, joke, or help others?',
       },
     },
     // --- Step 5: three adjectives (voice chart) -----------------------------
@@ -226,7 +232,9 @@ export const BrandVoices: CollectionConfig = {
       name: 'voiceAdjectives',
       type: 'array',
       maxRows: MAX_ADJECTIVES,
-      admin: { description: `Exactly ${MAX_ADJECTIVES} adjectives that describe the brand, each with a do/don't example.` },
+      admin: {
+        description: `Exactly ${MAX_ADJECTIVES} adjectives that describe the brand, each with a do/don't example.`,
+      },
       fields: [
         { name: 'adjective', type: 'text', required: true },
         { name: 'description', type: 'textarea' },
@@ -243,7 +251,10 @@ export const BrandVoices: CollectionConfig = {
     {
       name: 'notTraits',
       type: 'array',
-      admin: { description: 'Traits to avoid so the team knows the boundaries (e.g. "funny, but not sarcastic").' },
+      admin: {
+        description:
+          'Traits to avoid so the team knows the boundaries (e.g. "funny, but not sarcastic").',
+      },
       fields: [
         { name: 'trait', type: 'text', required: true },
         { name: 'boundaryNote', type: 'textarea' },
@@ -264,7 +275,10 @@ export const BrandVoices: CollectionConfig = {
     },
     // --- Step 8: word choices ------------------------------------------------
     words('preferredWords', 'Words you love to use.'),
-    words('bannedWords', 'Jargon and words to ban. Enforced by a deterministic QA check on every generated field.'),
+    words(
+      'bannedWords',
+      'Jargon and words to ban. Enforced by a deterministic QA check on every generated field.',
+    ),
     // --- Step 9: sample writing ---------------------------------------------
     {
       name: 'samples',
@@ -280,7 +294,10 @@ export const BrandVoices: CollectionConfig = {
     {
       name: 'extraction',
       type: 'group',
-      admin: { readOnly: true, description: 'Set when the record was extracted from an uploaded guide.' },
+      admin: {
+        readOnly: true,
+        description: 'Set when the record was extracted from an uploaded guide.',
+      },
       fields: [
         { name: 'model', type: 'text' },
         { name: 'provider', type: 'text' },

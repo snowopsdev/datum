@@ -39,7 +39,11 @@ export const DRAFT_CLAIM_EXTRACTION_SYSTEM =
 
 /** Everything a facet contributes to a prompt; the claim ids behind it are not needed. */
 const facetBrief = (facets: Facet[]): { id: string; label: string; description: string }[] =>
-  facets.map((facet) => ({ id: facet.id, label: facet.label, description: facet.description }))
+  facets.map((facet) => ({
+    id: facet.id,
+    label: facet.label,
+    description: facet.description,
+  }))
 
 /**
  * The draft extraction user turn: the query the draft is meant to answer, the
@@ -54,7 +58,7 @@ export function draftClaimUser(
   return [
     `Query: "${article.keyword}"`,
     `Draft: ${article.title ?? '(untitled)'}`,
-    `Facets:\n${JSON.stringify(facetBrief(facets), null, 2)}`,
+    `Facets:\n${JSON.stringify(facetBrief(facets))}`,
     `Draft text:\n${plainText}`,
   ].join('\n\n')
 }
@@ -84,7 +88,13 @@ export const JUDGE_SYSTEM =
 /** The claim fields the judge weighs; `excerptFound` and the rest are ours, not its business. */
 const judgeClaimBrief = (
   claims: DraftClaim[],
-): { id: string; text: string; type: string; section: string | null; values: string[] }[] =>
+): {
+  id: string
+  text: string
+  type: string
+  section: string | null
+  values: string[]
+}[] =>
   claims.map((claim) => ({
     id: claim.id,
     text: claim.text,
@@ -96,7 +106,12 @@ const judgeClaimBrief = (
 /** Baseline claims as the judge sees them: an id, the claim, and which corpus it came from. */
 const baselineClaimBrief = (
   claims: BaselineClaim[],
-): { id: string; text: string; corpus: 'serp' | 'internal'; values: string[] }[] =>
+): {
+  id: string
+  text: string
+  corpus: 'serp' | 'internal'
+  values: string[]
+}[] =>
   claims.map((claim) => ({
     id: claim.id,
     text: claim.text,
@@ -120,10 +135,10 @@ export function judgeUser(
 ): string {
   return [
     `Query: "${article.keyword}"`,
-    `Query cluster:\n${JSON.stringify(queryCluster, null, 2)}`,
-    `Facets:\n${JSON.stringify(facetBrief(facets), null, 2)}`,
-    `Draft claims:\n${JSON.stringify(judgeClaimBrief(claims), null, 2)}`,
-    `Baseline claims:\n${JSON.stringify(baselineClaimBrief(baselineClaims), null, 2)}`,
+    `Query cluster:\n${JSON.stringify(queryCluster)}`,
+    `Facets:\n${JSON.stringify(facetBrief(facets))}`,
+    `Draft claims:\n${JSON.stringify(judgeClaimBrief(claims))}`,
+    `Baseline claims:\n${JSON.stringify(baselineClaimBrief(baselineClaims))}`,
   ].join('\n\n')
 }
 
@@ -160,8 +175,5 @@ export function verifierUser(article: { keyword: string }, claims: DraftClaim[])
     values: claim.values,
     draftExcerpt: claim.excerpt,
   }))
-  return [
-    `Query: "${article.keyword}"`,
-    `Claims to check:\n${JSON.stringify(brief, null, 2)}`,
-  ].join('\n\n')
+  return [`Query: "${article.keyword}"`, `Claims to check:\n${JSON.stringify(brief)}`].join('\n\n')
 }

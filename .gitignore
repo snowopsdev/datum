@@ -49,3 +49,6 @@ yarn-error.log*
 # Local agent state
 .omc/
 .playwright-mcp/
+
+# Graphify caches and machine-local outputs. Shared products are force-added.
+graphify-out/

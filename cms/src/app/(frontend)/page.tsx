@@ -12,18 +12,24 @@ export default async function HomePage() {
   const headers = await getHeaders()
   const payloadConfig = await config
   const payload = await getPayload({ config: payloadConfig })
-  const { user } = await payload.auth({ headers })
 
-  const [{ docs: published }, profileDoc] = await Promise.all([
+  const [{ docs: published }, profileDoc, { user }] = await Promise.all([
     payload.find({
       collection: 'articles',
+      select: { title: true, keyword: true, slug: true },
       where: { status: { equals: 'published' } },
       limit: 12,
       depth: 0,
       sort: '-publishedAt',
       overrideAccess: true,
     }),
-    payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+    payload.findGlobal({
+      slug: 'workspace-profile',
+      select: { sitePages: false },
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.auth({ headers }),
   ])
 
   const profile = resolveWorkspaceProfile(profileDoc as WorkspaceProfileDoc, process.env, {

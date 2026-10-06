@@ -1,7 +1,7 @@
 {
   "name": "cms",
   "version": "1.0.0",
-  "description": "Payload CMS app for Datum — templates, articles, and admin UI",
+  "description": "Payload CMS app for Datum \u2014 templates, articles, and admin UI",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -25,7 +25,7 @@
     "seed": "cross-env NODE_OPTIONS=--no-deprecation tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
-    "test": "pnpm run test:int && pnpm run test:e2e",
+    "test": "npm run test:int && npm run test:e2e",
     "test:e2e": "cross-env DISABLE_DEV_PUSH=true NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
   },
@@ -66,12 +66,5 @@
   },
   "engines": {
     "node": ">=22.22.2"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "esbuild",
-      "unrs-resolver"
-    ]
   }
 }

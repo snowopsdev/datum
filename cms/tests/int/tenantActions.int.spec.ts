@@ -45,7 +45,6 @@ vi.mock('payload', async (importOriginal) => {
 
 const {
   activateDefaultTenantAction,
-  activateIcpAction,
   archiveIcpAction,
   createIcpAction,
   deleteIcpDraftAction,
@@ -54,10 +53,9 @@ const {
   saveIcpAction,
   savePositioningAction,
   saveWorkspaceProfileAction,
-  setPrimaryIcpAction,
 } = await import('@/components/ops/tenantActions')
 
-const { emptyIcpContent } = await import('@/lib/tenant/icp')
+const { emptyIcpContent, icpContentOf } = await import('@/lib/tenant/icp')
 const { emptyPositioningContent } = await import('@/lib/tenant/positioning')
 const { ICP_FIXTURE, ICP_FIXTURE_SECONDARY } = await import('@/lib/tenant/fixtures')
 
@@ -67,9 +65,25 @@ const createdIcpIds: number[] = []
 const completeIcp = (name: string) => ({
   ...emptyIcpContent(name),
   who: 'Runs content for a 60-person company with no writers.',
-  pains: [{ statement: 'Ships five pieces a month nobody can tell apart.', evidence: [], confidence: 'inference' as const }],
-  solution: { mechanism: 'A pipeline that stops for a reviewer.', sampleLines: [], confidence: null },
+  pains: [
+    {
+      statement: 'Ships five pieces a month nobody can tell apart.',
+      evidence: [],
+      confidence: 'inference' as const,
+    },
+  ],
+  solution: {
+    mechanism: 'A pipeline that stops for a reviewer.',
+    sampleLines: [],
+    confidence: null,
+  },
 })
+
+/** Re-activate the stored content, preserving edits while exercising the live endpoint. */
+const saveAndActivateExisting = async (id: number, makePrimary = false) => {
+  const doc = await payload.findByID({ collection: 'icps', id, depth: 0, overrideAccess: true })
+  return saveAndActivateIcpAction(id, icpContentOf(doc), { makePrimary })
+}
 
 const auditRows = async (event: string) => {
   const { docs } = await payload.find({
@@ -97,12 +111,19 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const id of createdIcpIds) {
     await payload
-      .update({ collection: 'icps', id, data: { status: 'draft', primary: false }, overrideAccess: true })
+      .update({
+        collection: 'icps',
+        id,
+        data: { status: 'draft', primary: false },
+        overrideAccess: true,
+      })
       .catch(() => undefined)
     await payload.delete({ collection: 'icps', id, overrideAccess: true }).catch(() => undefined)
   }
   if (user) {
-    await payload.delete({ collection: 'users', id: user.id, overrideAccess: true }).catch(() => undefined)
+    await payload
+      .delete({ collection: 'users', id: user.id, overrideAccess: true })
+      .catch(() => undefined)
   }
 })
 
@@ -125,7 +146,11 @@ describe('saveWorkspaceProfileAction', () => {
       slug: 'workspace-profile',
       depth: 0,
       overrideAccess: true,
-    })) as { companyName?: string; targetDomain?: string; competitors?: { domain: string; name: string }[] }
+    })) as {
+      companyName?: string
+      targetDomain?: string
+      competitors?: { domain: string; name: string }[]
+    }
     expect(doc.targetDomain).toBe('acme.example.com')
     expect(doc.companyName).toBe('Acme')
     expect(doc.competitors?.map((row) => row.domain)).toEqual([
@@ -187,8 +212,8 @@ describe('audience lifecycle', () => {
     })
     expect(saved).toEqual({ ok: true, problems: [] })
 
-    const activated = await activateIcpAction(created.id)
-    expect(activated).toEqual({ ok: true })
+    const activated = await saveAndActivateExisting(created.id)
+    expect(activated.ok).toBe(true)
     const afterActivation = await payload.findByID({
       collection: 'icps',
       id: created.id,
@@ -205,11 +230,21 @@ describe('audience lifecycle', () => {
     expect(second.ok).toBe(true)
     if (!second.ok) return
     createdIcpIds.push(second.id)
-    expect(await activateIcpAction(second.id)).toEqual({ ok: true })
-    expect(await setPrimaryIcpAction(second.id)).toEqual({ ok: true })
+    expect((await saveAndActivateExisting(second.id)).ok).toBe(true)
+    expect((await saveAndActivateExisting(second.id, true)).ok).toBe(true)
 
-    const first = await payload.findByID({ collection: 'icps', id: created.id, depth: 0, overrideAccess: true })
-    const other = await payload.findByID({ collection: 'icps', id: second.id, depth: 0, overrideAccess: true })
+    const first = await payload.findByID({
+      collection: 'icps',
+      id: created.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const other = await payload.findByID({
+      collection: 'icps',
+      id: second.id,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(other.primary).toBe(true)
     expect(first.primary).toBe(false)
 
@@ -236,7 +271,7 @@ describe('audience lifecycle', () => {
     if (!created.ok) return
     createdIcpIds.push(created.id)
 
-    const result = await activateIcpAction(created.id)
+    const result = await saveAndActivateExisting(created.id)
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error).toContain('Cannot activate audience')
@@ -253,7 +288,7 @@ describe('audience lifecycle', () => {
     expect(active.ok).toBe(true)
     if (!active.ok) return
     createdIcpIds.push(active.id)
-    await activateIcpAction(active.id)
+    await saveAndActivateExisting(active.id)
     const refused = await deleteIcpDraftAction(active.id)
     expect(refused.ok).toBe(false)
     if (refused.ok) return
@@ -271,10 +306,17 @@ describe('saveAndActivateIcpAction', () => {
     expect(saved.status).toBe('active')
     expect(saved.primary).toBe(true)
 
-    const doc = await payload.findByID({ collection: 'icps', id: saved.id, depth: 0, overrideAccess: true })
+    const doc = await payload.findByID({
+      collection: 'icps',
+      id: saved.id,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(doc.status).toBe('active')
     expect(doc.primary).toBe(true)
-    expect((await auditRows('icp_activated')).some((row) => row.summary?.includes('activated'))).toBe(true)
+    expect(
+      (await auditRows('icp_activated')).some((row) => row.summary?.includes('activated')),
+    ).toBe(true)
   })
 
   it('updates an existing draft, then activates and marks it primary', async () => {
@@ -291,22 +333,29 @@ describe('saveAndActivateIcpAction', () => {
     )
     expect(saved).toEqual({ ok: true, id: created.id, status: 'active', primary: true })
 
-    const doc = await payload.findByID({ collection: 'icps', id: created.id, depth: 0, overrideAccess: true })
+    const doc = await payload.findByID({
+      collection: 'icps',
+      id: created.id,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(doc.who).toBe('Owns content for a 200-person company.')
     expect(doc.status).toBe('active')
     expect(doc.primary).toBe(true)
   })
 
   it('leaves primary alone when another audience already holds it and makePrimary is false', async () => {
-    const alreadyActive = await createIcpAction(completeIcp(`Incumbent ${randomUUID().slice(0, 8)}`))
+    const alreadyActive = await createIcpAction(
+      completeIcp(`Incumbent ${randomUUID().slice(0, 8)}`),
+    )
     expect(alreadyActive.ok).toBe(true)
     if (!alreadyActive.ok) return
     createdIcpIds.push(alreadyActive.id)
-    expect(await activateIcpAction(alreadyActive.id)).toEqual({ ok: true })
+    expect((await saveAndActivateExisting(alreadyActive.id)).ok).toBe(true)
     // Made primary explicitly rather than relying on the gate's
     // first-activation auto-primary: other specs in this file leave their
     // own audiences active, so "no other active audience" cannot be assumed.
-    expect(await setPrimaryIcpAction(alreadyActive.id)).toEqual({ ok: true })
+    expect((await saveAndActivateExisting(alreadyActive.id, true)).ok).toBe(true)
 
     const name = `Save-activate no-primary ${randomUUID().slice(0, 8)}`
     const saved = await saveAndActivateIcpAction(null, completeIcp(name), { makePrimary: false })
@@ -343,7 +392,12 @@ describe('saveAndActivateIcpAction', () => {
     const savedId = result.id as number
     createdIcpIds.push(savedId)
 
-    const doc = await payload.findByID({ collection: 'icps', id: savedId, depth: 0, overrideAccess: true })
+    const doc = await payload.findByID({
+      collection: 'icps',
+      id: savedId,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(doc.status).toBe('draft')
   })
 
@@ -373,7 +427,12 @@ describe('saveAndActivateIcpAction', () => {
     expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
     expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
 
-    const doc = await payload.findByID({ collection: 'icps', id: first.id, depth: 0, overrideAccess: true })
+    const doc = await payload.findByID({
+      collection: 'icps',
+      id: first.id,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(doc.who).toBe('Owns content for a 400-person company.')
   })
 })
@@ -411,7 +470,9 @@ describe('activateDefaultTenantAction', () => {
           overrideAccess: true,
         })
         .catch(() => undefined)
-      await payload.delete({ collection: 'icps', id: doc.id, overrideAccess: true }).catch(() => undefined)
+      await payload
+        .delete({ collection: 'icps', id: doc.id, overrideAccess: true })
+        .catch(() => undefined)
     }
   }
 
@@ -437,12 +498,17 @@ describe('activateDefaultTenantAction', () => {
     expect(theirs.ok).toBe(true)
     if (!theirs.ok) return
     createdIcpIds.push(theirs.id)
-    await activateIcpAction(theirs.id)
-    await setPrimaryIcpAction(theirs.id)
+    await saveAndActivateExisting(theirs.id)
+    await saveAndActivateExisting(theirs.id, true)
 
     expect(await activateDefaultTenantAction()).toEqual({ ok: true })
 
-    const after = await payload.findByID({ collection: 'icps', id: mine.id, depth: 0, overrideAccess: true })
+    const after = await payload.findByID({
+      collection: 'icps',
+      id: mine.id,
+      depth: 0,
+      overrideAccess: true,
+    })
     expect(after.who).toBe('My own words about my own buyer.')
     expect(after.status).toBe('draft')
     expect(after.primary).toBe(false)
@@ -548,17 +614,19 @@ describe('savePositioningAction', () => {
 describe('saveEvidenceBankAction', () => {
   it('keeps saved refs and lets the hook mint one for a new row', async () => {
     const first = await saveEvidenceBankAction({
-      verifiedClaims: [{
-        claim: 'Reviewers approve 92% of briefs unchanged.',
-        primarySource: 'Internal analytics',
-        sourceUrl: '',
-        sourceDate: '',
-        sampleOrMethod: '412 briefs',
-        verificationDepth: 'self_reported',
-        limits: 'Approval, not quality.',
-        clearedSurfaces: [],
-        recheckAt: '',
-      }],
+      verifiedClaims: [
+        {
+          claim: 'Reviewers approve 92% of briefs unchanged.',
+          primarySource: 'Internal analytics',
+          sourceUrl: '',
+          sourceDate: '',
+          sampleOrMethod: '412 briefs',
+          verificationDepth: 'self_reported',
+          limits: 'Approval, not quality.',
+          clearedSurfaces: [],
+          recheckAt: '',
+        },
+      ],
       facts: [],
       rejectedClaims: [],
     })
@@ -585,7 +653,9 @@ describe('saveEvidenceBankAction', () => {
         clearedSurfaces: [],
         recheckAt: '',
       })),
-      facts: [{ fact: 'Founded in 2024.', source: 'About page', owner: 'ops', lastConfirmedAt: '' }],
+      facts: [
+        { fact: 'Founded in 2024.', source: 'About page', owner: 'ops', lastConfirmedAt: '' },
+      ],
       rejectedClaims: [],
     })
     expect(second.ok).toBe(true)

@@ -76,6 +76,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
   ] = await Promise.all([
     payload.find({
       collection: 'brand-voices',
+      select: { updatedAt: true },
       where: { status: { equals: 'active' } },
       limit: 1,
       depth: 0,
@@ -84,6 +85,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     }),
     payload.find({
       collection: 'templates',
+      select: { name: true, updatedAt: true },
       limit: 100,
       pagination: false,
       depth: 0,
@@ -91,9 +93,15 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
       overrideAccess: true,
     }),
     payload.findGlobal({ slug: 'llm-settings', depth: 0, overrideAccess: true }),
-    payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+    payload.findGlobal({
+      slug: 'workspace-profile',
+      select: { sitePages: false },
+      depth: 0,
+      overrideAccess: true,
+    }),
     payload.find({
       collection: 'icps',
+      select: { name: true, primary: true, who: true, pains: true, updatedAt: true },
       where: { status: { equals: 'active' } },
       pagination: false,
       depth: 0,
@@ -104,6 +112,18 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
     payload.find({
       collection: 'pipeline-runs',
+      select: {
+        runId: true,
+        source: true,
+        status: true,
+        mode: true,
+        configFingerprint: true,
+        articles: true,
+        finalStatuses: true,
+        errorSummary: true,
+        createdAt: true,
+        completedAt: true,
+      },
       limit: 1,
       depth: 0,
       sort: '-createdAt',

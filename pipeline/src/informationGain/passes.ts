@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '../corpus/concurrency'
 /**
  * The two LLM passes the information-gain stage makes over a draft's claims:
  * judging them against the baseline corpus, and hunting outside evidence for
@@ -54,7 +55,7 @@ export async function runJudge(
   const baselineIds = new Set(baselineClaims.map((claim) => claim.id))
   const derived = new Map<string, JudgeDerived>()
 
-  for (const batch of judgeBatches(draftClaims)) {
+  const batches = await mapWithConcurrency(judgeBatches(draftClaims), 3, async (batch) => {
     const context = selectBaselineContext(batch, baselineClaims)
     const result = await completeJSONLogged(ctx, 'informationGainJudge', articleId, {
       system: JUDGE_SYSTEM,
@@ -66,6 +67,9 @@ export async function runJudge(
       queryIds,
       baselineIds,
     )
+    return signals
+  })
+  for (const signals of batches) {
     for (const [claimId, judge] of signals) {
       derived.set(claimId, deriveJudgeSignals(judge, queryCluster))
     }
@@ -74,7 +78,11 @@ export async function runJudge(
 }
 
 /** Letters and digits only, lower-cased: the comparison unit for overlap. */
-const normalise = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const normalise = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 
 /**
  * Which draft claims the workspace's own evidence bank already backs.
@@ -95,7 +103,10 @@ export function firstPartyMatches(
 ): Map<string, string> {
   const matches = new Map<string, string>()
   const cited = citations
-    .map((citation) => ({ ref: citation.ref, text: normalise(citation.excerpt) }))
+    .map((citation) => ({
+      ref: citation.ref,
+      text: normalise(citation.excerpt),
+    }))
     .filter((citation) => citation.text.length >= 40)
   if (cited.length === 0) return matches
   for (const claim of draftClaims) {
@@ -145,7 +156,7 @@ export async function runVerifier(
   const selected = pickForVerification(candidates, policy)
   const byId = new Map(draftClaims.map((claim) => [claim.id, claim]))
 
-  for (const batch of verifierBatches(selected)) {
+  const batches = await mapWithConcurrency(verifierBatches(selected), 3, async (batch) => {
     const result = await completeJSONLogged(ctx, 'evidenceVerification', articleId, {
       system: VERIFIER_SYSTEM,
       user: verifierUser({ keyword }, batch),
@@ -155,6 +166,9 @@ export async function runVerifier(
       result.json,
       batch.map((claim) => claim.id),
     )
+    return signals
+  })
+  for (const signals of batches) {
     for (const [claimId, verifier] of signals) {
       const claim = byId.get(claimId)
       if (claim === undefined) continue

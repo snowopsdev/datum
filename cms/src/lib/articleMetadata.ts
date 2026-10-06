@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 
-import type { Article } from '@/payload-types'
+import type { PublishedArticle } from './findPublishedArticle'
 
 import { getSiteUrl } from '@/lib/siteUrl'
 
-export function buildArticleMetadata(article: Article): Metadata {
+export function buildArticleMetadata(article: PublishedArticle): Metadata {
   const canonicalSegment = encodeURIComponent(article.slug || String(article.id))
   const siteUrl = getSiteUrl()
 

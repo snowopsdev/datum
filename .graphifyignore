@@ -1,0 +1,12 @@
+# Keep the Datum graph focused on maintained project code.
+vendor/
+.codex/
+.agents/
+graphify-out/
+.claude/
+.impeccable/
+.omc/
+
+# Dependency lockfiles and generated database snapshots duplicate source data.
+package-lock.json
+cms/src/migrations/*.json

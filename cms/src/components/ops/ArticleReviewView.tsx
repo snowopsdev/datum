@@ -4,7 +4,7 @@ import { Gutter } from '@payloadcms/ui'
 import { notFound, redirect } from 'next/navigation'
 import React from 'react'
 
-import type { Article, InformationGainRun, Template } from '../../payload-types'
+import type { InformationGainRun, Template } from '../../payload-types'
 import { activeRunIncludesArticle } from '../../lib/activeRuns'
 import { lexicalBodyToHtml } from '../../lib/lexicalHtml'
 import { loadActiveAudienceOptions } from '../../lib/loadWorkspaceReadiness'
@@ -32,20 +32,8 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     notFound()
   }
 
-  let article: Article
-  try {
-    article = (await req.payload.findByID({
-      collection: 'articles',
-      id,
-      depth: 1,
-      user: req.user,
-      overrideAccess: false,
-    })) as Article
-  } catch {
-    notFound()
-  }
-
   const [
+    article,
     { docs: templateDocs },
     { docs: auditDocs },
     { docs: costDocs },
@@ -53,6 +41,16 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     icps,
     inActiveRun,
   ] = await Promise.all([
+    req.payload
+      .findByID({
+        collection: 'articles',
+        id,
+        depth: 1,
+        populate: { templates: { name: true }, icps: { name: true } },
+        user: req.user,
+        overrideAccess: false,
+      })
+      .catch(() => null),
     req.payload.find({
       collection: 'templates',
       select: { name: true },
@@ -76,7 +74,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         summary: true,
         toStatus: true,
       },
-      where: { article: { equals: article.id } },
+      where: { article: { equals: id } },
       depth: 0,
       limit: 100,
       sort: '-createdAt',
@@ -93,7 +91,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
         pipelineRunId: true,
         stage: true,
       },
-      where: { article: { equals: article.id } },
+      where: { article: { equals: id } },
       depth: 0,
       limit: 100,
       sort: '-createdAt',
@@ -107,7 +105,7 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     // merged with the article's headline numbers.
     req.payload.find({
       collection: 'information-gain-runs',
-      where: { article: { equals: article.id } },
+      where: { article: { equals: id } },
       depth: 0,
       limit: 1,
       sort: '-createdAt',
@@ -118,8 +116,10 @@ export async function ArticleReviewView(props: AdminViewServerProps) {
     // Whether a run is actually carrying this piece. Its status alone only
     // says a run *would* pick it up, and the header used to read that as
     // "Datum is working" on articles nothing had touched for days.
-    activeRunIncludesArticle(req.payload, req.user, article.id),
+    activeRunIncludesArticle(req.payload, req.user, id),
   ])
+
+  if (!article) notFound()
 
   const latestRun = (runDocs as InformationGainRun[])[0] ?? null
 

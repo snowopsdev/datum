@@ -1,9 +1,8 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { governanceAuditContext } from '../../lib/governanceAudit'
+import { requireUser } from '../../lib/requireUser'
 
 import { randomUUID } from 'node:crypto'
 
@@ -23,10 +22,7 @@ import {
   parseAssistReply,
 } from '../../lib/tenant/assist'
 import { assistMock } from '../../lib/tenant/assistFixtures'
-import {
-  evidenceBankContentOf,
-  isEvidenceBankEmpty,
-} from '../../lib/tenant/evidenceBank'
+import { evidenceBankContentOf, isEvidenceBankEmpty } from '../../lib/tenant/evidenceBank'
 import { positioningContentOf, positioningStatus } from '../../lib/tenant/positioning'
 import {
   candidatePagePaths,
@@ -64,33 +60,7 @@ const SITE_PAGE_CONCURRENCY = 3
 const REFRESH_BUDGET_MS = 40_000
 
 export type RefreshSitePagesResult =
-  | { ok: true; pages: number; warnings: string[] }
-  | { ok: false; error: string }
-
-async function requireUser(purpose = 'change the workspace setup') {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error(`Sign in to ${purpose}.`)
-  return { payload, user }
-}
-
-function governanceAuditContext(
-  user: { email?: string | null; id: number | string },
-  event: string,
-  summary: string,
-  details?: Record<string, unknown>,
-) {
-  return {
-    governanceAudit: {
-      actor: typeof user.email === 'string' ? user.email : String(user.id),
-      actorType: 'user' as const,
-      event,
-      summary,
-      details,
-    },
-  }
-}
+  { ok: true; pages: number; warnings: string[] } | { ok: false; error: string }
 
 /** What went wrong with one page, in the operator's words. */
 function pageWarning(url: string, reason: string | null): string {
@@ -113,7 +83,7 @@ function pageWarning(url: string, reason: string | null): string {
  * byte ceiling, and the mock mode all come for free.
  */
 export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> {
-  const { payload, user } = await requireUser('fetch the site pages')
+  const { payload, user } = await requireUser('Sign in to fetch the site pages.')
   const mode = modeFromEnv(process.env)
   const doc = (await payload.findGlobal({
     slug: 'workspace-profile',
@@ -254,7 +224,8 @@ export type AssistResult =
 const ASSIST_STAGE = 'setupAssist'
 
 function assistError(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
+    return e.message
   return fallback
 }
 
@@ -328,13 +299,16 @@ async function loadAssistContext(
 export async function assistAction(input: AssistInput): Promise<AssistResult> {
   let payload
   try {
-    ;({ payload } = await requireUser('use the setup assistant'))
+    ;({ payload } = await requireUser('Sign in to use the setup assistant.'))
   } catch (e) {
     return { ok: false, error: assistError(e, 'Sign in to use the setup assistant.') }
   }
 
   if (!isAssistAsset(input.asset)) {
-    return { ok: false, error: `"${String(input.asset)}" is not something the assistant can draft.` }
+    return {
+      ok: false,
+      error: `"${String(input.asset)}" is not something the assistant can draft.`,
+    }
   }
   if (!isAssistSection(input.asset, input.section)) {
     return {

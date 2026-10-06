@@ -165,6 +165,7 @@ export async function runPipeline(
         const warnings = outcome.warnings ?? []
         await ctx.payload.update({
           collection: 'articles',
+          depth: 0,
           id: article.id,
           data: { ...outcome.data, status: outcome.status },
           context: {
@@ -215,7 +216,12 @@ export async function runPipeline(
           `"${stage.entryStatus}"; the next run retries them`,
       )
     }
-    stageSummaries.push({ stage: stage.name, total: docs.length, failed, warned })
+    stageSummaries.push({
+      stage: stage.name,
+      total: docs.length,
+      failed,
+      warned,
+    })
     totalFailed += failed
   }
   const finalStatuses: Record<string, number> = {}

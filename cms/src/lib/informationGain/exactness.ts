@@ -355,11 +355,6 @@ export function extractValues(text: string): TextValues {
   }
 }
 
-/** True when the text carries any number, amount, or date the gate must verify. */
-export function hasNumericOrTemporal(v: TextValues): boolean {
-  return v.values.length > 0
-}
-
 /**
  * Same kind, same value, and — when both carry one — the same unit. No
  * conversion, and no absolute value either: `-10` and `10` are different values,

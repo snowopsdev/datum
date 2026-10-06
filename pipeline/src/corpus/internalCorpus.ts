@@ -63,7 +63,11 @@ function adopt(claims: BaselineClaim[], articleId: number): BaselineClaim[] {
     ...claim,
     id: `i${articleId}-${index + 1}`,
     facetId: null,
-    source: { kind: 'internal' as const, docId: `internal:${articleId}`, articleId },
+    source: {
+      kind: 'internal' as const,
+      docId: `internal:${articleId}`,
+      articleId,
+    },
   }))
 }
 
@@ -72,10 +76,11 @@ async function cachedClaims(
   ctx: StageContext,
   doc: InternalCorpusDoc,
 ): Promise<BaselineClaim[] | null> {
-  let snapshots: CorpusSnapshot[]
+  let snapshots: Pick<CorpusSnapshot, 'id' | 'internalCorpus' | 'baselineClaims'>[]
   try {
     const { docs } = await ctx.payload.find({
       collection: 'corpus-snapshots',
+      select: { internalCorpus: true, baselineClaims: true },
       where: { 'internalCorpus.article': { equals: doc.id } },
       sort: '-capturedAt',
       limit: CACHE_LOOKBACK,
@@ -144,7 +149,7 @@ export async function internalCorpusEntry(
   })
   // Same accounting as the SERP pages: excerpts are counted, never dropped.
   // Only possible on the extraction path — a cache hit has no text at hand.
-  const unverified = claims.filter((claim) => !excerptFoundIn(claim.excerpt, text)).length
+  const unverified = countUnverifiedExcerpts(claims, text)
   if (unverified > 0) {
     console.warn(
       `[research] internal article ${doc.id}: ${unverified}/${claims.length} claim excerpts ` +
@@ -152,4 +157,9 @@ export async function internalCorpusEntry(
     )
   }
   return { doc, claims, cached: false }
+}
+
+/** Count excerpts that extraction could not ground without dropping claims. */
+export function countUnverifiedExcerpts(claims: BaselineClaim[], text: string): number {
+  return claims.filter((claim) => !excerptFoundIn(claim.excerpt, text)).length
 }

@@ -15,6 +15,7 @@
  * against.
  */
 
+import { secondaryKeywordsOf } from './generatePrompt'
 import { buildBrief } from './brief'
 import { getOrBuildSnapshot } from './corpus/snapshot'
 import {
@@ -44,9 +45,7 @@ export const researchStage: Stage = {
     // The operator may have grouped several related searches into this one
     // article at discovery time; they belong in the cluster the draft is
     // written for and scored against, not just the primary.
-    const secondaryKeywords = (article.secondaryKeywords ?? [])
-      .map((row) => row.keyword?.trim())
-      .filter((k): k is string => Boolean(k))
+    const secondaryKeywords = secondaryKeywordsOf(article)
     const queryCluster = buildQueryCluster(
       article.keyword,
       serp.relatedQuestions,

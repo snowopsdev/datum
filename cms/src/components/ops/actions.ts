@@ -1,9 +1,7 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { requireUser } from '../../lib/requireUser'
 
 import { activeRunIncludesArticle } from '@/lib/activeRuns'
 import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
@@ -67,16 +65,6 @@ const NULL_QA_RESULTS = {
  * was there before.
  */
 const CLEARED_SCHEDULE = { publishAt: null } as const
-
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) {
-    throw new Error('Unauthorized')
-  }
-  return { payload, user }
-}
 
 function revalidateOps(articleId?: number | string) {
   // No `/admin/ops/articles` list any more — the content board replaced it, so
@@ -212,7 +200,7 @@ async function currentInformationGainRun(
 }
 
 export async function assignTemplateAction(articleId: number, templateId: number) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -229,7 +217,7 @@ export async function resetToDraftedAction(
   reviewNotes?: string,
   options?: ReviewActionOptions,
 ): Promise<QueuedRunResult> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const updated = await payload.update({
     collection: 'articles',
     id: articleId,
@@ -257,7 +245,7 @@ export async function approveArticleAction(
   articleId: number,
   reviewNotes?: string,
 ): Promise<StatusResult> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const approved = await payload.update({
     collection: 'articles',
     id: articleId,
@@ -280,7 +268,7 @@ export async function publishArticleAction(
   articleId: number,
   reviewNotes?: string,
 ): Promise<StatusResult> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const published = await payload.update({
     collection: 'articles',
     id: articleId,
@@ -322,7 +310,7 @@ export async function publishArticleAction(
  * that page is shown in, rather than a zone the reviewer has to infer.
  */
 export async function scheduleArticleAction(articleId: number, publishAt: string) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const when = new Date(publishAt)
   if (Number.isNaN(when.getTime())) {
     throw new Error('Pick a date and time to schedule this article.')
@@ -355,7 +343,7 @@ export async function scheduleArticleAction(articleId: number, publishAt: string
 
 /** Takes the date back off, leaving the article approved and unpublished. */
 export async function unscheduleArticleAction(articleId: number) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -386,7 +374,7 @@ export async function unscheduleArticleAction(articleId: number) {
  * Who archived it and when is recorded either way.
  */
 export async function archiveArticleAction(articleId: number) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   if (await activeRunIncludesArticle(payload, user, articleId)) {
     throw new Error(
       'This article is in an active run. Wait for the run to finish before archiving it.',
@@ -410,7 +398,7 @@ export async function archiveArticleAction(articleId: number) {
  * status panel for wherever it lands takes over from there.
  */
 export async function unarchiveArticleAction(articleId: number) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -423,7 +411,7 @@ export async function unarchiveArticleAction(articleId: number) {
 }
 
 export async function sendBackAction(articleId: number, reviewNotes: string) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const note = reviewNotes.trim() || 'Editor sent back for revision.'
   await payload.update({
     collection: 'articles',
@@ -472,7 +460,7 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
  * missing justification), which is the one thing the reviewer needs to see.
  */
 export async function overrideReviewAction(articleId: number, justification: string) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const trimmed = justification.trim()
   if (!trimmed) {
     throw new Error('A justification is required to override this decision')
@@ -521,7 +509,7 @@ export async function regenerateArticleAction(
   note?: string,
   options?: ReviewActionOptions,
 ): Promise<QueuedRunResult> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const article = await payload.findByID({
     collection: 'articles',
     id: articleId,

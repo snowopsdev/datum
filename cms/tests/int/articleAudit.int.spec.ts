@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { getPayload } from 'payload'
+import config from '@/payload.config'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ArticleAudit } from '@/collections/ArticleAudit'
@@ -13,6 +16,29 @@ import {
 import { auditArticleChange } from '@/lib/articleAudit'
 
 describe('article audit trail', () => {
+  it('records only a title changed by a real Payload update', async () => {
+    const payload = await getPayload({ config: await config })
+    const article = await payload.create({
+      collection: 'articles',
+      overrideAccess: true,
+      data: { keyword: `audit diff ${randomUUID()}`, title: 'Before', status: 'topic_selected' },
+    })
+    await payload.update({
+      collection: 'articles',
+      id: article.id,
+      overrideAccess: true,
+      data: { title: 'After' },
+    })
+    const { docs } = await payload.find({
+      collection: 'article-audit',
+      where: { article: { equals: article.id }, event: { equals: 'article_updated' } },
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(docs).toHaveLength(1)
+    expect(docs[0].details).toEqual({ changedFields: ['title'] })
+  })
+
   it('records supplied pipeline provenance and the status transition', async () => {
     const create = vi.fn().mockResolvedValue({ id: 1 })
 

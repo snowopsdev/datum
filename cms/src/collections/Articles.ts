@@ -70,10 +70,12 @@ export const Articles: CollectionConfig = {
     },
     {
       name: 'slug',
+      index: true,
       type: 'text',
     },
     {
       name: 'keyword',
+      index: true,
       type: 'text',
       required: true,
       admin: {
@@ -262,6 +264,7 @@ export const Articles: CollectionConfig = {
     },
     {
       name: 'status',
+      index: true,
       type: 'select',
       required: true,
       defaultValue: 'topic_selected',

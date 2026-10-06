@@ -1,4 +1,4 @@
-import type { GapKeyword } from './ahrefs'
+import { opportunityScore } from './ahrefs'
 import type { StageContext } from './stages'
 
 /** fetch is Ahrefs-only — no LLM call — so it needs none of StageContext's model/voice/style-guide fields. */
@@ -20,9 +20,6 @@ export interface FetchTopicsResult {
   skippedIds: number[]
 }
 
-// Volume per point of difficulty; higher = better opportunity.
-const score = (gap: GapKeyword): number => gap.volume / Math.max(gap.difficulty, 1)
-
 const sentenceCase = (keyword: string): string => keyword.charAt(0).toUpperCase() + keyword.slice(1)
 
 export async function fetchTopics(
@@ -31,21 +28,29 @@ export async function fetchTopics(
 ): Promise<FetchTopicsResult> {
   const count = Math.max(1, Math.min(5, Math.round(options.count)))
   const gaps = await ctx.ahrefs.contentGapKeywords()
-  const ranked = [...gaps].sort((a, b) => score(b) - score(a))
+  const ranked = [...gaps].sort(
+    (a, b) => opportunityScore(b.volume, b.difficulty) - opportunityScore(a.volume, a.difficulty),
+  )
   console.log(`[fetch] ${gaps.length} gap keyword(s) from Ahrefs, creating up to ${count}`)
+  const { docs } =
+    ranked.length > 0
+      ? await ctx.payload.find({
+          collection: 'articles',
+          where: { keyword: { in: ranked.map((gap) => gap.keyword) } },
+          select: { keyword: true },
+          depth: 0,
+          pagination: false,
+        })
+      : { docs: [] }
+  const existingByKeyword = new Map(docs.map((doc) => [doc.keyword, doc.id]))
   const createdIds: number[] = []
   const skippedIds: number[] = []
   for (const gap of ranked) {
     if (createdIds.length >= count) break
-    const existing = await ctx.payload.find({
-      collection: 'articles',
-      where: { keyword: { equals: gap.keyword } },
-      limit: 1,
-      depth: 0,
-    })
-    if (existing.docs.length > 0) {
-      console.log(`[fetch] skip "${gap.keyword}" — article ${existing.docs[0].id} already exists`)
-      skippedIds.push(existing.docs[0].id)
+    const existingId = existingByKeyword.get(gap.keyword)
+    if (existingId != null) {
+      console.log(`[fetch] skip "${gap.keyword}" — article ${existingId} already exists`)
+      skippedIds.push(existingId)
       continue
     }
     const article = await ctx.payload.create({
@@ -75,6 +80,7 @@ export async function fetchTopics(
         },
       },
     })
+    existingByKeyword.set(gap.keyword, article.id)
     createdIds.push(article.id)
     console.log(
       `[fetch] created article ${article.id} "${gap.keyword}" (volume ${gap.volume}, difficulty ${gap.difficulty}, best competitor position ${gap.bestCompetitorPosition})`,

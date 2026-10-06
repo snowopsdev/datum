@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
+import { loadWorkspaceSetup, type WorkspaceSetupData } from '../../lib/loadWorkspaceReadiness'
 import { formatAuditTimestamp } from './articleStatus'
 import type { SetupChecklistData } from './SetupChecklist'
 
@@ -17,10 +17,18 @@ import type { SetupChecklistData } from './SetupChecklist'
  * "2 h ago" computed in the browser would disagree with the server's own
  * render and hydrate badly, and this page is opened, read, and left.
  */
-export async function loadSetupChecklistData(payload: Payload): Promise<SetupChecklistData> {
+export async function loadSetupChecklistData(
+  payload: Payload,
+  loadedSetup?: WorkspaceSetupData,
+): Promise<SetupChecklistData> {
   const [setup, profileDoc] = await Promise.all([
-    loadWorkspaceSetup(payload),
-    payload.findGlobal({ slug: 'workspace-profile', depth: 0, overrideAccess: true }),
+    loadedSetup ?? loadWorkspaceSetup(payload),
+    payload.findGlobal({
+      slug: 'workspace-profile',
+      select: { sitePages: true, sitePagesFetchedAt: true },
+      depth: 0,
+      overrideAccess: true,
+    }),
   ])
   const { content, governance, mode, ready, tenant } = setup.readiness
 
@@ -29,6 +37,7 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
     try {
       const voice = await payload.findByID({
         collection: 'brand-voices',
+        select: { name: true },
         id: governance.activeVoiceId,
         depth: 0,
         overrideAccess: true,
@@ -44,7 +53,8 @@ export async function loadSetupChecklistData(payload: Payload): Promise<SetupChe
   const sitePages = Array.isArray((profileDoc as { sitePages?: unknown }).sitePages)
     ? ((profileDoc as { sitePages: unknown[] }).sitePages.length as number)
     : 0
-  const fetchedAt = (profileDoc as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
+  const fetchedAt =
+    (profileDoc as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
 
   return {
     mode,

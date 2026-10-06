@@ -1,9 +1,9 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { governanceAuditContext } from '../../lib/governanceAudit'
+import { errorMessage } from '../../lib/errorMessage'
+import { requireUser } from '../../lib/requireUser'
 
 import { randomUUID } from 'node:crypto'
 
@@ -20,31 +20,6 @@ import type { BrandVoiceInput } from './brandVoiceTypes'
 
 const VIEW_PATH = '/admin/ops/setup/brand-voice'
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Unauthorized')
-  return { payload, user }
-}
-
-function governanceAuditContext(
-  user: { email?: string | null; id: number | string },
-  event: string,
-  summary: string,
-  details?: Record<string, unknown>,
-) {
-  return {
-    governanceAudit: {
-      actor: typeof user.email === 'string' ? user.email : String(user.id),
-      actorType: 'user' as const,
-      event,
-      summary,
-      details,
-    },
-  }
-}
-
 function toData(input: BrandVoiceInput) {
   const { content } = parseBrandVoiceContent(input)
   return {
@@ -56,15 +31,8 @@ function toData(input: BrandVoiceInput) {
   }
 }
 
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') {
-    return e.message
-  }
-  return fallback
-}
-
 export async function createBrandVoiceDraftAction(input: BrandVoiceInput): Promise<{ id: number }> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const doc = await payload.create({
     collection: 'brand-voices',
     data: { ...toData(input), status: 'draft', source: 'onboarding' },
@@ -79,7 +47,7 @@ export async function createBrandVoiceDraftAction(input: BrandVoiceInput): Promi
 }
 
 export async function saveBrandVoiceDraftAction(id: number, input: BrandVoiceInput): Promise<void> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'brand-voices',
     id,
@@ -96,7 +64,7 @@ export async function saveBrandVoiceDraftAction(id: number, input: BrandVoiceInp
 export async function activateBrandVoiceAction(
   id: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   try {
     await payload.update({
       collection: 'brand-voices',
@@ -114,7 +82,7 @@ export async function activateBrandVoiceAction(
 }
 
 export async function archiveBrandVoiceAction(id: number): Promise<void> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'brand-voices',
     id,
@@ -135,8 +103,7 @@ const UPLOAD_MIMETYPES = {
 } as const
 
 export type UploadExtractResult =
-  | { ok: true; id: number; warnings: string[] }
-  | { ok: false; error: string }
+  { ok: true; id: number; warnings: string[] } | { ok: false; error: string }
 
 /**
  * The "upload an existing asset" path: store the file, pull its text, run one
@@ -145,7 +112,7 @@ export type UploadExtractResult =
 export async function extractBrandVoiceFromUploadAction(
   formData: FormData,
 ): Promise<UploadExtractResult> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const file = formData.get('file')
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: 'Choose a .md, .txt, .pdf, or .docx file to upload.' }
@@ -190,7 +157,10 @@ export async function extractBrandVoiceFromUploadAction(
   await logExtractionCost(payload, runId, result, request)
 
   const warnings = extracted.truncated
-    ? [`Only the first ${extracted.text.length.toLocaleString()} characters were read`, ...result.warnings]
+    ? [
+        `Only the first ${extracted.text.length.toLocaleString()} characters were read`,
+        ...result.warnings,
+      ]
     : result.warnings
   const { content } = parseBrandVoiceContent(result.content)
   const doc = await payload.create({
@@ -210,14 +180,19 @@ export async function extractBrandVoiceFromUploadAction(
         warnings,
       },
     },
-    context: governanceAuditContext(user, 'brand_voice_extracted', 'Draft extracted from uploaded guide', {
-      fileId: stored.id,
-      filename: file.name,
-      kind,
-      model: result.model,
-      provider: result.provider,
-      warnings,
-    }),
+    context: governanceAuditContext(
+      user,
+      'brand_voice_extracted',
+      'Draft extracted from uploaded guide',
+      {
+        fileId: stored.id,
+        filename: file.name,
+        kind,
+        model: result.model,
+        provider: result.provider,
+        warnings,
+      },
+    ),
     user,
     overrideAccess: false,
   })
@@ -226,7 +201,7 @@ export async function extractBrandVoiceFromUploadAction(
 }
 
 export async function deleteDraftAction(id: number): Promise<void> {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const doc = await payload.findByID({
     collection: 'brand-voices',
     id,

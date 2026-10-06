@@ -39,7 +39,11 @@ const icpData = (over: Partial<Record<string, unknown>> = {}, icp: IcpContent = 
 })
 
 const create = async (over: Partial<Record<string, unknown>> = {}) => {
-  const doc = await payload.create({ collection: 'icps', data: icpData(over), overrideAccess: true })
+  const doc = await payload.create({
+    collection: 'icps',
+    data: icpData(over),
+    overrideAccess: true,
+  })
   createdIds.push(doc.id)
   return doc
 }
@@ -86,7 +90,12 @@ describe('icps collection', () => {
     // the rule this file is testing rather than a workaround for it.
     for (const id of createdIds) {
       await payload
-        .update({ collection: 'icps', id, data: { primary: false, status: 'draft' }, overrideAccess: true })
+        .update({
+          collection: 'icps',
+          id,
+          data: { primary: false, status: 'draft' },
+          overrideAccess: true,
+        })
         .catch(() => undefined)
       await payload.delete({ collection: 'icps', id, overrideAccess: true }).catch(() => undefined)
     }
@@ -105,6 +114,24 @@ describe('icps collection', () => {
       (field) => 'name' in field && field.name === 'subject',
     ) as { relationTo: string[] }
     expect(subject.relationTo).toContain('icps')
+  })
+
+  it('records only the name changed by a real Payload update', async () => {
+    const draft = await create()
+    await payload.update({
+      collection: 'icps',
+      id: draft.id,
+      overrideAccess: true,
+      data: { name: `Renamed ${randomUUID()}` },
+    })
+    const { docs } = await payload.find({
+      collection: 'governance-audit',
+      where: { 'subject.value': { equals: draft.id }, event: { equals: 'icp_updated' } },
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(docs).toHaveLength(1)
+    expect(docs[0].details).toEqual({ changedFields: ['name'] })
   })
 
   // --- activation ---------------------------------------------------------
