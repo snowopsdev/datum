@@ -150,7 +150,7 @@ describe('user builders', () => {
   it('sends the draft its facets as JSON and the draft text last', () => {
     const user = draftClaimUser({ keyword: 'home espresso', title: 'Espresso' }, [facet], 'Body.')
     assert.match(user, /Query: "home espresso"/)
-    assert.match(user, /"id": "f1"/)
+    assert.match(user, /"id":\s*"f1"/)
     // The claim ids the reply must not invent are not sent; the facet ids are.
     assert.doesNotMatch(user, /claimIds/)
     assert.ok(user.trimEnd().endsWith('Body.'))
@@ -168,16 +168,16 @@ describe('user builders', () => {
     assert.match(user, /Facets:/)
     assert.match(user, /Draft claims:/)
     assert.match(user, /Baseline claims:/)
-    assert.match(user, /"id": "c001"/)
-    assert.match(user, /"id": "b1-1"/)
-    assert.match(user, /"corpus": "serp"/)
+    assert.match(user, /"id":\s*"c001"/)
+    assert.match(user, /"id":\s*"b1-1"/)
+    assert.match(user, /"corpus":\s*"serp"/)
     // Our own bookkeeping is not the judge's business.
     assert.doesNotMatch(user, /excerptFound/)
   })
 
   it('sends the verifier each claim with its values and draft excerpt', () => {
     const user = verifierUser({ keyword: 'home espresso' }, [claim])
-    assert.match(user, /"id": "c001"/)
+    assert.match(user, /"id":\s*"c001"/)
     assert.match(user, /"draftExcerpt"/)
     assert.match(user, /"\$1,500"/)
   })

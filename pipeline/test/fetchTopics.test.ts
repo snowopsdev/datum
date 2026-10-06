@@ -10,8 +10,10 @@ it('creates the requested number of unique topics with the selected template', a
   const keywords = ['already exists', 'first new topic', 'second new topic']
   const created: Array<Record<string, unknown>> = []
   const payload = {
-    find: async ({ where }: { where: { keyword: { equals: string } } }) => ({
-      docs: where.keyword.equals === 'already exists' ? [{ id: 9 }] : [],
+    find: async ({ where }: { where: { keyword: { in: string[] } } }) => ({
+      docs: where.keyword.in.includes('already exists')
+        ? [{ id: 9, keyword: 'already exists' }]
+        : [],
     }),
     create: async ({ data }: { data: Record<string, unknown> }) => {
       created.push(data)

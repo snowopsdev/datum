@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { gateReviewOverride, gateVerifiedStatus } from '@/lib/articleReviewGate'
-import { buildRegenerateRevisionNotes, qaFailureLines } from '@/components/ops/articleStatus'
+import { buildRegenerateRevisionNotes } from '@/components/ops/articleStatus'
 
 // Mocked so resetToDraftedAction/sendBackAction/regenerateArticleAction can run outside a
 // real Next.js request scope and a real Payload instance below. `payload` itself keeps its
@@ -10,13 +10,23 @@ import { buildRegenerateRevisionNotes, qaFailureLines } from '@/components/ops/a
 const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.com' } }))
 const findByIDMock = vi.fn(
   async () =>
-    ({ id: 1, status: 'needs_revision', qaResults: undefined, revisionCount: 0, template: 3 }) as never,
+    ({
+      id: 1,
+      status: 'needs_revision',
+      qaResults: undefined,
+      revisionCount: 0,
+      template: 3,
+    }) as never,
 )
-const findMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ docs: [] }) as never)
+const findMock = vi.fn(
+  async (_args: { collection?: string; where?: unknown }) => ({ docs: [] }) as never,
+)
 // `activeRunIncludesArticle` (lib/activeRuns.ts) asks with `count`, not `find`:
 // the archive refusal runs through the real helper so the predicate it pushes
 // into the query is the one under test, not a second copy written here.
-const countMock = vi.fn(async (_args: { collection?: string; where?: unknown }) => ({ totalDocs: 0 }) as never)
+const countMock = vi.fn(
+  async (_args: { collection?: string; where?: unknown }) => ({ totalDocs: 0 }) as never,
+)
 // Echoes back what was written, the way the real `payload.update` returns the
 // updated document — the queue step reads the article's *new* status from it.
 const updateMock = vi.fn(
@@ -87,80 +97,6 @@ const {
   unscheduleArticleAction,
 } = await import('@/components/ops/actions')
 
-describe('qaFailureLines', () => {
-  it('returns an empty list when there are no qaResults', () => {
-    expect(qaFailureLines({})).toEqual([])
-    expect(qaFailureLines({ qaResults: undefined })).toEqual([])
-  })
-
-  it('formats plain-string structural violations', () => {
-    expect(
-      qaFailureLines({
-        qaResults: { structural: { passed: false, violations: ['Missing H2: FAQ'] } },
-      } as never),
-    ).toEqual(['Missing H2: FAQ'])
-  })
-
-  it('formats code+message structural violations', () => {
-    expect(
-      qaFailureLines({
-        qaResults: {
-          structural: {
-            passed: false,
-            violations: [{ code: 'BANNED_PHRASE', message: 'found "game changer"' }],
-          },
-        },
-      } as never),
-    ).toEqual(['BANNED_PHRASE — found "game changer"'])
-  })
-
-  it('formats a code-only violation with no message', () => {
-    expect(
-      qaFailureLines({
-        qaResults: { structural: { passed: false, violations: [{ code: 'TITLE_TOO_LONG' }] } },
-      } as never),
-    ).toEqual(['TITLE_TOO_LONG'])
-  })
-
-  it('includes fact-check notes only when the check failed', () => {
-    expect(
-      qaFailureLines({
-        qaResults: { factCheck: { passed: false, notes: 'unsupported claim about pricing' } },
-      } as never),
-    ).toEqual(['Fact: unsupported claim about pricing'])
-    expect(
-      qaFailureLines({
-        qaResults: { factCheck: { passed: true, notes: 'looked fine' } },
-      } as never),
-    ).toEqual([])
-  })
-
-  it('includes qualitative-review notes only when the check failed', () => {
-    expect(
-      qaFailureLines({
-        qaResults: { qualitativeReview: { passed: false, notes: 'off brand voice' } },
-      } as never),
-    ).toEqual(['Style: off brand voice'])
-    expect(
-      qaFailureLines({
-        qaResults: { qualitativeReview: { passed: true, notes: 'on brand' } },
-      } as never),
-    ).toEqual([])
-  })
-
-  it('combines every failing check into one list, in order', () => {
-    expect(
-      qaFailureLines({
-        qaResults: {
-          structural: { passed: false, violations: [{ code: 'FAQ_COUNT' }] },
-          factCheck: { passed: false, notes: 'bad source' },
-          qualitativeReview: { passed: false, notes: 'too salesy' },
-        },
-      } as never),
-    ).toEqual(['FAQ_COUNT', 'Fact: bad source', 'Style: too salesy'])
-  })
-})
-
 describe('buildRegenerateRevisionNotes', () => {
   const article = { qaResults: { structural: { passed: true, violations: [] } } }
 
@@ -179,7 +115,7 @@ describe('buildRegenerateRevisionNotes', () => {
     )
   })
 
-  it('falls back to qaFailureLines when there is no run', () => {
+  it('falls back to QA failures when there is no run', () => {
     const notes = buildRegenerateRevisionNotes(null, {
       qaResults: { factCheck: { passed: false, notes: 'unsupported stat' } },
     } as never)
@@ -188,7 +124,7 @@ describe('buildRegenerateRevisionNotes', () => {
     )
   })
 
-  it('falls back to qaFailureLines when the run has no reasons', () => {
+  it('falls back to QA failures when the run has no reasons', () => {
     const notes = buildRegenerateRevisionNotes({ reasons: [] }, {
       qaResults: { qualitativeReview: { passed: false, notes: 'too salesy' } },
     } as never)
@@ -203,9 +139,7 @@ describe('buildRegenerateRevisionNotes', () => {
       article,
       '  please add a comparison table  ',
     )
-    expect(notes).toBe(
-      '- [noveltyFloor] thin\n\nReviewer note: please add a comparison table',
-    )
+    expect(notes).toBe('- [noveltyFloor] thin\n\nReviewer note: please add a comparison table')
   })
 
   it('is just the reviewer note when there are no reasons and no QA failures', () => {
@@ -403,8 +337,18 @@ describe('regenerateArticleAction resolves the run through the current pointer',
       informationGain: { run: 42, decision: 'HUMAN_REVIEW' },
     } as never)
     withRuns([
-      { id: 42, reasons: [{ policy: 'coverage', message: 'misses two consensus facets', severity: 'HUMAN_REVIEW' }] },
-      { id: 99, reasons: [{ policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' }] },
+      {
+        id: 42,
+        reasons: [
+          { policy: 'coverage', message: 'misses two consensus facets', severity: 'HUMAN_REVIEW' },
+        ],
+      },
+      {
+        id: 99,
+        reasons: [
+          { policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' },
+        ],
+      },
     ])
 
     await regenerateArticleAction(1)
@@ -429,7 +373,12 @@ describe('regenerateArticleAction resolves the run through the current pointer',
       informationGain: { run: null, decision: null },
     } as never)
     withRuns([
-      { id: 99, reasons: [{ policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' }] },
+      {
+        id: 99,
+        reasons: [
+          { policy: 'noveltyFloor', message: 'from a draft thrown away', severity: 'REVISE' },
+        ],
+      },
     ])
 
     await regenerateArticleAction(1)
@@ -553,7 +502,9 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
 
   it('names the missing environment variables when the runtime is not ready', async () => {
     loadWorkspaceSetupMock.mockResolvedValue(
-      readySetup({ runtime: { ready: false, missing: ['OPENAI_API_KEY'], blockers: ['OPENAI_API_KEY'] } }),
+      readySetup({
+        runtime: { ready: false, missing: ['OPENAI_API_KEY'], blockers: ['OPENAI_API_KEY'] },
+      }),
     )
     const result = await regenerateArticleAction(1)
     expect(result).toEqual({
@@ -650,9 +601,7 @@ describe('scheduling, unscheduling and archiving', () => {
 
   it('archiveArticleAction sets archived and records who did it', async () => {
     await archiveArticleAction(1)
-    expect(countMock).toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'pipeline-runs' }),
-    )
+    expect(countMock).toHaveBeenCalledWith(expect.objectContaining({ collection: 'pipeline-runs' }))
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { archived: true },

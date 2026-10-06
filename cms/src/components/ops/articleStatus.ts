@@ -551,35 +551,6 @@ export function qaFailures(article: { qaResults?: Article['qaResults'] }): QaFai
   return out
 }
 
-export function qaFailureLines(article: { qaResults?: Article['qaResults'] }): string[] {
-  const lines: string[] = []
-  const qa = article.qaResults
-  const raw = qa?.structural?.violations
-  if (Array.isArray(raw)) {
-    for (const v of raw) {
-      if (typeof v === 'string') lines.push(v)
-      else if (v && typeof v === 'object' && 'code' in v) {
-        const code = String((v as { code: unknown }).code)
-        const detail =
-          'message' in v && (v as { message?: unknown }).message != null
-            ? ` — ${String((v as { message: unknown }).message)}`
-            : ''
-        lines.push(`${code}${detail}`)
-      }
-    }
-  }
-  if (qa?.factCheck?.passed === false && qa.factCheck.notes) {
-    lines.push(`Fact: ${qa.factCheck.notes}`)
-  }
-  if (qa?.qualitativeReview?.passed === false && qa.qualitativeReview.notes) {
-    lines.push(`Style: ${qa.qualitativeReview.notes}`)
-  }
-  if (qa?.evidenceCheck?.passed === false && qa.evidenceCheck.notes) {
-    lines.push(`Evidence: ${qa.evidenceCheck.notes}`)
-  }
-  return lines
-}
-
 /**
  * The `revisionNotes` text `regenerateArticleAction` writes when a reviewer
  * sends an article back for regeneration: one bullet per reason from the

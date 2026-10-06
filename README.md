@@ -56,7 +56,7 @@ Delivery settings sit apart from all of that, because no run reads them: **Webho
 ## Prerequisites
 
 - Node.js 22+
-- npm with workspaces. You do not need pnpm for daily use.
+- npm with workspaces for all scripts and CI.
 - Docker for local Postgres through Docker Compose
 
 ## Quick start

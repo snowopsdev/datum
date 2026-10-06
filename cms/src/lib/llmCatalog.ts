@@ -53,6 +53,3 @@ export const LLM_MODEL_OPTIONS: readonly { label: string; value: string }[] = LL
   }`,
 }))
 
-export function catalogModel(id: string): LlmModel | undefined {
-  return LLM_CATALOG.find((m) => m.id === id)
-}

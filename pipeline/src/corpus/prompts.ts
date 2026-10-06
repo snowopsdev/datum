@@ -63,8 +63,8 @@ export function facetClusteringUser(
 ): string {
   return [
     `Query: "${keyword}"`,
-    `Query cluster:\n${JSON.stringify(queryCluster, null, 2)}`,
-    `Template section hints:\n${JSON.stringify(hints, null, 2)}`,
-    `Baseline claims:\n${JSON.stringify(claims, null, 2)}`,
+    `Query cluster:\n${JSON.stringify(queryCluster)}`,
+    `Template section hints:\n${JSON.stringify(hints)}`,
+    `Baseline claims:\n${JSON.stringify(claims)}`,
   ].join('\n\n')
 }

@@ -34,19 +34,27 @@ async function upsertDomain(
   payload: Payload,
   domain: string,
   sightings: CandidateSighting[],
+  prefetched?: EvidenceSourceCandidate | null,
 ): Promise<'created' | 'updated'> {
-  const citations = sightings.reduce((sum, s) => sum + (s.kind === 'cited' ? (s.citations ?? 1) : 0), 0)
+  const citations = sightings.reduce(
+    (sum, s) => sum + (s.kind === 'cited' ? (s.citations ?? 1) : 0),
+    0,
+  )
   const serps = sightings.filter((s) => s.kind === 'serp').length
   const seenAt = sightings[0]?.seenAt ?? new Date().toISOString()
 
-  const { docs } = await payload.find({
-    collection: 'evidence-source-candidates',
-    where: { domain: { equals: domain } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const existing = docs[0] as EvidenceSourceCandidate | undefined
+  const existing =
+    prefetched === undefined
+      ? (
+          await payload.find({
+            collection: 'evidence-source-candidates',
+            where: { domain: { equals: domain } },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          })
+        ).docs[0]
+      : (prefetched ?? undefined)
 
   if (existing === undefined) {
     try {
@@ -77,6 +85,7 @@ async function upsertDomain(
   await payload.update({
     collection: 'evidence-source-candidates',
     id: existing.id,
+    depth: 0,
     overrideAccess: true,
     data: {
       // An approved row being touched again means its rule is no longer active
@@ -111,10 +120,19 @@ export async function recordCandidateSightings(
     byDomain.set(sighting.domain, group)
   }
 
+  if (byDomain.size === 0) return { created: 0, updated: 0 }
+  const { docs } = await payload.find({
+    collection: 'evidence-source-candidates',
+    where: { domain: { in: [...byDomain.keys()] } },
+    depth: 0,
+    pagination: false,
+    overrideAccess: true,
+  })
+  const existingByDomain = new Map(docs.map((doc) => [doc.domain, doc]))
   let created = 0
   let updated = 0
   for (const [domain, group] of byDomain) {
-    const result = await upsertDomain(payload, domain, group)
+    const result = await upsertDomain(payload, domain, group, existingByDomain.get(domain) ?? null)
     if (result === 'created') created += 1
     else updated += 1
   }

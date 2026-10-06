@@ -1,4 +1,23 @@
+import { auditActor, changedFieldsOf, humanize } from './auditFields'
 import type { CollectionAfterChangeHook, GlobalAfterChangeHook, JsonObject } from 'payload'
+
+/** Annotate a governance write with the authenticated actor and action. */
+export function governanceAuditContext(
+  user: { email?: string | null; id: number | string },
+  event: string,
+  summary: string,
+  details?: Record<string, unknown>,
+) {
+  return {
+    governanceAudit: {
+      actor: auditActor(user),
+      actorType: 'user' as const,
+      event,
+      summary,
+      details,
+    },
+  }
+}
 
 export type GovernanceAuditContext = {
   actor?: string
@@ -14,8 +33,6 @@ type AuditRequestContext = {
 
 /** Collections whose changes are recorded in `governance-audit`. Extend the union (and the collection's `relationTo`) to audit more. */
 export type GovernanceSubject = 'brand-voices' | 'evidence-sources' | 'icps'
-
-const humanize = (event: string): string => event.replace(/_/g, ' ')
 
 /**
  * Builds the `afterChange` hook that mirrors `auditArticleChange` for
@@ -46,10 +63,8 @@ export function auditGovernanceChange(
           ? 'status_changed'
           : `${eventPrefix}_updated`)
     const actorType = supplied?.actorType ?? (user ? 'user' : 'system')
-    const actor = supplied?.actor ?? user?.email ?? (user?.id != null ? String(user.id) : 'system')
-    const changedFields = Object.keys(data ?? {}).filter(
-      (field) => !['createdAt', 'updatedAt'].includes(field),
-    )
+    const actor = supplied?.actor ?? auditActor(user)
+    const changedFields = changedFieldsOf(data, previousDoc, operation)
 
     await req.payload.create({
       collection: 'governance-audit',
@@ -97,7 +112,7 @@ export function auditGlobalChange(slug: string, eventPrefix: string): GlobalAfte
 
     const event = supplied?.event ?? `${eventPrefix}_updated`
     const actorType = supplied?.actorType ?? (user ? 'user' : 'system')
-    const actor = supplied?.actor ?? user?.email ?? (user?.id != null ? String(user.id) : 'system')
+    const actor = supplied?.actor ?? auditActor(user)
 
     await req.payload.create({
       collection: 'governance-audit',

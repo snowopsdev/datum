@@ -7,7 +7,12 @@ const updateMock = vi.fn(async (_args: unknown) => ({}) as never)
 const createRunMock = vi.fn(async (_payload: unknown, _user: unknown, _input: unknown) => undefined)
 /** Two active audiences, so a brief has something to switch between. */
 const ICPS = [
-  { id: 11, name: 'Marketing lead', primary: true, audienceLine: 'A marketing lead. Main pain: briefs.' },
+  {
+    id: 11,
+    name: 'Marketing lead',
+    primary: true,
+    audienceLine: 'A marketing lead. Main pain: briefs.',
+  },
   { id: 12, name: 'Founder', primary: false, audienceLine: 'A founder. Main pain: time.' },
 ]
 /** The workspace the next action sees. Tests flip `mode` to reach the live gate. */
@@ -39,11 +44,13 @@ vi.mock('@/lib/createPipelineRun', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/createPipelineRun')>()
   return { ...actual, createPipelineRun: createRunMock }
 })
-vi.mock('@/lib/loadWorkspaceReadiness', () => ({ loadWorkspaceSetup: setupMock }))
+vi.mock('@/lib/loadWorkspaceReadiness', () => ({
+  loadWorkspaceSetup: setupMock,
+  loadActiveAudienceOptions: vi.fn(async () => ICPS),
+}))
 
-const { approveBriefAction, revisitBriefAction, saveBriefAction } = await import(
-  '@/components/ops/briefActions'
-)
+const { approveBriefAction, revisitBriefAction, saveBriefAction } =
+  await import('@/components/ops/briefActions')
 
 const atBrief = (over: Record<string, unknown> = {}) =>
   ({
@@ -83,10 +90,14 @@ describe('saveBriefAction', () => {
     findByIDMock.mockResolvedValue(atBrief())
     const result = await saveBriefAction(1, edits)
     expect(result.ok).toBe(true)
-    const call = updateMock.mock.calls[0]?.[0] as unknown as { data: { brief: Record<string, unknown>; status?: string } }
+    const call = updateMock.mock.calls[0]?.[0] as unknown as {
+      data: { brief: Record<string, unknown>; status?: string }
+    }
     expect(call.data.status).toBeUndefined()
     expect(call.data.brief.angle).toBe('New angle')
-    expect(call.data.brief.sections).toEqual([{ heading: 'A', notes: 'say this', source: 'template' }])
+    expect(call.data.brief.sections).toEqual([
+      { heading: 'A', notes: 'say this', source: 'template' },
+    ])
     expect(call.data.brief.notes).toBe('Lead with the routine.')
   })
 
@@ -149,7 +160,10 @@ describe('approveBriefAction', () => {
     expect(call.context.articleAudit.event).toBe('brief_approved')
 
     expect(createRunMock).toHaveBeenCalledTimes(1)
-    const runInput = createRunMock.mock.calls[0]?.[2] as unknown as { source: string; articleIds: number[] }
+    const runInput = createRunMock.mock.calls[0]?.[2] as unknown as {
+      source: string
+      articleIds: number[]
+    }
     expect(runInput.source).toBe('selected')
     expect(runInput.articleIds).toEqual([1])
   })
@@ -209,7 +223,10 @@ describe('approveBriefAction', () => {
   })
 
   it('uses the shared gate wording when the runtime is not configured', async () => {
-    readiness = { ...freshReadiness(), runtime: { ready: false, missing: [], problems: [], blockers: ['OPENAI_API_KEY'] } }
+    readiness = {
+      ...freshReadiness(),
+      runtime: { ready: false, missing: [], problems: [], blockers: ['OPENAI_API_KEY'] },
+    }
     findByIDMock.mockResolvedValue(atBrief())
     const result = await approveBriefAction(1, edits)
     expect(result).toEqual({
@@ -222,10 +239,14 @@ describe('approveBriefAction', () => {
 
 describe('revisitBriefAction', () => {
   it('sends a draft back to its brief and clears the approval', async () => {
-    findByIDMock.mockResolvedValue(atBrief({ status: 'needs_revision', brief: { approvedAt: 'x', approvedBy: 'y' } }))
+    findByIDMock.mockResolvedValue(
+      atBrief({ status: 'needs_revision', brief: { approvedAt: 'x', approvedBy: 'y' } }),
+    )
     const result = await revisitBriefAction(1)
     expect(result.ok).toBe(true)
-    const call = updateMock.mock.calls[0]?.[0] as unknown as { data: { status: string; brief: { approvedAt: null } } }
+    const call = updateMock.mock.calls[0]?.[0] as unknown as {
+      data: { status: string; brief: { approvedAt: null } }
+    }
     expect(call.data.status).toBe('brief_review')
     expect(call.data.brief.approvedAt).toBeNull()
   })

@@ -15,6 +15,7 @@ import * as migration_20260903_030748_evidence_bank_global_and_qa from './202609
 import * as migration_20260905_232800_graphql_policy_options from './20260905_232800_graphql_policy_options';
 import * as migration_20260911_145800_drop_codex_model_options from './20260911_145800_drop_codex_model_options';
 import * as migration_20260911_152559_pipeline_runs_drop_onboarding_source from './20260911_152559_pipeline_runs_drop_onboarding_source';
+import * as migration_20261006_205858_articles_lookup_indexes from './20261006_205858_articles_lookup_indexes';
 
 export const migrations = [
   {
@@ -100,6 +101,11 @@ export const migrations = [
   {
     up: migration_20260911_152559_pipeline_runs_drop_onboarding_source.up,
     down: migration_20260911_152559_pipeline_runs_drop_onboarding_source.down,
-    name: '20260911_152559_pipeline_runs_drop_onboarding_source'
+    name: '20260911_152559_pipeline_runs_drop_onboarding_source',
+  },
+  {
+    up: migration_20261006_205858_articles_lookup_indexes.up,
+    down: migration_20261006_205858_articles_lookup_indexes.down,
+    name: '20261006_205858_articles_lookup_indexes'
   },
 ];

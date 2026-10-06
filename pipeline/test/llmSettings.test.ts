@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { catalogModel, LLM_CATALOG, LLM_MODEL_OPTIONS } from '../../cms/src/lib/llmCatalog'
+import { LLM_CATALOG, LLM_MODEL_OPTIONS } from '../../cms/src/lib/llmCatalog'
 import {
   PIPELINE_STAGES,
   resolveExtractionModel,
@@ -129,7 +129,6 @@ describe('model catalog', () => {
     for (const id of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'claude-opus-5']) {
       assert.ok(values.includes(id), id)
     }
-    assert.match(catalogModel('gpt-5.6-terra')?.label ?? '', /GPT-5\.6 Terra/)
     assert.match(LLM_MODEL_OPTIONS.find((o) => o.value === 'gpt-5.6-terra')?.label ?? '', /\$2 in \/ \$12 out/)
   })
 

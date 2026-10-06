@@ -4,7 +4,6 @@ import { describe, it } from 'node:test'
 import {
   compareValues,
   extractValues,
-  hasNumericOrTemporal,
   type ExtractedValue,
   type TextValues,
 } from '../src/informationGain/lib'
@@ -242,17 +241,6 @@ describe('extractValues — negation, direction, comparative', () => {
   })
 })
 
-describe('hasNumericOrTemporal', () => {
-  it('is true when any value was extracted', () => {
-    assert.equal(hasNumericOrTemporal(extractValues('40% faster')), true)
-    assert.equal(hasNumericOrTemporal(extractValues('shipped in 2026')), true)
-  })
-
-  it('is false when the text carries no value', () => {
-    assert.equal(hasNumericOrTemporal(extractValues('it is generally a good idea')), false)
-  })
-})
-
 describe('compareValues', () => {
   it('scores 1 when there is nothing comparable', () => {
     assert.equal(exactness('it is a good idea', ['anything at all']), 1)
@@ -361,10 +349,7 @@ describe('compareValues — symmetric negation', () => {
   })
 
   it('accepts an affirmative claim when any one excerpt is affirmative too', () => {
-    assert.equal(
-      exactness('80% recommend it', ['80% do not recommend it', '80% recommend it']),
-      1,
-    )
+    assert.equal(exactness('80% recommend it', ['80% do not recommend it', '80% recommend it']), 1)
   })
 
   it('does not open a negation comparable when neither side is negated', () => {

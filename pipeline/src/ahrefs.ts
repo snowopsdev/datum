@@ -111,7 +111,10 @@ class RealAhrefsClient implements AhrefsClient {
     const url = new URL(`${API_BASE}${path}`)
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${this.apiKey}`, Accept: 'application/json' },
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        Accept: 'application/json',
+      },
     })
     if (!response.ok) {
       const body = await response.text()
@@ -158,8 +161,14 @@ class RealAhrefsClient implements AhrefsClient {
         .filter((k): k is string => Boolean(k)),
     )
     const gaps = new Map<string, GapKeyword>()
-    for (const competitor of this.competitorDomains) {
-      for (const row of await this.organicKeywords(competitor, competitorFilter)) {
+    const competitorRows = await Promise.all(
+      this.competitorDomains.map((competitor) =>
+        this.organicKeywords(competitor, competitorFilter),
+      ),
+    )
+    // Merge in competitor order so tied rankings retain the first seen row.
+    for (const rows of competitorRows) {
+      for (const row of rows) {
         if (!row.keyword || row.best_position === null) continue
         const key = row.keyword.toLowerCase()
         if (targetKeywords.has(key)) continue
@@ -195,7 +204,14 @@ class RealAhrefsClient implements AhrefsClient {
         if (!keyword) return []
         const volume = row.volume ?? 0
         const difficulty = row.difficulty ?? 0
-        return [{ keyword, volume, difficulty, opportunity: opportunityScore(volume, difficulty) }]
+        return [
+          {
+            keyword,
+            volume,
+            difficulty,
+            opportunity: opportunityScore(volume, difficulty),
+          },
+        ]
       })
       .sort((a, b) => b.opportunity - a.opportunity)
   }
@@ -212,7 +228,10 @@ class RealAhrefsClient implements AhrefsClient {
     )
     const organic = positions.filter((p) => p.type.includes('organic')).slice(0, 10)
     const rankingPagesSummary = organic
-      .map((p) => `#${p.position} ${p.title ?? '(untitled)'} — ${p.url ?? ''} (DR ${p.domain_rating ?? '?'})`)
+      .map(
+        (p) =>
+          `#${p.position} ${p.title ?? '(untitled)'} — ${p.url ?? ''} (DR ${p.domain_rating ?? '?'})`,
+      )
       .join('\n')
     // A result with no URL is not fetchable, so it cannot join the corpus.
     const pages: SerpPage[] = organic
@@ -250,10 +269,30 @@ class RealAhrefsClient implements AhrefsClient {
 class MockAhrefsClient implements AhrefsClient {
   async contentGapKeywords(): Promise<GapKeyword[]> {
     return [
-      { keyword: 'best crm for small business', volume: 5400, difficulty: 42, bestCompetitorPosition: 3 },
-      { keyword: 'how to migrate crm data', volume: 1300, difficulty: 18, bestCompetitorPosition: 5 },
-      { keyword: 'crm implementation checklist', volume: 880, difficulty: 12, bestCompetitorPosition: 7 },
-      { keyword: 'hubspot vs salesforce for startups', volume: 720, difficulty: 35, bestCompetitorPosition: 4 },
+      {
+        keyword: 'best crm for small business',
+        volume: 5400,
+        difficulty: 42,
+        bestCompetitorPosition: 3,
+      },
+      {
+        keyword: 'how to migrate crm data',
+        volume: 1300,
+        difficulty: 18,
+        bestCompetitorPosition: 5,
+      },
+      {
+        keyword: 'crm implementation checklist',
+        volume: 880,
+        difficulty: 12,
+        bestCompetitorPosition: 7,
+      },
+      {
+        keyword: 'hubspot vs salesforce for startups',
+        volume: 720,
+        difficulty: 35,
+        bestCompetitorPosition: 4,
+      },
     ]
   }
 

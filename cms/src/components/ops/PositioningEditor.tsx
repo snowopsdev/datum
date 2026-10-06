@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import {
@@ -38,7 +37,6 @@ export function PositioningEditor({
   /** From the workspace profile: null warns that the assistant has nothing to read. */
   sitePagesFetchedAt: string | null
 }) {
-  const router = useRouter()
   const [content, setContent] = useState(initial)
   const [step, setStep] = useState(0)
   const [message, setMessage] = useState<string | null>(null)
@@ -66,7 +64,6 @@ export function PositioningEditor({
         return
       }
       setMessage('Saved. The next run writes with this position.')
-      router.refresh()
     })
 
   const applyAssist = (stepId: PositioningStepId, value: Record<string, unknown>) => {

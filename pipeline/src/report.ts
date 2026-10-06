@@ -3,6 +3,11 @@ import type { Payload } from 'payload'
 import { stageKpis } from '../../cms/src/lib/opsKpis'
 import type { Article, CostLog, InformationGainRun } from '../../cms/src/payload-types'
 
+type ReportArticle = Pick<
+  Article,
+  'id' | 'keyword' | 'title' | 'status' | 'template' | 'qaResults' | 'informationGain'
+>
+
 export type ReportPeriod = 'week' | 'month'
 
 interface ViolationLike {
@@ -10,20 +15,21 @@ interface ViolationLike {
   [k: string]: unknown
 }
 
-function violationsOf(article: Article): ViolationLike[] {
+function violationsOf(article: ReportArticle): ViolationLike[] {
   const raw = article.qaResults?.structural?.violations
   if (!Array.isArray(raw)) return []
   return raw.filter(
-    (v): v is ViolationLike => typeof v === 'object' && v !== null && typeof (v as ViolationLike).code === 'string',
+    (v): v is ViolationLike =>
+      typeof v === 'object' && v !== null && typeof (v as ViolationLike).code === 'string',
   )
 }
 
-function templateNameOf(article: Article): string {
+function templateNameOf(article: ReportArticle): string {
   if (article.template && typeof article.template === 'object') return article.template.name
   return '(no template)'
 }
 
-function articleIdOf(row: CostLog): number | null {
+function articleIdOf(row: Pick<CostLog, 'article'>): number | null {
   if (typeof row.article === 'number') return row.article
   if (row.article && typeof row.article === 'object') return row.article.id
   return null
@@ -52,7 +58,10 @@ class PassCounter {
 const IG_DECISIONS = ['BLOCK', 'HUMAN_REVIEW', 'REVISE', 'PASS'] as const
 
 /** The mean of a nullable score across the scored articles, or `n/a` when none carry it. */
-function meanOf(articles: Article[], pick: (a: Article) => number | null | undefined): string {
+function meanOf(
+  articles: ReportArticle[],
+  pick: (a: ReportArticle) => number | null | undefined,
+): string {
   const values = articles.map(pick).filter((v): v is number => typeof v === 'number')
   if (values.length === 0) return 'n/a'
   return (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)
@@ -73,19 +82,14 @@ const MAX_REASONS = 3
  * that actually judged this draft. BLOCK first, then HUMAN_REVIEW, then the
  * rest — a reviewer wants the disqualifying reason, not the first one listed.
  */
-async function topReasons(payload: Payload, article: Article): Promise<ReasonLike[]> {
-  const runId =
-    typeof article.informationGain?.run === 'number'
-      ? article.informationGain.run
-      : (article.informationGain?.run as InformationGainRun | null | undefined)?.id
-  if (runId == null) return []
-  const { docs } = await payload.find({
-    collection: 'information-gain-runs',
-    where: { id: { equals: runId } },
-    limit: 1,
-    depth: 0,
-  })
-  const raw = docs[0]?.reasons
+function informationGainRunId(article: ReportArticle): number | undefined {
+  const run = article.informationGain?.run
+  return typeof run === 'number' ? run : (run as InformationGainRun | null | undefined)?.id
+}
+
+function topReasons(runs: Map<number, unknown>, article: ReportArticle): ReasonLike[] {
+  const runId = informationGainRunId(article)
+  const raw = runId == null ? undefined : runs.get(runId)
   if (!Array.isArray(raw)) return []
   const reasons = raw.filter(
     (r): r is ReasonLike =>
@@ -107,18 +111,34 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
 
   const { docs: articles } = await payload.find({
     collection: 'articles',
+    select: {
+      keyword: true,
+      title: true,
+      status: true,
+      template: true,
+      qaResults: true,
+      informationGain: true,
+    },
+    populate: { templates: { name: true } },
     pagination: false,
     depth: 1,
     sort: 'createdAt',
   })
   const { docs: allCostRows } = await payload.find({
     collection: 'cost-log',
+    select: {
+      article: true,
+      stage: true,
+      model: true,
+      costUsd: true,
+      createdAt: true,
+      inputTokens: true,
+      outputTokens: true,
+    },
     pagination: false,
     depth: 0,
   })
-  const costRows = allCostRows.filter(
-    (r) => r.createdAt >= periodStart.toISOString(),
-  )
+  const costRows = allCostRows.filter((r) => r.createdAt >= periodStart.toISOString())
 
   const lines: string[] = []
   lines.push('PIPELINE REPORT')
@@ -138,14 +158,22 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   const violationArticleCounts = new Map<string, number>()
   const perTemplate = new Map<
     string,
-    { structural: PassCounter; factCheck: PassCounter; qualitative: PassCounter }
+    {
+      structural: PassCounter
+      factCheck: PassCounter
+      qualitative: PassCounter
+    }
   >()
   for (const article of qaArticles) {
     const qa = article.qaResults
     const name = templateNameOf(article)
     let tpl = perTemplate.get(name)
     if (!tpl) {
-      tpl = { structural: new PassCounter(), factCheck: new PassCounter(), qualitative: new PassCounter() }
+      tpl = {
+        structural: new PassCounter(),
+        factCheck: new PassCounter(),
+        qualitative: new PassCounter(),
+      }
       perTemplate.set(name, tpl)
     }
     structural.add(qa?.structural?.passed === true)
@@ -187,7 +215,10 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   const perStage = stageKpis(costRows)
   const byModel = new Map<string, number>()
   for (const row of costRows) {
-    byModel.set(row.model ?? '(unknown)', (byModel.get(row.model ?? '(unknown)') ?? 0) + (row.costUsd ?? 0))
+    byModel.set(
+      row.model ?? '(unknown)',
+      (byModel.get(row.model ?? '(unknown)') ?? 0) + (row.costUsd ?? 0),
+    )
   }
   lines.push('')
   lines.push(`== Spend (${costRows.length} cost-log row(s) in period) ==`)
@@ -242,8 +273,12 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
           .map((d) => `${d}: ${byDecision.get(d)}`)
           .join(', '),
     )
-    lines.push(`mean consensus coverage: ${meanOf(scored, (a) => a.informationGain?.consensusCoverage)}`)
-    lines.push(`mean verification ratio: ${meanOf(scored, (a) => a.informationGain?.verificationRatio)}`)
+    lines.push(
+      `mean consensus coverage: ${meanOf(scored, (a) => a.informationGain?.consensusCoverage)}`,
+    )
+    lines.push(
+      `mean verification ratio: ${meanOf(scored, (a) => a.informationGain?.verificationRatio)}`,
+    )
 
     // Status *and* decision, not decision alone. A reviewer override moves the
     // article to `verified` but deliberately leaves the `HUMAN_REVIEW`/`BLOCK`
@@ -255,18 +290,36 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     const queue = scored.filter(
       (a) =>
         (a.status === 'needs_review' || a.status === 'blocked') &&
-        (a.informationGain?.decision === 'HUMAN_REVIEW' ||
-          a.informationGain?.decision === 'BLOCK'),
+        (a.informationGain?.decision === 'HUMAN_REVIEW' || a.informationGain?.decision === 'BLOCK'),
     )
     lines.push('')
     lines.push(`-- Review queue (${queue.length} article(s) at needs_review/blocked) --`)
     if (queue.length === 0) lines.push('(none)')
+    const runIds = [
+      ...new Set(
+        queue.flatMap((article) => {
+          const id = informationGainRunId(article)
+          return id == null ? [] : [id]
+        }),
+      ),
+    ]
+    const { docs: reasonRows } =
+      runIds.length > 0
+        ? await payload.find({
+            collection: 'information-gain-runs',
+            where: { id: { in: runIds } },
+            select: { reasons: true },
+            pagination: false,
+            depth: 0,
+          })
+        : { docs: [] }
+    const reasonsByRun = new Map(reasonRows.map((run) => [run.id, run.reasons]))
     for (const article of queue) {
       lines.push(
         `article ${article.id} "${article.title ?? article.keyword}" [${templateNameOf(article)}] ` +
           `${article.informationGain?.decision} (status ${article.status})`,
       )
-      const reasons = await topReasons(payload, article)
+      const reasons = topReasons(reasonsByRun, article)
       if (reasons.length === 0) lines.push('  (linked run has no recorded reasons)')
       for (const reason of reasons) {
         // The claim id is what separates two otherwise identical reasons, so it
@@ -294,10 +347,14 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     }
   }
   for (const article of needsRevision) {
-    lines.push(`article ${article.id} "${article.title ?? article.keyword}" [${templateNameOf(article)}]`)
+    lines.push(
+      `article ${article.id} "${article.title ?? article.keyword}" [${templateNameOf(article)}]`,
+    )
     const qa = article.qaResults
     if (qa?.factCheck?.notes) {
-      lines.push(`  factCheck (${qa.factCheck.passed ? 'passed' : 'failed'}): ${qa.factCheck.notes}`)
+      lines.push(
+        `  factCheck (${qa.factCheck.passed ? 'passed' : 'failed'}): ${qa.factCheck.notes}`,
+      )
     }
     if (qa?.qualitativeReview?.notes) {
       lines.push(

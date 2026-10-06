@@ -1,3 +1,4 @@
+import { auditActor, changedFieldsOf, humanize } from './auditFields'
 import type { CollectionAfterChangeHook, JsonObject } from 'payload'
 
 export type ArticleAuditContext = {
@@ -13,8 +14,6 @@ export type ArticleAuditContext = {
 type AuditRequestContext = {
   articleAudit?: ArticleAuditContext
 }
-
-const humanize = (event: string): string => event.replace(/_/g, ' ')
 
 export const auditArticleChange: CollectionAfterChangeHook = async ({
   context,
@@ -42,8 +41,8 @@ export const auditArticleChange: CollectionAfterChangeHook = async ({
         ? 'status_changed'
         : 'article_updated')
   const actorType = supplied?.actorType ?? (user ? 'user' : 'system')
-  const actor = supplied?.actor ?? user?.email ?? (user?.id != null ? String(user.id) : 'system')
-  const changedFields = Object.keys(data).filter((field) => !['createdAt', 'updatedAt'].includes(field))
+  const actor = supplied?.actor ?? auditActor(user)
+  const changedFields = changedFieldsOf(data, previousDoc, operation)
 
   await req.payload.create({
     collection: 'article-audit',

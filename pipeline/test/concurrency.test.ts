@@ -3,6 +3,14 @@ import { describe, it } from 'node:test'
 
 import { mapWithConcurrency } from '../src/corpus/concurrency'
 
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((release) => {
+    resolve = release
+  })
+  return { promise, resolve }
+}
+
 const tick = (ms = 0): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe('mapWithConcurrency', () => {
@@ -72,5 +80,36 @@ describe('mapWithConcurrency', () => {
       /boom 1/,
     )
     assert.ok(started.length < 6, `expected work to stop early, started ${started.length} items`)
+  })
+
+  it('drains in-flight work and preserves the first rejection, even when it is undefined', async () => {
+    const gate = deferred()
+    const started: number[] = []
+    let finished = false
+    let settled = false
+    const pending = mapWithConcurrency([0, 1, 2, 3], 3, async (item) => {
+      started.push(item)
+      if (item === 1) throw undefined
+      await gate.promise
+      if (item === 2) throw new Error('later failure')
+      finished = true
+      return item
+    }).then(
+      () => {
+        settled = true
+        assert.fail('expected rejection')
+      },
+      (error: unknown) => {
+        settled = true
+        assert.equal(error, undefined)
+      },
+    )
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    assert.equal(settled, false)
+    assert.deepEqual(started, [0, 1, 2])
+    gate.resolve()
+    await pending
+    assert.equal(finished, true)
+    assert.deepEqual(started, [0, 1, 2])
   })
 })

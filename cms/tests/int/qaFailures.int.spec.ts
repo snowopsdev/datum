@@ -5,13 +5,17 @@ import {
   evidenceCitationsOf,
   evidenceFindingsOf,
   QA_CHECK_LABEL,
-  qaFailureLines,
   qaFailures,
 } from '@/components/ops/articleStatus'
 
 describe('describeViolation', () => {
   it('states the limit and the actual value, not just the code', () => {
-    const d = describeViolation({ code: 'TITLE_TAG_TOO_LONG', limit: 60, actual: 74, titleTag: 'x' })
+    const d = describeViolation({
+      code: 'TITLE_TAG_TOO_LONG',
+      limit: 60,
+      actual: 74,
+      titleTag: 'x',
+    })
     expect(d?.what).toBe('The SEO title tag is 74 characters; the limit is 60.')
     expect(d?.fix).toContain('60 characters or fewer')
     expect(d?.code).toBe('TITLE_TAG_TOO_LONG')
@@ -110,7 +114,7 @@ describe('qaFailures', () => {
     expect(failures[0].what).toBe('too salesy')
   })
 
-  it('hands the fact checker\'s verified sources to the rewrite', () => {
+  it("hands the fact checker's verified sources to the rewrite", () => {
     const [f] = qaFailures({
       qaResults: {
         factCheck: {
@@ -198,7 +202,9 @@ describe('the evidence check as a QA failure', () => {
 
   it('labels the check for the regeneration prompt', () => {
     expect(QA_CHECK_LABEL.evidenceCheck).toBe('Evidence')
-    expect(qaFailureLines(failing as never).some((line) => line.startsWith('Evidence: '))).toBe(true)
+    expect(qaFailures(failing as never).map((failure) => QA_CHECK_LABEL[failure.check])).toContain(
+      'Evidence',
+    )
   })
 
   it('adds nothing when the check passed', () => {
