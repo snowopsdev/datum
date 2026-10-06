@@ -1,3 +1,4 @@
+import { auditActor } from '../lib/auditFields'
 import type {
   CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
@@ -40,7 +41,7 @@ export const gateActivation: CollectionBeforeChangeHook = ({ data, originalDoc, 
   if (data.status === 'active' && originalDoc?.status !== 'active') {
     const user = req.user as { email?: string; id?: number | string } | null | undefined
     data.activatedAt = new Date().toISOString()
-    data.activatedBy = user?.email ?? (user?.id != null ? String(user.id) : 'system')
+    data.activatedBy = auditActor(user)
   }
   return data
 }

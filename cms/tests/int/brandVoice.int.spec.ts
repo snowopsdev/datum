@@ -18,7 +18,6 @@ import {
   emptyBrandVoiceContent,
   MAX_SAMPLE_CHARS,
   parseBrandVoiceContent,
-  shortBannedWords,
 } from '@/lib/brandVoice'
 import { BRAND_VOICE_FIXTURE } from '@/lib/brandVoiceFixture'
 import { auditGovernanceChange } from '@/lib/governanceAudit'
@@ -67,7 +66,7 @@ describe('brand voice content helpers', () => {
     expect(problems.join('\n')).toMatch(/NOT/)
   })
 
-  it('exposes lower-cased, de-duplicated banned words and flags short ones', () => {
+  it('exposes lower-cased, de-duplicated banned words', () => {
     const bv = parseBrandVoiceContent({
       bannedWords: [
         { word: ' Just ' },
@@ -78,7 +77,6 @@ describe('brand voice content helpers', () => {
       ],
     }).content
     expect(bannedWordsOf(bv)).toEqual(['just', 'synergy', 'so'])
-    expect(shortBannedWords(bv)).toEqual(['so'])
   })
 
   it('renders a deterministic prompt block that omits empty sections', () => {
@@ -133,7 +131,9 @@ describe('brand voice content helpers', () => {
   it('escapes backslashes before pipes in table cells, not after', () => {
     const bv = {
       ...emptyBrandVoiceContent('Backslash co'),
-      voiceAdjectives: [{ adjective: 'blunt', description: 'a\\|b', doExample: '', dontExample: '' }],
+      voiceAdjectives: [
+        { adjective: 'blunt', description: 'a\\|b', doExample: '', dontExample: '' },
+      ],
     }
     const md = brandVoiceToGuideMarkdown(bv)
     const row = md.split('\n').find((l) => l.includes('blunt'))
@@ -217,7 +217,9 @@ describe('brand voice collection rules', () => {
       .mockResolvedValueOnce({ id: 3, name: 'WIP', status: 'draft' })
     const req = { payload: { findByID } }
 
-    await expect(draftOnlyDelete({ id: 1, req } as never)).rejects.toThrow(/Only draft .* is active/)
+    await expect(draftOnlyDelete({ id: 1, req } as never)).rejects.toThrow(
+      /Only draft .* is active/,
+    )
     await expect(draftOnlyDelete({ id: 2, req } as never)).rejects.toThrow(/is archived/)
     await expect(draftOnlyDelete({ id: 3, req } as never)).resolves.toBeUndefined()
     expect(BrandVoices.hooks?.beforeDelete?.[0]).toBe(draftOnlyDelete)
@@ -338,9 +340,9 @@ describe('governance audit trail', () => {
     expect(await GovernanceAudit.access?.create?.({} as never)).toBe(false)
     expect(await GovernanceAudit.access?.update?.({} as never)).toBe(false)
     expect(await GovernanceAudit.access?.delete?.({} as never)).toBe(false)
-    expect(() => GovernanceAudit.hooks?.beforeChange?.[0]?.({ operation: 'update' } as never)).toThrow(
-      'append-only',
-    )
+    expect(() =>
+      GovernanceAudit.hooks?.beforeChange?.[0]?.({ operation: 'update' } as never),
+    ).toThrow('append-only')
     expect(() => GovernanceAudit.hooks?.beforeDelete?.[0]?.({} as never)).toThrow('append-only')
   })
 })

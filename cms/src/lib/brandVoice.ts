@@ -276,10 +276,6 @@ export function brandVoiceActivationProblems(bv: BrandVoiceContent): string[] {
   return problems
 }
 
-/** Banned words likely to hard-fail legitimate prose because they are so short. */
-export function shortBannedWords(bv: BrandVoiceContent): string[] {
-  return bannedWordsOf(bv).filter((w) => w.length < SHORT_BANNED_WORD_LENGTH)
-}
 
 // ---------------------------------------------------------------------------
 // Rendering — LLM prompt

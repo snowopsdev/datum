@@ -3,8 +3,8 @@
 ## Package manager
 
 - Use npm workspaces with Node 22+: `npm install`, `npm run dev`, `npm test`.
-- Do not run `npm test --workspace cms`; that script shells out to pnpm. Use `npm run test:int --workspace cms`.
-- For CMS E2E, install pnpm for Playwright's server fallback, or start `npm run dev` separately and run `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`.
+- `npm test --workspace cms` runs CMS integration and E2E tests; use `npm run test:int --workspace cms` for integration only.
+- CMS E2E starts an npm dev server by default. For an existing server, use `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`.
 
 ## Project map
 

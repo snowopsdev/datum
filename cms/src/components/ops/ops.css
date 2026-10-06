@@ -89,27 +89,6 @@
   font-size: 15px;
 }
 
-.datum-ops__setup {
-  max-width: 920px;
-  padding-bottom: 32px;
-}
-
-.datum-ops__setup-intro {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-start;
-  padding: 28px 0 24px;
-  border-bottom: 1px solid var(--ops-hairline);
-}
-
-.datum-ops__setup-intro h1 {
-  margin: 4px 0 12px;
-  font-size: 40px;
-  line-height: 1.1;
-  letter-spacing: -1px;
-}
-
 .datum-ops__eyebrow {
   margin: 0;
   color: var(--ops-primary);
@@ -119,96 +98,6 @@
   text-transform: uppercase;
 }
 
-.datum-ops__setup-list {
-  border-bottom: 1px solid var(--ops-hairline);
-}
-
-.datum-ops__setup-list section {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1.2fr) auto auto;
-  align-items: center;
-  gap: 20px;
-  padding: 20px 0;
-  border-top: 1px solid var(--ops-hairline);
-}
-
-.datum-ops__setup-list section:first-child {
-  border-top: 0;
-}
-
-.datum-ops__setup-list section > div:first-child {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-}
-
-.datum-ops__setup-list h2,
-.datum-ops__verification-panel h2,
-.datum-ops__launch-panel h2 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.4;
-}
-
-.datum-ops__setup-list p,
-.datum-ops__launch-panel p {
-  margin: 0;
-  color: var(--ops-ink-muted);
-  font-size: 15px;
-  line-height: 1.33;
-}
-
-.datum-ops__step-number {
-  color: var(--ops-ink-faint);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.datum-ops__setup-state {
-  grid-column: 4;
-  justify-self: end;
-  min-width: 58px;
-  padding: 4px 8px;
-  border-radius: 9999px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.datum-ops__setup-state--ready {
-  background: color-mix(in srgb, var(--ops-green) 12%, transparent);
-  color: var(--ops-green);
-}
-
-.datum-ops__setup-state--todo {
-  background: var(--ops-canvas-soft);
-  color: var(--ops-ink-muted);
-}
-
-.datum-ops__inline-links {
-  display: flex;
-  gap: 12px;
-}
-
-.datum-ops__verification-panel,
-.datum-ops__launch-panel {
-  margin: 24px 0;
-  padding: 24px;
-  border: 1px solid color-mix(in srgb, var(--ops-primary) 28%, var(--ops-hairline));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--ops-primary) 4%, var(--ops-canvas));
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.datum-ops__verification-panel h2,
-.datum-ops__launch-panel h2 {
-  margin: 4px 0 8px;
-}
-
-.datum-ops__run-status,
 .datum-ops__form-message {
   margin: 0;
   color: var(--ops-ink-muted);
@@ -281,36 +170,7 @@
   text-align: right;
 }
 
-.datum-ops__launch-panel {
-  align-items: flex-end;
-}
-
 @media (max-width: 760px) {
-  .datum-ops__setup-intro h1 {
-    font-size: 26px;
-    letter-spacing: -0.625px;
-  }
-
-  .datum-ops__setup-list section {
-    grid-template-columns: 1fr auto;
-    gap: 8px 16px;
-  }
-
-  .datum-ops__setup-list section > p,
-  .datum-ops__setup-list section > .datum-ops__inline-links {
-    grid-column: 1 / -1;
-  }
-
-  .datum-ops__setup-state {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .datum-ops__verification-panel,
-  .datum-ops__launch-panel {
-    align-items: stretch;
-    flex-direction: column;
-  }
 
   .datum-ops__run-form,
   .datum-ops__run-form label:not(.datum-ops__cost-confirm) {
@@ -368,48 +228,6 @@
   border-radius: var(--ops-radius-full);
   background: var(--ops-canvas-soft);
   color: var(--ops-ink-muted);
-}
-
-.datum-ops__status--needs_revision {
-  background: rgba(221, 91, 0, 0.12);
-  color: var(--ops-orange);
-}
-
-.datum-ops__status--topic_selected {
-  background: rgba(98, 174, 240, 0.15);
-  color: var(--ops-sky);
-}
-
-.datum-ops__status--qa_passed {
-  background: rgba(26, 174, 57, 0.12);
-  color: var(--ops-green);
-}
-
-.datum-ops__status--verified {
-  background: rgba(26, 174, 57, 0.12);
-  color: var(--ops-green);
-}
-
-.datum-ops__status--needs_review {
-  background: rgba(221, 91, 0, 0.08);
-  color: var(--ops-orange);
-}
-
-.datum-ops__status--blocked {
-  background: rgba(192, 51, 44, 0.12);
-  color: var(--ops-red);
-}
-
-.datum-ops__status--published {
-  background: rgba(0, 117, 222, 0.1);
-  color: var(--ops-primary);
-}
-
-.datum-ops__cost {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--ops-ink-faint);
-  font-weight: 500;
 }
 
 .datum-ops__btn {
@@ -1171,12 +989,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.datum-ops__entry-card.is-disabled {
-  opacity: 0.6;
-  box-shadow: none;
-  background: var(--ops-canvas-soft);
 }
 
 .datum-ops__entry-card-head {
@@ -2867,42 +2679,7 @@
 
 /* ── First run ─────────────────────────────────────────────────────────── */
 
-.datum-first {
-  max-width: 760px;
-  margin: 48px auto;
-}
-
-.datum-first h1 {
-  margin: 4px 0 10px;
-  font-size: 28px;
-}
-
-.datum-first__actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 20px;
-}
-
 /* What is still missing before a run, one row per governance problem. */
-.datum-first__todo {
-  list-style: none;
-  margin: 20px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-  max-width: 640px;
-}
-
-.datum-first__todo li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: 6px;
-}
 
 .datum-first__optional {
   font-style: normal;
@@ -2911,45 +2688,6 @@
   text-transform: uppercase;
   color: var(--theme-elevation-500);
   margin-right: 8px;
-}
-
-.datum-first__cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
-  margin-top: 20px;
-}
-
-.datum-first__card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 20px;
-  text-align: left;
-  border: 1px solid var(--ops-hairline);
-  border-radius: var(--ops-radius-lg);
-  background: var(--ops-canvas);
-  color: var(--ops-ink);
-  font: inherit;
-  cursor: pointer;
-  text-decoration: none;
-  box-shadow: var(--ops-shadow);
-  box-sizing: border-box;
-  max-width: 100%;
-}
-
-.datum-first__card:hover {
-  border-color: var(--ops-primary);
-}
-
-.datum-first__card strong {
-  font-size: 16px;
-}
-
-.datum-first__card span {
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--ops-ink-muted);
 }
 
 /* ── Runtime banner (outside .datum-ops, so Payload theme tokens) ───────── */

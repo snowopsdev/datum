@@ -1,3 +1,4 @@
+import { auditActor } from '../lib/auditFields'
 import type {
   CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
@@ -77,7 +78,7 @@ export const gateIcpActivation: CollectionBeforeChangeHook = async ({ data, orig
   if (activating) {
     const user = req.user as { email?: string; id?: number | string } | null | undefined
     data.activatedAt = new Date().toISOString()
-    data.activatedBy = user?.email ?? (user?.id != null ? String(user.id) : 'system')
+    data.activatedBy = auditActor(user)
     if (merged.primary !== true) {
       const others = await req.payload.count({
         collection: 'icps',

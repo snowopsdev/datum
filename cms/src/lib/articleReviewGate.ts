@@ -1,3 +1,4 @@
+import { auditActor } from './auditFields'
 import { sameValue } from './sameValue'
 import type { CollectionBeforeChangeHook } from 'payload'
 import { APIError } from 'payload'
@@ -171,7 +172,7 @@ export const gateReviewOverride: CollectionBeforeChangeHook = ({
   }
   data.reviewJustification = justification
   const user = req.user as { email?: string; id?: number | string } | null | undefined
-  data.reviewedBy = user?.email ?? (user?.id != null ? String(user.id) : 'system')
+  data.reviewedBy = auditActor(user)
   const ctx = context as { articleAudit?: ArticleAuditContext }
   if (!ctx.articleAudit) {
     // The event names describe what is being audited — the override itself — so

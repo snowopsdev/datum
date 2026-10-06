@@ -1,9 +1,9 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload, type Payload } from 'payload'
+import { errorMessage } from '../../lib/errorMessage'
+import { requireUser } from '../../lib/requireUser'
+import type { Payload } from 'payload'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 import { config as pipelineConfig } from '../../../../pipeline/src/config'
@@ -11,11 +11,7 @@ import { resolveWorkspaceProfile } from '../../../../pipeline/src/tenant'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
-import type {
-  CreateTopicsResult,
-  DiscoverResult,
-  RecentSearch,
-} from './topicDiscoveryTypes'
+import type { CreateTopicsResult, DiscoverResult, RecentSearch } from './topicDiscoveryTypes'
 
 const BOARD_PATH = '/admin/ops/content'
 
@@ -38,14 +34,6 @@ const isFresh = (fetchedAt: string | null | undefined): boolean => {
   return Date.now() - at < TOPIC_SEARCH_TTL_DAYS * 86_400_000
 }
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Sign in to discover topics.')
-  return { payload, user }
-}
-
 /**
  * The workspace the Ahrefs client works for. Matching-terms lookups do not need
  * a domain, but the client is built the same way everywhere so a country or
@@ -58,11 +46,6 @@ async function workspaceProfile(payload: Payload, mode: 'mock' | 'live') {
     overrideAccess: true,
   })
   return resolveWorkspaceProfile(doc, process.env, { mockDefault: mode === 'mock' })
-}
-
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
-  return fallback
 }
 
 /**
@@ -79,7 +62,7 @@ export async function discoverTopicsAction(
   try {
     const term = seed.trim()
     if (!term) return { ok: false, error: 'Type a topic to search for.' }
-    const { payload } = await requireUser()
+    const { payload } = await requireUser('Sign in to discover topics.')
     const seedKey = seedKeyOf(term)
     const country = process.env.AHREFS_COUNTRY || 'us'
 
@@ -92,7 +75,10 @@ export async function discoverTopicsAction(
     })
     const cachedRow = cachedDocs[0]
     const usableCache =
-      !options.refresh && cachedRow && isFresh(cachedRow.fetchedAt) && Array.isArray(cachedRow.candidates)
+      !options.refresh &&
+      cachedRow &&
+      isFresh(cachedRow.fetchedAt) &&
+      Array.isArray(cachedRow.candidates)
         ? (cachedRow.candidates as DiscoveredKeyword[])
         : null
 
@@ -114,12 +100,23 @@ export async function discoverTopicsAction(
       // Replace rather than accumulate: one row per (seed, country) keeps the
       // recent-searches list meaningful and the lookup a single hit.
       if (cachedRow) {
-        await payload.delete({ collection: 'topic-searches', id: cachedRow.id, overrideAccess: true })
+        await payload.delete({
+          collection: 'topic-searches',
+          id: cachedRow.id,
+          overrideAccess: true,
+        })
       }
       await payload.create({
         collection: 'topic-searches',
         overrideAccess: true,
-        data: { seed: term, seedKey, country, fetchedAt, resultCount: candidates.length, candidates },
+        data: {
+          seed: term,
+          seedKey,
+          country,
+          fetchedAt,
+          resultCount: candidates.length,
+          candidates,
+        },
       })
     }
 
@@ -138,7 +135,10 @@ export async function discoverTopicsAction(
     // but "removed from the board" and "already being written" are different
     // answers to "why can't I pick this", and the panel says which.
     const archived = new Set(
-      docs.filter((d) => d.archived).map((d) => d.keyword?.toLowerCase()).filter(Boolean),
+      docs
+        .filter((d) => d.archived)
+        .map((d) => d.keyword?.toLowerCase())
+        .filter(Boolean),
     )
 
     return {
@@ -160,7 +160,7 @@ export async function discoverTopicsAction(
 /** The last few subjects searched, so work survives leaving the screen. */
 export async function recentSearchesAction(limit = 6): Promise<RecentSearch[]> {
   try {
-    const { payload } = await requireUser()
+    const { payload } = await requireUser('Sign in to discover topics.')
     const { docs } = await payload.find({
       collection: 'topic-searches',
       sort: '-fetchedAt',
@@ -199,7 +199,7 @@ export async function createTopicsAction(input: {
   confirmLiveCost?: boolean
 }): Promise<CreateTopicsResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to discover topics.')
     const wanted = [...new Set(input.keywords.map((k) => k.trim()).filter(Boolean))]
     if (wanted.length === 0) return { ok: false, error: 'Pick at least one topic.' }
     if (!Number.isFinite(input.templateId) || input.templateId <= 0) {

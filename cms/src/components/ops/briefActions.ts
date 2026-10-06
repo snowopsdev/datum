@@ -1,9 +1,8 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { errorMessage } from '../../lib/errorMessage'
+import { requireUser } from '../../lib/requireUser'
 
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import {
@@ -25,22 +24,8 @@ export interface BriefEdits {
   icpId: number | null
 }
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Sign in to work on a brief.')
-  return { payload, user }
-}
-
 const actorOf = (user: { email?: string | null; id: number | string }) =>
   typeof user.email === 'string' && user.email ? user.email : String(user.id)
-
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string')
-    return e.message
-  return fallback
-}
 
 function revalidate(articleId: number) {
   // The piece itself and the board it sits on. There is no `/admin/ops/articles`
@@ -97,7 +82,7 @@ export async function saveBriefAction(
   edits: BriefEdits,
 ): Promise<BriefActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to work on a brief.')
     const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
     if (article.status !== 'brief_review') {
       return { ok: false, error: 'This brief has already been approved; the piece has moved on.' }
@@ -157,7 +142,7 @@ export async function approveBriefAction(
   options?: { confirmLiveCost?: boolean },
 ): Promise<BriefActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to work on a brief.')
     const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
     if (article.status !== 'brief_review') {
       return { ok: false, error: 'This brief has already been approved.' }
@@ -235,7 +220,7 @@ export async function approveBriefAction(
  */
 export async function revisitBriefAction(articleId: number): Promise<BriefActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to work on a brief.')
     const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
     if (article.status === 'brief_review') return { ok: true, message: 'Already at the brief.' }
     if (article.status === 'topic_selected') {

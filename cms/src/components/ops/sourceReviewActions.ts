@@ -1,9 +1,9 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { governanceAuditContext } from '../../lib/governanceAudit'
+import { errorMessage } from '../../lib/errorMessage'
+import { requireUser } from '../../lib/requireUser'
 
 import {
   matchEvidenceRule,
@@ -18,40 +18,8 @@ const SOURCES_PATH = '/admin/collections/evidence-sources'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Unauthorized')
-  return { payload, user }
-}
-
-function governanceAuditContext(
-  user: { email?: string | null; id: number | string },
-  event: string,
-  summary: string,
-  details?: Record<string, unknown>,
-) {
-  return {
-    governanceAudit: {
-      actor: typeof user.email === 'string' ? user.email : String(user.id),
-      actorType: 'user' as const,
-      event,
-      summary,
-      details,
-    },
-  }
-}
-
 const actorOf = (user: { email?: string | null; id: number | string }): string =>
   typeof user.email === 'string' ? user.email : String(user.id)
-
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') {
-    return e.message
-  }
-  return fallback
-}
 
 const isQualityClass = (value: string): value is SourceQualityClass =>
   (SOURCE_QUALITY_CLASSES as readonly string[]).includes(value)
@@ -75,7 +43,7 @@ export async function approveCandidateAction(input: {
   note?: string
 }): Promise<ActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Unauthorized')
     if (!isQualityClass(input.qualityClass)) {
       return { ok: false, error: `"${input.qualityClass}" is not a source quality class.` }
     }
@@ -183,7 +151,7 @@ async function setStatus(
   fallback: string,
 ): Promise<ActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Unauthorized')
     const resolved = status === 'dismissed'
     await payload.update({
       collection: 'evidence-source-candidates',

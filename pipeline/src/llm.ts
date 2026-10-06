@@ -211,7 +211,11 @@ async function completeJSONOpenAI(
   }
 }
 
-async function completeJSONMock(stage: LlmStage, model: string, fixtureKey?: string): Promise<LlmResult> {
+async function completeJSONMock(
+  stage: LlmStage,
+  model: string,
+  fixtureKey?: string,
+): Promise<LlmResult> {
   return {
     json: mockFixture(stage, fixtureKey),
     usage: { ...mockUsage[stage] },
@@ -220,11 +224,7 @@ async function completeJSONMock(stage: LlmStage, model: string, fixtureKey?: str
   }
 }
 
-function completeJSONLive(
-  stage: LlmStage,
-  request: LlmRequest,
-  model: string,
-): Promise<LlmResult> {
+function completeJSONLive(stage: LlmStage, request: LlmRequest, model: string): Promise<LlmResult> {
   switch (providerForModel(model)) {
     case 'openai':
       return completeJSONOpenAI(stage, request, model)
@@ -237,20 +237,6 @@ function completeJSONLive(
         new Error(`[llm:${stage}] "${model}" is not an Anthropic or OpenAI model id`),
       )
   }
-}
-
-/**
- * The single LLM call site: every model-calling stage goes through here. The
- * model id decides the provider (`gpt-*` → OpenAI, `claude-*` → Anthropic);
- * which model a stage uses is resolved once per run (see models.ts).
- */
-export async function completeJSON(
-  stage: LlmStage,
-  request: LlmRequest,
-  model: string,
-): Promise<LlmResult> {
-  if (config.mockMode) return completeJSONMock(stage, model, request.fixtureKey)
-  return completeJSONLive(stage, request, model)
 }
 
 /** Build a run-scoped adapter so queued runs do not depend on mutable module state. */

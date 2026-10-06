@@ -1,3 +1,4 @@
+import { auditActor } from './auditFields'
 import type { CollectionAfterChangeHook } from 'payload'
 
 import type { ArticleAuditContext } from './articleAudit'
@@ -54,8 +55,7 @@ export const emitArticleStatusEvent: CollectionAfterChangeHook = async ({
           from,
           to,
           actorType: supplied?.actorType ?? (user ? 'user' : 'system'),
-          actor:
-            supplied?.actor ?? user?.email ?? (user?.id != null ? String(user.id) : 'system'),
+          actor: supplied?.actor ?? auditActor(user),
           ...(supplied?.pipelineRunId ? { pipelineRunId: supplied.pipelineRunId } : {}),
           occurredAt: new Date().toISOString(),
         },

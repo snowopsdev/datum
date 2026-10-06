@@ -1,6 +1,24 @@
 import { auditActor, changedFieldsOf, humanize } from './auditFields'
 import type { CollectionAfterChangeHook, GlobalAfterChangeHook, JsonObject } from 'payload'
 
+/** Annotate a governance write with the authenticated actor and action. */
+export function governanceAuditContext(
+  user: { email?: string | null; id: number | string },
+  event: string,
+  summary: string,
+  details?: Record<string, unknown>,
+) {
+  return {
+    governanceAudit: {
+      actor: auditActor(user),
+      actorType: 'user' as const,
+      event,
+      summary,
+      details,
+    },
+  }
+}
+
 export type GovernanceAuditContext = {
   actor?: string
   actorType?: 'pipeline' | 'user' | 'system'

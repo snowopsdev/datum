@@ -41,7 +41,7 @@ export default defineConfig({
   webServer: process.env.TEST_BASE_URL
     ? undefined
     : {
-        command: `pnpm dev --hostname 127.0.0.1 --port ${testPort}`,
+        command: `npm run dev -- --hostname 127.0.0.1 --port ${testPort}`,
         reuseExistingServer: false,
         url: testBaseURL,
       },

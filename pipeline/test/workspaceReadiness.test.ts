@@ -4,7 +4,6 @@ import { describe, it } from 'node:test'
 import { EVIDENCE_BANK_FIXTURE, POSITIONING_FIXTURE } from '../../cms/src/lib/tenant/fixtures'
 import { emptyPositioningContent, resolveWorkspaceProfile } from '../../cms/src/lib/tenant'
 import {
-  evaluateRuntimeReadiness,
   evaluateWorkspaceReadiness,
   modeFromEnv,
   type WorkspaceReadinessInput,

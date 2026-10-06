@@ -1,4 +1,4 @@
-import type { Article, Template } from '../../cms/src/payload-types'
+import type { Article } from '../../cms/src/payload-types'
 
 import { buildPrompt, buildSystemPrompt } from './generatePrompt'
 import { completeJSONLogged } from './llm'

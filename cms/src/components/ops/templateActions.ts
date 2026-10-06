@@ -1,9 +1,7 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { requireUser } from '../../lib/requireUser'
 
 import { plainTextToLexical } from '../../lib/lexicalHtml'
 import { type TemplateConfigDTO, toTemplateDTO } from './templateTypes'
@@ -27,16 +25,8 @@ export type TemplateConfigInput = {
   }
 }
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Unauthorized')
-  return { payload, user }
-}
-
 export async function saveTemplateConfigAction(templateId: number, input: TemplateConfigInput) {
-  const { payload, user } = await requireUser()
+  const { payload, user } = await requireUser('Unauthorized')
   const data: Record<string, unknown> = {
     dos: input.dos.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
     donts: input.donts.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
@@ -90,7 +80,7 @@ export async function createTemplateAction(
   name: string,
 ): Promise<{ ok: true; template: TemplateConfigDTO } | { ok: false; error: string }> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Unauthorized')
     const trimmed = name.trim()
     if (!trimmed) return { ok: false, error: 'Give the template a name.' }
     if (trimmed.length > 80) return { ok: false, error: 'Keep the name under 80 characters.' }

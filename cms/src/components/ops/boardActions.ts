@@ -1,9 +1,7 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload } from 'payload'
+import { requireUser } from '../../lib/requireUser'
 
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
@@ -16,14 +14,6 @@ import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTy
 const BOARD_PATH = '/admin/ops/content'
 
 export type BoardActionResult = { ok: true; message: string } | { ok: false; error: string }
-
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Sign in to manage the board.')
-  return { payload, user }
-}
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
@@ -41,7 +31,7 @@ export async function runSelectedArticlesAction(input: {
   confirmLiveCost?: boolean
 }): Promise<BoardActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to manage the board.')
     const ids = [...new Set(input.articleIds)].filter((id) => Number.isFinite(id) && id > 0)
     if (ids.length === 0) return { ok: false, error: 'Pick at least one article to run.' }
 
@@ -87,7 +77,7 @@ export async function runSelectedArticlesAction(input: {
  */
 export async function removeTopicsAction(articleIds: number[]): Promise<BoardActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to manage the board.')
     const ids = [...new Set(articleIds)].filter((id) => Number.isFinite(id) && id > 0)
     if (ids.length === 0) return { ok: false, error: 'Pick at least one topic to remove.' }
 
@@ -148,7 +138,7 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
  */
 export async function latestRunAction(): Promise<RunStatusDTO | null> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in to manage the board.')
     const { docs } = await payload.find({
       collection: 'pipeline-runs',
       user,

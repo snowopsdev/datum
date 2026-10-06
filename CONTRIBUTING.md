@@ -81,7 +81,7 @@ npm test --workspace pipeline
 npx tsx --test pipeline/test/structuralChecks.test.ts
 ```
 
-Prefer **npm** for scripts and CI. The CMS package still has some Payload-template `pnpm` leftovers (e.g. the combined `test` script and Playwright’s optional `webServer`); use the `test:int` / `test:e2e` scripts or start the app with `npm run dev` instead.
+Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites; Playwright starts an npm dev server unless `TEST_BASE_URL` points to an existing one.
 
 ## Schema / types
 

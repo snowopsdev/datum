@@ -1,9 +1,10 @@
 'use server'
 
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-import { headers as getHeaders } from 'next/headers'
-import { getPayload, type Payload } from 'payload'
+import { governanceAuditContext } from '../../lib/governanceAudit'
+import { errorMessage } from '../../lib/errorMessage'
+import { requireUser } from '../../lib/requireUser'
+import type { Payload } from 'payload'
 
 import { BRAND_VOICE_FIXTURE } from '../../lib/brandVoiceFixture'
 import {
@@ -37,46 +38,6 @@ export type SaveResult = { ok: true; problems: string[] } | { ok: false; error: 
 
 const HUB_PATH = '/admin/ops/setup'
 
-async function requireUser() {
-  const headers = await getHeaders()
-  const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers })
-  if (!user) throw new Error('Sign in first.')
-  return { payload, user }
-}
-
-/**
- * The audit annotation every save carries.
- *
- * `auditGovernanceChange` and `auditGlobalChange` read this off the request
- * context, which is how a governance row gets an actor and a sentence rather
- * than a bare field diff.
- */
-function governanceAuditContext(
-  user: { email?: string | null; id: number | string },
-  event: string,
-  summary: string,
-  details?: Record<string, unknown>,
-) {
-  return {
-    governanceAudit: {
-      actor: typeof user.email === 'string' ? user.email : String(user.id),
-      actorType: 'user' as const,
-      event,
-      summary,
-      details,
-    },
-  }
-}
-
-/** A hook's `APIError` message is the sentence the operator needs; keep it. */
-function errorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') {
-    return e.message
-  }
-  return fallback
-}
-
 /** Payload rejects `''` for a date column; an unset day is null. */
 const dateOrNull = (value: string | null | undefined): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null
@@ -101,7 +62,7 @@ export async function saveWorkspaceProfileAction(
   input: WorkspaceProfileInput,
 ): Promise<SaveResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const competitors = input.competitors
       .map((row) => ({ domain: normaliseDomain(row.domain), name: (row.name ?? '').trim() }))
       .filter((row): row is { domain: string; name: string } => row.domain !== null)
@@ -191,7 +152,7 @@ export async function createIcpAction(
   input: IcpContent,
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
     const doc = await payload.create({
       collection: 'icps',
@@ -209,7 +170,7 @@ export async function createIcpAction(
 
 export async function saveIcpAction(id: number, input: IcpContent): Promise<SaveResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
     await payload.update({
       collection: 'icps',
@@ -223,42 +184,6 @@ export async function saveIcpAction(id: number, input: IcpContent): Promise<Save
     return { ok: true, problems: icpCompletenessProblems(content) }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the audience.') }
-  }
-}
-
-export async function activateIcpAction(id: number): Promise<TenantActionResult> {
-  try {
-    const { payload, user } = await requireUser()
-    await payload.update({
-      collection: 'icps',
-      id,
-      data: { status: 'active' },
-      context: governanceAuditContext(user, 'icp_activated', 'Audience activated'),
-      user,
-      overrideAccess: false,
-    })
-    revalidateIcps(id)
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: errorMessage(e, 'Could not activate the audience.') }
-  }
-}
-
-export async function setPrimaryIcpAction(id: number): Promise<TenantActionResult> {
-  try {
-    const { payload, user } = await requireUser()
-    await payload.update({
-      collection: 'icps',
-      id,
-      data: { primary: true },
-      context: governanceAuditContext(user, 'icp_primary_set', 'Audience made primary'),
-      user,
-      overrideAccess: false,
-    })
-    revalidateIcps(id)
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: errorMessage(e, 'Could not make this the primary audience.') }
   }
 }
 
@@ -298,7 +223,7 @@ export async function saveAndActivateIcpAction(
 > {
   let savedId: number | undefined
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
 
     let doc =
@@ -369,7 +294,7 @@ export async function saveAndActivateIcpAction(
 
 export async function archiveIcpAction(id: number): Promise<TenantActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     await payload.update({
       collection: 'icps',
       id,
@@ -389,7 +314,7 @@ export async function archiveIcpAction(id: number): Promise<TenantActionResult> 
 
 export async function deleteIcpDraftAction(id: number): Promise<TenantActionResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     await payload.delete({ collection: 'icps', id, user, overrideAccess: false })
     revalidateIcps()
     return { ok: true }
@@ -404,7 +329,7 @@ export async function deleteIcpDraftAction(id: number): Promise<TenantActionResu
 
 export async function savePositioningAction(input: PositioningContent): Promise<SaveResult> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const content = positioningContentOf(input)
     await payload.updateGlobal({
       slug: 'positioning',
@@ -449,7 +374,7 @@ export async function saveEvidenceBankAction(
   input: EvidenceBankInput,
 ): Promise<{ ok: true; saved: EvidenceBankContent } | { ok: false; error: string }> {
   try {
-    const { payload, user } = await requireUser()
+    const { payload, user } = await requireUser('Sign in first.')
     const ref = (value: string | undefined) =>
       typeof value === 'string' && value.trim() ? { ref: value.trim() } : {}
     const data = {
@@ -682,9 +607,9 @@ async function upsertEvidenceBank(payload: Payload): Promise<void> {
  * mid-pipeline. With a voice already governing runs, the demo goes in as a
  * draft the operator can promote from the Brand voice page.
  */
-export async function activateDefaultBrandVoiceAction(): Promise<TenantActionResult> {
+async function activateDefaultBrandVoiceAction(): Promise<TenantActionResult> {
   try {
-    const { payload } = await requireUser()
+    const { payload } = await requireUser('Sign in first.')
     const existing = await payload.find({
       collection: 'brand-voices',
       where: { name: { equals: BRAND_VOICE_FIXTURE.name } },
@@ -730,7 +655,7 @@ export async function runtimeStatusAction(): Promise<{
   problems: string[]
 }> {
   try {
-    const { payload } = await requireUser()
+    const { payload } = await requireUser('Sign in first.')
     const [models, profile] = await Promise.all([
       payload.findGlobal({ slug: 'llm-settings', depth: 0 }),
       payload.findGlobal({ slug: 'workspace-profile', select: { sitePages: false }, depth: 0 }),
@@ -769,7 +694,7 @@ export async function runtimeStatusAction(): Promise<{
  */
 export async function activateDefaultTenantAction(): Promise<TenantActionResult> {
   try {
-    const { payload } = await requireUser()
+    const { payload } = await requireUser('Sign in first.')
     await upsertWorkspaceProfile(payload)
     await fillDemoIcps(payload)
     await upsertPositioning(payload)

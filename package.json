@@ -2,7 +2,7 @@
   "name": "datum",
   "version": "0.7.0",
   "private": true,
-  "description": "SEO content pipeline built on Payload CMS — research, generate, and QA articles end to end",
+  "description": "SEO content pipeline built on Payload CMS \u2014 research, generate, and QA articles end to end",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace cms",
-    "seed": "npm run seed --workspace cms",
+    "seed": "npm run seed --workspace cms --",
     "pipeline:fetch": "npm run fetch --workspace pipeline --",
     "pipeline:run": "npm run run --workspace pipeline --",
     "pipeline:report": "npm run report --workspace pipeline --",
