@@ -68,12 +68,7 @@ Only when the path is one or more `https://github.com/...` URLs, or several loca
 # Detect the correct Python interpreter (handles uv tool, pipx, venv, system installs)
 PYTHON=""
 GRAPHIFY_BIN=$(which graphify 2>/dev/null)
-# 1. uv tool installs — most reliable on modern Mac/Linux
-if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
-    _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-    if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-fi
-# 2. Read shebang from graphify binary (pipx and direct pip installs)
+# Read the installed binary's shebang (uv tool, pipx, venv, direct pip installs).
 if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
     _SHEBANG=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
     case "$_SHEBANG" in
@@ -81,17 +76,21 @@ if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
         *) "$_SHEBANG" -c "import graphify" 2>/dev/null && PYTHON="$_SHEBANG" ;;
     esac
 fi
-# 3. Fall back to python3
+# A custom uv tool directory may need a shell launcher instead of a Python shebang.
+# `uv tool dir` only reports the directory; it does not fetch or install anything.
+if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
+    _UV_DIR=$(uv tool dir 2>/dev/null)
+    if [ -n "$_UV_DIR" ] && [ -x "$_UV_DIR/graphifyy/bin/python" ]; then
+        "$_UV_DIR/graphifyy/bin/python" -c "import graphify" 2>/dev/null \
+            && PYTHON="$_UV_DIR/graphifyy/bin/python"
+    fi
+fi
+# Fall back to an already-installed system/active-venv package.
 if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
 if ! "$PYTHON" -c "import graphify" 2>/dev/null; then
-    if command -v uv >/dev/null 2>&1; then
-        uv tool install --upgrade graphifyy -q 2>&1 | tail -3
-        _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-        if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-    else
-        "$PYTHON" -m pip install graphifyy -q 2>/dev/null \
-          || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
-    fi
+    printf '%s\n' 'Graphify is unavailable. Install it explicitly: uv tool install graphifyy==0.9.77' >&2
+    printf '%s\n' 'Alternatively, in a virtual environment: python -m pip install graphifyy==0.9.77' >&2
+    exit 1
 fi
 # Write interpreter path for all subsequent steps (persists across invocations)
 mkdir -p graphify-out
@@ -163,7 +162,7 @@ This step has two parts: **structural extraction** (deterministic, free) and **s
 > **graphify needs no API key. Never ask the user for one, and never block on one.** Code is extracted structurally (AST) with no LLM and no key at all — a code-only corpus (the common `/graphify .` on a repo) skips semantic extraction entirely, so it needs nothing here: go straight to Part A and skip Part B. Semantic extraction (only for docs, papers, and images) uses Gemini **only if** `GEMINI_API_KEY`/`GOOGLE_API_KEY` is already set; otherwise the host agent itself is the LLM. graphify does **not** read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or any other provider key. If you catch yourself about to prompt for, wait on, or stop because of a missing API key, that is a misread of this skill — proceed without one.
 
 **Before semantic extraction:** check whether `GEMINI_API_KEY` or `GOOGLE_API_KEY` is set. If neither is set, print this one-liner to the user:
-> Tip: set `GEMINI_API_KEY` or `GOOGLE_API_KEY` to use Gemini for semantic extraction (`pip install 'graphifyy[gemini]'`).
+> Tip: set `GEMINI_API_KEY` or `GOOGLE_API_KEY` to use Gemini for semantic extraction (`pip install 'graphifyy[gemini]==0.9.77'`).
 
 Print it once, then continue — do not wait for the user to supply a key. If `GEMINI_API_KEY` or `GOOGLE_API_KEY` IS set, use `graphify.llm.extract_corpus_parallel(files, backend="gemini")` for semantic extraction instead of dispatching subagents. The default Gemini model is `gemini-3-flash-preview`; set `GRAPHIFY_GEMINI_MODEL` or pass `--model` in headless CLI flows to override it.
 
@@ -669,12 +668,32 @@ Before running any subcommand below (`--update`, `--cluster-only`, `query`, `pat
 
 ```bash
 if [ ! -f graphify-out/.graphify_python ]; then
+    # Detect the correct Python interpreter (handles uv tool, pipx, venv, system installs)
+    PYTHON=""
     GRAPHIFY_BIN=$(which graphify 2>/dev/null)
-    if [ -n "$GRAPHIFY_BIN" ]; then
-        PYTHON=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
-        case "$PYTHON" in *[!a-zA-Z0-9/_.@-]*) PYTHON="python3" ;; esac
-    else
-        PYTHON="python3"
+    # Read the installed binary's shebang (uv tool, pipx, venv, direct pip installs).
+    if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
+        _SHEBANG=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
+        case "$_SHEBANG" in
+            *[!a-zA-Z0-9/_.@-]*) ;;
+            *) "$_SHEBANG" -c "import graphify" 2>/dev/null && PYTHON="$_SHEBANG" ;;
+        esac
+    fi
+    # A custom uv tool directory may need a shell launcher instead of a Python shebang.
+    # `uv tool dir` only reports the directory; it does not fetch or install anything.
+    if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
+        _UV_DIR=$(uv tool dir 2>/dev/null)
+        if [ -n "$_UV_DIR" ] && [ -x "$_UV_DIR/graphifyy/bin/python" ]; then
+            "$_UV_DIR/graphifyy/bin/python" -c "import graphify" 2>/dev/null \
+                && PYTHON="$_UV_DIR/graphifyy/bin/python"
+        fi
+    fi
+    # Fall back to an already-installed system/active-venv package.
+    if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
+    if ! "$PYTHON" -c "import graphify" 2>/dev/null; then
+        printf '%s\n' 'Graphify is unavailable. Install it explicitly: uv tool install graphifyy==0.9.77' >&2
+        printf '%s\n' 'Alternatively, in a virtual environment: python -m pip install graphifyy==0.9.77' >&2
+        exit 1
     fi
     mkdir -p graphify-out
     "$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w', encoding='utf-8').write(sys.executable)"

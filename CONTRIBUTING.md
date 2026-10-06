@@ -26,6 +26,15 @@ switches, and register a merge driver for `graph.json`. Re-run `graphify hook
 install` after upgrading or reinstalling the CLI to refresh its interpreter
 path. If `graphify` is not found, run `uv tool update-shell` and open a new terminal.
 
+The checked-in `.codex/skills/graphify/SKILL.md` bootstrap only detects an
+existing installation; it never installs or upgrades packages automatically.
+`graphify install` regenerates the skill and can overwrite these local changes.
+After reinstalling the skill, re-apply the detection-only bootstrap and the
+`graphifyy==0.9.77` pins (including optional extras in the references), then
+review the generated diff before committing it. Do not restore `uv tool run
+--from graphifyy`, automatic install/upgrade commands, or
+`--break-system-packages` fallbacks.
+
 Teammates can query the shared graph immediately after cloning:
 
 ```bash
