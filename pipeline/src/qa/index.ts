@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '../corpus/concurrency'
 import { sumArticleCost } from '../costs'
 import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
 import { completeJSONLogged } from '../llm'
@@ -166,7 +167,8 @@ export const qaStage: Stage = {
     ].join('\n')
     // All three reviewers read the same draft independently. Calls and their
     // cost rows finish in completion order; a failed attempt may still bill
-    // calls already in flight. Evidence checks run even without a bank.
+    // calls already in flight. Wait for all of them to log before failing.
+    // Evidence checks run even without a bank.
     const companyName =
       ctx.tenant.profile.companyName || ctx.tenant.profile.targetDomain || 'this company'
     const bankBlock =
@@ -179,38 +181,45 @@ export const qaStage: Stage = {
         cap: Infinity,
       }) ?? 'There is no evidence bank for this workspace, so every first-party claim is unbacked.'
     const workspaceBlock = workspaceProfileToPrompt(ctx.tenant.profile)
-    const [factResult, qualResult, evidenceResult] = await Promise.all([
-      completeJSONLogged(ctx, 'factCheck', article.id, {
-        system:
-          'You are a rigorous fact checker. Verify the factual claims in the article using web search. ' +
-          'Return JSON: {"passed": boolean, "notes": string, "sources": string[]} where sources are the URLs you used.',
-        user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\n${faqBlock}`,
-        needWebSearch: true,
-      }),
-      completeJSONLogged(ctx, 'qualitativeReview', article.id, {
-        system:
-          BASE_QUALITATIVE_SYSTEM +
-          (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE) +
-          (positioningBlock ? POSITIONING_SHAPE : ''),
-        user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
-      }),
-      completeJSONLogged(ctx, 'evidenceCheck', article.id, {
-        system: EVIDENCE_CHECK_SYSTEM.replace('{company}', companyName),
-        user: [
-          workspaceBlock,
-          bankBlock,
-          declaredRefsBlock(article.evidenceCitations),
-          // The meta fields go to the auditor for the same reason they go to the
-          // reviewer: they are generated text about the company, they are the
-          // first thing a reader sees, and a title tag is where an unbacked
-          // superlative is likeliest to survive a careful body.
-          `Article "${article.title}":\n\n${metaText}\n\n${bodyText}`,
-          faqBlock,
-        ]
-          .filter((block) => block.trim().length > 0)
-          .join('\n\n'),
-      }),
-    ])
+    const [factResult, qualResult, evidenceResult] = await mapWithConcurrency(
+      [
+        () =>
+          completeJSONLogged(ctx, 'factCheck', article.id, {
+            system:
+              'You are a rigorous fact checker. Verify the factual claims in the article using web search. ' +
+              'Return JSON: {"passed": boolean, "notes": string, "sources": string[]} where sources are the URLs you used.',
+            user: `Fact-check this article about "${article.keyword}".\n\nTitle: ${article.title}\n\n${bodyText}\n\n${faqBlock}`,
+            needWebSearch: true,
+          }),
+        () =>
+          completeJSONLogged(ctx, 'qualitativeReview', article.id, {
+            system:
+              BASE_QUALITATIVE_SYSTEM +
+              (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE) +
+              (positioningBlock ? POSITIONING_SHAPE : ''),
+            user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
+          }),
+        () =>
+          completeJSONLogged(ctx, 'evidenceCheck', article.id, {
+            system: EVIDENCE_CHECK_SYSTEM.replace('{company}', companyName),
+            user: [
+              workspaceBlock,
+              bankBlock,
+              declaredRefsBlock(article.evidenceCitations),
+              // The meta fields go to the auditor for the same reason they go to the
+              // reviewer: they are generated text about the company, they are the
+              // first thing a reader sees, and a title tag is where an unbacked
+              // superlative is likeliest to survive a careful body.
+              `Article "${article.title}":\n\n${metaText}\n\n${bodyText}`,
+              faqBlock,
+            ]
+              .filter((block) => block.trim().length > 0)
+              .join('\n\n'),
+          }),
+      ],
+      3,
+      (review) => review(),
+    )
     const factCheck = parseFactCheck(factResult.json)
     const qualitativeReview = parseQualitative(qualResult.json)
     const evidenceVerdict = parseEvidenceCheck(evidenceResult.json)

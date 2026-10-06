@@ -1746,9 +1746,9 @@
     "semantic_hash": ""
   },
   "pipeline/src/corpus/concurrency.ts": {
-    "mtime": 1791297431.1307364,
-    "seen": 1791299576.090095,
-    "ast_hash": "33fd5de61e66a34bc3f0395d57759f6b",
+    "mtime": 1791323455.7408612,
+    "seen": 1791323496.80824,
+    "ast_hash": "5d8d3e947a5346a572b6c12e976b8070",
     "semantic_hash": ""
   },
   "pipeline/src/corpus/fetchPage.ts": {
@@ -1896,9 +1896,9 @@
     "semantic_hash": ""
   },
   "pipeline/src/qa/index.ts": {
-    "mtime": 1791320767.9390996,
-    "seen": 1791320790.5045676,
-    "ast_hash": "c5de8e6b05aacb25e23a5bb1f7c4ff59",
+    "mtime": 1791323455.7310288,
+    "seen": 1791323496.8082635,
+    "ast_hash": "ef5389ceeec1c7313e78e2cc74722636",
     "semantic_hash": ""
   },
   "pipeline/src/qa/structuralChecks.ts": {
@@ -1980,9 +1980,9 @@
     "semantic_hash": ""
   },
   "pipeline/test/concurrency.test.ts": {
-    "mtime": 1791297431.1323454,
-    "seen": 1791299576.0901165,
-    "ast_hash": "898e696ba5d0c487157b286395a2a814",
+    "mtime": 1791323455.757505,
+    "seen": 1791323496.8082767,
+    "ast_hash": "9034bcb9d8c4d8edceb870f82c7a48ba",
     "semantic_hash": ""
   },
   "pipeline/test/corpusSnapshot.test.ts": {
@@ -2292,9 +2292,9 @@
     "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
-    "mtime": 1791321020.3938498,
-    "seen": 1791321111.3801327,
-    "ast_hash": "5539f95f231bfc9d531c06bd03defe18",
+    "mtime": 1791323368.4310462,
+    "seen": 1791323496.8083262,
+    "ast_hash": "00038c989eef55a103d9ccaafeb0aa60",
     "semantic_hash": ""
   },
   "DESIGN.md": {
@@ -3057,6 +3057,12 @@
     "mtime": 1791321020.124934,
     "seen": 1791321111.379967,
     "ast_hash": "c86626daf0ec0d112ba9188649e684e5",
+    "semantic_hash": ""
+  },
+  "pipeline/test/llmSettlement.test.ts": {
+    "mtime": 1791323455.7885282,
+    "seen": 1791323496.8082998,
+    "ast_hash": "6cd275e7bc7231d110bcfd2505cb7e31",
     "semantic_hash": ""
   }
 }
