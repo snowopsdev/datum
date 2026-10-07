@@ -117,8 +117,10 @@ describe('icpToPrompt', () => {
         '- LinkedIn (long-form posts from founders) [qualitative pattern]',
         '- Marketing Slack communities [cultural signal]',
         '',
-        '## Not our user / churn triggers',
+        '## Not our user (do not write for these readers, even when the topic fits)',
         '- Solo bloggers without a review process',
+        '',
+        '## Churn triggers (never promise past these)',
         '- Churns when the first draft needs heavy edits',
       ].join('\n'),
     )
@@ -160,9 +162,16 @@ describe('icpToPrompt', () => {
       '## Why us',
       '## Where they are',
       '## Not our user',
+      '## Churn triggers',
     ]) {
       assert.ok(!bare.includes(heading), `${heading} should have been omitted`)
     }
+  })
+
+  it('renders churn triggers without inventing excluded readers', () => {
+    const block = icpToPrompt({ ...emptyIcpContent('Readers'), churnTriggers: ['Too expensive'] })
+    assert.doesNotMatch(block, /## Not our user/)
+    assert.match(block, /## Churn triggers \(never promise past these\)\n- Too expensive/)
   })
 
   it('marks the primary only when it is the primary', () => {

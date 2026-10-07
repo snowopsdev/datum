@@ -374,10 +374,14 @@ export function icpToPrompt(
     sections.push(`## Where they are\n${bullets.join('\n')}`)
   }
 
-  const boundaries = [...icp.notOurUser, ...icp.churnTriggers]
-  if (boundaries.length > 0) {
+  if (icp.notOurUser.length > 0) {
     sections.push(
-      `## Not our user / churn triggers\n${boundaries.map((text) => `- ${text}`).join('\n')}`,
+      `## Not our user (do not write for these readers, even when the topic fits)\n${icp.notOurUser.map((text) => `- ${text}`).join('\n')}`,
+    )
+  }
+  if (icp.churnTriggers.length > 0) {
+    sections.push(
+      `## Churn triggers (never promise past these)\n${icp.churnTriggers.map((text) => `- ${text}`).join('\n')}`,
     )
   }
 
