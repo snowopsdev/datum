@@ -444,3 +444,57 @@ test('a declared ref the bank has never heard of fails on the deterministic half
     },
   ])
 })
+
+/**
+ * The reviewer judges the draft against the brief the editor approved.
+ *
+ * Without it, a draft that follows the editor's direction over a template rule
+ * fails review for doing what it was told, and a draft aimed at the wrong
+ * reader passes because nothing tells the reviewer who the editor chose.
+ */
+const BRIEF = {
+  angle: 'A step-by-step guide for streaming on a budget',
+  audience: 'Students with one laptop',
+  sections: [{ heading: 'Steps', notes: '', source: 'template' }],
+  mustCover: [],
+  opportunities: [],
+  notes: 'Skip the hardware section entirely.',
+}
+
+test('the qualitative reviewer is given the approved brief and told the editor wins conflicts', async () => {
+  const { llm, prompts, systems } = capturingLlm()
+  await qaStage.run({ ...article('## Steps\nDo the thing.'), brief: BRIEF } as Article, ctxWith(llm))
+
+  assert.match(prompts.qualitativeReview, /# Brief \(approved by the editor\)/)
+  assert.match(prompts.qualitativeReview, /Audience: Students with one laptop/)
+  assert.match(prompts.qualitativeReview, /Skip the hardware section entirely\./)
+  assert.ok(
+    prompts.qualitativeReview.indexOf('# Brief') < prompts.qualitativeReview.indexOf('Article "'),
+    'the brief comes before the draft',
+  )
+  assert.match(systems.qualitativeReview, /the editor wins: never fail a draft for following it/)
+  assert.doesNotMatch(prompts.factCheck, /# Brief/)
+})
+
+test('an article with no brief sends the reviewer no brief block and no brief instruction', async () => {
+  const { llm, prompts, systems } = capturingLlm()
+  await qaStage.run(article('## Steps\nDo the thing.'), ctxWith(llm))
+  assert.doesNotMatch(prompts.qualitativeReview, /# Brief/)
+  assert.doesNotMatch(systems.qualitativeReview, /approved brief/)
+})
+
+test('the qualitative reviewer enforces the same company-mentions rule the writer was given', async () => {
+  const { llm, prompts, systems } = capturingLlm()
+  const ctx: StageContext = {
+    ...ctxWith(llm),
+    tenant: {
+      ...emptyTenantContext(),
+      profile: resolveWorkspaceProfile({ companyName: 'Acme Analytics' }, {}),
+    },
+  }
+  const draft = article('## Steps\nDo the thing.')
+  await qaStage.run({ ...draft, template: { ...template, companyMentions: 'none' } } as Article, ctx)
+
+  assert.match(prompts.qualitativeReview, /# Company mentions\nDo not name Acme Analytics/)
+  assert.match(systems.qualitativeReview, /names or pitches the company more than the rule allows fails/)
+})

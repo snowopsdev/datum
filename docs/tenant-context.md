@@ -100,14 +100,56 @@ style guide  →  # Workspace  →  # Brand voice (tenant)  →  # Audience  →
 The generate **user** prompt carries the second half, after the brief:
 
 ```
-… → facets/gaps → # Evidence rules → # Evidence bank → revision notes → # Output
+… → facets/gaps → # Evidence rules → # Evidence bank → revision notes → # Company mentions → # Output
 ```
 
 The qualitative reviewer receives the style guide, the brand voice, and the
 same `# Audience` and `# Positioning` blocks the writer was given — without
 them the reviewer judges register against a reader it has to invent and cannot
-tell a drifting draft from a correct one. The fact checker gets neither: it
-judges claims against the world, not against a reader or a position.
+tell a drifting draft from a correct one. It also receives the approved brief
+and the `# Company mentions` rule, so it judges the draft against the
+instructions it was written to. The fact checker gets none of these: it judges
+claims against the world, not against a reader or a position.
+
+### Which description of the reader wins
+
+Three things describe the reader, from broadest to narrowest, and the narrower
+one wins where they differ:
+
+1. The brand voice's "Who we are talking to": everyone the brand talks to.
+2. The `# Audience` block: the one audience this piece is for. When the brand
+   voice describes a reader too, the block says it narrows that description
+   (`audienceToPrompt`).
+3. The brief's audience line: the editor's sentence for this piece. The brief
+   says it narrows the audience profile.
+
+### The brief in review
+
+The brief is the human gate, so the reviewer checks the draft against it. Its
+direction outranks the template dos and don'ts, the same precedence the writer
+gets. The reviewer never fails a draft for following the editor, and fails a
+draft written to a different angle or reader than the brief names.
+
+### Company mentions
+
+The positioning tells the writer to lean on its core claims, and the evidence
+bank gives it facts to cite. Without a rule, every piece drifts towards a
+pitch. Each template's `companyMentions` sets how much the company itself may
+appear:
+
+| Value | The writer may |
+|---|---|
+| `none` | never name the company or describe its product, anywhere |
+| `mention` (default) | name it once at most in the body, where it answers the reader; never in the title, meta fields, or FAQ |
+| `feature` | present it as an option or the recommendation, through the core claims and the evidence bank, with every comparison sourced |
+
+The audience and positioning shape the angle under every setting; the rule only
+decides whether the company is named. The writer and the qualitative reviewer
+get the same `# Company mentions` block (`companyMentionsBlock`). A draft that
+names or pitches the company more than the rule allows fails review. The block
+is omitted when the workspace has no company name or target domain. A template
+saved before the field existed reads as `mention` (`companyMentionsOf`). The
+setting lives on the template editor's Rules tab.
 
 Every statement in an audience carries a confidence, and the confidence decides
 the grammar the writer may use for it. The scale is one shared enum in

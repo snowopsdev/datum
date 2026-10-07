@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireUser } from '../../lib/requireUser'
 
 import { plainTextToLexical } from '../../lib/lexicalHtml'
+import { type CompanyMentions, companyMentionsOf } from '../../lib/tenant/companyMentions'
 import { type TemplateConfigDTO, toTemplateDTO } from './templateTypes'
 
 export type TemplateConfigInput = {
@@ -11,6 +12,7 @@ export type TemplateConfigInput = {
   outline?: string
   /** Only set when the Examples tab content changed — otherwise Lexical is left untouched. */
   example?: string
+  companyMentions: CompanyMentions
   dos: string[]
   donts: string[]
   requiredSections: string[]
@@ -28,6 +30,8 @@ export type TemplateConfigInput = {
 export async function saveTemplateConfigAction(templateId: number, input: TemplateConfigInput) {
   const { payload, user } = await requireUser('Unauthorized')
   const data: Record<string, unknown> = {
+    // Through the reader, so a stray value from the client saves as the default.
+    companyMentions: companyMentionsOf(input),
     dos: input.dos.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
     donts: input.donts.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
     requiredSections: input.requiredSections

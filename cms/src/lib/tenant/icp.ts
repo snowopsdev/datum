@@ -307,14 +307,17 @@ const sentence = (text: string): string => (/[.!?]$/.test(text) ? text : `${text
  */
 export function icpToPrompt(
   icp: IcpContent | null | undefined,
-  opts: { primary?: boolean } = {},
+  opts: { primary?: boolean; scope?: string } = {},
 ): string {
   if (!icp || !icp.name) return ''
   const primary = opts.primary ?? icp.primary
   // The legend sits directly under the heading, not as its own section: it is
   // the reading instruction for everything below, not a section of its own.
+  // So does `scope`, which says how this block relates to the other
+  // descriptions of the reader in the same prompt.
+  const scope = opts.scope?.trim() ? `\n${opts.scope.trim()}` : ''
   const sections: string[] = [
-    `# Audience: ${icp.name}${primary ? ' (primary ICP)' : ''}\n${CONFIDENCE_LEGEND}`,
+    `# Audience: ${icp.name}${primary ? ' (primary ICP)' : ''}${scope}\n${CONFIDENCE_LEGEND}`,
   ]
 
   if (icp.who) sections.push(`## Who\n${icp.who}`)

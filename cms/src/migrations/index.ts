@@ -16,6 +16,7 @@ import * as migration_20260905_232800_graphql_policy_options from './20260905_23
 import * as migration_20260911_145800_drop_codex_model_options from './20260911_145800_drop_codex_model_options';
 import * as migration_20260911_152559_pipeline_runs_drop_onboarding_source from './20260911_152559_pipeline_runs_drop_onboarding_source';
 import * as migration_20261006_205858_articles_lookup_indexes from './20261006_205858_articles_lookup_indexes';
+import * as migration_20261007_121854_template_company_mentions from './20261007_121854_template_company_mentions';
 
 export const migrations = [
   {
@@ -106,6 +107,11 @@ export const migrations = [
   {
     up: migration_20261006_205858_articles_lookup_indexes.up,
     down: migration_20261006_205858_articles_lookup_indexes.down,
-    name: '20261006_205858_articles_lookup_indexes'
+    name: '20261006_205858_articles_lookup_indexes',
+  },
+  {
+    up: migration_20261007_121854_template_company_mentions.up,
+    down: migration_20261007_121854_template_company_mentions.down,
+    name: '20261007_121854_template_company_mentions'
   },
 ];

@@ -11,6 +11,7 @@ import { type IcpContent, icpContentOf } from './icp'
 import type { PositioningContent } from './positioning'
 import { resolveWorkspaceProfile, type ResolvedWorkspaceProfile } from './workspaceProfile'
 
+export * from './companyMentions'
 export * from './confidence'
 export * from './evidenceBank'
 export * from './icp'

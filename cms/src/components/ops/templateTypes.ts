@@ -1,9 +1,11 @@
 import { lexicalToPlainText } from '../../lib/lexicalHtml'
+import { type CompanyMentions, companyMentionsOf } from '../../lib/tenant/companyMentions'
 import type { Template } from '../../payload-types'
 
 export type TemplateConfigDTO = {
   id: number
   name: string
+  companyMentions: CompanyMentions
   outline: string
   example: string
   dos: string[]
@@ -25,6 +27,7 @@ export function toTemplateDTO(doc: Template): TemplateConfigDTO {
   return {
     id: doc.id,
     name: doc.name,
+    companyMentions: companyMentionsOf(doc),
     outline: lexicalToPlainText(doc.outline),
     example: lexicalToPlainText(doc.example),
     dos: (doc.dos ?? []).map((d) => d.text),
