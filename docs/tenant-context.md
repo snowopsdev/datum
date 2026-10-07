@@ -111,6 +111,11 @@ and the `# Company mentions` rule, so it judges the draft against the
 instructions it was written to. The fact checker gets none of these: it judges
 claims against the world, not against a reader or a position.
 
+The audience block keeps two boundaries separate. “Not our user” tells the
+writer and reviewer which readers not to address, even when the topic fits.
+“Churn triggers” tells them what never to promise past. Empty lists omit their
+sections.
+
 ### Which description of the reader wins
 
 Three things describe the reader, from broadest to narrowest, and the narrower

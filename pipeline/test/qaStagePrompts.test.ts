@@ -157,6 +157,7 @@ const AUDIENCE = {
   status: 'active' as const,
   primary: true,
   who: 'Owners of one or two independent cafés',
+  notOurUser: ['Wholesale equipment distributors'],
   pains: [{ statement: 'Staff pull inconsistent shots', evidence: [], confidence: 'inference' as const }],
 }
 
@@ -171,6 +172,8 @@ test('the qualitative reviewer is given the article’s audience, and the fact c
 
   assert.match(prompts.qualitativeReview, /# Audience: Café owners \(primary ICP\)/)
   assert.match(prompts.qualitativeReview, /Owners of one or two independent cafés/)
+  assert.match(prompts.qualitativeReview, /## Not our user \(do not write for these readers/)
+  assert.match(prompts.qualitativeReview, /Wholesale equipment distributors/)
   assert.match(prompts.qualitativeReview, /\[inference\]/)
   assert.doesNotMatch(prompts.factCheck, /# Audience:/)
 })
