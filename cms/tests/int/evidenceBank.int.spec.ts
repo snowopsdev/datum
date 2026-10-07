@@ -294,7 +294,7 @@ describe('evidence bank global', () => {
 
     await write(evidenceBankFixtureDoc())
     const filled = await loadTenantContext(payload, { mode: 'mock', asOf: '2026-09-02' })
-    expect(filled.evidenceBank?.verifiedClaims).toHaveLength(3)
+    expect(filled.evidenceBank?.verifiedClaims).toHaveLength(4)
     // And it reaches the writer: the loader and the renderer are only useful
     // composed, and nothing else in the suite runs the two together against a
     // real database.
@@ -332,10 +332,8 @@ describe('evidence bank global', () => {
     expect(ready.readiness.tenant.evidenceBank.status).toBe('ready')
     expect(ready.readiness.tenant.evidenceBank.usable).toBe(3)
     expect(ready.readiness.tenant.evidenceBank.facts).toBe(2)
-    // Every demo claim carries its source, its date, a verification stronger
-    // than somebody's word, and a re-check date, so the demo bank is one a
-    // draft may actually cite.
-    expect(ready.readiness.tenant.evidenceBank.incomplete).toBe(0)
+    // One demo claim is deliberately incomplete and cannot reach a draft.
+    expect(ready.readiness.tenant.evidenceBank.incomplete).toBe(1)
     expect(ready.readiness.tenant.recommendations).not.toContain('Add an evidence bank')
     // Saving it moves the fingerprint, so a verification run done before the
     // bank existed is correctly reported as stale.
@@ -358,7 +356,7 @@ describe('evidence bank global', () => {
 
     const data = await loadSetupChecklistData(payload)
     expect(data.evidence.usable).toBe(0)
-    expect(data.evidence.incomplete).toBe(3)
+    expect(data.evidence.incomplete).toBe(4)
     // Facts keep the row done — there is still something a draft may cite — but
     // the three claims must not be counted among what it may cite.
     expect(data.evidence.facts).toBe(2)
@@ -373,10 +371,8 @@ describe('evidence bank global', () => {
   /**
    * The failing path end to end, against a real database.
    *
-   * The mock fixture deliberately finds nothing — the mock corpus is about
-   * espresso and the demo tenant is a content pipeline, so no mock draft makes
-   * a first-party claim, and a fixture that always failed would end every mock
-   * run in `needs_revision`. The failure is exercised with an injected client
+   * The mock fixture backs the demo testing claim. The rejected-claim failure
+   * is exercised with an injected client
    * instead, which is also the only way to prove the verdict survives the JSON
    * columns it is stored in.
    */
@@ -413,7 +409,7 @@ describe('evidence bank global', () => {
         template: template.id,
         faqItems: [{ question: 'Does a person read it?', answer: 'Yes.' }],
         body: markdownToLexical(
-          '## Steps\nDatum guarantees your articles will rank.\n## FAQ\nDoes a person read it? Yes.',
+          '## Steps\nKettle & Burr guarantees perfect espresso.\n## FAQ\nDoes a person read it? Yes.',
         ) as never,
         evidenceCitations: [{ ref: 'E1', excerpt: 'A reviewer approves the brief.' }],
       } as never,
@@ -426,7 +422,7 @@ describe('evidence bank global', () => {
             ? {
                 claims: [
                   {
-                    excerpt: 'Datum guarantees your articles will rank.',
+                    excerpt: 'Kettle & Burr guarantees perfect espresso.',
                     kind: 'first_party',
                     status: 'rejected',
                     ref: 'R6',
@@ -487,7 +483,7 @@ describe('evidence bank global', () => {
     expect(stored.status).toBe('needs_revision')
     expect(stored.qaResults?.evidenceCheck?.passed).toBe(false)
     expect(String(stored.qaResults?.evidenceCheck?.notes)).toContain(
-      'Remove or replace: Datum guarantees your articles will rank. (rejected, use E1)',
+      'Remove or replace: Kettle & Burr guarantees perfect espresso. (rejected, use E1)',
     )
     const claims = stored.qaResults?.evidenceCheck?.claims as { status: string; ref: string }[]
     expect(claims).toHaveLength(1)

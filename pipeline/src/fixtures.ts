@@ -3,6 +3,8 @@ import type { LlmStage } from './config'
 const bodyMarkdown = `## Introduction
 This guide shows you how to set up a home espresso station that pulls cafe-quality shots. It is written for beginners with a budget of $500 to $1,500. Expect the setup to take about two hours, plus a week of practice.
 
+Kettle & Burr tested six budget espresso grinders for a month.
+
 ## What you need
 An espresso machine with a stable brew temperature. A burr grinder that can adjust in small steps. A scale that reads in 0.1 gram steps, a tamper, and fresh beans roasted within the past month.
 
@@ -673,16 +675,10 @@ const evidenceVerificationFixture = {
   ],
 }
 
-/**
- * The evidence check has nothing to find in mock mode: the mock corpus is about
- * espresso and the demo tenant is a content pipeline, so no draft a mock run
- * produces makes a first-party claim about the workspace. The failing paths are
- * covered with an injected client instead of a second fixture, because a
- * fixture that always failed would make every mock run end in needs_revision.
- */
+/** The mock draft's first-party testing claim is backed by the demo bank. */
 const evidenceCheckFixture = {
-  claims: [],
-  notes: 'No first-party claims found.',
+  claims: [{ excerpt: 'Kettle & Burr tested six budget espresso grinders for a month.', kind: 'first_party', status: 'backed', ref: 'E1', reason: 'Matches the test log within its limits.' }],
+  notes: 'The testing claim is backed by E1.',
 }
 
 type FixtureTable = Record<LlmStage, unknown | Record<string, unknown>>

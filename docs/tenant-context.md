@@ -57,7 +57,7 @@ the same thing. `cms/src/jobs/contentRun.ts` re-checks the same three before it
 spends anything, for a job that was queued before an audience was archived.
 
 An existing workspace is blocked by this until it has all three. "Start with
-the demo workspace" on `/admin` fills them in from the fixtures in
+the demo workspace" on `/admin` fills them in for Kettle & Burr, the home-espresso publisher, from the fixtures in
 `cms/src/lib/tenant/fixtures.ts` in one click, and `npm run seed --
 --with-brand-voice` writes the same records.
 

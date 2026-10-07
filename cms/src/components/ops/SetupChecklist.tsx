@@ -267,7 +267,7 @@ export function SetupChecklist(props: SetupChecklistData) {
           {pending ? 'Setting up…' : 'Start with the demo workspace'}
         </button>
         <span className="datum-ops__hint">
-          Fills whatever is still blank with a demo brand: a plain B2B voice, a site to write about,
+          Fills whatever is still blank with a demo brand: Kettle & Burr’s home-espresso voice, a site to write about,
           two audiences, a position, and an evidence bank. Every part of it is an ordinary record
           you can edit or replace.
         </span>

@@ -277,7 +277,7 @@ test('the evidence check receives the workspace block, the uncapped bank, and th
   assert.match(prompt, /## Never state these/)
   // Every claim, including E1 which is cleared for web and blog only: the
   // auditor judges what was written, not what the writer was offered.
-  for (const ref of ['[E1]', '[E2]', '[E3]', '[F4]', '[F5]', '[R6]']) {
+  for (const ref of ['[E1]', '[E2]', '[F4]', '[F5]', '[R6]']) {
     assert.ok(prompt.includes(ref), `${ref} missing from the evidence-check prompt`)
   }
   assert.match(

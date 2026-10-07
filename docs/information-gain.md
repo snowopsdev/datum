@@ -308,7 +308,7 @@ With `MOCK_MODE=true`, `fetchPage` returns canned per-host text instead of makin
 
 A `fixtureKey` naming a sub-fixture that does not exist throws `no mock fixture for <stage>/<key>` rather than silently returning the whole entry — a `claimExtraction` request that lost its key would otherwise get an object of three fixtures where a claim list was expected. The key also survives the per-call live/mock decision inside `llm.ts`, so a stage that falls back to mock mid-run still routes correctly. `informationGainJudge` and `evidenceVerification` have one fixture each and take no key.
 
-Because every mock page returns the identical claim set, mock-mode facet `docCount`s don't vary by page the way a real, differently-worded competitive set would — mock runs exercise the data flow, not the weighting behaviour of a genuinely mixed corpus. Note too that the mock fixtures are espresso-themed while the mock Ahrefs keywords (e.g. "best crm for small business") are not: cosmetically inconsistent, functionally irrelevant, since nothing about claim extraction or clustering depends on the keyword matching the fixture's topic.
+Because every mock page returns the identical claim set, mock-mode facet `docCount`s don't vary by page the way a real, differently-worded competitive set would — mock runs exercise the data flow, not the weighting behaviour of a genuinely mixed corpus.
 
 A mock run reaching `PASS` depends on the seeded `evidence-sources` rules, for exactly the reason the source-quality section gives: the three domains the verifier fixture cites are seeded unconditionally at `primary` by `cms/src/seed.ts`. With an empty table every materially novel number in the demo draft is blocked — the intended posture, not a bug.
 

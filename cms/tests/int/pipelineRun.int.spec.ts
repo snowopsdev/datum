@@ -143,10 +143,10 @@ describe('pipeline run launch', () => {
       // to explain what a draft was allowed to state when this run wrote it.
       evidenceBank: {
         status: 'ready',
-        verified: 3,
+        verified: 4,
         usable: 3,
         expired: 0,
-        incomplete: 0,
+        incomplete: 1,
         facts: 2,
         rejected: 1,
       },

@@ -283,7 +283,7 @@ test('buildSystemPrompt orders style guide, workspace, brand voice, audience, th
   assert.ok(at('# Brand voice (tenant)') < at('# Audience: Growth marketer'))
   assert.ok(at('# Audience: Growth marketer') < at('# Positioning'))
   // The position's own words reach the writer, not just its heading.
-  assert.match(prompt, /Position we occupy: "the content pipeline with a reviewer gate"/)
+  assert.match(prompt, /Position we occupy: "the espresso guides that show their working"/)
   assert.match(prompt, /## Open rulings \(take no position on these\)/)
 })
 

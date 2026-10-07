@@ -159,7 +159,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(mock).configFingerprint,
-      '3bd47d95f8920c712b4193204260a6dfdfe6b488eaea9475491ac3158a12a0a2',
+      '8ddd431f6ca2df9b335266a0af88c810c80b33b7451e1aeef8eb92b8a0f3a31f',
     )
 
     const liveEnv = {
@@ -460,14 +460,14 @@ describe('evidence bank readiness', () => {
     })
     assert.deepEqual(filled.tenant.evidenceBank, {
       status: 'ready',
-      verified: 3,
+      verified: 4,
       usable: 3,
       expired: 0,
-      incomplete: 0,
+      incomplete: 1,
       facts: 2,
       rejected: 1,
     })
-    assert.deepEqual(filled.tenant.recommendations, ['Add positioning'])
+    assert.deepEqual(filled.tenant.recommendations, ['Add positioning', 'Complete 1 unverified claim'])
 
     // Facts alone are enough: a workspace that has only written down its
     // founding year can still say that much.
@@ -501,13 +501,13 @@ describe('evidence bank readiness', () => {
       evidenceBank: { content: unfinished, updatedAt: '2026-09-01T00:00:00.000Z', asOf: '2026-09-02' },
     })
     assert.equal(readiness.tenant.evidenceBank.status, 'missing')
-    assert.equal(readiness.tenant.evidenceBank.verified, 3)
+    assert.equal(readiness.tenant.evidenceBank.verified, 4)
     assert.equal(readiness.tenant.evidenceBank.usable, 0)
-    assert.equal(readiness.tenant.evidenceBank.incomplete, 3)
+    assert.equal(readiness.tenant.evidenceBank.incomplete, 4)
     assert.deepEqual(readiness.tenant.recommendations, [
       'Add positioning',
       'Add an evidence bank',
-      'Complete 3 unverified claims',
+      'Complete 4 unverified claims',
     ])
     // Still never a blocker, whatever state the rows are in.
     assert.equal(readiness.governance.ready, true)
@@ -528,7 +528,7 @@ describe('evidence bank readiness', () => {
       ...baseInput(),
       evidenceBank: { content: stale, updatedAt: '2026-09-01T00:00:00.000Z', asOf: '2026-09-02' },
     })
-    assert.equal(expired.tenant.evidenceBank.expired, 3)
+    assert.equal(expired.tenant.evidenceBank.expired, 4)
     assert.equal(expired.tenant.evidenceBank.usable, 0)
     // Facts keep it `ready`: there is still something a draft could cite. The
     // expired claims are a separate, smaller job than writing a bank from
@@ -536,7 +536,8 @@ describe('evidence bank readiness', () => {
     assert.equal(expired.tenant.evidenceBank.status, 'ready')
     assert.deepEqual(expired.tenant.recommendations, [
       'Add positioning',
-      'Re-check 3 expired claims',
+      'Re-check 4 expired claims',
+      'Complete 1 unverified claim',
     ])
 
     const one = evaluateWorkspaceReadiness({

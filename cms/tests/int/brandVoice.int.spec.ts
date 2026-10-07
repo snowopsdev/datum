@@ -121,7 +121,7 @@ describe('brand voice content helpers', () => {
     ]) {
       expect(md).toContain(heading)
     }
-    expect(md).toMatch(/^# Datum demo brand voice — Brand & Voice Guide/)
+    expect(md).toMatch(/^# Kettle & Burr demo brand voice — Brand & Voice Guide/)
     expect(md).toContain("| Adjective | What it means | Do | Don't |")
     expect(md).toContain('Status: active')
     expect(md).toContain('admin@datum.local')
@@ -143,7 +143,7 @@ describe('brand voice content helpers', () => {
   })
 
   it('slugs names for export file names', () => {
-    expect(brandVoiceSlug('Datum demo brand voice')).toBe('datum-demo-brand-voice')
+    expect(brandVoiceSlug('Kettle & Burr demo brand voice')).toBe('kettle-burr-demo-brand-voice')
     expect(brandVoiceSlug('   ')).toBe('brand-voice')
   })
 })

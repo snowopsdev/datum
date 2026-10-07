@@ -49,7 +49,7 @@ vi.mock('payload', async (importOriginal) => {
 const { fetchPage: realFetchPage } = await vi.importActual<FetchPageModule>(FETCH_PAGE_MODULE)
 const { refreshSitePagesAction } = await import('@/components/ops/setupActions')
 
-const DOMAIN = 'datum.example.com'
+const DOMAIN = 'kettleandburr.example.com'
 const HOME = `https://${DOMAIN}/`
 
 let payload: Payload
@@ -145,8 +145,8 @@ describe('refreshSitePagesAction', () => {
     expect(pages.map((page) => page.url)).toEqual([
       HOME,
       `${HOME}about`,
-      `${HOME}product`,
-      `${HOME}pricing`,
+      `${HOME}guides`,
+      `${HOME}membership`,
     ])
     expect(pages.every((page) => page.text.length > 0)).toBe(true)
     expect(doc.sitePagesFetchedAt).toBeTruthy()

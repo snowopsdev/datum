@@ -205,7 +205,7 @@ describe('buildAssistPrompt: the user half', () => {
       draft({ section: 'who', icpId: 1 }),
       context({ icps: [ICP_FIXTURE_SECONDARY] }),
     )
-    assert.match(user, /# Audience: Founder writing the blog themselves/)
+    assert.match(user, /# Audience: Café owner training new staff/)
     assert.equal(user.includes(ICP_FIXTURE.name), false)
   })
 
@@ -442,7 +442,7 @@ describe('assistMock', () => {
     )
     assert.equal(
       assistMock(draft({ asset: 'workspace', section: 'profile' })).value.companyName,
-      'Datum',
+      'Kettle & Burr',
     )
   })
 

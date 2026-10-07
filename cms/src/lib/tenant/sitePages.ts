@@ -35,7 +35,7 @@ export const SITE_PAGE_TEXT_CAP = 8_000
  * never a post.
  */
 export const SITE_PAGE_PATH_PATTERN =
-  /^\/(?:about|product|pricing|customers|features|why|solutions)(?:[/-].*)?$|^\/blog\/?$/i
+  /^\/(?:about|product|pricing|customers|features|why|solutions|guides|membership)(?:[/-].*)?$|^\/blog\/?$/i
 
 /**
  * Link-shaped tokens, in document order: a quoted `href`, an unquoted `href`,

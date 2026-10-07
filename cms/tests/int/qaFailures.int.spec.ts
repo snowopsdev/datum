@@ -174,10 +174,10 @@ describe('the evidence check as a QA failure', () => {
       evidenceCheck: {
         passed: false,
         notes:
-          'One rejected claim.\n\nRemove or replace: Datum guarantees your articles will rank. (rejected, use E1)',
+          'One rejected claim.\n\nRemove or replace: Kettle & Burr guarantees perfect espresso. (rejected, use E1)',
         claims: [
           {
-            excerpt: 'Datum guarantees your articles will rank.',
+            excerpt: 'Kettle & Burr guarantees perfect espresso.',
             kind: 'first_party',
             status: 'rejected',
             ref: 'R6',
@@ -193,7 +193,7 @@ describe('the evidence check as a QA failure', () => {
     expect(failures).toHaveLength(1)
     expect(failures[0].check).toBe('evidenceCheck')
     expect(failures[0].what).toContain(
-      'Remove or replace: Datum guarantees your articles will rank. (rejected, use E1)',
+      'Remove or replace: Kettle & Burr guarantees perfect espresso. (rejected, use E1)',
     )
     // A softened version of an unsupported claim is still unsupported, and the
     // instruction has to say so or the next draft simply hedges it.

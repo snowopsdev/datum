@@ -270,25 +270,25 @@ class MockAhrefsClient implements AhrefsClient {
   async contentGapKeywords(): Promise<GapKeyword[]> {
     return [
       {
-        keyword: 'best crm for small business',
+        keyword: 'best espresso grinder under 300',
         volume: 5400,
         difficulty: 42,
         bestCompetitorPosition: 3,
       },
       {
-        keyword: 'how to migrate crm data',
+        keyword: 'how to dial in espresso',
         volume: 1300,
         difficulty: 18,
         bestCompetitorPosition: 5,
       },
       {
-        keyword: 'crm implementation checklist',
+        keyword: 'espresso machine descaling schedule',
         volume: 880,
         difficulty: 12,
         bestCompetitorPosition: 7,
       },
       {
-        keyword: 'hubspot vs salesforce for startups',
+        keyword: 'breville bambino vs gaggia classic',
         volume: 720,
         difficulty: 35,
         bestCompetitorPosition: 4,

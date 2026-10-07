@@ -15,7 +15,7 @@ export const TARGET_DOMAIN_ENV_VAR = 'TARGET_DOMAIN'
 export const COMPETITOR_DOMAINS_ENV_VAR = 'COMPETITOR_DOMAINS'
 
 /** What a mock run pretends the workspace is, so a fresh clone runs with no setup. */
-export const MOCK_TARGET_DOMAIN = 'datum.example.com'
+export const MOCK_TARGET_DOMAIN = 'kettleandburr.example.com'
 export const MOCK_COMPETITOR_DOMAINS = 'competitor-one.com,competitor-two.com'
 
 /** One page of the workspace's own site, captured for the setup assistant. */

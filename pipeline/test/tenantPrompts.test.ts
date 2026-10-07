@@ -397,40 +397,24 @@ describe('the evidence bank block', () => {
       evidenceBankToPrompt(EVIDENCE_BANK_FIXTURE, {
         asOf: '2026-09-02',
         surface: 'web',
-        companyName: 'Datum',
+        companyName: 'Kettle & Burr',
       }),
       [
-        '# Evidence bank (the only first-party facts you may state about Datum)',
+        '# Evidence bank (the only first-party facts you may state about Kettle & Burr)',
         'Cite the ref after the sentence that uses it. Stay within "Limits".',
-        '- [E1] A reviewer approves the brief before any drafting is paid for, on every article. ' +
-          'Source: Datum pipeline audit export, 2026-08-01. Method: Every article created in the ' +
-          '2026 H1 window; the status machine has no path from research to drafting that skips ' +
-          'brief approval. Limits: Describes the product, not customer behaviour; it does not say ' +
-          'reviewers read the brief carefully. Cleared: web, blog.',
-        '- [E2] Every published draft carries a stored fact check, style review, and ' +
-          'information-gain score. Source: Datum QA schema and article audit trail, 2026-07-15. ' +
-          'Method: The publish gate refuses an article whose QA results are absent. Limits: A ' +
-          'stored check is not a passing check; some articles are published after a reviewer ' +
-          'overrides one.',
-        '- [E3] The median article costs under two dollars of model spend from research to scored ' +
-          'draft. Source: Cost-log export, 2026 Q2, 2026-07-01. Method: Median of all cost-log ' +
-          'rows grouped by article across one quarter, mock runs excluded. Limits: Median, not ' +
-          'typical: a regenerated article costs several times this. Excludes Ahrefs and hosting. ' +
-          'Cleared: web, blog, sales.',
-        '- [F4] Datum stores its content in Payload CMS on Postgres, and publishes through ' +
-          'Next.js. (fact; owner: engineering; confirmed 2026-08-20)',
-        '- [F5] Datum runs entirely inside a customer’s own deployment; no article text leaves it ' +
-          'except to the model provider. (fact; owner: engineering; confirmed 2026-08-20)',
+        '- [E1] Kettle & Burr tested six budget espresso grinders for a month. Source: Kettle & Burr grinder test log, 2026-08-01. Method: Six grinders, the same beans and recipe, one month of recorded shots. Limits: Describes this comparison, not every grinder or every reader’s results. Cleared: web, blog.',
+        '- [E2] Kettle & Burr publishes the method and limits alongside each equipment comparison. Source: Kettle & Burr editorial checklist, 2026-07-15. Method: Editorial review of published equipment comparisons. Limits: A disclosed method does not guarantee a recommendation fits every kitchen.',
+        '- [F4] Kettle & Burr publishes independent home-espresso guides. (fact; owner: editorial; confirmed 2026-08-20)',
+        '- [F5] Kettle & Burr offers equipment comparisons and brewing recipes. (fact; owner: editorial; confirmed 2026-08-20)',
         '',
         '## Never state these',
-        '- [R6] "Datum guarantees your articles will rank" — rejected: Nobody can guarantee a ' +
-          'ranking, and the promise is about defensibility rather than placement. Say instead: [E1].',
+        '- [R6] "Kettle & Burr guarantees perfect espresso" — rejected: Equipment, beans, water, and practice change the result. Say instead: [E1].',
       ].join('\n'),
     )
   })
 
   it('renders the same string twice, so a prompt snapshot is comparable', () => {
-    const opts = { asOf: '2026-09-02', surface: 'web', companyName: 'Datum' }
+    const opts = { asOf: '2026-09-02', surface: 'web', companyName: 'Kettle & Burr' }
     assert.equal(
       evidenceBankToPrompt(EVIDENCE_BANK_FIXTURE, opts),
       evidenceBankToPrompt(EVIDENCE_BANK_FIXTURE, opts),
