@@ -308,6 +308,7 @@ class MockAhrefsClient implements AhrefsClient {
       { suffix: ' for beginners', volume: 2400, difficulty: 17 },
       { suffix: ' checklist', volume: 1100, difficulty: 11 },
     ]
+    if (/espresso/i.test(base)) rows.push({suffix: ' wholesale', volume: 90000, difficulty: 8})
     return rows
       .slice(0, Math.min(Math.max(limit, 1), rows.length))
       .map(({ suffix, volume, difficulty }) => ({

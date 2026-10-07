@@ -1019,6 +1019,7 @@ export interface CostLog {
         | 'briefAngle'
         | 'brandVoiceExtract'
         | 'setupAssist'
+        | 'topicRelevance'
       )
     | null;
   provider?: string | null;
@@ -1366,6 +1367,17 @@ export interface EvidenceSourceCandidate {
  */
 export interface TopicSearch {
   id: number;
+  relevance?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  relevanceFingerprint?: string | null;
+  relevanceModel?: string | null;
   /**
    * The subject the operator typed, as they typed it.
    */
@@ -2227,6 +2239,9 @@ export interface CorpusSnapshotsSelect<T extends boolean = true> {
  * via the `definition` "topic-searches_select".
  */
 export interface TopicSearchesSelect<T extends boolean = true> {
+  relevance?: T;
+  relevanceFingerprint?: T;
+  relevanceModel?: T;
   seed?: T;
   seedKey?: T;
   country?: T;
@@ -2694,6 +2709,27 @@ export interface EvidenceBank {
 export interface LlmSetting {
   id: number;
   /**
+   * Labels audience fit in admin topic discovery. A small model is enough. Leave blank to use TOPIC_RELEVANCE_MODEL from the environment, or the platform default (Claude Opus 5).
+   */
+  topicRelevanceModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
    * Proposes audience-grounded directions during research. A small model is enough. Leave blank to use PIPELINE_MODEL_BRIEF_ANGLE from the environment, or the platform default (Claude Opus 5).
    */
   briefAngleModel?:
@@ -3139,6 +3175,7 @@ export interface EvidenceBankSelect<T extends boolean = true> {
  * via the `definition` "llm-settings_select".
  */
 export interface LlmSettingsSelect<T extends boolean = true> {
+  topicRelevanceModel?: T;
   briefAngleModel?: T;
   generateModel?: T;
   factCheckModel?: T;

@@ -68,7 +68,8 @@ export function TopicDiscovery({
     void recentSearchesAction().then((rows) => {
       if (live) setRecent(rows)
     })
-    return () => {
+
+  return () => {
       live = false
     }
   }, [candidates])
@@ -113,12 +114,14 @@ export function TopicDiscovery({
     startTransition(async () => {
       // `picked` is a Set, ordered by click order, not opportunity — spreading
       // it directly would let whichever keyword was ticked first become the
-      // primary. `candidates` is already opportunity-sorted, so filter it
+      // primary. `candidates` is already sorted by fit and opportunity, so filter it
       // instead of the Set to keep the highest-opportunity pick first, which
       // is what `createTopicsAction` assumes and what the hint text below
       // promises.
-      const ordered = (candidates ?? []).filter((c) => picked.has(c.keyword)).map((c) => c.keyword)
-      const result = await createTopicsAction({ keywords: ordered, templateId, confirmLiveCost })
+      const orderedRows = (candidates ?? []).filter((c) => picked.has(c.keyword) && !c.alreadyTaken)
+      const ordered = orderedRows.map(c=>c.keyword)
+      const best = orderedRows[0]
+      const result = await createTopicsAction({ keywords: ordered, templateId, confirmLiveCost, icpId: best && best.fit !== 'off' ? best.fitAudienceId : null })
       if (!result.ok) {
         setError(result.error)
         return
@@ -141,6 +144,52 @@ export function TopicDiscovery({
       router.push(`/admin/ops/articles/${result.articleId}`)
     })
   }
+
+    const candidateTable = (rows: TopicCandidate[]) => (
+            <div className="datum-ops__ig-table-wrap">
+              <table className="datum-ops__ig-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Pick</th>
+                    <th scope="col">Topic</th>
+                    {candidates?.some(c=>c.fit) ? <th scope="col">Fit</th> : null}
+                    <th scope="col">Searches / mo</th>
+                    <th scope="col">Difficulty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((c) => (
+                    <tr key={c.keyword}>
+                      <td>
+                        <input
+                          aria-label={`Select ${c.keyword}`}
+                          checked={picked.has(c.keyword)}
+                          disabled={pending || c.alreadyTaken}
+                          onChange={() => toggle(c.keyword)}
+                          type="checkbox"
+                        />
+                      </td>
+                      <td>
+                        {c.keyword}
+                        {c.alreadyTaken ? (
+                          <span className="datum-ops__pill datum-ops__pill--muted datum-ops__pill--tight">
+                            {' '}
+                            {c.archived ? 'removed from the board' : 'already on the board'}
+                          </span>
+                        ) : null}
+                      </td>
+                      {candidates?.some(c=>c.fit) ? <td><span className="datum-ops__pill" title={c.fitReason}>{c.fit}</span><br /><span className="datum-ops__hint">{c.fitReason}</span></td> : null}
+                      <td>{compact(c.volume)}</td>
+                      <td>
+                        {c.difficulty}{' '}
+                        <span className="datum-ops__hint">{difficultyLabel(c.difficulty)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+  )
 
   const selectable = candidates?.filter((c) => !c.alreadyTaken) ?? []
 
@@ -222,47 +271,11 @@ export function TopicDiscovery({
               </button>
             </p>
 
-            <div className="datum-ops__ig-table-wrap">
-              <table className="datum-ops__ig-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Pick</th>
-                    <th scope="col">Topic</th>
-                    <th scope="col">Searches / mo</th>
-                    <th scope="col">Difficulty</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidates.map((c) => (
-                    <tr key={c.keyword}>
-                      <td>
-                        <input
-                          aria-label={`Select ${c.keyword}`}
-                          checked={picked.has(c.keyword)}
-                          disabled={pending || c.alreadyTaken}
-                          onChange={() => toggle(c.keyword)}
-                          type="checkbox"
-                        />
-                      </td>
-                      <td>
-                        {c.keyword}
-                        {c.alreadyTaken ? (
-                          <span className="datum-ops__pill datum-ops__pill--muted datum-ops__pill--tight">
-                            {' '}
-                            {c.archived ? 'removed from the board' : 'already on the board'}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>{compact(c.volume)}</td>
-                      <td>
-                        {c.difficulty}{' '}
-                        <span className="datum-ops__hint">{difficultyLabel(c.difficulty)}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {candidateTable(candidates.filter(c=>c.fit !== 'off'))}
+            {candidates.some(c=>c.fit === 'off') ? <details>
+              <summary>Probably not for your audiences ({candidates.filter(c=>c.fit === 'off').length})</summary>
+              {candidateTable(candidates.filter(c=>c.fit === 'off'))}
+            </details> : null}
 
             {selectable.length === 0 ? (
               <p className="datum-ops__hint">

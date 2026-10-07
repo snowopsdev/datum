@@ -47,6 +47,7 @@ export const CostLog: CollectionConfig = {
         'briefAngle',
         'brandVoiceExtract',
         'setupAssist',
+        'topicRelevance',
       ],
     },
     {

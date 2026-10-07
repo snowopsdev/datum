@@ -11,6 +11,7 @@ describe('Models global', () => {
     for (const stage of PIPELINE_STAGES) expect(names).toContain(STAGE_SETTING_FIELD[stage])
     expect(names).toContain('evidenceCheckModel')
     expect(names).toContain('briefAngleModel')
+    expect(names).toContain('topicRelevanceModel')
     expect(names).toContain('brandVoiceExtractModel')
     expect(names).toContain('setupAssistModel')
     for (const field of LlmSettings.fields) {

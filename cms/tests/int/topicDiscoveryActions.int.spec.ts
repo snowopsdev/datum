@@ -45,7 +45,7 @@ vi.mock('@/lib/loadWorkspaceReadiness', () => ({
   loadWorkspaceSetup: vi.fn(async () => ({
     readiness,
     templates: [],
-    icps: [{ id: 11, name: 'Marketing lead', primary: true, audienceLine: 'A marketing lead.' }],
+    icps: [{ id: 11, name: 'Marketing lead', primary: true, audienceLine: 'A marketing lead.' }, {id:12,name:'Café owners',primary:false,audienceLine:'Café owners.'}],
     latestRun: null,
   })),
 }))
@@ -108,4 +108,11 @@ it('names the missing governance asset rather than staying silent', async () => 
     researchQueued: false,
     researchBlockedReason: 'Finish setup before running the pipeline: Activate a brand voice.',
   })
+})
+
+it('uses a requested active audience and falls back for an unknown or archived id', async () => {
+  await createTopicsAction({keywords:['audience pick'],templateId:3,icpId:12})
+  expect((createMock.mock.calls[0]?.[0] as {data:{icp:number}}).data.icp).toBe(12)
+  await createTopicsAction({keywords:['fallback pick'],templateId:3,icpId:999})
+  expect((createMock.mock.calls[1]?.[0] as {data:{icp:number}}).data.icp).toBe(11)
 })

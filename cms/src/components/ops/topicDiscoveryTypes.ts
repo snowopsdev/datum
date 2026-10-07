@@ -6,10 +6,14 @@
  * build with "Only async functions are allowed to be exported".
  */
 
+import type { TopicFit } from '../../lib/tenant/topicRelevance'
 import type { DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 
 /** What the panel shows for one candidate, plus whether it is already taken. */
 export interface TopicCandidate extends DiscoveredKeyword {
+  fit?: TopicFit
+  fitAudienceId?: number | null
+  fitReason?: string
   /** True when an article already exists for this keyword. */
   alreadyTaken: boolean
   /**

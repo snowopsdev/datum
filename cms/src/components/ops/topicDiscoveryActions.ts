@@ -3,11 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
-import type { Payload } from 'payload'
+import { loadTenantContextCms } from '../../lib/loadTenantContextCms'
+import { resolveTopicRelevanceModel } from '../../lib/llmSettings'
+import { scoreTopicRelevance } from '../../lib/scoreTopicRelevance'
+import { parseTopicRelevance, rankByFit, relevanceFingerprint } from '../../lib/tenant/topicRelevance'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 import { config as pipelineConfig } from '../../../../pipeline/src/config'
-import { resolveWorkspaceProfile } from '../../../../pipeline/src/tenant'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
@@ -34,18 +36,14 @@ const isFresh = (fetchedAt: string | null | undefined): boolean => {
   return Date.now() - at < TOPIC_SEARCH_TTL_DAYS * 86_400_000
 }
 
-/**
- * The workspace the Ahrefs client works for. Matching-terms lookups do not need
- * a domain, but the client is built the same way everywhere so a country or
- * competitor change lands in one place rather than three.
- */
-async function workspaceProfile(payload: Payload, mode: 'mock' | 'live') {
-  const doc = await payload.findGlobal({
-    slug: 'workspace-profile',
-    depth: 0,
-    overrideAccess: true,
+/** Cached JSON is untrusted; discard a malformed cache rather than casting it. */
+function cachedCandidates(raw: unknown): DiscoveredKeyword[] | null {
+  if (!Array.isArray(raw)) return null
+  const rows = raw.flatMap((r): DiscoveredKeyword[] => {
+    if (!r || typeof r !== 'object' || typeof r.keyword !== 'string' || !r.keyword.trim() || ![r.volume,r.difficulty,r.opportunity].every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0)) return []
+    return [{keyword:r.keyword.trim(),volume:r.volume,difficulty:r.difficulty,opportunity:r.opportunity}]
   })
-  return resolveWorkspaceProfile(doc, process.env, { mockDefault: mode === 'mock' })
+  return rows.length === raw.length ? rows : null
 }
 
 /**
@@ -79,15 +77,16 @@ export async function discoverTopicsAction(
       cachedRow &&
       isFresh(cachedRow.fetchedAt) &&
       Array.isArray(cachedRow.candidates)
-        ? (cachedRow.candidates as DiscoveredKeyword[])
+        ? cachedCandidates(cachedRow.candidates)
         : null
 
     // Discovery has no pipeline-runs row to carry a mode, so the ambient config
     // decides — the same signal the run bar shows the operator.
     const mode = pipelineConfig.mockMode ? 'mock' : 'live'
+    const tenant = await loadTenantContextCms(payload, mode)
     const candidates =
       usableCache ??
-      (await createAhrefsClient(mode, await workspaceProfile(payload, mode)).discoverKeywords(
+      (await createAhrefsClient(mode, tenant.profile).discoverKeywords(
         term,
         25,
       ))
@@ -96,29 +95,29 @@ export async function discoverTopicsAction(
     }
 
     const fetchedAt = usableCache ? String(cachedRow!.fetchedAt) : new Date().toISOString()
-    if (!usableCache) {
-      // Replace rather than accumulate: one row per (seed, country) keeps the
-      // recent-searches list meaningful and the lookup a single hit.
-      if (cachedRow) {
-        await payload.delete({
-          collection: 'topic-searches',
-          id: cachedRow.id,
-          overrideAccess: true,
-        })
-      }
-      await payload.create({
-        collection: 'topic-searches',
-        overrideAccess: true,
-        data: {
-          seed: term,
-          seedKey,
-          country,
-          fetchedAt,
-          resultCount: candidates.length,
-          candidates,
-        },
-      })
+    const settings = await payload.findGlobal({slug:'llm-settings',depth:0,overrideAccess:true})
+    const model = resolveTopicRelevanceModel(settings, process.env).model
+    const fingerprint = relevanceFingerprint(tenant.icps, tenant.positioning, tenant.profile)
+    let relevance = null
+    const reusableRelevance = usableCache && cachedRow?.relevanceFingerprint === fingerprint && cachedRow.relevanceModel === model && Array.isArray(cachedRow.relevance)
+    if (tenant.icps.length) {
+      relevance = reusableRelevance
+        ? parseTopicRelevance({candidates:(cachedRow!.relevance as unknown[]).flatMap(raw => {
+            if (!raw || typeof raw !== 'object') return []
+            const r = raw as Record<string,unknown>
+            return [{...r,audience:tenant.icps.find(i=>String(i.id) === String(r.audienceId))?.name ?? null}]
+          })},candidates,tenant.icps,term)
+        : await scoreTopicRelevance(payload,candidates,tenant,term,model)
     }
+    if (!usableCache || (tenant.icps.length && !reusableRelevance)) {
+      const data = {seed:term,seedKey,country,fetchedAt,resultCount:candidates.length,candidates,relevance,relevanceFingerprint:tenant.icps.length ? fingerprint : null,relevanceModel:tenant.icps.length ? model : null}
+      if (cachedRow) await payload.update({collection:'topic-searches',id:cachedRow.id,overrideAccess:true,data})
+      else await payload.create({collection:'topic-searches',overrideAccess:true,data})
+    }
+    const fitted = candidates.map((c,index) => {
+      const r = relevance?.[index]
+      return {...c,...(r ? {fit:r.fit,fitAudienceId:typeof r.audienceId === 'number' ? r.audienceId : null,fitReason:r.reason} : {})}
+    })
 
     // Taken-ness is read live even for a cached lookup: articles are created
     // between searches, and a stale "available" row would let someone pick a
@@ -146,7 +145,7 @@ export async function discoverTopicsAction(
       seed: term,
       cached: usableCache !== null,
       fetchedAt,
-      candidates: candidates.map((c) => ({
+      candidates: (relevance ? rankByFit(fitted) : fitted).map((c) => ({
         ...c,
         alreadyTaken: taken.has(c.keyword.toLowerCase()),
         archived: archived.has(c.keyword.toLowerCase()),
@@ -195,6 +194,7 @@ export async function recentSearchesAction(limit = 6): Promise<RecentSearch[]> {
 export async function createTopicsAction(input: {
   keywords: string[]
   templateId: number
+  icpId?: number | null
   /** True once a person has been shown what a live run costs and agreed. */
   confirmLiveCost?: boolean
 }): Promise<CreateTopicsResult> {
@@ -220,12 +220,12 @@ export async function createTopicsAction(input: {
     }
 
     // `wanted` arrives in the order the panel listed it, which is already sorted
-    // by opportunity, so the first surviving pick is the strongest one.
+    // by fit and opportunity, so the first surviving pick is the strongest one.
     const [primary, ...secondaries] = free
     // Loaded before the create so the piece starts pointed at an audience; the
     // same call answers whether research can start at all, a few lines down.
     const setup = await loadWorkspaceSetup(payload)
-    const primaryIcpId = setup.icps.find((icp) => icp.primary)?.id ?? null
+    const primaryIcpId = setup.icps.find((icp) => icp.id === input.icpId)?.id ?? setup.icps.find((icp) => icp.primary)?.id ?? null
     const created = await payload.create({
       collection: 'articles',
       data: {

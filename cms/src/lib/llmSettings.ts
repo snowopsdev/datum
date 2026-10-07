@@ -41,6 +41,8 @@ export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = 
 
 export const EXTRACTION_ENV_VAR = 'BRAND_VOICE_EXTRACT_MODEL'
 
+export const TOPIC_RELEVANCE_ENV_VAR = 'TOPIC_RELEVANCE_MODEL'
+
 export const SETUP_ASSIST_ENV_VAR = 'SETUP_ASSIST_MODEL'
 
 /** Shape of the `llm-settings` global (all optional: blank means "use env/default"). */
@@ -55,6 +57,7 @@ export interface LlmSettingsDoc {
   briefAngleModel?: string | null
   brandVoiceExtractModel?: string | null
   setupAssistModel?: string | null
+  topicRelevanceModel?: string | null
 }
 
 /** Every model field on the global, in the order the admin form shows them. */
@@ -62,6 +65,7 @@ export const LLM_SETTING_FIELDS = [
   ...PIPELINE_STAGES.map((stage) => STAGE_SETTING_FIELD[stage]),
   'brandVoiceExtractModel',
   'setupAssistModel',
+  'topicRelevanceModel',
 ] as const satisfies readonly (keyof LlmSettingsDoc)[]
 
 /**
@@ -130,4 +134,8 @@ export function resolveSetupAssistModel(
   const chosen = resolveModel(settings?.setupAssistModel, env[SETUP_ASSIST_ENV_VAR], '')
   if (chosen.model) return chosen
   return resolveExtractionModel(settings, env)
+}
+
+export function resolveTopicRelevanceModel(settings: LlmSettingsDoc | null | undefined, env: Record<string, string | undefined>): ResolvedModel {
+  return resolveModel(settings?.topicRelevanceModel, env[TOPIC_RELEVANCE_ENV_VAR])
 }

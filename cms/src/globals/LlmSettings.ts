@@ -1,7 +1,7 @@
 import type { GlobalConfig } from 'payload'
 
 import { LLM_MODEL_OPTIONS } from '../lib/llmCatalog'
-import { EXTRACTION_ENV_VAR, SETUP_ASSIST_ENV_VAR, STAGE_ENV_VAR } from '../lib/llmSettings'
+import { EXTRACTION_ENV_VAR, TOPIC_RELEVANCE_ENV_VAR, SETUP_ASSIST_ENV_VAR, STAGE_ENV_VAR } from '../lib/llmSettings'
 
 const modelField = (name: string, label: string, envVar: string, purpose: string) => ({
   name,
@@ -33,6 +33,7 @@ export const LlmSettings: GlobalConfig = {
     update: ({ req }) => Boolean(req.user),
   },
   fields: [
+    modelField('topicRelevanceModel', 'Topic relevance', TOPIC_RELEVANCE_ENV_VAR, 'Labels audience fit in admin topic discovery. A small model is enough.'),
     modelField('briefAngleModel', 'Brief angles', STAGE_ENV_VAR.briefAngle, 'Proposes audience-grounded directions during research. A small model is enough.'),
     modelField(
       'generateModel',
