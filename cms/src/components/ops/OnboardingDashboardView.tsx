@@ -18,23 +18,18 @@ export async function OnboardingDashboardView(props: AdminViewServerProps) {
   const { req } = initPageResult
   if (!req.user) redirect('/admin/login')
 
-  const [setup, pieces, suggestions] = await Promise.all([
+  const [setup, pieces] = await Promise.all([
     loadWorkspaceSetup(req.payload),
     req.payload.count({ collection: 'articles', where: { archived: { not_equals: true } } }),
-    req.payload.count({ collection: 'setup-suggestions', where: { status: { equals: 'open' } } }),
   ])
-  if (setup.readiness.governance.ready && pieces.totalDocs > 0 && suggestions.totalDocs === 0)
-    redirect('/admin/ops/content')
+  // Open setup suggestions do not hold a finished workspace here: the content
+  // list says when there are some, and the checklist below lists them.
+  if (setup.readiness.governance.ready && pieces.totalDocs > 0) redirect('/admin/ops/content')
 
   const data = await loadSetupChecklistData(req.payload, setup)
 
   return (
     <Gutter>
-      {suggestions.totalDocs ? (
-        <p>
-          <span className="datum-ops__pill">{suggestions.totalDocs} setup suggestions</span>
-        </p>
-      ) : null}
       <SetupChecklist {...data} />
     </Gutter>
   )

@@ -3,13 +3,23 @@ import type { GlobalConfig } from 'payload'
 import { LLM_MODEL_OPTIONS } from '../lib/llmCatalog'
 import { EXTRACTION_ENV_VAR, TOPIC_RELEVANCE_ENV_VAR, SETUP_ASSIST_ENV_VAR, STAGE_ENV_VAR } from '../lib/llmSettings'
 
-const modelField = (name: string, label: string, envVar: string, purpose: string) => ({
+const PLATFORM_DEFAULT = 'the platform default (Claude Opus 5)'
+const SMALL_DEFAULT =
+  "the small model of the generate model's provider (Claude Haiku 4.5, or GPT-5.4 mini for a GPT writer)"
+
+const modelField = (
+  name: string,
+  label: string,
+  envVar: string,
+  purpose: string,
+  fallback = PLATFORM_DEFAULT,
+) => ({
   name,
   type: 'select' as const,
   label,
   options: [...LLM_MODEL_OPTIONS],
   admin: {
-    description: `${purpose} Leave blank to use ${envVar} from the environment, or the platform default (Claude Opus 5).`,
+    description: `${purpose} Leave blank to use ${envVar} from the environment, or ${fallback}.`,
     isClearable: true,
   },
 })
@@ -33,8 +43,6 @@ export const LlmSettings: GlobalConfig = {
     update: ({ req }) => Boolean(req.user),
   },
   fields: [
-    modelField('topicRelevanceModel', 'Topic relevance', TOPIC_RELEVANCE_ENV_VAR, 'Labels audience fit in admin topic discovery. A small model is enough.'),
-    modelField('briefAngleModel', 'Brief angles', STAGE_ENV_VAR.briefAngle, 'Proposes audience-grounded directions during research. A small model is enough.'),
     modelField(
       'generateModel',
       'Generate',
@@ -76,6 +84,20 @@ export const LlmSettings: GlobalConfig = {
       'Evidence check',
       STAGE_ENV_VAR.evidenceCheck,
       'Checks first-party claims against the evidence bank during QA.',
+    ),
+    modelField(
+      'briefAngleModel',
+      'Brief angles',
+      STAGE_ENV_VAR.briefAngle,
+      'Proposes audience-grounded directions during research. A small model is enough.',
+      SMALL_DEFAULT,
+    ),
+    modelField(
+      'topicRelevanceModel',
+      'Topic relevance',
+      TOPIC_RELEVANCE_ENV_VAR,
+      'Labels audience fit in admin topic discovery. A small model is enough.',
+      SMALL_DEFAULT,
     ),
     modelField(
       'brandVoiceExtractModel',

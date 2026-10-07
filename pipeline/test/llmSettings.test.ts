@@ -146,3 +146,25 @@ it('topic relevance is CMS-only and resolves admin, environment, then default', 
   assert.equal(resolveTopicRelevanceModel(null,{}).source,'default')
   assert.ok(!(PIPELINE_STAGES as readonly string[]).includes('topicRelevance'))
 })
+
+/**
+ * The two short structured calls — brief angles and topic fit — say a small
+ * model is enough, so unset they must not inherit flagship pricing. They take
+ * the small model of whichever provider the workspace writes with, so a
+ * workspace on one provider is never blocked for the other's key.
+ */
+it('brief angles and topic fit default to the small model of the writer\'s provider', () => {
+  assert.deepEqual(resolveStageModels(null, {}).briefAngle, { model: 'claude-haiku-4-5', source: 'default' })
+  assert.deepEqual(resolveTopicRelevanceModel(null, {}), { model: 'claude-haiku-4-5', source: 'default' })
+  const openai = { generateModel: 'gpt-5.6-sol' }
+  assert.equal(resolveStageModels(openai, {}).briefAngle.model, 'gpt-5.4-mini')
+  assert.equal(resolveTopicRelevanceModel(openai, {}).model, 'gpt-5.4-mini')
+  assert.equal(resolveStageModels(null, { PIPELINE_MODEL_GENERATE: 'gpt-5.6-terra' }).briefAngle.model, 'gpt-5.4-mini')
+  // Everything else keeps the platform default.
+  assert.equal(resolveStageModels(null, {}).qualitativeReview.model, 'claude-opus-5')
+  // And an explicit choice always wins.
+  assert.equal(resolveStageModels({ briefAngleModel: 'claude-sonnet-5' }, {}).briefAngle.model, 'claude-sonnet-5')
+})
+it('the small defaults are real catalog models', () => {
+  for (const id of ['claude-haiku-4-5', 'gpt-5.4-mini']) assert.ok(LLM_CATALOG.some((m) => m.id === id), id)
+})

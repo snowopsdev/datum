@@ -57,7 +57,7 @@ it('creates the requested number of unique topics with the selected template', a
 it('skips excluded keywords without spending a model call or exhausting the create quota', async () => {
   const created: string[] = []
   const tenant = {...emptyTenantContext(),icps:[{...emptyIcpContent('Home'),notOurUser:['Wholesale buyers']}]}
-  const ctx = {tenant,runId:'exclude',mode:'mock' as const,payload:{find:async()=>({docs:[]}),create:async({data}:{data:{keyword:string}})=>{created.push(data.keyword);return {id:created.length}}} as unknown as Payload,ahrefs:{contentGapKeywords:async()=>[{keyword:'espresso wholesale',volume:999,difficulty:1},{keyword:'espresso grinder',volume:10,difficulty:1}]} as AhrefsClient}
+  const ctx = {tenant,runId:'exclude',mode:'mock' as const,payload:{find:async()=>({docs:[]}),create:async({data}:{data:{keyword:string}})=>{created.push(data.keyword);return {id:created.length}}} as unknown as Payload,ahrefs:{contentGapKeywords:async()=>[{keyword:'espresso grinders for wholesale buyers',volume:999,difficulty:1},{keyword:'espresso grinder',volume:10,difficulty:1}]} as AhrefsClient}
   await fetchTopics(ctx,{count:1,templateId:1})
   assert.deepEqual(created,['espresso grinder'])
 })

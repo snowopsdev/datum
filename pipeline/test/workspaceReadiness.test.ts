@@ -85,7 +85,8 @@ describe('workspace readiness', () => {
         ['informationGainJudge', 'claude-opus-5', 'anthropic', false],
         ['evidenceVerification', 'claude-opus-5', 'anthropic', false],
         ['evidenceCheck', 'claude-opus-5', 'anthropic', false],
-        ['briefAngle', 'claude-opus-5', 'anthropic', false],
+        // Brief angles default to the small model of the writer's provider.
+        ['briefAngle', 'gpt-5.4-mini', 'openai', true],
       ],
     )
   })
@@ -136,7 +137,9 @@ describe('workspace readiness', () => {
   it('fingerprints an API-backed workspace exactly as it always has', () => {
     // Frozen inputs and hashes: the fingerprint decides whether a verification
     // run is still current, so a change here stales every existing run. Only
-    // recompute these when that is the intent. The live hash last moved when
+    // recompute these when that is the intent. Both last moved when brief
+    // angles started defaulting to the writer's provider's small model instead
+    // of the platform default. Before that, the live hash moved when
     // `example.com` became a placeholder the resolver ignores and this fixture
     // had to name a domain a workspace could really own; the mock hash is
     // untouched by that. Before that they moved when the fingerprint started
@@ -160,7 +163,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(mock).configFingerprint,
-      'da1edfeade438a7e3519c30a9319b59fc943871f908ef96588bfefa61ca09b81',
+      '037cff99ed224743c012c9fa4c6f78be556e52d065b5e66800d5b0d22cae75aa',
     )
 
     const liveEnv = {
@@ -182,7 +185,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(live).configFingerprint,
-      'ae79ccb87cfa7d758685ff1d09e9b54adf97df62cbc43444468712a24db87458',
+      '9c822a7ad03c145198c5eede740f9a16ab40cbef3aa3abe7f0b75a075e0c5f7f',
     )
   })
 

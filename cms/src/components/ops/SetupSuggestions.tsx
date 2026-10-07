@@ -95,7 +95,7 @@ export function SetupSuggestions({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
   return (
-    <section className="datum-ops__block">
+    <section className="datum-ops__block" id="suggestions">
       <h3>
         Suggestions{' '}
         {suggestions.length ? <span className="datum-ops__pill">{suggestions.length}</span> : null}

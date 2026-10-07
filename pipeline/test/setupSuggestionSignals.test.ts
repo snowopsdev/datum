@@ -44,3 +44,20 @@ test('a fragment removed in more articles than its longer phrase stays its own s
   assert.ok(phrases.includes('looks like warm honey'))
   assert.ok(phrases.includes('warm honey'), 'removed in four articles, so it is not covered by the three-article phrase')
 })
+test('a removed cliché made of words kept elsewhere is still suggested',()=>{
+  // "rich" and "crema" both survive in the published text; the pair does not.
+  const rows=[1,2,3].map(id=>({articleId:id,keyword:'grinder',generatedText:'The shot pulls rich crema on top. A rich body follows. Crema forms in seconds.',publishedText:'The shot pulls a thick layer on top. A rich body follows. Crema forms in seconds.',at:'2026-10-01'}))
+  assert.deepEqual(removedPhrases(rows).map(c=>c.proposal.phrase),['rich crema'])
+})
+test('a banned phrase splits a removed run instead of silencing every phrase that shares a word with it',()=>{
+  const rows=[1,2,3].map(id=>({articleId:id,keyword:'grinder',generatedText:"In today's fast-paced world, crema tells the story. A whole world of flavour opens.",publishedText:'Crema tells the story. Flavour opens.',at:'2026-10-01'}))
+  const phrases=removedPhrases(rows,["in today's fast-paced world"]).map(c=>c.proposal.phrase)
+  assert.ok(phrases.includes('whole world'), 'shares "world" with the banned phrase, but is not it')
+  assert.ok(!phrases.some(p=>/fast|paced|today/.test(String(p))), 'the banned phrase itself is never suggested')
+})
+test('texts too long to align still produce suggestions from the phrase sets',()=>{
+  const filler=Array.from({length:4100},(_,i)=>`word${String.fromCharCode(97+(i%26))}`).join(' ')
+  const rows=[1,2,3].map(id=>({articleId:id,keyword:'grinder',generatedText:`${filler}. Velvety microfoam wins.`,publishedText:`${filler}. Microfoam wins.`,at:'2026-10-01'}))
+  // Coarser than the aligned path: without a diff, the removed word's neighbours come along.
+  assert.ok(removedPhrases(rows).some(c=>String(c.proposal.phrase).includes('velvety')))
+})

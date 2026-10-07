@@ -10,7 +10,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "llm_settings" ADD COLUMN "topic_relevance_model" "enum_llm_settings_topic_relevance_model";`)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+/*
+ * `down` rebuilds `enum_cost_log_stage` without 'topicRelevance', so it fails on a
+ * database that has already logged one. That is the honest behaviour: cost-log
+ * rows are append-only and the alternative is dropping them.
+ */
+export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
    ALTER TABLE "cost_log" ALTER COLUMN "stage" SET DATA TYPE text;
   DROP TYPE "public"."enum_cost_log_stage";

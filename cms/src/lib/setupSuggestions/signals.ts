@@ -1,4 +1,4 @@
-import { phraseNgrams, meaningfulTokens, wordsOf } from './ngrams'
+import { meaningfulTokens, phraseNgrams, removedPhraseNgrams, wordsOf } from './ngrams'
 import { claimSignature } from './signature'
 import {
   THRESHOLDS,
@@ -28,14 +28,23 @@ export function removedPhrases(
   banned: readonly string[] = [],
 ): SuggestionCandidate[] {
   const grouped = new Map<string, { removed: Occurrence[]; kept: boolean }>()
+  const group = (phrase: string) => {
+    const existing = grouped.get(phrase) ?? { removed: [], kept: false }
+    grouped.set(phrase, existing)
+    return existing
+  }
   for (const article of articles) {
-    const generated = phraseNgrams(article.generatedText, [article.keyword, ...banned])
+    // Kept anywhere a reviewer left it standing, even if they cut it in one place.
     const published = new Set(phraseNgrams(article.publishedText).keys())
-    for (const [phrase, excerpt] of generated) {
-      const group = grouped.get(phrase) ?? { removed: [], kept: false }
-      if (published.has(phrase)) group.kept = true
-      else group.removed.push({ articleId: article.articleId, excerpt, at: article.at })
-      grouped.set(phrase, group)
+    for (const phrase of phraseNgrams(article.generatedText, [article.keyword]).keys()) {
+      if (published.has(phrase)) group(phrase).kept = true
+    }
+    const removed = removedPhraseNgrams(article.generatedText, article.publishedText, {
+      keyword: article.keyword,
+      banned,
+    })
+    for (const [phrase, excerpt] of removed) {
+      group(phrase).removed.push({ articleId: article.articleId, excerpt, at: article.at })
     }
   }
   const qualifying = [...grouped].flatMap(([phrase, g]) =>
@@ -74,22 +83,14 @@ const containsRun = (outer: string[], inner: string[]): boolean =>
  * every other piece of it. Offered separately, an operator would be one click
  * from banning "like" and failing QA on nearly every future draft.
  *
- * Three passes. Fragments removed from exactly the same articles that overlap
- * by all but one word are chained back into the longer wording. A chain is
- * trimmed of edge words the reviewer kept: "crema looks" is a removed pair even
- * when "crema" survives, and the suggestion should be the words that went.
- * Then a fragment is dropped when a longer suggestion contains it and covers
- * every article it was removed from; one removed from more articles than that
- * is a separate habit and stays.
+ * Two passes. Fragments removed from exactly the same articles that overlap
+ * by all but one word are chained back into the longer wording; every fragment
+ * comes from a run of removed words (see `removedPhraseNgrams`), so a chain
+ * never reaches into words the reviewer kept. Then a fragment is dropped when
+ * a longer suggestion contains it and covers every article it was removed
+ * from; one removed from more articles than that is a separate habit and stays.
  */
 function collapseFragments(fragments: Fragment[]): Fragment[] {
-  const removedWords = new Set(fragments.filter((f) => f.words.length === 1).map((f) => f.words[0]))
-  const trimmed = (f: Fragment): Fragment => {
-    let words = f.words
-    while (words.length > 1 && !removedWords.has(words[0])) words = words.slice(1)
-    while (words.length > 1 && !removedWords.has(words[words.length - 1])) words = words.slice(0, -1)
-    return { ...f, words }
-  }
   let rows = [...fragments]
   for (let merged = true; merged; ) {
     merged = false
@@ -107,14 +108,6 @@ function collapseFragments(fragments: Fragment[]): Fragment[] {
       }
     }
   }
-  const byPhrase = new Map<string, Fragment>()
-  for (const row of rows.map(trimmed)) {
-    const phrase = row.words.join(' ')
-    if (!byPhrase.has(phrase) && (row.words.length > 1 || removedWords.has(row.words[0]))) {
-      byPhrase.set(phrase, row)
-    }
-  }
-  rows = [...byPhrase.values()]
   return rows.filter(
     (inner) =>
       !rows.some(

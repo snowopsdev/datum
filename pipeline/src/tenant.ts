@@ -4,7 +4,6 @@ import {
   emptyTenantContext,
   evidenceBankContentOf,
   evidenceBankSummary,
-  icpsFromDocs,
   isEvidenceBankEmpty,
   positioningContentOf,
   positioningStatus,
@@ -13,6 +12,8 @@ import {
   type TenantContext,
   type WorkspaceProfileDoc,
 } from '../../cms/src/lib/tenant'
+
+import { findActiveIcps } from '../../cms/src/lib/loadTenantContextCms'
 
 import { config } from './config'
 
@@ -73,22 +74,13 @@ export async function loadTenantContext(
   opts: { mode: 'mock' | 'live'; asOf?: string },
 ): Promise<TenantContext> {
   const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10)
-  const [profile, icpResult, positioningDoc, evidenceBankDoc] = await Promise.all([
+  const [profile, icps, positioningDoc, evidenceBankDoc] = await Promise.all([
     loadWorkspaceProfile(payload, opts.mode),
-    payload.find({
-      collection: 'icps',
-      where: { status: { equals: 'active' } },
-      // Primary first, then alphabetical, so `icps[0]` is a stable answer for
-      // a workspace that has somehow ended up with no primary at all.
-      sort: ['-primary', 'name'],
-      pagination: false,
-      depth: 0,
-      overrideAccess: true,
-    }),
+    // Shared with admin topic discovery, so both see the same audiences.
+    findActiveIcps(payload),
     payload.findGlobal({ slug: 'positioning', depth: 0, overrideAccess: true }),
     payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
   ])
-  const icps = icpsFromDocs(icpResult.docs)
   const primary = icps.find((icp) => icp.primary)
   console.log(
     `[pipeline] audiences: ${icps.length} active` +

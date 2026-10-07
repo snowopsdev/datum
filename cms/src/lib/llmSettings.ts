@@ -100,14 +100,38 @@ export function resolveModel(
   return { model: fallback, source: 'default' }
 }
 
+/**
+ * The default for short structured calls that a small model handles well:
+ * the small model of whichever provider the workspace writes with. Unset, these
+ * calls must not inherit flagship pricing, and following the writer's provider
+ * means a workspace that only holds one provider's key is not blocked for the
+ * other's.
+ */
+export const SMALL_MODEL_BY_PROVIDER = {
+  anthropic: 'claude-haiku-4-5',
+  openai: 'gpt-5.4-mini',
+} as const
+
+export function smallModelLike(model: string): string {
+  return model.startsWith('gpt-') ? SMALL_MODEL_BY_PROVIDER.openai : SMALL_MODEL_BY_PROVIDER.anthropic
+}
+
+/** Stages whose unset model is `smallModelLike(generate)` rather than the platform default. */
+const SMALL_DEFAULT_STAGES: readonly PipelineStage[] = ['briefAngle']
+
 export function resolveStageModels(
   settings: LlmSettingsDoc | null | undefined,
   env: Record<string, string | undefined>,
 ): Record<PipelineStage, ResolvedModel> {
+  const resolve = (stage: PipelineStage, fallback?: string) =>
+    resolveModel(settings?.[STAGE_SETTING_FIELD[stage]], env[STAGE_ENV_VAR[stage]], fallback)
+  const generate = resolve('generate')
   return Object.fromEntries(
     PIPELINE_STAGES.map((stage) => [
       stage,
-      resolveModel(settings?.[STAGE_SETTING_FIELD[stage]], env[STAGE_ENV_VAR[stage]]),
+      SMALL_DEFAULT_STAGES.includes(stage)
+        ? resolve(stage, smallModelLike(generate.model))
+        : resolve(stage),
     ]),
   ) as Record<PipelineStage, ResolvedModel>
 }
@@ -136,6 +160,15 @@ export function resolveSetupAssistModel(
   return resolveExtractionModel(settings, env)
 }
 
-export function resolveTopicRelevanceModel(settings: LlmSettingsDoc | null | undefined, env: Record<string, string | undefined>): ResolvedModel {
-  return resolveModel(settings?.topicRelevanceModel, env[TOPIC_RELEVANCE_ENV_VAR])
+/** The model behind topic-fit scoring in discovery; small by default (see `smallModelLike`). */
+export function resolveTopicRelevanceModel(
+  settings: LlmSettingsDoc | null | undefined,
+  env: Record<string, string | undefined>,
+): ResolvedModel {
+  const generate = resolveStageModels(settings, env).generate.model
+  return resolveModel(
+    settings?.topicRelevanceModel,
+    env[TOPIC_RELEVANCE_ENV_VAR],
+    smallModelLike(generate),
+  )
 }
