@@ -13,8 +13,12 @@ const nextConfig: NextConfig = {
   // `http://127.0.0.1:3000`, which is a different host string from the
   // `localhost` the dev server advertises — that mismatch is what left
   // `/admin/login` permanently blank under Playwright. Development only:
-  // `next build` ignores it.
-  allowedDevOrigins: ['127.0.0.1'],
+  // `next build` ignores it. Extra hosts (e.g. a tailnet name) come from the
+  // comma-separated DEV_ALLOWED_ORIGINS env var.
+  allowedDevOrigins: [
+    '127.0.0.1',
+    ...(process.env.DEV_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
+  ],
   // Brand-guide uploads (pdf/docx) go through a server action; the default
   // 1 MB body limit is too small for a real PDF.
   experimental: {
