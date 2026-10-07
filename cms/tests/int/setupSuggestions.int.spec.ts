@@ -120,6 +120,8 @@ const signalArticle = async (phrase = testPhrase) => {
   return article
 }
 it('the job creates open suggestions, no new history changes nothing, and later history increments count', async () => {
+  // The whole removed wording, "<phrase> advice", not a fragment of it.
+  const removedSignature = `banned_word:${testPhrase} advice`
   await signalArticle()
   await signalArticle()
   await signalArticle()
@@ -128,17 +130,17 @@ it('the job creates open suggestions, no new history changes nothing, and later 
     string
   >
   await handler({ input: {}, req: { payload } } as never)
-  const row = await find('banned_word:' + testPhrase)
+  const row = await find(removedSignature)
   expect(row?.status).toBe('open')
   expect(row?.count).toBe(3)
   expect(await collectSetupSuggestions(payload)).toEqual({ created: 0, updated: 0, obsolete: 0 })
   await signalArticle()
   await collectSetupSuggestions(payload)
-  expect((await find('banned_word:' + testPhrase)).count).toBe(4)
+  expect((await find(removedSignature)).count).toBe(4)
   await dismissSuggestionAction(row.id, 'Keep editor discretion')
   await signalArticle()
   await collectSetupSuggestions(payload)
-  expect((await find('banned_word:' + testPhrase)).status).toBe('dismissed')
+  expect((await find(removedSignature)).status).toBe('dismissed')
 })
 it('accept appends one row to the active voice, writes a decision audit, and does not reopen', async () => {
   const phrase = `unhelpful ${randomUUID().replaceAll('-', '')}`

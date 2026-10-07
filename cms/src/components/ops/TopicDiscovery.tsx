@@ -56,6 +56,7 @@ export function TopicDiscovery({
   const [done, setDone] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [fitUnavailable, setFitUnavailable] = useState<string | null>(null)
   const [recent, setRecent] = useState<RecentSearch[]>([])
   /** Live mode only: creating starts research, and research calls paid APIs. */
   const [confirming, setConfirming] = useState(false)
@@ -98,6 +99,7 @@ export function TopicDiscovery({
       setSeed(result.seed)
       setCached(result.cached)
       setFetchedAt(result.fetchedAt)
+      setFitUnavailable(result.fitUnavailable ?? null)
       setPicked(new Set())
     })
   }
@@ -270,6 +272,12 @@ export function TopicDiscovery({
                 Refresh from Ahrefs
               </button>
             </p>
+            {fitUnavailable ? (
+              <p className="datum-ops__hint">
+                Audience fit isn&rsquo;t available for this search, so topics are ranked by
+                opportunity only. Searching again will retry it. ({fitUnavailable})
+              </p>
+            ) : null}
 
             {candidateTable(candidates.filter(c=>c.fit !== 'off'))}
             {candidates.some(c=>c.fit === 'off') ? <details>

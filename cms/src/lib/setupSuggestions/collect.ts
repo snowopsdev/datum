@@ -89,8 +89,12 @@ export async function collectSetupSuggestions(
   const changed = last && (last.createdAt !== state.auditCursor || last.id !== state.auditCursorId)
   if (changed) {
     const [history, published] = await Promise.all([
+      // Only the two events the signals read. Every stage stores its full
+      // output on its audit row, so an unfiltered read pulls research corpora
+      // and information-gain runs into memory for nothing.
       payload.find({
         collection: 'article-audit',
+        where: { event: { in: ['generate_completed', 'qa_completed'] } },
         sort: ['createdAt', 'id'],
         pagination: false,
         depth: 0,

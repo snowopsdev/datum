@@ -13,8 +13,15 @@ decision. “Scan now” runs the same collector as the daily scheduled job.
 | Unbacked first-party claim | Similar excerpts in two distinct articles | Adds an incomplete verified claim, or a rejected claim with the operator's reason |
 | Rejected ref attempted | The same ref attempted in three distinct articles and no replacement saved | Opens rejected claims with excerpts; the operator writes a replacement |
 
-Removed phrases are one to three words, never cross sentence boundaries, and
-exclude stopwords, keyword tokens, numbers, and platform or brand bans. The
+Removed phrases are counted as one- to three-word runs that never cross a
+sentence boundary, and exclude stopwords, keyword tokens, numbers, and platform
+or brand bans. The runs are then collapsed back into the wording that was
+removed: overlapping runs removed from the same articles chain into one phrase,
+edge words the reviewer kept are trimmed, and a run inside a longer suggestion
+that covers all of its articles is dropped. Deleting "looks like warm honey" from
+three articles is one suggestion, not one each for "looks", "like", "warm" and
+"honey"; a fragment removed from more articles than its longer phrase is a
+separate habit and stays its own suggestion. The
 comparison uses the newest generated audit output against the published title,
 body and metadata. QA signals use every retained QA pass, but count each article
 once. Unbacked excerpts merge at token-set Jaccard similarity of at least 0.6;
@@ -38,8 +45,9 @@ Suggestions upsert by stable signatures, retain the full distinct-article count,
 and show at most ten occurrences. The private `setup-suggestion-scan` global
 keeps the latest audit timestamp and id. Unchanged history skips signal scanning,
 while still checking obsolescence. New history triggers a complete historical
-aggregation: this preserves signals below the threshold between scans without
-copying the audit history into another store. Audit records remain append-only.
+aggregation over the `generate_completed` and `qa_completed` rows only: this
+preserves signals below the threshold between scans without copying the audit
+history into another store. Audit records remain append-only.
 
 Reviewer-note clustering (phase B), performance feedback, and automatic boundary
 writing are outside phase A.

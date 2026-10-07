@@ -99,18 +99,30 @@ export async function discoverTopicsAction(
     const model = resolveTopicRelevanceModel(settings, process.env).model
     const fingerprint = relevanceFingerprint(tenant.icps, tenant.positioning, tenant.profile)
     let relevance = null
+    let fitUnavailable: string | undefined
     const reusableRelevance = usableCache && cachedRow?.relevanceFingerprint === fingerprint && cachedRow.relevanceModel === model && Array.isArray(cachedRow.relevance)
     if (tenant.icps.length) {
-      relevance = reusableRelevance
-        ? parseTopicRelevance({candidates:(cachedRow!.relevance as unknown[]).flatMap(raw => {
-            if (!raw || typeof raw !== 'object') return []
-            const r = raw as Record<string,unknown>
-            return [{...r,audience:tenant.icps.find(i=>String(i.id) === String(r.audienceId))?.name ?? null}]
-          })},candidates,tenant.icps,term)
-        : await scoreTopicRelevance(payload,candidates,tenant,term,model)
+      if (reusableRelevance) {
+        relevance = parseTopicRelevance({candidates:(cachedRow!.relevance as unknown[]).flatMap(raw => {
+          if (!raw || typeof raw !== 'object') return []
+          const r = raw as Record<string,unknown>
+          return [{...r,audience:tenant.icps.find(i=>String(i.id) === String(r.audienceId))?.name ?? null}]
+        })},candidates,tenant.icps,term)
+      } else {
+        // Scoring is an aid, never a gate. A failed model call must not cost the
+        // operator the Ahrefs results that were just paid for: rank by
+        // opportunity, cache the candidates without a fingerprint so the next
+        // search retries the scoring, and say why the fit column is missing.
+        try {
+          relevance = await scoreTopicRelevance(payload,candidates,tenant,term,model)
+        } catch (e) {
+          fitUnavailable = errorMessage(e, 'The audience-fit model did not answer.')
+        }
+      }
     }
     if (!usableCache || (tenant.icps.length && !reusableRelevance)) {
-      const data = {seed:term,seedKey,country,fetchedAt,resultCount:candidates.length,candidates,relevance,relevanceFingerprint:tenant.icps.length ? fingerprint : null,relevanceModel:tenant.icps.length ? model : null}
+      const scored = relevance !== null
+      const data = {seed:term,seedKey,country,fetchedAt,resultCount:candidates.length,candidates,relevance,relevanceFingerprint:scored ? fingerprint : null,relevanceModel:scored ? model : null}
       if (cachedRow) await payload.update({collection:'topic-searches',id:cachedRow.id,overrideAccess:true,data})
       else await payload.create({collection:'topic-searches',overrideAccess:true,data})
     }
@@ -145,6 +157,7 @@ export async function discoverTopicsAction(
       seed: term,
       cached: usableCache !== null,
       fetchedAt,
+      ...(fitUnavailable ? { fitUnavailable } : {}),
       candidates: (relevance ? rankByFit(fitted) : fitted).map((c) => ({
         ...c,
         alreadyTaken: taken.has(c.keyword.toLowerCase()),
