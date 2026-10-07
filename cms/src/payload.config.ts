@@ -1,3 +1,6 @@
+import { SetupSuggestions } from './collections/SetupSuggestions'
+import { SetupSuggestionScan } from './globals/SetupSuggestionScan'
+import { CollectSetupSuggestionsTask } from './jobs/collectSetupSuggestions'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
@@ -154,6 +157,7 @@ export default buildConfig({
     },
   },
   collections: [
+    SetupSuggestions,
     Users,
     Media,
     Templates,
@@ -172,6 +176,7 @@ export default buildConfig({
     PipelineRuns,
   ],
   globals: [
+    SetupSuggestionScan,
     WorkspaceProfile,
     Positioning,
     EvidenceBank,
@@ -180,7 +185,7 @@ export default buildConfig({
     WebhookSettings,
   ],
   jobs: {
-    tasks: [ContentRunTask, WebhookDeliverTask, PublishDueTask],
+    tasks: [ContentRunTask, WebhookDeliverTask, PublishDueTask, CollectSetupSuggestionsTask],
     enableConcurrencyControl: true,
     processingOrder: 'createdAt',
     // Production runs no queues in-process; the external scheduler calls

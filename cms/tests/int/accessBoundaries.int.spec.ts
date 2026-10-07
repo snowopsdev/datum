@@ -10,7 +10,7 @@ let user: { id: number; collection: 'users' }
 const privateCollections = [
   'users', 'articles', 'templates', 'brand-voices', 'brand-voice-files',
   'icps', 'evidence-sources', 'evidence-source-candidates', 'topic-searches',
-  'pipeline-runs', 'article-audit', 'governance-audit', 'cost-log',
+  'setup-suggestions', 'pipeline-runs', 'article-audit', 'governance-audit', 'cost-log',
   'information-gain-runs', 'corpus-snapshots',
 ] as const
 const privateGlobals = [
@@ -52,7 +52,7 @@ describe('application access boundaries', () => {
     expect(Array.isArray(result.docs)).toBe(true)
   })
 
-  it.each(['article-audit', 'governance-audit', 'cost-log', 'information-gain-runs', 'pipeline-runs'] as const)(
+  it.each(['article-audit', 'governance-audit', 'cost-log', 'information-gain-runs', 'pipeline-runs', 'setup-suggestions'] as const)(
     'refuses signed-in creation of internal %s records', async (collection) => {
       await expect(payload.create({ collection, overrideAccess: false, user, data: {} as never }))
         .rejects.toMatchObject({ status: 403 })

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { completeSuggestionAfterEdit } from '../../lib/setupSuggestions/decisions'
 import { governanceAuditContext } from '../../lib/governanceAudit'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
@@ -372,6 +373,7 @@ export async function savePositioningAction(input: PositioningContent): Promise<
  */
 export async function saveEvidenceBankAction(
   input: EvidenceBankInput,
+  suggestionId?: number,
 ): Promise<{ ok: true; saved: EvidenceBankContent } | { ok: false; error: string }> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
@@ -424,6 +426,7 @@ export async function saveEvidenceBankAction(
     revalidatePath(HUB_PATH)
     revalidatePath('/admin')
     revalidatePath('/admin/ops/setup/evidence')
+    await completeSuggestionAfterEdit(payload, user, suggestionId, 'evidence-bank')
     // The saved document, not the input: the hook has just minted refs for the
     // new rows, and the editor needs them to show what a draft would cite.
     return { ok: true, saved: evidenceBankContentOf(doc) }

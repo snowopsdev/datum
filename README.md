@@ -44,6 +44,10 @@ Research ends at **`brief_review`**: Datum writes a brief from the template, the
 
 ## Setup and governance
 
+The setup hub can suggest changes from recurring review corrections without
+model calls. See [Setup suggestions](docs/setup-suggestions.md) for thresholds
+and decisions.
+
 Everything that decides how Datum writes sits in the admin nav's **Setup** and **Governance** sections, and a run reads it when it starts. The template is the exception: each stage re-reads the one attached to the article it is working on, so editing a template mid-run can reach the later stages. (The nav has five sections in total; **Content** is covered in [First run and making content](#first-run-and-making-content) below, and **Records** is the raw collections, folded by default, for when you need one directly.)
 
 - **Setup checklist** (`/admin/ops/setup`) — seven steps, and `/admin` keeps showing it until the four required ones are done and the workspace holds at least one piece. Four are required, and a content run refuses to start without them: a workspace with a target domain (`/admin/ops/setup/workspace`), an active brand voice, at least one active audience (`/admin/ops/setup/audiences`), and at least one template (`/admin/ops/templates`). Three are recommended: your positioning (`/admin/ops/setup/positioning`) and an evidence bank (`/admin/ops/setup/evidence`) change what a draft may claim, and **Models** (below) picks which model runs each stage. The workspace, audience and positioning steps each have **Draft with AI** and **Refine with AI**, and the evidence bank offers the assistant on two of its three tabs; every reply drafts one section of one asset, so you read it before accepting it. They work from your own site: **Fetch site pages** reads your home page and up to seven marketing pages linked from it. **Start with the demo workspace** fills every required and recommended step but Templates and Models with the Kettle & Burr home-espresso demo in one click. See [`docs/tenant-context.md`](docs/tenant-context.md).

@@ -1,3 +1,7 @@
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { SetupSuggestions } from '@/components/ops/SetupSuggestions'
 import config from '@/payload.config'
 import { checklistRows, type SetupChecklistData } from '@/components/ops/SetupChecklist'
 import { llmSettingsConfigured } from '@/lib/llmSettings'
@@ -17,7 +21,8 @@ vi.mock('@/lib/loadWorkspaceReadiness', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/loadWorkspaceReadiness')>()
   return {
     ...actual,
-    loadWorkspaceSetup: async (payload: Payload) => stub.setup ?? actual.loadWorkspaceSetup(payload),
+    loadWorkspaceSetup: async (payload: Payload) =>
+      stub.setup ?? actual.loadWorkspaceSetup(payload),
   }
 })
 
@@ -158,4 +163,15 @@ describe('loadSetupChecklistData', () => {
     expect(data.templateCount).toBe(templates.totalDocs)
     expect(data.modelsConfigured).toBe(llmSettingsConfigured(settings))
   })
+})
+
+it('renders readiness recommendations alongside setup suggestions', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SetupSuggestions, {
+      recommendations: ['Finish positioning: add a pillar', 'Complete 1 unverified claim'],
+    }),
+  )
+  expect(html).toContain('Finish positioning: add a pillar')
+  expect(html).toContain('Complete 1 unverified claim')
+  expect(html).toContain('Scan now')
 })

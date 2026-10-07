@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import { activateDefaultTenantAction } from './tenantActions'
+import { SetupSuggestions } from './SetupSuggestions'
+import type { SetupSuggestionDTO } from './suggestionTypes'
 import './ops.css'
 
 export type SetupChecklistData = {
+  suggestions?: SetupSuggestionDTO[]
+  recommendations?: string[]
   mode: 'mock' | 'live'
   /** `readiness.ready`: a piece can be created, researched, and written. */
   ready: boolean
@@ -267,11 +271,12 @@ export function SetupChecklist(props: SetupChecklistData) {
           {pending ? 'Setting up…' : 'Start with the demo workspace'}
         </button>
         <span className="datum-ops__hint">
-          Fills whatever is still blank with a demo brand: Kettle & Burr’s home-espresso voice, a site to write about,
-          two audiences, a position, and an evidence bank. Every part of it is an ordinary record
-          you can edit or replace.
+          Fills whatever is still blank with a demo brand: Kettle & Burr’s home-espresso voice, a
+          site to write about, two audiences, a position, and an evidence bank. Every part of it is
+          an ordinary record you can edit or replace.
         </span>
       </div>
+      <SetupSuggestions suggestions={props.suggestions} recommendations={props.recommendations} />
       {error ? <p className="datum-ops__error">{error}</p> : null}
       {props.mode === 'live' ? null : (
         <p className="datum-ops__hint">

@@ -1,3 +1,4 @@
+import { suggestionDTO } from '../../lib/setupSuggestions/presentation'
 import type { Payload } from 'payload'
 
 import { loadWorkspaceSetup, type WorkspaceSetupData } from '../../lib/loadWorkspaceReadiness'
@@ -21,11 +22,18 @@ export async function loadSetupChecklistData(
   payload: Payload,
   loadedSetup?: WorkspaceSetupData,
 ): Promise<SetupChecklistData> {
-  const [setup, profileDoc] = await Promise.all([
+  const [setup, profileDoc, suggestions] = await Promise.all([
     loadedSetup ?? loadWorkspaceSetup(payload),
     payload.findGlobal({
       slug: 'workspace-profile',
       select: { sitePages: true, sitePagesFetchedAt: true },
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'setup-suggestions',
+      where: { status: { equals: 'open' } },
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
@@ -57,6 +65,8 @@ export async function loadSetupChecklistData(
     (profileDoc as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
 
   return {
+    suggestions: suggestions.docs.map(suggestionDTO),
+    recommendations: tenant.recommendations,
     mode,
     // `readiness.ready`, not `governance.ready`: the hub's "Ready" headline
     // and its "Make your first piece" button have to mean a piece can be
