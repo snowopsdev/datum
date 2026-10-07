@@ -4,6 +4,7 @@ import { it } from 'node:test'
 import type { Payload } from 'payload'
 
 import type { AhrefsClient } from '../src/ahrefs'
+import { emptyTenantContext, emptyIcpContent } from '../src/tenant'
 import { fetchTopics } from '../src/fetchTopics'
 
 it('creates the requested number of unique topics with the selected template', async () => {
@@ -38,7 +39,7 @@ it('creates the requested number of unique topics with the selected template', a
   }
 
   const result = await fetchTopics(
-    { payload, ahrefs, mode: 'mock', runId: 'run-1' },
+    { payload, ahrefs, mode: 'mock', runId: 'run-1', tenant: emptyTenantContext() },
     { count: 2, templateId: 44 },
   )
 
@@ -51,4 +52,12 @@ it('creates the requested number of unique topics with the selected template', a
       ['second new topic', 44, 'topic_selected'],
     ],
   )
+})
+
+it('skips excluded keywords without spending a model call or exhausting the create quota', async () => {
+  const created: string[] = []
+  const tenant = {...emptyTenantContext(),icps:[{...emptyIcpContent('Home'),notOurUser:['Wholesale buyers']}]}
+  const ctx = {tenant,runId:'exclude',mode:'mock' as const,payload:{find:async()=>({docs:[]}),create:async({data}:{data:{keyword:string}})=>{created.push(data.keyword);return {id:created.length}}} as unknown as Payload,ahrefs:{contentGapKeywords:async()=>[{keyword:'espresso wholesale',volume:999,difficulty:1},{keyword:'espresso grinder',volume:10,difficulty:1}]} as AhrefsClient}
+  await fetchTopics(ctx,{count:1,templateId:1})
+  assert.deepEqual(created,['espresso grinder'])
 })

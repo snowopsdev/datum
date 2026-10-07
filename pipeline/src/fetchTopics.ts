@@ -1,8 +1,9 @@
+import { notOurUserMatch } from './tenant'
 import { opportunityScore } from './ahrefs'
 import type { StageContext } from './stages'
 
 /** fetch is Ahrefs-only — no LLM call — so it needs none of StageContext's model/voice/style-guide fields. */
-export type FetchContext = Pick<StageContext, 'ahrefs' | 'payload' | 'runId' | 'mode'>
+export type FetchContext = Pick<StageContext, 'ahrefs' | 'payload' | 'runId' | 'mode' | 'tenant'>
 
 export interface FetchTopicsOptions {
   count: number
@@ -47,6 +48,11 @@ export async function fetchTopics(
   const skippedIds: number[] = []
   for (const gap of ranked) {
     if (createdIds.length >= count) break
+    const exclusion = notOurUserMatch(gap.keyword, ctx.tenant.icps)
+    if (exclusion) {
+      console.log(`[fetch] skip "${gap.keyword}" — not our user: ${exclusion}`)
+      continue
+    }
     const existingId = existingByKeyword.get(gap.keyword)
     if (existingId != null) {
       console.log(`[fetch] skip "${gap.keyword}" — article ${existingId} already exists`)

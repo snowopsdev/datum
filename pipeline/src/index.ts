@@ -99,6 +99,7 @@ async function main(): Promise<number> {
   if (args.command === 'fetch') {
     const tenant = await loadTenantContext(payload, { mode })
     const fetchCtx: FetchContext = {
+      tenant,
       payload,
       runId,
       mode,

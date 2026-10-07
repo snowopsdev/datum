@@ -27,6 +27,9 @@ export const TopicSearches: CollectionConfig = {
   },
   timestamps: true,
   fields: [
+    {name:'relevance',type:'json'},
+    {name:'relevanceFingerprint',type:'text'},
+    {name:'relevanceModel',type:'text'},
     {
       name: 'seed',
       type: 'text',

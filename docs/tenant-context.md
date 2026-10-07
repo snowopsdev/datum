@@ -442,3 +442,24 @@ Every call writes one `cost-log` row, stage `setupAssist`, run id
 pagesChars }`. A mock call writes one too, at zero, so a workspace can see how
 often the button is pressed before it is ever billed for it. A call whose reply
 could not be parsed still writes its billed row before returning the error.
+
+## Topic discovery
+
+Admin discovery labels candidates **strong**, **partial**, or **off** for the
+active audiences. It sorts by fit first, then Ahrefs opportunity within each
+bucket. Off topics remain pickable in “Probably not for your audiences”. The
+best-fitting active audience on the primary pick becomes the article audience;
+otherwise creation falls back to the primary audience.
+
+One CMS-only `topicRelevance` call scores each uncached fit search and logs its
+cost; mock scoring is deterministic and logs zero cost. The prompt carries
+workspace, audience and positioning content, without voice or evidence. Fit
+caches fingerprint audience content, positioning and company name. Editing
+those re-scores cached Ahrefs results without fetching them again; Refresh
+fetches and scores both. With no active audience, discovery keeps opportunity
+ordering and shows no fit column.
+
+Distinctive tokens from “Not our user” override model labels. Tokens must be
+at least four characters, outside the stopword list and outside the search
+seed. CLI fetch applies only these exclusions, logs each skip, and makes no
+relevance model call. `TOPIC_RELEVANCE_MODEL` does not gate content runs.

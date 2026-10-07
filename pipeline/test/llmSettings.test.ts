@@ -1,3 +1,4 @@
+import {resolveTopicRelevanceModel} from '../../cms/src/lib/llmSettings'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
@@ -137,4 +138,11 @@ describe('model catalog', () => {
     assert.deepEqual(LLM_CATALOG.filter((m) => m.id.includes('/')), [])
     assert.deepEqual(LLM_MODEL_OPTIONS.filter((o) => o.value.includes('/')), [])
   })
+})
+
+it('topic relevance is CMS-only and resolves admin, environment, then default', () => {
+  assert.equal(resolveTopicRelevanceModel({topicRelevanceModel:'gpt-5.4-mini'},{TOPIC_RELEVANCE_MODEL:'gpt-5'}).model,'gpt-5.4-mini')
+  assert.equal(resolveTopicRelevanceModel(null,{TOPIC_RELEVANCE_MODEL:'gpt-5'}).model,'gpt-5')
+  assert.equal(resolveTopicRelevanceModel(null,{}).source,'default')
+  assert.ok(!(PIPELINE_STAGES as readonly string[]).includes('topicRelevance'))
 })
