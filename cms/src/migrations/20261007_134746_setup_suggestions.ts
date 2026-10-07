@@ -42,14 +42,24 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_setup_suggestions_id_idx" ON "payload_locked_documents_rels" USING btree ("setup_suggestions_id");`)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+/*
+ * `IF EXISTS` on the constraint, index and column drops: `DROP TABLE … CASCADE`
+ * above already removes anything referencing those tables, so the generated
+ * unconditional drops fail on objects that are gone by the time they run.
+ */
+export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
    ALTER TABLE "setup_suggestions" DISABLE ROW LEVEL SECURITY;
   ALTER TABLE "setup_suggestion_scan" DISABLE ROW LEVEL SECURITY;
   DROP TABLE "setup_suggestions" CASCADE;
   DROP TABLE "setup_suggestion_scan" CASCADE;
-  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT "payload_locked_documents_rels_setup_suggestions_fk";
+  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_setup_suggestions_fk";
   
+  -- Rows carrying the removed task slug would fail the enum-narrowing cast
+  -- below and abort the rollback, so they go first. Job rows are queue state,
+  -- not audit records.
+  DELETE FROM "payload_jobs_log" WHERE "task_slug" = 'collect-setup-suggestions';
+  DELETE FROM "payload_jobs" WHERE "task_slug" = 'collect-setup-suggestions';
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "task_slug" SET DATA TYPE text;
   DROP TYPE "public"."enum_payload_jobs_log_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'content-run', 'webhook-deliver', 'publish-due');
@@ -58,8 +68,8 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TYPE "public"."enum_payload_jobs_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_task_slug" AS ENUM('inline', 'content-run', 'webhook-deliver', 'publish-due');
   ALTER TABLE "payload_jobs" ALTER COLUMN "task_slug" SET DATA TYPE "public"."enum_payload_jobs_task_slug" USING "task_slug"::"public"."enum_payload_jobs_task_slug";
-  DROP INDEX "payload_locked_documents_rels_setup_suggestions_id_idx";
-  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN "setup_suggestions_id";
+  DROP INDEX IF EXISTS "payload_locked_documents_rels_setup_suggestions_id_idx";
+  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "setup_suggestions_id";
   DROP TYPE "public"."enum_setup_suggestions_kind";
   DROP TYPE "public"."enum_setup_suggestions_target";
   DROP TYPE "public"."enum_setup_suggestions_status";`)

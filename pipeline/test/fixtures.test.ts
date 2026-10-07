@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { PIPELINE_STAGES } from '../../cms/src/lib/llmSettings'
 import { mockFixture, mockUsage } from '../src/fixtures'
 import { createLlmClient } from '../src/llm'
+import { parseEvidenceCheck } from '../src/qa/verdicts'
 
 describe('createLlmClient (mock mode)', () => {
   const client = createLlmClient('mock')
@@ -62,10 +63,10 @@ describe('mockFixture', () => {
   })
 
   /**
-   * The mock evidence check finds nothing, on purpose: the mock corpus is about
-   * espresso and the demo tenant is a content pipeline, so no mock draft makes a
-   * first-party claim. A fixture that reported findings would end every mock run
-   * in needs_revision.
+   * The mock draft's one first-party claim — the demo publisher's grinder test —
+   * comes back backed by E1, so a mock run shows the Evidence card working and
+   * still passes. The fixture goes through the real parser here: a field the
+   * parser does not read (it reads `note`) would silently vanish from the card.
    */
   it('answers the evidence check with a backed demo claim', () => {
     const fixture = mockFixture('evidenceCheck') as { claims: unknown[]; notes: string }
@@ -73,6 +74,7 @@ describe('mockFixture', () => {
     assert.equal((fixture.claims[0] as {ref: string; status: string}).ref, 'E1')
     assert.equal((fixture.claims[0] as {status: string}).status, 'backed')
     assert.equal(fixture.notes, 'The testing claim is backed by E1.')
+    assert.equal(parseEvidenceCheck(fixture).claims[0].note, 'Matches the test log within its limits.')
   })
 
   it('has a fixture and a usage row for every stage the pipeline can call', () => {

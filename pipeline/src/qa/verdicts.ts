@@ -167,9 +167,31 @@ export interface EvidenceDecision {
  *   writing rather than a guarantee about what is written.
  * - `backed` is recorded, so the reviewer can see the draft did the work.
  */
+/**
+ * How strict the evidence decision is for this article.
+ *
+ * `unbackedFirstPartyFails` is set when the template features the company: the
+ * writer was told its claims must rest on the bank, so an unbacked claim about
+ * the company is the promotion the rule forbids rather than a fact the bank has
+ * not caught up with. Competitor comparisons stay flag-only, because the rule
+ * also allows a named public source and this closed-book check cannot see one.
+ */
+export interface EvidencePolicy {
+  unbackedFirstPartyFails?: boolean
+}
+
+const isFailing = (finding: EvidenceClaimFinding, policy: EvidencePolicy): boolean =>
+  finding.status === 'rejected' ||
+  finding.status === 'unusable' ||
+  finding.status === 'overreach' ||
+  (policy.unbackedFirstPartyFails === true &&
+    finding.status === 'unbacked' &&
+    finding.kind === 'first_party')
+
 export function decideEvidence(
   verdict: EvidenceCheckVerdict,
   deterministic: EvidenceRefFindings,
+  policy: EvidencePolicy = {},
 ): EvidenceDecision {
   const findings: EvidenceClaimFinding[] = [
     ...verdict.claims,
@@ -188,22 +210,17 @@ export function decideEvidence(
       note: `Cited an entry that may not be used — ${reason}.`,
     })),
   ]
-  const failed = findings.some(
-    (finding) =>
-      finding.status === 'rejected' ||
-      finding.status === 'unusable' ||
-      finding.status === 'overreach',
-  )
-  return { passed: !failed, findings }
+  return { passed: !findings.some((finding) => isFailing(finding, policy)), findings }
 }
 
 /** Which findings send an article back, in the order a writer should fix them. */
 export function failingEvidenceFindings(
   findings: EvidenceClaimFinding[],
+  policy: EvidencePolicy = {},
 ): EvidenceClaimFinding[] {
-  const order: Record<string, number> = { rejected: 0, unusable: 1, overreach: 2 }
+  const order: Record<string, number> = { rejected: 0, unusable: 1, overreach: 2, unbacked: 3 }
   return findings
-    .filter((finding) => finding.status in order)
+    .filter((finding) => isFailing(finding, policy))
     .sort((a, b) => order[a.status] - order[b.status])
 }
 
@@ -215,14 +232,19 @@ export function failingEvidenceFindings(
  * point: "remove the unsupported claim" is unactionable, and the same draft
  * comes back with the same sentence in it.
  */
-export function evidenceRevisionNotes(findings: EvidenceClaimFinding[]): string {
-  return failingEvidenceFindings(findings)
+export function evidenceRevisionNotes(
+  findings: EvidenceClaimFinding[],
+  policy: EvidencePolicy = {},
+): string {
+  return failingEvidenceFindings(findings, policy)
     .map((finding) => {
       const use = finding.replacement
         ? `, use ${finding.replacement}`
         : finding.status === 'overreach' && finding.ref
           ? `, use [${finding.ref}] only within its stated limits`
-          : ''
+          : finding.status === 'unbacked'
+            ? ', back it with an Evidence bank entry or cut it'
+            : ''
       return `Remove or replace: ${finding.excerpt} (${finding.status}${use})`
     })
     .join('\n')

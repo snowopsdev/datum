@@ -502,3 +502,27 @@ test('the qualitative reviewer enforces the same company-mentions rule the write
   assert.match(prompts.qualitativeReview, /# Company mentions\nDo not name Acme Analytics/)
   assert.match(systems.qualitativeReview, /names or pitches the company more than the rule allows fails/)
 })
+
+test('a template that features the company fails a draft on an unbacked claim about it', async () => {
+  const unbacked = { claims: [{ excerpt: 'Acme Analytics is the fastest tool.', kind: 'first_party', status: 'unbacked', ref: null, note: '' }], notes: '' }
+  const llm: LlmClient = {
+    async completeJSON(stage: LlmStage) {
+      return {
+        json: stage === 'evidenceCheck' ? unbacked : { passed: true, notes: 'fine', sources: [] },
+        provider: 'mock',
+        model: 'mock',
+        usage: { inputTokens: 0, outputTokens: 0, webSearchRequests: 0 },
+      }
+    },
+  }
+  const ctx: StageContext = {
+    ...ctxWith(llm),
+    tenant: { ...emptyTenantContext(), profile: resolveWorkspaceProfile({ companyName: 'Acme Analytics' }, {}) },
+  }
+  const draft = article('## Steps\nDo the thing.\n## FAQ\nDoes it cost? Sometimes.')
+  const featured = await qaStage.run({ ...draft, template: { ...template, companyMentions: 'feature' } } as Article, ctx)
+  assert.equal(featured.status, 'needs_revision')
+  assert.match(String(featured.data.qaResults?.evidenceCheck?.notes), /Remove or replace: Acme Analytics is the fastest tool\. \(unbacked/)
+  const mentioned = await qaStage.run({ ...draft, template: { ...template, companyMentions: 'mention' } } as Article, ctx)
+  assert.equal(mentioned.data.qaResults?.evidenceCheck?.passed, true, 'outside feature, unbacked only flags')
+})

@@ -32,6 +32,8 @@ export type DiscoverResult =
       /** True when this came from cache — the panel says so and offers a refresh. */
       cached: boolean
       fetchedAt: string
+      /** Set when audience fit could not be scored; the list is ranked by opportunity alone. */
+      fitUnavailable?: string
     }
   | { ok: false; error: string }
 

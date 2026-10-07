@@ -265,6 +265,21 @@ function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
 }
 
 /**
+ * The model call succeeded but its cost row could not be written.
+ *
+ * Its own type so a caller that tolerates a failed *model* call — falling back
+ * to something deterministic — can still let this one through: a paid call
+ * with no cost row, or a missing migration behind it, must stop the stage.
+ */
+export class CostLogWriteError extends Error {
+  constructor(stage: LlmStage, cause: unknown) {
+    const reason = cause instanceof Error ? cause.message : String(cause)
+    super(`cost-log write failed for ${stage}: ${reason}`, { cause })
+    this.name = 'CostLogWriteError'
+  }
+}
+
+/**
  * completeJSON plus the one CostLog row every LLM call must leave behind.
  * Stages call this so cost tracking cannot be forgotten at individual call sites.
  */
@@ -279,27 +294,31 @@ export async function completeJSONLogged(
     request,
     ctx.models[stage],
   )
-  await ctx.payload.create({
-    collection: 'cost-log',
-    overrideAccess: true,
-    data: {
-      pipelineRunId: ctx.runId,
-      article: articleId,
-      stage,
-      provider: result.provider,
-      model: result.model,
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      webSearchRequests: result.usage.webSearchRequests,
-      costUsd: costUsd(
-        result.model,
-        result.usage.inputTokens,
-        result.usage.outputTokens,
-        result.usage.webSearchRequests,
-      ),
-      request: jsonSnapshot(request),
-      response: jsonSnapshot(result.json),
-    },
-  })
+  try {
+    await ctx.payload.create({
+      collection: 'cost-log',
+      overrideAccess: true,
+      data: {
+        pipelineRunId: ctx.runId,
+        article: articleId,
+        stage,
+        provider: result.provider,
+        model: result.model,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        webSearchRequests: result.usage.webSearchRequests,
+        costUsd: costUsd(
+          result.model,
+          result.usage.inputTokens,
+          result.usage.outputTokens,
+          result.usage.webSearchRequests,
+        ),
+        request: jsonSnapshot(request),
+        response: jsonSnapshot(result.json),
+      },
+    })
+  } catch (error) {
+    throw new CostLogWriteError(stage, error)
+  }
   return result
 }

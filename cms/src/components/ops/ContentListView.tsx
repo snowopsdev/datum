@@ -1,6 +1,7 @@
 import type { AdminViewServerProps } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import React from 'react'
 
@@ -17,9 +18,14 @@ export async function ContentListView(props: AdminViewServerProps) {
     redirect('/admin/login')
   }
 
-  const [content, latestRun] = await Promise.all([
+  const [content, latestRun, suggestions] = await Promise.all([
     loadContentPage(req, searchParams as Record<string, string | string[] | undefined>),
     latestRunAction().catch(() => null),
+    req.payload.count({
+      collection: 'setup-suggestions',
+      where: { status: { equals: 'open' } },
+      overrideAccess: true,
+    }),
   ])
 
   return (
@@ -34,6 +40,16 @@ export async function ContentListView(props: AdminViewServerProps) {
       visibleEntities={visibleEntities}
     >
       <Gutter>
+        {/* A finished workspace lands here, not on the setup checklist, so this
+            is where it hears that reviewers' corrections have suggestions. */}
+        {suggestions.totalDocs > 0 ? (
+          <p className="datum-ops__hint">
+            <Link href="/admin/ops/setup#suggestions">
+              {suggestions.totalDocs} setup suggestion{suggestions.totalDocs === 1 ? '' : 's'} from
+              reviewers&rsquo; corrections
+            </Link>
+          </p>
+        ) : null}
         <ContentList content={content} latestRun={latestRun} mode={modeFromEnv(process.env)} />
       </Gutter>
     </DefaultTemplate>

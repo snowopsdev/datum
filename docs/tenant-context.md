@@ -143,7 +143,13 @@ rule, secondary keywords, and research facet and gap descriptions. It sends
 neither the evidence bank nor brand voice samples. Hypothesis and inference
 pains must be identified as such in the rationale.
 
-Only proposals referring to known pains and gaps survive validation. The first
+Only proposals referring to known pains and gaps survive validation. A pain
+matches when it is the same statement once case, quotes, spacing, trailing
+punctuation and a trailing confidence tag are set aside, so a model that copies
+the prompt's line “Wasting beans. [hypothesis]” verbatim is accepted, and a
+fragment such as “Wasting” is not. The brief stores the audience's own wording.
+Unset, the `briefAngle` model is the small model of the generate model's
+provider (`claude-haiku-4-5` or `gpt-5.4-mini`). The first
 valid option becomes the angle; the template-derived option is always last.
 A failed call or empty valid reply leaves only that deterministic option and
 records a warning, while research still stops at brief review. Editors may
@@ -161,7 +167,7 @@ appear:
 |---|---|
 | `none` | never name the company or describe its product, anywhere |
 | `mention` (default) | name it once at most in the body, where it answers the reader; never in the title, meta fields, or FAQ |
-| `feature` | present it as an option or the recommendation, through the core claims and the evidence bank, with every comparison sourced |
+| `feature` | present it as an option or the recommendation, through the core claims and the evidence bank, with every comparison sourced; an unbacked claim about the company fails the evidence check |
 
 The audience and positioning shape the angle under every setting; the rule only
 decides whether the company is named. The writer and the qualitative reviewer
@@ -322,14 +328,20 @@ deterministic.
 | Outcome | Meaning | Effect |
 |---|---|---|
 | `backed` | restates an entry within its limits | recorded |
-| `unbacked` | no entry supports it | **flagged**, article still passes |
+| `unbacked` | no entry supports it | **flagged**, article still passes — except a first-party claim under a `feature` template, which **fails** |
 | `overreach` | goes past an entry's stated limits or changes a number | **fails** |
 | `rejected` | states or paraphrases a "never state" row | **fails** |
 | `unusable` | cited a ref that does not exist, has expired, is unfinished, or is not cleared for this surface | **fails** |
 
 `unbacked` only flags because plenty of true sentences are not in the bank yet,
 and failing them would make the bank a precondition for writing rather than a
-guarantee about what is written.
+guarantee about what is written. A template whose company-mentions rule is
+`feature` is the exception: the writer was told every claim about the company
+must rest on the bank, so an unbacked first-party claim there is the promotion
+the rule forbids, and it fails with a `Remove or replace: … (unbacked, back it
+with an Evidence bank entry or cut it)` revision line. Competitor comparisons
+still only flag, because the rule also allows a named public source, which this
+closed-book check cannot see.
 
 The evidence check reads the same meta block the qualitative review does — title
 tag, meta description, OG title, OG description — before the body. A title tag
@@ -452,17 +464,28 @@ best-fitting active audience on the primary pick becomes the article audience;
 otherwise creation falls back to the primary audience.
 
 One CMS-only `topicRelevance` call scores each uncached fit search and logs its
-cost; mock scoring is deterministic and logs zero cost. The prompt carries
+cost; mock scoring is deterministic and logs zero cost. Unset, the model is the
+small model of the generate model's provider (`claude-haiku-4-5` or
+`gpt-5.4-mini`). Scoring is an aid, never a gate: when the call fails, the
+Ahrefs results are kept and ranked by opportunity, the panel says fit is
+unavailable, and the next search retries the scoring. The prompt carries
 workspace, audience and positioning content, without voice or evidence. Fit
 caches fingerprint audience content, positioning and company name. Editing
 those re-scores cached Ahrefs results without fetching them again; Refresh
 fetches and scores both. With no active audience, discovery keeps opportunity
 ordering and shows no fit column.
 
-Distinctive tokens from “Not our user” override model labels. Tokens must be
-at least four characters, outside the stopword list and outside the search
-seed. CLI fetch applies only these exclusions, logs each skip, and makes no
-relevance model call. `TOPIC_RELEVANCE_MODEL` does not gate content runs.
+A keyword that names a “Not our user” group is excluded outright, and that
+verdict overrides the model's. Because it overrides the model, and because CLI
+fetch drops excluded topics without anyone seeing them, the rule is
+conservative: the keyword must carry **two** of the row's distinguishing words
+(or the only one, for a one-word row like “Agencies”), plurals folded. Words of
+four letters or more count, except stopwords, the search seed's words, and any
+word an active audience uses to describe itself in its name, who, pains,
+motivation or solution. “Best coffee grinder” shares “coffee” with “Industrial
+coffee roasters”, but one shared word is the model's call, not the rule's. CLI
+fetch applies only these exclusions, logs each skip, and makes no relevance
+model call. `TOPIC_RELEVANCE_MODEL` does not gate content runs.
 
 ## Learning from review
 

@@ -111,8 +111,22 @@ it('names the missing governance asset rather than staying silent', async () => 
 })
 
 it('uses a requested active audience and falls back for an unknown or archived id', async () => {
-  await createTopicsAction({keywords:['audience pick'],templateId:3,icpId:12})
+  await createTopicsAction({keywords:['audience pick'],templateId:3,icpIdByKeyword:{'audience pick':12}})
   expect((createMock.mock.calls[0]?.[0] as {data:{icp:number}}).data.icp).toBe(12)
-  await createTopicsAction({keywords:['fallback pick'],templateId:3,icpId:999})
+  await createTopicsAction({keywords:['fallback pick'],templateId:3,icpIdByKeyword:{'fallback pick':999}})
   expect((createMock.mock.calls[1]?.[0] as {data:{icp:number}}).data.icp).toBe(11)
+})
+
+it('gives a promoted primary its own audience when the first pick was taken meanwhile', async () => {
+  // Somebody created "first pick" between discovery and submit, so "second
+  // pick" becomes the primary keyword and must not inherit the first's audience.
+  findMock.mockResolvedValue({ docs: [{ id: 5, keyword: 'first pick' }] } as never)
+  await createTopicsAction({
+    keywords: ['first pick', 'second pick'],
+    templateId: 3,
+    icpIdByKeyword: { 'first pick': 11, 'second pick': 12 },
+  })
+  const data = (createMock.mock.calls[0]?.[0] as { data: { keyword: string; icp: number } }).data
+  expect(data.keyword).toBe('second pick')
+  expect(data.icp).toBe(12)
 })

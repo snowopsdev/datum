@@ -1,4 +1,4 @@
-import { phraseNgrams, meaningfulTokens, wordsOf } from './ngrams'
+import { meaningfulTokens, phraseNgrams, removedWording, wordsOf } from './ngrams'
 import { claimSignature } from './signature'
 import {
   THRESHOLDS,
@@ -28,20 +28,110 @@ export function removedPhrases(
   banned: readonly string[] = [],
 ): SuggestionCandidate[] {
   const grouped = new Map<string, { removed: Occurrence[]; kept: boolean }>()
+  const group = (phrase: string) => {
+    const existing = grouped.get(phrase) ?? { removed: [], kept: false }
+    grouped.set(phrase, existing)
+    return existing
+  }
+  const runsByArticle = new Map<number, string[][]>()
   for (const article of articles) {
-    const generated = phraseNgrams(article.generatedText, [article.keyword, ...banned])
+    const removed = removedWording(article.generatedText, article.publishedText, {
+      keyword: article.keyword,
+      banned,
+    })
+    runsByArticle.set(
+      article.articleId,
+      removed.runs.map((run) => run.words),
+    )
+    // Kept anywhere a reviewer left it standing, even if they cut it in one place.
     const published = new Set(phraseNgrams(article.publishedText).keys())
-    for (const [phrase, excerpt] of generated) {
-      const group = grouped.get(phrase) ?? { removed: [], kept: false }
-      if (published.has(phrase)) group.kept = true
-      else group.removed.push({ articleId: article.articleId, excerpt, at: article.at })
-      grouped.set(phrase, group)
+    for (const phrase of phraseNgrams(article.generatedText, [article.keyword]).keys()) {
+      if (published.has(phrase)) group(phrase).kept = true
+    }
+    for (const [phrase, excerpt] of removed.phrases) {
+      group(phrase).removed.push({ articleId: article.articleId, excerpt, at: article.at })
     }
   }
-  return [...grouped].flatMap(([phrase, g]) =>
+  const qualifying = [...grouped].flatMap(([phrase, g]) =>
     !g.kept && distinct(g.removed).length >= THRESHOLDS.removedPhrase
-      ? [candidate('banned_word', `banned_word:${phrase}`, { phrase }, g.removed)]
+      ? [{ words: phrase.split(' '), occurrences: distinct(g.removed) }]
       : [],
+  )
+  return collapseFragments(qualifying, runsByArticle).map(({ words, occurrences }) => {
+    const phrase = words.join(' ')
+    return candidate('banned_word', `banned_word:${phrase}`, { phrase }, occurrences)
+  })
+}
+
+interface Fragment {
+  words: string[]
+  occurrences: Occurrence[]
+}
+
+const articleSet = (f: Fragment): Set<number> => new Set(f.occurrences.map((o) => o.articleId))
+
+const sameArticles = (a: Fragment, b: Fragment): boolean => {
+  const left = articleSet(a)
+  const right = articleSet(b)
+  return left.size === right.size && [...left].every((id) => right.has(id))
+}
+
+/** True when `inner` appears as a contiguous run inside `outer`. */
+const containsRun = (outer: string[], inner: string[]): boolean =>
+  outer.some((_, i) => inner.every((word, j) => outer[i + j] === word))
+
+/**
+ * One removed phrase, not one suggestion per fragment of it.
+ *
+ * N-grams stop at three words, so deleting "looks like warm honey" from three
+ * articles qualifies "looks", "like", "warm honey", "looks like warm", and
+ * every other piece of it. Offered separately, an operator would be one click
+ * from banning "like" and failing QA on nearly every future draft.
+ *
+ * Two passes. Fragments removed from exactly the same articles that overlap
+ * by all but one word are chained back into the longer wording — but only when
+ * the chained wording sits inside one removed run in every one of those
+ * articles. Matching article sets do not prove adjacency: "red blue" cut from
+ * one sentence and "blue green" from another must not become "red blue green",
+ * a phrase nobody wrote and accepting would ban. Then a fragment is dropped
+ * when a longer suggestion contains it and covers every article it was removed
+ * from; one removed from more articles than that is a separate habit and stays.
+ */
+function collapseFragments(
+  fragments: Fragment[],
+  runsByArticle: Map<number, string[][]>,
+): Fragment[] {
+  const removedTogether = (words: string[], articles: Set<number>): boolean =>
+    [...articles].every((id) =>
+      (runsByArticle.get(id) ?? []).some((run) => containsRun(run, words)),
+    )
+  let rows = [...fragments]
+  for (let merged = true; merged; ) {
+    merged = false
+    outer: for (const a of rows) {
+      for (const b of rows) {
+        if (a === b || b.words.length < 2 || !sameArticles(a, b)) continue
+        const overlap = b.words.length - 1
+        if (a.words.length < overlap) continue
+        if (a.words.slice(-overlap).join(' ') !== b.words.slice(0, overlap).join(' ')) continue
+        const next = { words: [...a.words, b.words[b.words.length - 1]], occurrences: a.occurrences }
+        if (rows.some((r) => r.words.join(' ') === next.words.join(' '))) continue
+        if (!removedTogether(next.words, articleSet(a))) continue
+        rows = [...rows.filter((r) => r !== a && r !== b), next]
+        merged = true
+        break outer
+      }
+    }
+  }
+  return rows.filter(
+    (inner) =>
+      !rows.some(
+        (outer) =>
+          outer !== inner &&
+          outer.words.length > inner.words.length &&
+          containsRun(outer.words, inner.words) &&
+          [...articleSet(inner)].every((id) => articleSet(outer).has(id)),
+      ),
   )
 }
 export function recurringNotTraits(rows: QaObservation[]): SuggestionCandidate[] {

@@ -2786,48 +2786,6 @@ export interface EvidenceBank {
 export interface LlmSetting {
   id: number;
   /**
-   * Labels audience fit in admin topic discovery. A small model is enough. Leave blank to use TOPIC_RELEVANCE_MODEL from the environment, or the platform default (Claude Opus 5).
-   */
-  topicRelevanceModel?:
-    | (
-        | 'claude-fable-5'
-        | 'claude-opus-5'
-        | 'claude-sonnet-5'
-        | 'claude-haiku-4-5'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
-        | 'gpt-5.5'
-        | 'gpt-5.4'
-        | 'gpt-5.4-mini'
-        | 'gpt-5.4-nano'
-        | 'gpt-5'
-        | 'gpt-5-mini'
-        | 'gpt-5-nano'
-      )
-    | null;
-  /**
-   * Proposes audience-grounded directions during research. A small model is enough. Leave blank to use PIPELINE_MODEL_BRIEF_ANGLE from the environment, or the platform default (Claude Opus 5).
-   */
-  briefAngleModel?:
-    | (
-        | 'claude-fable-5'
-        | 'claude-opus-5'
-        | 'claude-sonnet-5'
-        | 'claude-haiku-4-5'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
-        | 'gpt-5.5'
-        | 'gpt-5.4'
-        | 'gpt-5.4-mini'
-        | 'gpt-5.4-nano'
-        | 'gpt-5'
-        | 'gpt-5-mini'
-        | 'gpt-5-nano'
-      )
-    | null;
-  /**
    * Writes the article draft from the template, research, and brand voice. Leave blank to use PIPELINE_MODEL_GENERATE from the environment, or the platform default (Claude Opus 5).
    */
   generateModel?:
@@ -2957,6 +2915,48 @@ export interface LlmSetting {
    * Checks first-party claims against the evidence bank during QA. Leave blank to use PIPELINE_MODEL_EVIDENCE_CHECK from the environment, or the platform default (Claude Opus 5).
    */
   evidenceCheckModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Proposes audience-grounded directions during research. A small model is enough. Leave blank to use PIPELINE_MODEL_BRIEF_ANGLE from the environment, or the small model of the generate model's provider (Claude Haiku 4.5, or GPT-5.4 mini for a GPT writer).
+   */
+  briefAngleModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
+   * Labels audience fit in admin topic discovery. A small model is enough. Leave blank to use TOPIC_RELEVANCE_MODEL from the environment, or the small model of the generate model's provider (Claude Haiku 4.5, or GPT-5.4 mini for a GPT writer).
+   */
+  topicRelevanceModel?:
     | (
         | 'claude-fable-5'
         | 'claude-opus-5'
@@ -3263,8 +3263,6 @@ export interface EvidenceBankSelect<T extends boolean = true> {
  * via the `definition` "llm-settings_select".
  */
 export interface LlmSettingsSelect<T extends boolean = true> {
-  topicRelevanceModel?: T;
-  briefAngleModel?: T;
   generateModel?: T;
   factCheckModel?: T;
   qualitativeReviewModel?: T;
@@ -3272,6 +3270,8 @@ export interface LlmSettingsSelect<T extends boolean = true> {
   informationGainJudgeModel?: T;
   evidenceVerificationModel?: T;
   evidenceCheckModel?: T;
+  briefAngleModel?: T;
+  topicRelevanceModel?: T;
   brandVoiceExtractModel?: T;
   setupAssistModel?: T;
   updatedAt?: T;

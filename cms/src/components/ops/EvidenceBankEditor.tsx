@@ -587,9 +587,7 @@ function AssistPanel({
   disabled,
   mock,
   sitePagesFetchedAt,
-  suggestion,
 }: {
-  suggestion?: SetupSuggestionDTO | null
   title: string
   buttonLabel: string
   blurb: string

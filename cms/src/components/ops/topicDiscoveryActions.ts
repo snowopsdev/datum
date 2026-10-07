@@ -6,7 +6,7 @@ import { requireUser } from '../../lib/requireUser'
 import { loadTenantContextCms } from '../../lib/loadTenantContextCms'
 import { resolveTopicRelevanceModel } from '../../lib/llmSettings'
 import { scoreTopicRelevance } from '../../lib/scoreTopicRelevance'
-import { parseTopicRelevance, rankByFit, relevanceFingerprint } from '../../lib/tenant/topicRelevance'
+import { cachedTopicRelevance, rankByFit, relevanceFingerprint } from '../../lib/tenant/topicRelevance'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
 import { config as pipelineConfig } from '../../../../pipeline/src/config'
@@ -99,18 +99,32 @@ export async function discoverTopicsAction(
     const model = resolveTopicRelevanceModel(settings, process.env).model
     const fingerprint = relevanceFingerprint(tenant.icps, tenant.positioning, tenant.profile)
     let relevance = null
-    const reusableRelevance = usableCache && cachedRow?.relevanceFingerprint === fingerprint && cachedRow.relevanceModel === model && Array.isArray(cachedRow.relevance)
+    let fitUnavailable: string | undefined
+    const cachedRelevance =
+      usableCache &&
+      cachedRow?.relevanceFingerprint === fingerprint &&
+      cachedRow.relevanceModel === model
+        ? cachedTopicRelevance(cachedRow.relevance, candidates, tenant.icps, term)
+        : null
+    const reusableRelevance = cachedRelevance !== null
     if (tenant.icps.length) {
-      relevance = reusableRelevance
-        ? parseTopicRelevance({candidates:(cachedRow!.relevance as unknown[]).flatMap(raw => {
-            if (!raw || typeof raw !== 'object') return []
-            const r = raw as Record<string,unknown>
-            return [{...r,audience:tenant.icps.find(i=>String(i.id) === String(r.audienceId))?.name ?? null}]
-          })},candidates,tenant.icps,term)
-        : await scoreTopicRelevance(payload,candidates,tenant,term,model)
+      if (cachedRelevance) {
+        relevance = cachedRelevance
+      } else {
+        // Scoring is an aid, never a gate. A failed model call must not cost the
+        // operator the Ahrefs results that were just paid for: rank by
+        // opportunity, cache the candidates without a fingerprint so the next
+        // search retries the scoring, and say why the fit column is missing.
+        try {
+          relevance = await scoreTopicRelevance(payload,candidates,tenant,term,model)
+        } catch (e) {
+          fitUnavailable = errorMessage(e, 'The audience-fit model did not answer.')
+        }
+      }
     }
     if (!usableCache || (tenant.icps.length && !reusableRelevance)) {
-      const data = {seed:term,seedKey,country,fetchedAt,resultCount:candidates.length,candidates,relevance,relevanceFingerprint:tenant.icps.length ? fingerprint : null,relevanceModel:tenant.icps.length ? model : null}
+      const scored = relevance !== null
+      const data = {seed:term,seedKey,country,fetchedAt,resultCount:candidates.length,candidates,relevance,relevanceFingerprint:scored ? fingerprint : null,relevanceModel:scored ? model : null}
       if (cachedRow) await payload.update({collection:'topic-searches',id:cachedRow.id,overrideAccess:true,data})
       else await payload.create({collection:'topic-searches',overrideAccess:true,data})
     }
@@ -145,6 +159,7 @@ export async function discoverTopicsAction(
       seed: term,
       cached: usableCache !== null,
       fetchedAt,
+      ...(fitUnavailable ? { fitUnavailable } : {}),
       candidates: (relevance ? rankByFit(fitted) : fitted).map((c) => ({
         ...c,
         alreadyTaken: taken.has(c.keyword.toLowerCase()),
@@ -194,7 +209,12 @@ export async function recentSearchesAction(limit = 6): Promise<RecentSearch[]> {
 export async function createTopicsAction(input: {
   keywords: string[]
   templateId: number
-  icpId?: number | null
+  /**
+   * The best-fitting audience for each picked keyword. Per keyword, not one id
+   * for the batch: if the first pick is taken by the time this runs, the next
+   * one becomes primary and must get its own audience, not the first's.
+   */
+  icpIdByKeyword?: Record<string, number | null>
   /** True once a person has been shown what a live run costs and agreed. */
   confirmLiveCost?: boolean
 }): Promise<CreateTopicsResult> {
@@ -225,7 +245,15 @@ export async function createTopicsAction(input: {
     // Loaded before the create so the piece starts pointed at an audience; the
     // same call answers whether research can start at all, a few lines down.
     const setup = await loadWorkspaceSetup(payload)
-    const primaryIcpId = setup.icps.find((icp) => icp.id === input.icpId)?.id ?? setup.icps.find((icp) => icp.primary)?.id ?? null
+    // Resolved only now that the surviving primary is known; an id that is not
+    // an active audience falls back to the primary one.
+    const wantedIcpId = Object.entries(input.icpIdByKeyword ?? {}).find(
+      ([keyword]) => keyword.trim().toLowerCase() === primary.toLowerCase(),
+    )?.[1]
+    const primaryIcpId =
+      setup.icps.find((icp) => icp.id === wantedIcpId)?.id ??
+      setup.icps.find((icp) => icp.primary)?.id ??
+      null
     const created = await payload.create({
       collection: 'articles',
       data: {

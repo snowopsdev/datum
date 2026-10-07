@@ -56,6 +56,7 @@ export function TopicDiscovery({
   const [done, setDone] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [fitUnavailable, setFitUnavailable] = useState<string | null>(null)
   const [recent, setRecent] = useState<RecentSearch[]>([])
   /** Live mode only: creating starts research, and research calls paid APIs. */
   const [confirming, setConfirming] = useState(false)
@@ -98,6 +99,7 @@ export function TopicDiscovery({
       setSeed(result.seed)
       setCached(result.cached)
       setFetchedAt(result.fetchedAt)
+      setFitUnavailable(result.fitUnavailable ?? null)
       setPicked(new Set())
     })
   }
@@ -119,9 +121,18 @@ export function TopicDiscovery({
       // is what `createTopicsAction` assumes and what the hint text below
       // promises.
       const orderedRows = (candidates ?? []).filter((c) => picked.has(c.keyword) && !c.alreadyTaken)
-      const ordered = orderedRows.map(c=>c.keyword)
-      const best = orderedRows[0]
-      const result = await createTopicsAction({ keywords: ordered, templateId, confirmLiveCost, icpId: best && best.fit !== 'off' ? best.fitAudienceId : null })
+      const ordered = orderedRows.map((c) => c.keyword)
+      // Every pick's audience, so the action can use whichever keyword ends up
+      // primary. An `off` fit names no audience worth writing for.
+      const icpIdByKeyword = Object.fromEntries(
+        orderedRows.map((c) => [c.keyword, c.fit !== 'off' ? (c.fitAudienceId ?? null) : null]),
+      )
+      const result = await createTopicsAction({
+        keywords: ordered,
+        templateId,
+        confirmLiveCost,
+        icpIdByKeyword,
+      })
       if (!result.ok) {
         setError(result.error)
         return
@@ -270,6 +281,12 @@ export function TopicDiscovery({
                 Refresh from Ahrefs
               </button>
             </p>
+            {fitUnavailable ? (
+              <p className="datum-ops__hint">
+                Audience fit isn&rsquo;t available for this search, so topics are ranked by
+                opportunity only. Searching again will retry it. ({fitUnavailable})
+              </p>
+            ) : null}
 
             {candidateTable(candidates.filter(c=>c.fit !== 'off'))}
             {candidates.some(c=>c.fit === 'off') ? <details>

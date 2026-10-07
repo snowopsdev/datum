@@ -17,9 +17,15 @@ vi.mock('@/lib/requireUser',()=>({requireUser:async()=>({payload,user:{id:1,emai
 vi.mock('@/lib/loadTenantContextCms',()=>({loadTenantContextCms:async()=>tenant}))
 vi.mock('next/cache',()=>({revalidatePath:vi.fn()}))
 vi.mock('../../../pipeline/src/ahrefs',()=>({createAhrefsClient:()=>({discoverKeywords:discover})}))
+const scoring=vi.hoisted(()=>({fail:false}))
+vi.mock('@/lib/scoreTopicRelevance',async(importOriginal)=>{
+  const real=await importOriginal<typeof import('@/lib/scoreTopicRelevance')>()
+  return {scoreTopicRelevance:(...args:Parameters<typeof real.scoreTopicRelevance>)=>
+    scoring.fail?Promise.reject(new Error('model timed out')):real.scoreTopicRelevance(...args)}
+})
 const {discoverTopicsAction}=await import('@/components/ops/topicDiscoveryActions')
 beforeAll(async()=>{payload=await getPayload({config:await config})})
-beforeEach(()=>{seed=`espresso ${randomUUID()}`;tenant={...emptyTenantContext(),icps:[{...ICP_FIXTURE,id:101}]};discover.mockClear()})
+beforeEach(()=>{seed=`espresso ${randomUUID()}`;tenant={...emptyTenantContext(),icps:[{...ICP_FIXTURE,id:101}]};discover.mockClear();scoring.fail=false})
 afterAll(async()=>{await payload.delete({collection:'topic-searches',where:{seed:{contains:'espresso '}},overrideAccess:true})})
 const costs=async()=> (await payload.find({collection:'cost-log',where:{stage:{equals:'topicRelevance'}},limit:0,overrideAccess:true})).totalDocs
 it('mock scores and ranks by fit, and a fresh cache spends no calls',async()=>{
@@ -53,4 +59,21 @@ it('refresh fetches and scores both, and malformed cache metrics trigger a new f
   const cache=await payload.find({collection:'topic-searches',where:{seed:{equals:seed}},limit:1,overrideAccess:true})
   await payload.update({collection:'topic-searches',id:cache.docs[0].id,data:{candidates:[{keyword:'bad'}]},overrideAccess:true})
   await discoverTopicsAction(seed);expect(discover).toHaveBeenCalledTimes(3)
+})
+it('a failed scoring call keeps the Ahrefs results, ranks by opportunity, and retries next search',async()=>{
+  scoring.fail=true
+  const failed=await discoverTopicsAction(seed)
+  expect(failed.ok).toBe(true)
+  if(!failed.ok)return
+  expect(failed.candidates.map(c=>[c.keyword,c.fit])).toEqual([['espresso wholesale',undefined],['espresso grinder',undefined]])
+  expect(failed.fitUnavailable).toContain('model timed out')
+  const cache=await payload.find({collection:'topic-searches',where:{seed:{equals:seed}},limit:1,overrideAccess:true})
+  expect(cache.docs[0].relevanceFingerprint).toBeNull()
+  scoring.fail=false
+  const retried=await discoverTopicsAction(seed)
+  expect(retried.ok && retried.cached).toBe(true)
+  if(!retried.ok)return
+  expect(retried.fitUnavailable).toBeUndefined()
+  expect(retried.candidates.map(c=>c.fit)).toEqual(['strong','off'])
+  expect(discover).toHaveBeenCalledTimes(1)
 })

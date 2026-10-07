@@ -678,7 +678,7 @@ const evidenceVerificationFixture = {
 
 /** The mock draft's first-party testing claim is backed by the demo bank. */
 const evidenceCheckFixture = {
-  claims: [{ excerpt: 'Kettle & Burr tested six budget espresso grinders for a month.', kind: 'first_party', status: 'backed', ref: 'E1', reason: 'Matches the test log within its limits.' }],
+  claims: [{ excerpt: 'Kettle & Burr tested six budget espresso grinders for a month.', kind: 'first_party', status: 'backed', ref: 'E1', note: 'Matches the test log within its limits.' }],
   notes: 'The testing claim is backed by E1.',
 }
 

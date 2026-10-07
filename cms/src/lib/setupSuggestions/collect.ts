@@ -89,8 +89,12 @@ export async function collectSetupSuggestions(
   const changed = last && (last.createdAt !== state.auditCursor || last.id !== state.auditCursorId)
   if (changed) {
     const [history, published] = await Promise.all([
+      // Only the two events the signals read. Every stage stores its full
+      // output on its audit row, so an unfiltered read pulls research corpora
+      // and information-gain runs into memory for nothing.
       payload.find({
         collection: 'article-audit',
+        where: { event: { in: ['generate_completed', 'qa_completed'] } },
         sort: ['createdAt', 'id'],
         pagination: false,
         depth: 0,
@@ -141,6 +145,22 @@ export async function collectSetupSuggestions(
       ...recurringUnbackedClaims(qa),
       ...recurringRejectedRefs(qa),
     ]
+    // A full aggregation is the whole truth about which signals exist now. An
+    // open suggestion it no longer produces — the articles were regenerated,
+    // unpublished, or a piece kept the wording after all — is obsolete; left
+    // open it would keep a stale count on the setup checklist forever.
+    const produced = new Set(candidates.map((candidate) => candidate.signature))
+    for (const row of current.docs) {
+      if (row.status !== 'open' || (row.signature && produced.has(row.signature))) continue
+      await payload.update({
+        collection: 'setup-suggestions',
+        id: row.id,
+        overrideAccess: true,
+        data: { status: 'obsolete' },
+      })
+      row.status = 'obsolete'
+      result.obsolete++
+    }
     for (const candidate of candidates) {
       const existing = current.docs.find((r) => r.signature === candidate.signature)
       if (candidate.kind === 'not_trait')
