@@ -17,6 +17,8 @@ import { Field, RowsEditor } from './setupFields'
 import { SitePagesHint } from './SitePagesHint'
 import { type EvidenceBankDraft, emptyEvidenceBankDraft, type NewRow } from './setupTypes'
 import { saveEvidenceBankAction } from './tenantActions'
+import { SuggestionEditorContext } from './SetupSuggestions'
+import type { SetupSuggestionDTO } from './suggestionTypes'
 import './ops.css'
 
 type Tab = 'verifiedClaims' | 'facts' | 'rejectedClaims'
@@ -78,7 +80,9 @@ export function EvidenceBankEditor({
   initial,
   today,
   sitePagesFetchedAt,
+  suggestion,
 }: {
+  suggestion?: SetupSuggestionDTO | null
   initial: EvidenceBankDraft
   today: string
   /**
@@ -89,7 +93,9 @@ export function EvidenceBankEditor({
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(initial)
-  const [tab, setTab] = useState<Tab>('verifiedClaims')
+  const [tab, setTab] = useState<Tab>(
+    suggestion?.kind === 'rejected_ref' ? 'rejectedClaims' : 'verifiedClaims',
+  )
   const [needsRecheckOnly, setNeedsRecheckOnly] = useState(false)
   const [notes, setNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -111,7 +117,7 @@ export function EvidenceBankEditor({
     startTransition(async () => {
       setError(null)
       setMessage(null)
-      const result = await saveEvidenceBankAction(draft)
+      const result = await saveEvidenceBankAction(draft, suggestion?.id)
       if (!result.ok) {
         setError(result.error)
         return
@@ -200,6 +206,7 @@ export function EvidenceBankEditor({
 
   return (
     <div className="datum-ops">
+      <SuggestionEditorContext suggestion={suggestion} />
       <div className="datum-ops__header">
         <h1>Evidence bank</h1>
         <span className="datum-ops__pill">setup</span>
@@ -580,7 +587,9 @@ function AssistPanel({
   disabled,
   mock,
   sitePagesFetchedAt,
+  suggestion,
 }: {
+  suggestion?: SetupSuggestionDTO | null
   title: string
   buttonLabel: string
   blurb: string

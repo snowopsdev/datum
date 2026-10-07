@@ -30,6 +30,8 @@ import {
   REVIEW_STEP,
   STEP_COUNT,
 } from './brandVoiceTypes'
+import { SuggestionEditorContext } from './SetupSuggestions'
+import type { SetupSuggestionDTO } from './suggestionTypes'
 import './ops.css'
 
 const VIEW_PATH = '/admin/ops/setup/brand-voice'
@@ -38,6 +40,7 @@ const LEDE =
   'One voice for the whole workspace. Every generated title, description, FAQ, and body is written in it and checked against it. Nothing changes how Datum writes until you activate it.'
 
 type Props = {
+  suggestion?: SetupSuggestionDTO | null
   records: BrandVoiceDTO[]
   selectedId: number | null
   auditEntries: BrandVoiceAuditEntry[]
@@ -216,7 +219,13 @@ function BrandVoiceReview({
   )
 }
 
-export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMode }: Props) {
+export function BrandVoiceEditor({
+  records,
+  selectedId,
+  auditEntries,
+  initialMode,
+  suggestion,
+}: Props) {
   const router = useRouter()
   const selected = records.find((r) => r.id === selectedId) ?? null
 
@@ -226,7 +235,11 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
   const [seenSelectedId, setSeenSelectedId] = useState(selectedId)
   const [workingId, setWorkingId] = useState<number | null>(selectedId)
   const [content, setContent] = useState<BrandVoiceContent>(() => contentOf(selected))
-  const [step, setStep] = useState(() => initialStep(selected, initialMode))
+  const [step, setStep] = useState(() =>
+    suggestion?.kind === 'not_trait'
+      ? BRAND_VOICE_STEPS.findIndex((s) => s.id === 'notTraits')
+      : initialStep(selected, initialMode),
+  )
   const [pending, startTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -286,7 +299,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       router.replace(`${VIEW_PATH}?id=${id}&mode=${modeOf(step)}`)
       return id
     }
-    await saveBrandVoiceDraftAction(workingId, { ...content, onboardingStep })
+    await saveBrandVoiceDraftAction(workingId, { ...content, onboardingStep }, suggestion?.id)
     return workingId
   }
 
@@ -394,6 +407,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
   if (records.length === 0 && workingId == null && !drafting) {
     return (
       <div className="datum-ops">
+        <SuggestionEditorContext suggestion={suggestion} />
         <div className="datum-ops__header">
           <h1>Brand voice</h1>
           <span className="datum-ops__pill">governance</span>
@@ -422,6 +436,7 @@ export function BrandVoiceEditor({ records, selectedId, auditEntries, initialMod
       }
       beforeSteps={
         <div className="datum-ops__bv-bar">
+          <SuggestionEditorContext suggestion={suggestion} />
           {showPicker ? (
             <div className="datum-ops__field">
               <label htmlFor="bv-record">Editing</label>

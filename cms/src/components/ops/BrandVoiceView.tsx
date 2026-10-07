@@ -1,3 +1,4 @@
+import { loadSuggestionForEditor } from '../../lib/setupSuggestions/presentation'
 import type { AdminViewServerProps } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
@@ -112,6 +113,11 @@ export async function BrandVoiceView(props: AdminViewServerProps) {
     }
   }
 
+  const suggestion = await loadSuggestionForEditor(
+    req.payload,
+    searchParams?.suggestionId,
+    'brand-voice',
+  )
   const modeStr = param(searchParams?.mode)
   const initialMode = MODES.includes(modeStr as BrandVoiceMode) ? (modeStr as BrandVoiceMode) : null
 
@@ -128,6 +134,7 @@ export async function BrandVoiceView(props: AdminViewServerProps) {
     >
       <Gutter>
         <BrandVoiceEditor
+          suggestion={suggestion}
           records={records}
           selectedId={selected?.id ?? null}
           auditEntries={auditEntries}

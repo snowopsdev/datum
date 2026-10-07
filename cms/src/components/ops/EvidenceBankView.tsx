@@ -1,3 +1,4 @@
+import { loadSuggestionForEditor } from '../../lib/setupSuggestions/presentation'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
 import { redirect } from 'next/navigation'
@@ -31,6 +32,11 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
     }),
   ])
 
+  const suggestion = await loadSuggestionForEditor(
+    req.payload,
+    searchParams?.suggestionId,
+    'evidence-bank',
+  )
   return (
     <DefaultTemplate
       i18n={req.i18n}
@@ -44,6 +50,7 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
     >
       <Gutter>
         <EvidenceBankEditor
+          suggestion={suggestion}
           initial={emptyEvidenceBankDraft(evidenceBankContentOf(doc))}
           sitePagesFetchedAt={
             (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null

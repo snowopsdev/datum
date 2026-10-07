@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    'setup-suggestions': SetupSuggestion;
     users: User;
     media: Media;
     templates: Template;
@@ -91,6 +92,7 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    'setup-suggestions': SetupSuggestionsSelect<false> | SetupSuggestionsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     templates: TemplatesSelect<false> | TemplatesSelect<true>;
@@ -118,6 +120,7 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
+    'setup-suggestion-scan': SetupSuggestionScan;
     'workspace-profile': WorkspaceProfile;
     positioning: Positioning;
     'evidence-bank': EvidenceBank;
@@ -127,6 +130,7 @@ export interface Config {
     'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
+    'setup-suggestion-scan': SetupSuggestionScanSelect<false> | SetupSuggestionScanSelect<true>;
     'workspace-profile': WorkspaceProfileSelect<false> | WorkspaceProfileSelect<true>;
     positioning: PositioningSelect<false> | PositioningSelect<true>;
     'evidence-bank': EvidenceBankSelect<false> | EvidenceBankSelect<true>;
@@ -145,6 +149,7 @@ export interface Config {
       'content-run': TaskContentRun;
       'webhook-deliver': TaskWebhookDeliver;
       'publish-due': TaskPublishDue;
+      'collect-setup-suggestions': TaskCollectSetupSuggestions;
       inline: {
         input: unknown;
         output: unknown;
@@ -170,6 +175,43 @@ export interface UserAuthOperations {
     email: string;
     password: string;
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "setup-suggestions".
+ */
+export interface SetupSuggestion {
+  id: number;
+  kind?: ('banned_word' | 'not_trait' | 'unbacked_claim' | 'rejected_ref') | null;
+  signature?: string | null;
+  target?: ('brand-voice' | 'evidence-bank') | null;
+  proposal?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  occurrences?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  count?: number | null;
+  status?: ('open' | 'accepted' | 'dismissed' | 'obsolete') | null;
+  firstSeenAt?: string | null;
+  lastSeenAt?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  decisionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1527,7 +1569,7 @@ export interface PayloadJob {
     | {
         executedAt: string;
         completedAt: string;
-        taskSlug: 'inline' | 'content-run' | 'webhook-deliver' | 'publish-due';
+        taskSlug: 'inline' | 'content-run' | 'webhook-deliver' | 'publish-due' | 'collect-setup-suggestions';
         taskID: string;
         input?:
           | {
@@ -1560,7 +1602,7 @@ export interface PayloadJob {
         id?: string | null;
       }[]
     | null;
-  taskSlug?: ('inline' | 'content-run' | 'webhook-deliver' | 'publish-due') | null;
+  taskSlug?: ('inline' | 'content-run' | 'webhook-deliver' | 'publish-due' | 'collect-setup-suggestions') | null;
   queue?: string | null;
   waitUntil?: string | null;
   processing?: boolean | null;
@@ -1587,6 +1629,10 @@ export interface PayloadJob {
 export interface PayloadLockedDocument {
   id: number;
   document?:
+    | ({
+        relationTo: 'setup-suggestions';
+        value: number | SetupSuggestion;
+      } | null)
     | ({
         relationTo: 'users';
         value: number | User;
@@ -1692,6 +1738,26 @@ export interface PayloadMigration {
   batch?: number | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "setup-suggestions_select".
+ */
+export interface SetupSuggestionsSelect<T extends boolean = true> {
+  kind?: T;
+  signature?: T;
+  target?: T;
+  proposal?: T;
+  occurrences?: T;
+  count?: T;
+  status?: T;
+  firstSeenAt?: T;
+  lastSeenAt?: T;
+  decidedBy?: T;
+  decidedAt?: T;
+  decisionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2399,6 +2465,17 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "setup-suggestion-scan".
+ */
+export interface SetupSuggestionScan {
+  id: number;
+  auditCursor?: string | null;
+  auditCursorId?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * The site this workspace writes for and the competitors it is measured against. Leave the domain fields blank to use the TARGET_DOMAIN / COMPETITOR_DOMAINS environment variables.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3040,6 +3117,17 @@ export interface PayloadJobsStat {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "setup-suggestion-scan_select".
+ */
+export interface SetupSuggestionScanSelect<T extends boolean = true> {
+  auditCursor?: T;
+  auditCursorId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "workspace-profile_select".
  */
 export interface WorkspaceProfileSelect<T extends boolean = true> {
@@ -3317,6 +3405,18 @@ export interface TaskPublishDue {
       | number
       | boolean
       | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskCollect-setup-suggestions".
+ */
+export interface TaskCollectSetupSuggestions {
+  input?: unknown;
+  output: {
+    created?: number | null;
+    updated?: number | null;
+    obsolete?: number | null;
   };
 }
 /**

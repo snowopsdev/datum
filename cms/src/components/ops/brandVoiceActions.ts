@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { completeSuggestionAfterEdit } from '../../lib/setupSuggestions/decisions'
 import { governanceAuditContext } from '../../lib/governanceAudit'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
@@ -46,7 +47,11 @@ export async function createBrandVoiceDraftAction(input: BrandVoiceInput): Promi
   return { id: doc.id }
 }
 
-export async function saveBrandVoiceDraftAction(id: number, input: BrandVoiceInput): Promise<void> {
+export async function saveBrandVoiceDraftAction(
+  id: number,
+  input: BrandVoiceInput,
+  suggestionId?: number,
+): Promise<void> {
   const { payload, user } = await requireUser('Unauthorized')
   await payload.update({
     collection: 'brand-voices',
@@ -58,7 +63,9 @@ export async function saveBrandVoiceDraftAction(id: number, input: BrandVoiceInp
     user,
     overrideAccess: false,
   })
+  await completeSuggestionAfterEdit(payload, user, suggestionId, 'brand-voice')
   revalidatePath(VIEW_PATH)
+  revalidatePath('/admin/ops/setup')
 }
 
 export async function activateBrandVoiceAction(

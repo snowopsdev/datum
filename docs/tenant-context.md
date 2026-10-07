@@ -463,3 +463,11 @@ Distinctive tokens from “Not our user” override model labels. Tokens must be
 at least four characters, outside the stopword list and outside the search
 seed. CLI fetch applies only these exclusions, logs each skip, and makes no
 relevance model call. `TOPIC_RELEVANCE_MODEL` does not gate content runs.
+
+## Learning from review
+
+The setup checklist turns recurring removed phrases, not-trait violations,
+unbacked first-party claims, and rejected refs into deterministic suggestions.
+Decisions use the existing voice and evidence editors and governance audit.
+Suggested evidence remains incomplete until a person verifies it. See
+[Setup suggestions](setup-suggestions.md) for thresholds, scanning, and decisions.
