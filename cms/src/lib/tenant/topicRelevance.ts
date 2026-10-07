@@ -284,9 +284,10 @@ export function rankByFit<T extends { fit?: TopicFit; opportunity: number }>(can
 }
 
 /**
- * What a cached verdict was scored against. Built from the rendered prompt
- * blocks, which are deterministic by design, so an edit moves it and a re-save
- * of unchanged content does not.
+ * What a cached verdict was scored against. Built from the same rendered blocks
+ * the scoring prompt sends — the workspace, every audience, the positioning —
+ * which are deterministic by design, so any edit the scorer would see moves it
+ * and a re-save of unchanged content does not.
  */
 export function relevanceFingerprint(
   icps: IcpContent[],
@@ -298,7 +299,7 @@ export function relevanceFingerprint(
       JSON.stringify([
         icps.map((icp) => [icp.id, icpToPrompt(icp)]),
         positioningToPrompt(positioning),
-        profile.companyName,
+        workspaceProfileToPrompt(profile),
       ]),
     )
     .digest('hex')

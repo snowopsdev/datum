@@ -165,6 +165,15 @@ it('brief angles and topic fit default to the small model of the writer\'s provi
   // And an explicit choice always wins.
   assert.equal(resolveStageModels({ briefAngleModel: 'claude-sonnet-5' }, {}).briefAngle.model, 'claude-sonnet-5')
 })
+it('every OpenAI model family the provider resolver knows gets the OpenAI small default', () => {
+  // Classified by the same resolver that decides which key a model needs, so an
+  // OpenAI-only workspace is never told it is missing ANTHROPIC_API_KEY.
+  for (const generateModel of ['o3', 'o4-mini', 'chatgpt-4o-latest', 'GPT-5.6-sol']) {
+    assert.equal(resolveStageModels({ generateModel }, {}).briefAngle.model, 'gpt-5.4-mini', generateModel)
+    assert.equal(resolveTopicRelevanceModel({ generateModel }, {}).model, 'gpt-5.4-mini', generateModel)
+  }
+  assert.equal(resolveStageModels({ generateModel: 'claude-sonnet-5' }, {}).briefAngle.model, 'claude-haiku-4-5')
+})
 it('the small defaults are real catalog models', () => {
   for (const id of ['claude-haiku-4-5', 'gpt-5.4-mini']) assert.ok(LLM_CATALOG.some((m) => m.id === id), id)
 })

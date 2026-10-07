@@ -43,3 +43,8 @@ test('the angle prompt pins its instructions and sends direction without evidenc
   assert.doesNotMatch(user, /# Evidence bank|We tested six budget grinders|## How we sound/)
   assert.equal(buildBriefAnglePrompt(input).user, user)
 })
+test('an option tied to no pain and no gap is not grounded, so it is dropped', () => {
+  assert.deepEqual(parseBriefAngles({angles: [{...option, pain: null, gaps: []}]}, allowed), [])
+  assert.equal(parseBriefAngles({angles: [{...option, pain: null}]}, allowed).length, 1, 'a known gap alone grounds it')
+  assert.equal(parseBriefAngles({angles: [{...option, gaps: []}]}, allowed).length, 1, 'a known pain alone grounds it')
+})

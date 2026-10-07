@@ -121,9 +121,18 @@ export function TopicDiscovery({
       // is what `createTopicsAction` assumes and what the hint text below
       // promises.
       const orderedRows = (candidates ?? []).filter((c) => picked.has(c.keyword) && !c.alreadyTaken)
-      const ordered = orderedRows.map(c=>c.keyword)
-      const best = orderedRows[0]
-      const result = await createTopicsAction({ keywords: ordered, templateId, confirmLiveCost, icpId: best && best.fit !== 'off' ? best.fitAudienceId : null })
+      const ordered = orderedRows.map((c) => c.keyword)
+      // Every pick's audience, so the action can use whichever keyword ends up
+      // primary. An `off` fit names no audience worth writing for.
+      const icpIdByKeyword = Object.fromEntries(
+        orderedRows.map((c) => [c.keyword, c.fit !== 'off' ? (c.fitAudienceId ?? null) : null]),
+      )
+      const result = await createTopicsAction({
+        keywords: ordered,
+        templateId,
+        confirmLiveCost,
+        icpIdByKeyword,
+      })
       if (!result.ok) {
         setError(result.error)
         return

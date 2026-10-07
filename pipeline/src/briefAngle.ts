@@ -15,7 +15,7 @@ import type { Article, Template } from '../../cms/src/payload-types'
 import type { BrandVoiceContent } from './brandVoice'
 import type { BriefAngleOption } from './brief'
 import { audienceToPrompt, companyMentionsBlock, secondaryKeywordsOf } from './generatePrompt'
-import { completeJSONLogged } from './llm'
+import { completeJSONLogged, CostLogWriteError } from './llm'
 import type { StageContext } from './stages'
 import {
   type CompanyMentions,
@@ -86,7 +86,8 @@ const painKey = (text: string): string =>
  *
  * An option survives only if its angle fits the length limit, it names a pain
  * the audience actually has (the same statement, not a fragment of one) or
- * null, and every gap it claims to fill is one research found. The pain comes
+ * null, every gap it claims to fill is one research found, and it rests on at
+ * least one of the two. The pain comes
  * back as the stored statement, so the brief shows the audience's own words.
  */
 export function parseBriefAngles(
@@ -115,6 +116,9 @@ export function parseBriefAngles(
       if (pain === undefined) return []
       const gaps = row.gaps as unknown[]
       if (gaps.some((gap) => typeof gap !== 'string' || !allowed.gapLabels.includes(gap))) return []
+      // Grounded in at least one thing the workspace or the research knows;
+      // otherwise it would outrank the template angle on nothing at all.
+      if (pain === null && gaps.length === 0) return []
       return [{ angle, rationale, pain, gaps: [...new Set(gaps as string[])] }]
     })
     .slice(0, MAX_ANGLES)
@@ -122,8 +126,8 @@ export function parseBriefAngles(
 
 /**
  * Propose angles for one article. Returns no options and a warning, rather than
- * throwing, when the call fails or nothing in the reply survives parsing; a
- * thrown call has already billed what it billed through `completeJSONLogged`.
+ * throwing, when the model call fails or nothing in the reply survives parsing.
+ * A failed cost-log write is the exception and propagates (`CostLogWriteError`).
  */
 export async function proposeBriefAngles(
   ctx: StageContext,
@@ -159,6 +163,9 @@ export async function proposeBriefAngles(
       ? { options }
       : { options: [], warning: 'brief angle: no valid angles returned' }
   } catch (error) {
+    // A failed proposal falls back to the template angle; a failed cost row
+    // does not, because the call was paid for and nothing recorded it.
+    if (error instanceof CostLogWriteError) throw error
     return {
       options: [],
       warning: `brief angle: ${error instanceof Error ? error.message : 'suggestion failed'}`,

@@ -167,7 +167,7 @@ appear:
 |---|---|
 | `none` | never name the company or describe its product, anywhere |
 | `mention` (default) | name it once at most in the body, where it answers the reader; never in the title, meta fields, or FAQ |
-| `feature` | present it as an option or the recommendation, through the core claims and the evidence bank, with every comparison sourced |
+| `feature` | present it as an option or the recommendation, through the core claims and the evidence bank, with every comparison sourced; an unbacked claim about the company fails the evidence check |
 
 The audience and positioning shape the angle under every setting; the rule only
 decides whether the company is named. The writer and the qualitative reviewer
@@ -328,14 +328,20 @@ deterministic.
 | Outcome | Meaning | Effect |
 |---|---|---|
 | `backed` | restates an entry within its limits | recorded |
-| `unbacked` | no entry supports it | **flagged**, article still passes |
+| `unbacked` | no entry supports it | **flagged**, article still passes — except a first-party claim under a `feature` template, which **fails** |
 | `overreach` | goes past an entry's stated limits or changes a number | **fails** |
 | `rejected` | states or paraphrases a "never state" row | **fails** |
 | `unusable` | cited a ref that does not exist, has expired, is unfinished, or is not cleared for this surface | **fails** |
 
 `unbacked` only flags because plenty of true sentences are not in the bank yet,
 and failing them would make the bank a precondition for writing rather than a
-guarantee about what is written.
+guarantee about what is written. A template whose company-mentions rule is
+`feature` is the exception: the writer was told every claim about the company
+must rest on the bank, so an unbacked first-party claim there is the promotion
+the rule forbids, and it fails with a `Remove or replace: … (unbacked, back it
+with an Evidence bank entry or cut it)` revision line. Competitor comparisons
+still only flag, because the rule also allows a named public source, which this
+closed-book check cannot see.
 
 The evidence check reads the same meta block the qualitative review does — title
 tag, meta description, OG title, OG description — before the body. A title tag

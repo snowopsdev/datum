@@ -248,6 +248,9 @@ export const qaStage: Stage = {
     const factCheck = parseFactCheck(factResult.json)
     const qualitativeReview = parseQualitative(qualResult.json)
     const evidenceVerdict = parseEvidenceCheck(evidenceResult.json)
+    // A template that features the company told the writer every claim about
+    // it must rest on the bank, so here an unbacked one fails rather than flags.
+    const evidencePolicy = { unbackedFirstPartyFails: companyMentionsOf(template) === 'feature' }
     const evidence = decideEvidence(
       evidenceVerdict,
       checkEvidenceRefs(
@@ -259,6 +262,7 @@ export const qaStage: Stage = {
         // reported as a clearance problem rather than as a hallucination.
         { asOf: ctx.tenant.asOf, surface: 'web' },
       ),
+      evidencePolicy,
     )
     const evidenceFindings = withReplacements(evidence.findings, ctx.tenant.evidenceBank)
     // The failing excerpts are appended to the stored notes rather than to the
@@ -266,7 +270,7 @@ export const qaStage: Stage = {
     // reviewer's regenerate action, from `qaFailures`, and nothing else may
     // touch it without the two racing. `qaFailures` reads these notes, so the
     // next generate prompt still sees them verbatim.
-    const revisionLines = evidence.passed ? '' : evidenceRevisionNotes(evidenceFindings)
+    const revisionLines = evidence.passed ? '' : evidenceRevisionNotes(evidenceFindings, evidencePolicy)
     const evidenceNotes = [evidenceVerdict.notes, revisionLines]
       .filter((part) => part.trim().length > 0)
       .join('\n\n')

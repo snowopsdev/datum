@@ -211,6 +211,42 @@ it('dismiss records the operator and reason; an unsigned caller cannot decide or
     }),
   ).rejects.toMatchObject({ status: 403 })
 })
+it('an open suggestion whose signal disappears becomes obsolete on the next scan', async () => {
+  const phrase = `vanishing ${randomUUID().replaceAll('-', '').replace(/\d/g, (n) => String.fromCharCode(97 + Number(n)))}`
+  const signature = `banned_word:${phrase} advice`
+  await signalArticle(phrase)
+  await signalArticle(phrase)
+  await signalArticle(phrase)
+  await collectSetupSuggestions(payload)
+  expect((await find(signature))?.status).toBe('open')
+  // A fourth published piece keeps the wording, so reviewers do not remove it
+  // after all and the signal is gone. The open row must not linger with a stale count.
+  const kept = await payload.create({
+    collection: 'articles',
+    overrideAccess: true,
+    data: {
+      keyword: `coffee ${randomUUID()}`,
+      title: 'Kept wording',
+      status: 'published',
+      body: plainTextToLexical(`${phrase} advice. Ordinary guidance.`) as never,
+    },
+  })
+  await payload.create({
+    collection: 'article-audit',
+    overrideAccess: true,
+    data: {
+      article: kept.id,
+      event: 'generate_completed',
+      summary: 'generate completed',
+      actor: 'pipeline',
+      actorType: 'pipeline',
+      details: { output: { body: plainTextToLexical(`${phrase} advice. Ordinary guidance.`) } },
+    },
+  })
+  await collectSetupSuggestions(payload)
+  expect((await find(signature))?.status).toBe('obsolete')
+})
+
 it('a satisfied open suggestion becomes obsolete even with no new history', async () => {
   const row = await make('banned_word', { phrase: 'synergy' })
   await collectSetupSuggestions(payload)

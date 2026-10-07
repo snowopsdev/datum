@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL } from './llmCatalog'
+import { providerForModel } from './llmProvider'
 
 /**
  * Which model each LLM call uses. Resolved the same way in the pipeline and the
@@ -112,8 +113,15 @@ export const SMALL_MODEL_BY_PROVIDER = {
   openai: 'gpt-5.4-mini',
 } as const
 
+/**
+ * Classified by `providerForModel`, the resolver that decides which API key a
+ * model needs, so every OpenAI family it knows (`gpt-*`, `o3`, `chatgpt-*`, any
+ * casing) gets the OpenAI small model and never demands an Anthropic key.
+ */
 export function smallModelLike(model: string): string {
-  return model.startsWith('gpt-') ? SMALL_MODEL_BY_PROVIDER.openai : SMALL_MODEL_BY_PROVIDER.anthropic
+  return providerForModel(model) === 'openai'
+    ? SMALL_MODEL_BY_PROVIDER.openai
+    : SMALL_MODEL_BY_PROVIDER.anthropic
 }
 
 /** Stages whose unset model is `smallModelLike(generate)` rather than the platform default. */

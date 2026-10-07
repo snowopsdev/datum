@@ -55,6 +55,11 @@ export async function down({ db }: MigrateDownArgs): Promise<void> {
   DROP TABLE "setup_suggestion_scan" CASCADE;
   ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_setup_suggestions_fk";
   
+  -- Rows carrying the removed task slug would fail the enum-narrowing cast
+  -- below and abort the rollback, so they go first. Job rows are queue state,
+  -- not audit records.
+  DELETE FROM "payload_jobs_log" WHERE "task_slug" = 'collect-setup-suggestions';
+  DELETE FROM "payload_jobs" WHERE "task_slug" = 'collect-setup-suggestions';
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "task_slug" SET DATA TYPE text;
   DROP TYPE "public"."enum_payload_jobs_log_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'content-run', 'webhook-deliver', 'publish-due');

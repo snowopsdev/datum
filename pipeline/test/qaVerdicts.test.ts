@@ -171,3 +171,26 @@ test('evidenceRevisionNotes writes one actionable line per failing finding, wors
   ])
   assert.equal(evidenceRevisionNotes([finding({ status: 'backed' })]), '')
 })
+
+/**
+ * A template that features the company tells the writer its claims must be
+ * backed by the evidence bank. Unbacked normally only flags, because plenty of
+ * true sentences are not in the bank yet; under `feature` an unbacked claim
+ * about the company is the promotion the rule forbids, so it fails.
+ */
+test('under a feature rule, an unbacked first-party claim fails and asks to be fixed', () => {
+  const unbacked = finding({ status: 'unbacked', kind: 'first_party', excerpt: 'We have the best grinder tests.' })
+  const decision = decideEvidence({ claims: [unbacked], notes: '' }, noRefs, { unbackedFirstPartyFails: true })
+  assert.equal(decision.passed, false)
+  assert.match(
+    evidenceRevisionNotes(decision.findings, { unbackedFirstPartyFails: true }),
+    /Remove or replace: We have the best grinder tests\. \(unbacked, back it with an Evidence bank entry or cut it\)/,
+  )
+  assert.equal(evidenceRevisionNotes(decision.findings), '', 'without the rule, unbacked never asks for a fix')
+})
+
+test('under a feature rule, an unbacked competitor comparison still only flags', () => {
+  // The rule allows a named public source for comparisons, which this closed-book check cannot see.
+  const competitor = finding({ status: 'unbacked', kind: 'competitor' })
+  assert.equal(decideEvidence({ claims: [competitor], notes: '' }, noRefs, { unbackedFirstPartyFails: true }).passed, true)
+})

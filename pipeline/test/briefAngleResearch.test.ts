@@ -44,3 +44,13 @@ test('a saved editor brief is outside the research entry status', () => {
   assert.notEqual(researchStage.entryStatus, 'brief_review')
   assert.notEqual(researchStage.entryStatus, 'researched')
 })
+
+test('a cost-log write that fails after a paid angle call stops research instead of becoming a warning', async () => {
+  const ctx = context()
+  const create = ctx.payload.create
+  ctx.payload.create = (async (args: { collection: string }) => {
+    if (args.collection === 'cost-log') throw new Error('relation "cost_log" does not exist')
+    return create(args as never)
+  }) as typeof ctx.payload.create
+  await assert.rejects(researchStage.run(article, ctx), /cost-log write failed for briefAngle: relation "cost_log" does not exist/)
+})

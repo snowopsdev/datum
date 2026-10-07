@@ -209,7 +209,12 @@ export async function recentSearchesAction(limit = 6): Promise<RecentSearch[]> {
 export async function createTopicsAction(input: {
   keywords: string[]
   templateId: number
-  icpId?: number | null
+  /**
+   * The best-fitting audience for each picked keyword. Per keyword, not one id
+   * for the batch: if the first pick is taken by the time this runs, the next
+   * one becomes primary and must get its own audience, not the first's.
+   */
+  icpIdByKeyword?: Record<string, number | null>
   /** True once a person has been shown what a live run costs and agreed. */
   confirmLiveCost?: boolean
 }): Promise<CreateTopicsResult> {
@@ -240,7 +245,15 @@ export async function createTopicsAction(input: {
     // Loaded before the create so the piece starts pointed at an audience; the
     // same call answers whether research can start at all, a few lines down.
     const setup = await loadWorkspaceSetup(payload)
-    const primaryIcpId = setup.icps.find((icp) => icp.id === input.icpId)?.id ?? setup.icps.find((icp) => icp.primary)?.id ?? null
+    // Resolved only now that the surviving primary is known; an id that is not
+    // an active audience falls back to the primary one.
+    const wantedIcpId = Object.entries(input.icpIdByKeyword ?? {}).find(
+      ([keyword]) => keyword.trim().toLowerCase() === primary.toLowerCase(),
+    )?.[1]
+    const primaryIcpId =
+      setup.icps.find((icp) => icp.id === wantedIcpId)?.id ??
+      setup.icps.find((icp) => icp.primary)?.id ??
+      null
     const created = await payload.create({
       collection: 'articles',
       data: {

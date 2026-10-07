@@ -93,3 +93,9 @@ test('a cache that does not line up with the candidates is not trusted', () => {
   assert.equal(cachedTopicRelevance('nope',[{keyword:'espresso grinder'}],icps),null)
   assert.equal(cachedTopicRelevance([{...stored[0],audienceId:99}],[{keyword:'espresso grinder'}],icps),null, 'an audience that is no longer active')
 })
+test('the fingerprint moves with every workspace field the scoring prompt sends', () => {
+  const base = resolveWorkspaceProfile({companyName:'Coffee',targetDomain:'coffee.example',competitors:[{domain:'one.example'}]},{})
+  const initial = relevanceFingerprint(icps,null,base)
+  assert.notEqual(relevanceFingerprint(icps,null,resolveWorkspaceProfile({companyName:'Coffee',targetDomain:'coffee.example',competitors:[{domain:'two.example'}]},{})),initial,'competitors')
+  assert.notEqual(relevanceFingerprint(icps,null,resolveWorkspaceProfile({companyName:'Coffee',targetDomain:'beans.example',competitors:[{domain:'one.example'}]},{})),initial,'target domain')
+})

@@ -61,3 +61,10 @@ test('texts too long to align still produce suggestions from the phrase sets',()
   // Coarser than the aligned path: without a diff, the removed word's neighbours come along.
   assert.ok(removedPhrases(rows).some(c=>String(c.proposal.phrase).includes('velvety')))
 })
+test('fragments from different removed runs never merge into wording that did not exist',()=>{
+  // "red blue" and "blue green" go in every article, but in different sentences.
+  const rows=[1,2,3].map(id=>({articleId:id,keyword:'grinder',generatedText:'Paint it red blue today. Then blue green tomorrow.',publishedText:'Paint it today. Then tomorrow.',at:'2026-10-01'}))
+  const phrases=removedPhrases(rows).map(c=>c.proposal.phrase).sort()
+  assert.ok(!phrases.includes('red blue green'), `fabricated: ${phrases.join(', ')}`)
+  assert.deepEqual(phrases,['blue green','red blue'])
+})
