@@ -67,10 +67,12 @@ describe('mockFixture', () => {
    * first-party claim. A fixture that reported findings would end every mock run
    * in needs_revision.
    */
-  it('answers the evidence check with an empty, parseable verdict', () => {
+  it('answers the evidence check with a backed demo claim', () => {
     const fixture = mockFixture('evidenceCheck') as { claims: unknown[]; notes: string }
-    assert.deepEqual(fixture.claims, [])
-    assert.equal(fixture.notes, 'No first-party claims found.')
+    assert.equal(fixture.claims.length, 1)
+    assert.equal((fixture.claims[0] as {ref: string; status: string}).ref, 'E1')
+    assert.equal((fixture.claims[0] as {status: string}).status, 'backed')
+    assert.equal(fixture.notes, 'The testing claim is backed by E1.')
   })
 
   it('has a fixture and a usage row for every stage the pipeline can call', () => {

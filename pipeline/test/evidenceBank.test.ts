@@ -356,11 +356,11 @@ test('evidenceBankToPrompt renders claims, facts, and the never-use list', () =>
   assert.ok(rendered)
   assert.match(rendered, /^# Evidence bank \(the only first-party facts you may state about Datum\)\n/)
   assert.match(rendered, /Cite the ref after the sentence that uses it\. Stay within "Limits"\./)
-  assert.match(rendered, /- \[E1\] A reviewer approves the brief[^\n]*Source: Datum pipeline audit export, 2026-08-01\./)
-  assert.match(rendered, /Limits: Describes the product/)
+  assert.match(rendered, /- \[E1\] Kettle & Burr tested six budget espresso grinders[^\n]*Source: Kettle & Burr grinder test log, 2026-08-01\./)
+  assert.match(rendered, /Limits: Describes this comparison/)
   assert.match(rendered, /Cleared: web, blog\./)
-  assert.match(rendered, /- \[F4\] .*\(fact; owner: engineering; confirmed 2026-08-20\)/)
-  assert.match(rendered, /## Never state these\n- \[R6\] "Datum guarantees your articles will rank" — rejected: .*\. Say instead: \[E1\]\./)
+  assert.match(rendered, /- \[F4\] .*\(fact; owner: editorial; confirmed 2026-08-20\)/)
+  assert.match(rendered, /## Never state these\n- \[R6\] "Kettle & Burr guarantees perfect espresso" — rejected: .*\. Say instead: \[E1\]\./)
   // E2 is cleared everywhere, so it reaches a `web` prompt.
   assert.match(rendered, /\[E2\]/)
   // Two renders of an unchanged bank are byte-identical: cost-log request

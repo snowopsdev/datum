@@ -206,26 +206,26 @@ describe('isSameSite', () => {
 describe('mock workspace pages', () => {
   it('serves a different page per path on the demo domain', () => {
     const titles = [
-      'https://datum.example.com/',
-      'https://datum.example.com/about',
-      'https://datum.example.com/product',
-      'https://datum.example.com/pricing',
+      'https://kettleandburr.example.com/',
+      'https://kettleandburr.example.com/about',
+      'https://kettleandburr.example.com/guides',
+      'https://kettleandburr.example.com/membership',
     ].map((url) => mockPageText(url).title)
     assert.equal(new Set(titles).size, 4)
   })
 
   it('treats a trailing slash and a different case as the same page', () => {
-    const home = mockPageText('https://datum.example.com/').title
-    assert.equal(mockPageText('https://datum.example.com/About/').title, mockPageText('https://datum.example.com/about').title)
-    assert.equal(mockPageText('https://datum.example.com/careers').title, home)
+    const home = mockPageText('https://kettleandburr.example.com/').title
+    assert.equal(mockPageText('https://kettleandburr.example.com/About/').title, mockPageText('https://kettleandburr.example.com/about').title)
+    assert.equal(mockPageText('https://kettleandburr.example.com/careers').title, home)
   })
 
   it('gives the home page links the setup fetch can discover', () => {
-    const home = mockPageText('https://datum.example.com/')
-    assert.deepEqual(candidatePagePaths(home.text, 'https://datum.example.com/'), [
-      'https://datum.example.com/about',
-      'https://datum.example.com/product',
-      'https://datum.example.com/pricing',
+    const home = mockPageText('https://kettleandburr.example.com/')
+    assert.deepEqual(candidatePagePaths(home.text, 'https://kettleandburr.example.com/'), [
+      'https://kettleandburr.example.com/about',
+      'https://kettleandburr.example.com/guides',
+      'https://kettleandburr.example.com/membership',
     ])
   })
 

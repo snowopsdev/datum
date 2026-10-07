@@ -7,9 +7,9 @@ import type { BrandVoiceContent } from './brandVoice'
  * `pipeline:run` still reaches `qa_passed`.
  */
 export const BRAND_VOICE_FIXTURE: BrandVoiceContent = {
-  name: 'Datum demo brand voice',
+  name: 'Kettle & Burr demo brand voice',
   essence: {
-    oneLiner: 'Datum helps small teams publish search content that ranks without hiring an agency.',
+    oneLiner: 'Kettle & Burr helps home baristas choose equipment and make repeatable espresso.',
     mission: 'Make every how-to, comparison, and list on the web more useful than the one above it.',
   },
   coreValues: [
@@ -19,9 +19,9 @@ export const BRAND_VOICE_FIXTURE: BrandVoiceContent = {
   ],
   audience: {
     description:
-      'Founders and marketers at companies with fewer than 50 people who own content but are not full-time writers.',
+      'Home baristas learning espresso and independent café owners training new staff.',
     languageLevel: 'general',
-    interests: 'Practical tooling, pricing transparency, shortcuts that do not cut corners.',
+    interests: 'Espresso grinders, brewing recipes, maintenance, and clear equipment comparisons.',
     needs: 'They need to know what to do next without reading 3,000 words to find it.',
   },
   persona:

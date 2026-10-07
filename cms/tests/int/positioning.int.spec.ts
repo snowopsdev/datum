@@ -87,14 +87,14 @@ describe('positioning global', () => {
     const content = positioningContentOf(await readGlobal())
 
     expect(positioningStatus(content)).toBe('ready')
-    expect(content.category).toBe('governed content pipeline for small B2B software teams')
+    expect(content.category).toBe('independent home-espresso guides')
     expect(content.coreClaims).toHaveLength(3)
-    expect(content.pillars[0]?.name).toBe('Governance')
+    expect(content.pillars[0]?.name).toBe('Repeatability')
     // Row order is the ladder, so it has to survive the round trip intact.
     expect(content.descriptorLadder.map((row) => row.descriptor)).toEqual([
-      'software',
-      'content platform',
-      'governed content pipeline',
+      'publisher',
+      'coffee guide publisher',
+      'independent home-espresso guides',
     ])
     expect(content.openRulings[0]?.status).toBe('open')
     // The operator's notes are stored but never reach the prompt renderer's
@@ -144,7 +144,7 @@ describe('positioning global', () => {
       data: positioningFixtureDoc(),
     })
     const filled = await loadTenantContext(payload, { mode: 'mock', asOf: '2026-09-01' })
-    expect(filled.positioning?.activePosition).toBe('the content pipeline with a reviewer gate')
+    expect(filled.positioning?.activePosition).toBe('the espresso guides that show their working')
     expect(filled.positioning?.coreClaims).toHaveLength(3)
   })
 
