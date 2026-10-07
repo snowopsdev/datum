@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { storedBriefAngleOptions } from '../../../../../../pipeline/src/brief'
 
 import { BriefEditor, type BriefIcpOption } from '../../BriefEditor'
 import type { BoardArticle } from '../../articleStatus'
@@ -13,6 +14,7 @@ export function briefInitial(raw: BoardArticle['brief'], icpId: number | null) {
     Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
   return {
     angle: raw?.angle ?? '',
+    angleOptions: storedBriefAngleOptions(raw?.angleOptions),
     audience: raw?.audience ?? '',
     sections: (raw?.sections ?? []).flatMap((s) =>
       s?.heading
@@ -72,4 +74,14 @@ export function BriefPanel({ action, article, editHref }: PanelProps) {
       </div>
     </div>
   )
+}
+
+/** The approved direction remains visible beside the resulting draft. */
+export function ApprovedBrief({article}: {article: BoardArticle}) {
+  const chosen = storedBriefAngleOptions(article.brief?.angleOptions).find(o => o.angle === article.brief?.angle)
+  if (!article.brief?.angle) return null
+  return <details className="datum-ops__block"><summary>Approved brief</summary>
+    <p>{article.brief.angle}</p><p className="datum-ops__hint">{chosen ? chosen.rationale : 'Written by the editor'}</p>
+    {chosen?.pain ? <p className="datum-ops__hint">For: {chosen.pain} · Fills: {chosen.gaps.join(', ') || '—'}</p> : null}
+  </details>
 }

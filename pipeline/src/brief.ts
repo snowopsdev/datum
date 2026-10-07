@@ -5,16 +5,16 @@
  * work. Until now the first chance to steer a piece came after research,
  * writing, QA and scoring had all been paid for. The brief is built the moment
  * research finishes, from things that already exist — the template's required
- * sections, the research gaps, the brand voice's audience — so it costs no
- * model call. The editor edits it, approves it, and only then does writing
- * start.
+ * sections, the research gaps, the brand voice's audience — with one inexpensive
+ * angle proposal and a deterministic fallback. The editor edits it, approves
+ * it, and only then does writing start.
  *
  * Pure on purpose: no Payload, no LLM. `researchStage` calls it, tests call it.
  */
 
 import type { BrandVoiceContent } from './brandVoice'
 import type { Facet, InformationGap } from './informationGain/lib'
-import { icpAudienceLine, type IcpContent } from './tenant'
+import { icpAudienceLine, type IcpContent } from '../../cms/src/lib/tenant/icp'
 
 export type BriefSectionSource = 'template' | 'research' | 'editor'
 
@@ -24,7 +24,15 @@ export interface BriefSection {
   source: BriefSectionSource
 }
 
+export interface BriefAngleOption {
+  angle: string
+  rationale: string
+  pain: string | null
+  gaps: string[]
+}
+
 export interface BriefDraft {
+  angleOptions: BriefAngleOption[]
   angle: string
   audience: string
   sections: BriefSection[]
@@ -36,6 +44,7 @@ export interface BriefDraft {
 }
 
 export interface BuildBriefInput {
+  angleOptions?: BriefAngleOption[]
   keyword: string
   /** The template's one-line purpose, e.g. "a ranked list of options". */
   templateIntent: string | null | undefined
@@ -90,8 +99,10 @@ export function buildBrief(input: BuildBriefInput): BriefDraft {
       })),
   ]
 
+  const angleOptions = [...(input.angleOptions ?? []), {angle, rationale: 'From the template', pain: null, gaps: []}]
   return {
-    angle,
+    angle: angleOptions[0].angle,
+    angleOptions,
     audience,
     sections,
     mustCover: input.facets.map((f) => clean(f.label)).filter(Boolean),
@@ -130,10 +141,22 @@ export function parseBrief(raw: unknown): BriefDraft | null {
     Array.isArray(v) ? v.map(clean).filter(Boolean) : []
   return {
     angle: clean(b.angle),
+    angleOptions: storedBriefAngleOptions(b.angleOptions),
     audience: clean(b.audience),
     sections,
     mustCover: strings(b.mustCover),
     opportunities: strings(b.opportunities),
     notes: clean(b.notes),
   }
+}
+
+/** Read research output without trusting a JSON column or importing the LLM client. */
+export function storedBriefAngleOptions(value: unknown): BriefAngleOption[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((raw): BriefAngleOption[] => {
+    if (!raw || typeof raw !== 'object') return []
+    const row = raw as Record<string, unknown>
+    if (!clean(row.angle) || typeof row.rationale !== 'string' || !(row.pain === null || typeof row.pain === 'string') || !Array.isArray(row.gaps) || row.gaps.some(g => typeof g !== 'string')) return []
+    return [{angle: clean(row.angle), rationale: clean(row.rationale), pain: row.pain, gaps: row.gaps as string[]}]
+  })
 }

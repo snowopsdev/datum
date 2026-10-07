@@ -13,6 +13,7 @@ export const PIPELINE_STAGES = [
   'informationGainJudge',
   'evidenceVerification',
   'evidenceCheck',
+  'briefAngle',
 ] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
@@ -24,6 +25,7 @@ export const STAGE_ENV_VAR: Record<PipelineStage, string> = {
   informationGainJudge: 'PIPELINE_MODEL_INFORMATION_GAIN_JUDGE',
   evidenceVerification: 'PIPELINE_MODEL_EVIDENCE_VERIFICATION',
   evidenceCheck: 'PIPELINE_MODEL_EVIDENCE_CHECK',
+  briefAngle: 'PIPELINE_MODEL_BRIEF_ANGLE',
 }
 
 export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = {
@@ -34,6 +36,7 @@ export const STAGE_SETTING_FIELD: Record<PipelineStage, keyof LlmSettingsDoc> = 
   informationGainJudge: 'informationGainJudgeModel',
   evidenceVerification: 'evidenceVerificationModel',
   evidenceCheck: 'evidenceCheckModel',
+  briefAngle: 'briefAngleModel',
 }
 
 export const EXTRACTION_ENV_VAR = 'BRAND_VOICE_EXTRACT_MODEL'
@@ -49,6 +52,7 @@ export interface LlmSettingsDoc {
   informationGainJudgeModel?: string | null
   evidenceVerificationModel?: string | null
   evidenceCheckModel?: string | null
+  briefAngleModel?: string | null
   brandVoiceExtractModel?: string | null
   setupAssistModel?: string | null
 }

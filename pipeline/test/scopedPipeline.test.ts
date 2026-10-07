@@ -161,6 +161,7 @@ it('advances only the article ids assigned to a scoped run', async () => {
       informationGainJudge: 'claude-opus-5',
       evidenceVerification: 'claude-opus-5',
       evidenceCheck: 'claude-opus-5',
+      briefAngle: 'claude-opus-5',
     },
     brandVoice: null,
     // The mock verifier fixture cites these three domains; without the rules

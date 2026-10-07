@@ -4,7 +4,7 @@ import React from 'react'
 
 import type { BriefIcpOption } from '../BriefEditor'
 import type { BoardArticle } from '../articleStatus'
-import { BriefMain } from './panels/BriefPanel'
+import { BriefMain, ApprovedBrief } from './panels/BriefPanel'
 
 /**
  * The draft, or the brief editor in its place.
@@ -27,6 +27,7 @@ export function ArticleBody({
   return (
     <>
       {isBriefReview ? <BriefMain article={article} icps={icps} mode={mode} /> : null}
+      {!isBriefReview ? <ApprovedBrief article={article} /> : null}
       <div className="datum-ops__prose" hidden={isBriefReview}>
         <h3>Article body</h3>
         {bodyHtml ? (

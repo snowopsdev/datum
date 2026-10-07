@@ -103,6 +103,7 @@ function ctxWith(overrides: Partial<StageContext> = {}): {
         informationGainJudge: 'mock',
         evidenceVerification: 'mock',
         evidenceCheck: 'mock',
+      briefAngle: 'mock',
       },
       brandVoice: null,
       policy: {} as never,

@@ -65,6 +65,7 @@ describe('resolveModel precedence', () => {
     assert.equal(new Set(envVars).size, PIPELINE_STAGES.length)
     assert.equal(new Set(fields).size, PIPELINE_STAGES.length)
     assert.ok(PIPELINE_STAGES.includes('evidenceCheck'))
+    assert.ok(PIPELINE_STAGES.includes('briefAngle'))
   })
 
   it('resolves the brand-voice extraction model the same way', () => {

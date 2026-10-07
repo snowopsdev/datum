@@ -1,4 +1,5 @@
 import type { LlmStage } from './config'
+import { ICP_FIXTURE } from '../../cms/src/lib/tenant/fixtures'
 
 const bodyMarkdown = `## Introduction
 This guide shows you how to set up a home espresso station that pulls cafe-quality shots. It is written for beginners with a budget of $500 to $1,500. Expect the setup to take about two hours, plus a week of practice.
@@ -684,6 +685,11 @@ const evidenceCheckFixture = {
 type FixtureTable = Record<LlmStage, unknown | Record<string, unknown>>
 
 const fixtures: FixtureTable = {
+  briefAngle: {angles: [
+    {angle: 'Choose a budget espresso grinder with a used-equipment safety checklist', rationale: 'Answer equipment confusion while filling the used-equipment gap', pain: ICP_FIXTURE.pains[0].statement, gaps: ['Buying used equipment']},
+    {angle: 'Dial in espresso by checking water before wasting more beans', rationale: 'Answer the reader’s wasted-beans pain and the water-quality gap', pain: ICP_FIXTURE.pains[1].statement, gaps: ['Water quality']},
+    {angle: 'Build a repeatable espresso setup with used gear and suitable water', rationale: 'Address confusing equipment choices across both gaps', pain: ICP_FIXTURE.pains[0].statement, gaps: ['Buying used equipment', 'Water quality']},
+  ]},
   generate: generateFixture,
   factCheck: factCheckFixture,
   qualitativeReview: qualitativeReviewFixture,
@@ -719,6 +725,7 @@ export const mockUsage: Record<
   LlmStage,
   { inputTokens: number; outputTokens: number; webSearchRequests: number }
 > = {
+  briefAngle: {inputTokens: 1500, outputTokens: 300, webSearchRequests: 0},
   generate: { inputTokens: 1240, outputTokens: 860, webSearchRequests: 0 },
   factCheck: { inputTokens: 1180, outputTokens: 790, webSearchRequests: 2 },
   qualitativeReview: { inputTokens: 1210, outputTokens: 805, webSearchRequests: 0 },
