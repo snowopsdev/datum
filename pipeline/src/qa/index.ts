@@ -1,14 +1,15 @@
 import { mapWithConcurrency } from '../corpus/concurrency'
 import { sumArticleCost } from '../costs'
 import { bannedWordsOf, brandVoiceToPrompt } from '../brandVoice'
+import { audienceToPrompt, briefBlock, companyMentionsBlock } from '../generatePrompt'
 import { completeJSONLogged } from '../llm'
 import { extractHeadings, lexicalToMarkdown, lexicalToPlainText, type RichText } from '../richtext'
 import { resolveTemplate, type Stage } from '../stages'
 import {
   checkEvidenceRefs,
+  companyMentionsOf,
   type EvidenceBankContent,
   evidenceBankToPrompt,
-  icpToPrompt,
   positioningToPrompt,
   selectIcp,
   workspaceProfileToPrompt,
@@ -47,6 +48,22 @@ const BRAND_VOICE_SHAPE =
 const POSITIONING_SHAPE =
   " Also note, under notes, any use of the positioning's 'Avoid' vocabulary and any drift from " +
   'the stated position; these are advisory and never fail the article on their own.'
+
+/**
+ * The approved brief is the human gate the whole pipeline is built around, so
+ * the reviewer checks the draft against it. Its direction outranks the template
+ * dos and don'ts, the same precedence the writer was given; without saying so,
+ * the reviewer fails a draft for doing what the editor asked.
+ */
+const BRIEF_SHAPE =
+  ' Judge the draft against the approved brief too. Where the editor\'s direction conflicts with the ' +
+  'template dos and don\'ts, the editor wins: never fail a draft for following it. A draft written to a ' +
+  'different angle or reader than the brief names, or that ignores the editor\'s direction, fails.'
+
+/** The writer's company-mentions rule, enforced by the reviewer that can read it. */
+const COMPANY_MENTIONS_SHAPE =
+  ' Judge the "Company mentions" rule as written: a draft that names or pitches the company more than ' +
+  'the rule allows fails, and the notes must quote where.'
 
 /**
  * The evidence check's brief: a closed-book audit of what the draft says about
@@ -152,12 +169,18 @@ export const qaStage: Stage = {
     // The same audience block the writer was given. Without it the reviewer
     // judges register and usefulness against a reader it has to invent, and
     // then fails drafts for being pitched at the wrong person.
-    const icpBlock = icpToPrompt(selectIcp(ctx.tenant, article))
+    const icpBlock = audienceToPrompt(ctx.brandVoice, selectIcp(ctx.tenant, article))
     const audienceBlock = icpBlock ? `\n\n${icpBlock}` : ''
     // And the same position. A reviewer that cannot see what the company claims
     // to be has no way to tell a drifting draft from a correct one.
     const positioningBlock = positioningToPrompt(ctx.tenant.positioning)
     const positionBlock = positioningBlock ? `\n\n${positioningBlock}` : ''
+    // The brief the editor approved and the mentions rule the writer was given,
+    // so the reviewer judges the draft against the instructions it was written to.
+    const approvedBrief = briefBlock(article.brief)[0] ?? ''
+    const approvedBriefBlock = approvedBrief ? `\n\n${approvedBrief}` : ''
+    const mentionsRule = companyMentionsBlock(companyMentionsOf(template), ctx.tenant)
+    const mentionsBlock = mentionsRule ? `\n\n${mentionsRule}` : ''
     // The brand voice governs every generated field, so the meta fields are reviewed too.
     const metaText = [
       `Title tag: ${article.titleTag ?? '(none)'}`,
@@ -196,8 +219,10 @@ export const qaStage: Stage = {
             system:
               BASE_QUALITATIVE_SYSTEM +
               (ctx.brandVoice ? BRAND_VOICE_SHAPE : LEGACY_SHAPE) +
-              (positioningBlock ? POSITIONING_SHAPE : ''),
-            user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
+              (positioningBlock ? POSITIONING_SHAPE : '') +
+              (approvedBrief ? BRIEF_SHAPE : '') +
+              (mentionsRule ? COMPANY_MENTIONS_SHAPE : ''),
+            user: `Style guide:\n${ctx.styleGuide.text}${brandVoiceBlock}${audienceBlock}${positionBlock}\n\nTemplate "${template.name}" dos:\n${dos}\n\nTemplate don'ts:\n${donts}${approvedBriefBlock}${mentionsBlock}\n\nArticle "${article.title}":\n\n${metaText}\n\n${bodyMarkdown}\n\n${faqBlock}`,
           }),
         () =>
           completeJSONLogged(ctx, 'evidenceCheck', article.id, {

@@ -3,6 +3,11 @@
 import { useRouter } from 'next/navigation'
 import React, { useMemo, useState, useTransition } from 'react'
 
+import {
+  COMPANY_MENTIONS_OPTIONS,
+  type CompanyMentions,
+  DEFAULT_COMPANY_MENTIONS,
+} from '../../lib/tenant/companyMentions'
 import { createTemplateAction, saveTemplateConfigAction } from './templateActions'
 import type { TemplateConfigDTO } from './templateTypes'
 import './ops.css'
@@ -25,6 +30,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
 
   const [outline, setOutline] = useState(selected?.outline ?? '')
   const [example, setExample] = useState(selected?.example ?? '')
+  const [companyMentions, setCompanyMentions] = useState<CompanyMentions>(
+    selected?.companyMentions ?? DEFAULT_COMPANY_MENTIONS,
+  )
   const [dos, setDos] = useState((selected?.dos ?? []).join('\n'))
   const [donts, setDonts] = useState((selected?.donts ?? []).join('\n'))
   const [requiredSections, setRequiredSections] = useState(
@@ -53,6 +61,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
     setSelectedId(t.id)
     setOutline(t.outline)
     setExample(t.example)
+    setCompanyMentions(t.companyMentions)
     setDos(t.dos.join('\n'))
     setDonts(t.donts.join('\n'))
     setRequiredSections(t.requiredSections.join('\n'))
@@ -73,6 +82,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
         await saveTemplateConfigAction(selected.id, {
           ...(outlineDirty ? { outline } : {}),
           ...(exampleDirty ? { example } : {}),
+          companyMentions,
           dos: dos.split('\n'),
           donts: donts.split('\n'),
           requiredSections: requiredSections.split('\n'),
@@ -273,6 +283,26 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                   Dos/don’ts feed generate + qualitative review. Required sections are enforced by
                   structural QA.
                 </p>
+                <div className="datum-ops__field">
+                  <label htmlFor="companyMentions">Company mentions</label>
+                  <select
+                    id="companyMentions"
+                    value={companyMentions}
+                    onChange={(e) => setCompanyMentions(e.target.value as CompanyMentions)}
+                    disabled={pending}
+                  >
+                    {COMPANY_MENTIONS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="datum-ops__hint">
+                    {COMPANY_MENTIONS_OPTIONS.find((option) => option.value === companyMentions)?.hint}{' '}
+                    The writer and the reviewer both get this rule. Your audience and positioning
+                    shape every piece either way.
+                  </p>
+                </div>
                 <div className="datum-ops__field">
                   <label htmlFor="dos">Dos (one per line)</label>
                   <textarea

@@ -226,6 +226,10 @@ export interface Template {
    * What this kind of piece is for, in one line. Shown when choosing a template and used as the brief's angle.
    */
   intent?: string | null;
+  /**
+   * How much the company itself may appear in pieces of this kind. The audience and positioning shape every piece either way.
+   */
+  companyMentions?: ('none' | 'mention' | 'feature') | null;
   outline?: {
     root: {
       type: string;
@@ -1714,6 +1718,7 @@ export interface MediaSelect<T extends boolean = true> {
 export interface TemplatesSelect<T extends boolean = true> {
   name?: T;
   intent?: T;
+  companyMentions?: T;
   outline?: T;
   dos?:
     | T

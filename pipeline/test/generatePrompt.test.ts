@@ -3,9 +3,17 @@ import test from 'node:test'
 
 import { BRAND_VOICE_FIXTURE } from '../../cms/src/lib/brandVoiceFixture'
 import type { Article, Template } from '../../cms/src/payload-types'
-import { briefBlock, buildPrompt, buildSystemPrompt, gapsBlock } from '../src/generatePrompt'
+import {
+  audienceToPrompt,
+  briefBlock,
+  buildPrompt,
+  buildSystemPrompt,
+  companyMentionsBlock,
+  gapsBlock,
+} from '../src/generatePrompt'
 import { markdownToLexical } from '../src/richtext'
 import {
+  companyMentionsOf,
   emptyIcpContent,
   emptyTenantContext,
   evidenceRules,
@@ -200,7 +208,7 @@ test('briefBlock renders the editor\'s brief with their notes ranked above the o
   })
   assert.match(block, /^# Brief \(approved by the editor\)/)
   assert.match(block, /Angle: A step-by-step guide/)
-  assert.match(block, /Audience: Home baristas\./)
+  assert.match(block, /Audience: Home baristas\.\n\(The editor's line for this piece\. It narrows the Audience profile; where the two differ, write for this line\.\)/)
   assert.match(block, /- What you need \(required section\)/)
   assert.match(block, /- Descaling frequency: Cite the maker\./)
   assert.match(block, /- Our pick: Keep it short\./)
@@ -366,4 +374,66 @@ test('the citation instruction is sent only when there is a bank to cite', () =>
     'Put an evidence ref in square brackets at the end of any sentence that states a first-party fact, e.g. [E3].'
   assert.ok(buildPrompt(makeArticle(baseResearch), template, null, withBank()).includes(instruction))
   assert.ok(!buildPrompt(makeArticle(baseResearch), template, null, namedOnly()).includes(instruction))
+})
+
+/**
+ * How much the company may appear, per template.
+ *
+ * Positioning says "lean on these" and the bank hands the writer facts to cite,
+ * so without a rule every piece drifts towards a pitch. The template decides.
+ */
+test('companyMentionsOf reads a template saved before the field existed as "mention"', () => {
+  assert.equal(companyMentionsOf(template), 'mention')
+  assert.equal(companyMentionsOf({ companyMentions: null }), 'mention')
+  assert.equal(companyMentionsOf({ companyMentions: 'none' }), 'none')
+  assert.equal(companyMentionsOf({ companyMentions: 'feature' }), 'feature')
+})
+
+test('companyMentionsBlock names the company and states each rule', () => {
+  assert.match(companyMentionsBlock('none', namedOnly()), /^# Company mentions\nDo not name Acme Analytics or describe its product anywhere/)
+  assert.match(companyMentionsBlock('mention', namedOnly()), /Name Acme Analytics at most once in the body/)
+  assert.match(companyMentionsBlock('mention', namedOnly()), /Keep it out of the title, the meta fields, and the FAQ/)
+  assert.match(companyMentionsBlock('feature', namedOnly()), /Acme Analytics may be presented as an option, or as the recommendation/)
+  assert.match(companyMentionsBlock('feature', namedOnly()), /every comparison must rest on the Evidence bank or a named public source/)
+})
+
+test('companyMentionsBlock is empty for a workspace with no name to mention', () => {
+  assert.equal(companyMentionsBlock('none', emptyTenantContext()), '')
+})
+
+test('buildPrompt sends the template\'s company-mentions rule just before the Output section', () => {
+  const prompt = buildPrompt(makeArticle(baseResearch), { ...template, companyMentions: 'none' }, null, namedOnly())
+  const rule = prompt.indexOf('# Company mentions\nDo not name Acme Analytics')
+  assert.ok(rule > 0, 'the rule is missing')
+  assert.ok(rule < prompt.indexOf('# Output'), 'the rule must come before the Output section')
+  assert.doesNotMatch(buildPrompt(makeArticle(baseResearch), template, null, emptyTenantContext()), /# Company mentions/)
+})
+
+/**
+ * The brand voice describes everyone the brand talks to; the audience profile
+ * is the one group this piece is for. Both reach the system prompt, so the
+ * audience block says which one wins.
+ */
+const CAFE_OWNERS = {
+  ...emptyIcpContent('Café owners'),
+  id: 3,
+  status: 'active' as const,
+  primary: true,
+  who: 'Owners of one or two independent cafés',
+}
+
+test('audienceToPrompt tells the writer the audience narrows the brand voice\'s reader', () => {
+  const block = audienceToPrompt(BRAND_VOICE_FIXTURE, CAFE_OWNERS)
+  assert.match(
+    block,
+    /^# Audience: Café owners \(primary ICP\)\nThis is the reader for this piece\. It narrows "Who we are talking to" in the brand voice; where the two differ, write for this reader\.\nConfidence tags say/,
+  )
+  const system = buildSystemPrompt('Style.', BRAND_VOICE_FIXTURE, emptyTenantContext(), CAFE_OWNERS)
+  assert.ok(system.includes(block), 'the system prompt carries the same block')
+})
+
+test('audienceToPrompt adds no scope line when the brand voice describes no reader', () => {
+  const block = audienceToPrompt(null, CAFE_OWNERS)
+  assert.match(block, /^# Audience: Café owners \(primary ICP\)\nConfidence tags say/)
+  assert.equal(audienceToPrompt(BRAND_VOICE_FIXTURE, null), '')
 })

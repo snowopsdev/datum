@@ -15,6 +15,8 @@ import type { Article, Template } from '../../cms/src/payload-types'
 import { brandVoiceSamplesToPrompt, brandVoiceToPrompt, type BrandVoiceContent } from './brandVoice'
 import { parseBrief } from './brief'
 import {
+  type CompanyMentions,
+  companyMentionsOf,
   evidenceBankToPrompt,
   evidenceRules,
   type IcpContent,
@@ -44,7 +46,11 @@ export function briefBlock(raw: unknown): string[] {
   if (!brief) return []
   const lines: string[] = []
   if (brief.angle) lines.push(`Angle: ${brief.angle}`)
-  if (brief.audience) lines.push(`Audience: ${brief.audience}`)
+  if (brief.audience) {
+    lines.push(
+      `Audience: ${brief.audience}\n(The editor's line for this piece. It narrows the Audience profile; where the two differ, write for this line.)`,
+    )
+  }
   if (brief.sections.length > 0) {
     const rows = brief.sections
       .map((s) => {
@@ -137,6 +143,32 @@ export function gapsBlock(
   return sections
 }
 
+/**
+ * How much the company itself may appear in this piece.
+ *
+ * The positioning tells the writer to lean on its core claims and the evidence
+ * bank hands it facts to cite, so without a rule every piece drifts towards a
+ * pitch — a how-to ends in a sales paragraph, and a ranked list quietly ranks
+ * the company first. The template decides, because the kind of piece is what
+ * makes a mention welcome or not. The audience and positioning still shape the
+ * angle either way: this rule is only about naming the company.
+ *
+ * Sent to the writer and to the qualitative reviewer, worded identically, so
+ * the reviewer enforces the rule the writer was given. Empty when the workspace
+ * has no name to mention.
+ */
+export function companyMentionsBlock(policy: CompanyMentions, tenant: TenantContext): string {
+  const company = tenant.profile.companyName || tenant.profile.targetDomain || ''
+  if (!company) return ''
+  const rule = {
+    none: `Do not name ${company} or describe its product anywhere in this piece, including the title, meta fields, and FAQ. Use the Audience and Positioning to choose the angle, the examples, and what the reader is told to care about, not as material to sell from.`,
+    mention: `Name ${company} at most once in the body, and only where it answers the reader's problem, usually near the end. Keep it out of the title, the meta fields, and the FAQ. The rest of the piece serves the reader: no sales copy and no pitch.`,
+    feature: `${company} may be presented as an option, or as the recommendation where it fits the reader's problem, described through the positioning's core claims and backed by the Evidence bank. Treat other options fairly: every comparison must rest on the Evidence bank or a named public source.`,
+  }[policy]
+  return `# Company mentions
+${rule}`
+}
+
 /** Non-blank secondary keywords the operator grouped into this article. */
 export function secondaryKeywordsOf(article: { secondaryKeywords?: { keyword?: string | null }[] | null }): string[] {
   return (article.secondaryKeywords ?? [])
@@ -192,6 +224,7 @@ export function buildPrompt(
     `## Related questions\n${questions}`,
     ...briefBlock(article.brief),
     ...gapsBlock(research, tenant, article.revisionNotes),
+    companyMentionsBlock(companyMentionsOf(template), tenant),
     `# Output`,
     `Return a JSON object with exactly these keys: title, slug, titleTag, metaDescription, ogTitle, ogDescription, ogImage, faqItems (array of {question, answer}), bodyMarkdown.`,
     `bodyMarkdown uses ## for sections and ### for subsections, never # (the title is the page H1). Respect the SEO spec limits and the outline's section headings.`,
@@ -204,7 +237,33 @@ export function buildPrompt(
           'Put an evidence ref in square brackets at the end of any sentence that states a first-party fact, e.g. [E3].',
         ]
       : []),
-  ].join('\n\n')
+  ]
+    .filter((block) => block.length > 0)
+    .join('\n\n')
+}
+
+/**
+ * The `# Audience` block, saying which description of the reader wins.
+ *
+ * The brand voice describes everyone the brand talks to, and the audience
+ * profile describes the one group this piece is aimed at. Both reach the same
+ * prompt, so without this line the writer averages them. The writer and the
+ * qualitative reviewer both use this function, so they get the same block.
+ */
+export function audienceToPrompt(
+  brandVoice: BrandVoiceContent | null,
+  icp: IcpContent | null,
+): string {
+  // The same fields that make `brandVoiceToPrompt` render that section.
+  const voice = brandVoice?.audience
+  const voiceHasAudience = Boolean(
+    voice && (voice.description || voice.languageLevel || voice.interests || voice.needs),
+  )
+  return icpToPrompt(icp, {
+    scope: voiceHasAudience
+      ? 'This is the reader for this piece. It narrows "Who we are talking to" in the brand voice; where the two differ, write for this reader.'
+      : undefined,
+  })
 }
 
 /**
@@ -229,7 +288,7 @@ export function buildSystemPrompt(
     `You are a senior content writer. Follow this style guide exactly:\n\n${styleGuideText}`,
     workspaceProfileToPrompt(tenant.profile),
     brandVoice ? brandVoiceToPrompt(brandVoice) : '',
-    icpToPrompt(icp),
+    audienceToPrompt(brandVoice, icp),
     positioningToPrompt(tenant.positioning),
   ]
     .filter((block) => block.trim().length > 0)

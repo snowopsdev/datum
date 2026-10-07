@@ -197,6 +197,8 @@ const templates: TemplateSeed[] = [
   {
     name: 'Game Preview',
     intent: 'A pre-game preview that tells the reader how to watch and what to watch for',
+    // A reader checking kickoff time has no use for a vendor pitch.
+    companyMentions: 'none',
     outline: richText(
       paragraph(
         'Open by answering the search intent directly: which teams, what date, what time, which network, and where to stream. No H2 label; this paragraph follows the title.',
