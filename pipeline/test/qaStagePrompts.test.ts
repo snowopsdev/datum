@@ -103,6 +103,7 @@ function ctxWith(llm: LlmClient): StageContext {
       informationGainJudge: 'mock',
       evidenceVerification: 'mock',
       evidenceCheck: 'mock',
+      briefAngle: 'mock',
     },
     brandVoice: null,
     policy: {} as never,

@@ -102,6 +102,7 @@ function harness(internal = false) {
       factCheck: 'mock',
       qualitativeReview: 'mock',
       evidenceCheck: 'mock',
+      briefAngle: 'mock',
       informationGainJudge: 'mock',
       evidenceVerification: 'mock',
       claimExtraction: 'mock',

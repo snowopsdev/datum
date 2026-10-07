@@ -44,6 +44,7 @@ export const CostLog: CollectionConfig = {
         'informationGainJudge',
         'evidenceVerification',
         'evidenceCheck',
+        'briefAngle',
         'brandVoiceExtract',
         'setupAssist',
       ],

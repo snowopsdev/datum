@@ -33,6 +33,7 @@ export const LlmSettings: GlobalConfig = {
     update: ({ req }) => Boolean(req.user),
   },
   fields: [
+    modelField('briefAngleModel', 'Brief angles', STAGE_ENV_VAR.briefAngle, 'Proposes audience-grounded directions during research. A small model is enough.'),
     modelField(
       'generateModel',
       'Generate',

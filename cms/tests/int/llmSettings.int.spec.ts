@@ -10,6 +10,7 @@ describe('Models global', () => {
     const names = LlmSettings.fields.map((f) => ('name' in f ? f.name : ''))
     for (const stage of PIPELINE_STAGES) expect(names).toContain(STAGE_SETTING_FIELD[stage])
     expect(names).toContain('evidenceCheckModel')
+    expect(names).toContain('briefAngleModel')
     expect(names).toContain('brandVoiceExtractModel')
     expect(names).toContain('setupAssistModel')
     for (const field of LlmSettings.fields) {
@@ -40,6 +41,8 @@ describe('Models global', () => {
     }
     expect(description('evidenceCheckModel')).toContain('PIPELINE_MODEL_EVIDENCE_CHECK')
     expect(description('evidenceCheckModel')).toContain('evidence bank')
+    expect(description('briefAngleModel')).toContain('PIPELINE_MODEL_BRIEF_ANGLE')
+    expect(description('briefAngleModel')).toContain('small model')
     expect(description('setupAssistModel')).toContain('SETUP_ASSIST_MODEL')
   })
 

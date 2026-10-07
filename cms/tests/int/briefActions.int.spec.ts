@@ -57,7 +57,7 @@ const atBrief = (over: Record<string, unknown> = {}) =>
     id: 1,
     status: 'brief_review',
     template: 3,
-    brief: { angle: 'old', sections: [{ heading: 'A', source: 'template' }], notes: '' },
+    brief: { angle: 'old', angleOptions: [{angle:'Option', rationale:'Pain', pain:null, gaps:[]}], sections: [{ heading: 'A', source: 'template' }], notes: '' },
     ...over,
   }) as never
 
@@ -95,6 +95,7 @@ describe('saveBriefAction', () => {
     }
     expect(call.data.status).toBeUndefined()
     expect(call.data.brief.angle).toBe('New angle')
+    expect(call.data.brief.angleOptions).toEqual([{angle:'Option', rationale:'Pain', pain:null, gaps:[]}])
     expect(call.data.brief.sections).toEqual([
       { heading: 'A', notes: 'say this', source: 'template' },
     ])
@@ -149,7 +150,7 @@ describe('approveBriefAction', () => {
     const result = await approveBriefAction(1, edits)
     expect(result.ok).toBe(true)
     const call = updateMock.mock.calls[0]?.[0] as unknown as {
-      data: { status: string; brief: { approvedAt?: string; approvedBy?: string; angle?: string } }
+      data: { status: string; brief: { approvedAt?: string; approvedBy?: string; angle?: string; angleOptions?: unknown } }
       context: { articleAudit: { event: string } }
     }
     expect(call.data.status).toBe('researched')
@@ -157,6 +158,7 @@ describe('approveBriefAction', () => {
     expect(call.data.brief.approvedAt).toMatch(/^\d{4}-/)
     // Edits handed in with the approval are kept, not thrown away.
     expect(call.data.brief.angle).toBe('New angle')
+    expect(call.data.brief.angleOptions).toEqual([{angle:'Option', rationale:'Pain', pain:null, gaps:[]}])
     expect(call.context.articleAudit.event).toBe('brief_approved')
 
     expect(createRunMock).toHaveBeenCalledTimes(1)

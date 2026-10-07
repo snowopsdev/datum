@@ -135,6 +135,21 @@ direction outranks the template dos and don'ts, the same precedence the writer
 gets. The reviewer never fails a draft for following the editor, and fails a
 draft written to a different angle or reader than the brief names.
 
+### The brief's angle
+
+Research makes one logged `briefAngle` call to propose up to three angles from
+this piece's audience pains, positioning, template intent, company-mentions
+rule, secondary keywords, and research facet and gap descriptions. It sends
+neither the evidence bank nor brand voice samples. Hypothesis and inference
+pains must be identified as such in the rationale.
+
+Only proposals referring to known pains and gaps survive validation. The first
+valid option becomes the angle; the template-derived option is always last.
+A failed call or empty valid reply leaves only that deterministic option and
+records a warning, while research still stops at brief review. Editors may
+select any option or write their own angle. Saving and approving preserve the
+research options; a saved brief is outside the research entry status.
+
 ### Company mentions
 
 The positioning tells the writer to lean on its core claims, and the evidence

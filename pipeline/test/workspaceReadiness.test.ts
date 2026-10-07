@@ -85,6 +85,7 @@ describe('workspace readiness', () => {
         ['informationGainJudge', 'claude-opus-5', 'anthropic', false],
         ['evidenceVerification', 'claude-opus-5', 'anthropic', false],
         ['evidenceCheck', 'claude-opus-5', 'anthropic', false],
+        ['briefAngle', 'claude-opus-5', 'anthropic', false],
       ],
     )
   })
@@ -159,7 +160,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(mock).configFingerprint,
-      '8ddd431f6ca2df9b335266a0af88c810c80b33b7451e1aeef8eb92b8a0f3a31f',
+      'da1edfeade438a7e3519c30a9319b59fc943871f908ef96588bfefa61ca09b81',
     )
 
     const liveEnv = {
@@ -181,7 +182,7 @@ describe('workspace readiness', () => {
     }
     assert.equal(
       evaluateWorkspaceReadiness(live).configFingerprint,
-      '017ebcc15ef931f391775c0047b998c686dbd857040cad0f183ce59eb949b901',
+      'ae79ccb87cfa7d758685ff1d09e9b54adf97df62cbc43444468712a24db87458',
     )
   })
 

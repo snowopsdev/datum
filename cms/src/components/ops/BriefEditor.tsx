@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import { approveBriefAction, type BriefEdits, saveBriefAction } from './briefActions'
+import type { BriefAngleOption } from '../../../../pipeline/src/brief'
 import './ops.css'
 
 type Section = BriefEdits['sections'][number]
@@ -24,6 +25,7 @@ type Props = {
   /** Active audiences, primary first. Empty when the workspace has none. */
   icps: BriefIcpOption[]
   initial: {
+    angleOptions?: BriefAngleOption[]
     angle: string
     audience: string
     sections: Section[]
@@ -37,7 +39,7 @@ type Props = {
 /**
  * The one screen where a person shapes a piece before it costs anything.
  *
- * Everything here was built by research with no model call; the editor's job
+ * Research proposes grounded angles; the editor's job
  * is to correct the angle, cut or add sections, and say what they actually
  * want. Approving is what starts the writing — there is no separate run
  * button to find afterwards.
@@ -132,6 +134,19 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         </ol>
       </div>
 
+      {initial.angleOptions?.length ? (
+        <div className="datum-brief__sections" aria-label="Suggested angles">
+          <h3>Suggested angles</h3>
+          {initial.angleOptions.map((option, index) => (
+            <button key={index} type="button" className="datum-ops__btn" disabled={pending}
+              aria-pressed={angle === option.angle} onClick={() => setAngle(option.angle)}>
+              <strong>{option.angle}</strong><br />
+              <span className="datum-ops__hint">{option.rationale}</span><br />
+              <span className="datum-ops__hint">For: {option.pain ?? 'Template direction'} · Fills: {option.gaps.join(', ') || '—'}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <label className="datum-ops__field">
         <span>Angle</span>
         <input

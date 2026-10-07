@@ -144,3 +144,13 @@ test('buildBrief falls back to the brand voice, then to nothing at all', () => {
   // An ICP with nothing usable in it is the same as no ICP: the voice answers.
   assert.equal(briefWith(emptyIcpContent('Nameless'), voice).audience, 'Home baristas. Needs: Fewer wasted shots.')
 })
+
+test('suggested angles come first and the deterministic template option always comes last', () => {
+  const option = {angle: 'Chosen proposal', rationale: 'Answers pain', pain: 'Wasted beans', gaps: ['Water']}
+  const brief = buildBrief({keyword:'espresso', templateIntent:'Guide', requiredSections:[], facets:[], gaps:[], brandVoice:null, icp:null, angleOptions:[option]})
+  assert.equal(brief.angle, option.angle)
+  assert.deepEqual(brief.angleOptions, [option, {angle:'Guide for "espresso"', rationale:'From the template', pain:null, gaps:[]}])
+  assert.deepEqual(parseBrief(brief)?.angleOptions, brief.angleOptions)
+  assert.deepEqual(parseBrief({angle:'Editor choice', angleOptions:[null, {}, 'bad']})?.angleOptions, [])
+  assert.deepEqual(parseBrief({angle:'Older brief'})?.angleOptions, [])
+})

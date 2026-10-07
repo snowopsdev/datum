@@ -17,6 +17,7 @@
 
 import { secondaryKeywordsOf } from './generatePrompt'
 import { buildBrief } from './brief'
+import { proposeBriefAngles } from './briefAngle'
 import { getOrBuildSnapshot } from './corpus/snapshot'
 import {
   applyTemplateHints,
@@ -67,7 +68,9 @@ export const researchStage: Stage = {
     // return below backfills it — after which the editor's choice in the brief
     // is what steers the draft.
     const icp = selectIcp(ctx.tenant, article)
+    const angles = await proposeBriefAngles(ctx, article, template, icp, facets, gaps)
     const brief = buildBrief({
+      angleOptions: angles.options,
       keyword: article.keyword,
       templateIntent: template.intent,
       requiredSections: (template.requiredSections ?? []).map((s) => s.heading),
@@ -78,6 +81,7 @@ export const researchStage: Stage = {
     })
     return {
       status: ctx.pauseForBrief === false ? 'researched' : 'brief_review',
+      warnings: angles.warning ? [angles.warning] : [],
       data: {
         brief,
         research: {

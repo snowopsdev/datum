@@ -197,6 +197,7 @@ export const Articles: CollectionConfig = {
       },
       fields: [
         { name: 'angle', type: 'text' },
+        { name: 'angleOptions', type: 'json', admin: { readOnly: true } },
         { name: 'audience', type: 'text' },
         {
           name: 'sections',

@@ -389,6 +389,15 @@ export interface Article {
    */
   brief?: {
     angle?: string | null;
+    angleOptions?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
     audience?: string | null;
     sections?:
       | {
@@ -1007,6 +1016,7 @@ export interface CostLog {
         | 'informationGainJudge'
         | 'evidenceVerification'
         | 'evidenceCheck'
+        | 'briefAngle'
         | 'brandVoiceExtract'
         | 'setupAssist'
       )
@@ -1795,6 +1805,7 @@ export interface ArticlesSelect<T extends boolean = true> {
     | T
     | {
         angle?: T;
+        angleOptions?: T;
         audience?: T;
         sections?:
           | T
@@ -2683,6 +2694,27 @@ export interface EvidenceBank {
 export interface LlmSetting {
   id: number;
   /**
+   * Proposes audience-grounded directions during research. A small model is enough. Leave blank to use PIPELINE_MODEL_BRIEF_ANGLE from the environment, or the platform default (Claude Opus 5).
+   */
+  briefAngleModel?:
+    | (
+        | 'claude-fable-5'
+        | 'claude-opus-5'
+        | 'claude-sonnet-5'
+        | 'claude-haiku-4-5'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'gpt-5.4-nano'
+        | 'gpt-5'
+        | 'gpt-5-mini'
+        | 'gpt-5-nano'
+      )
+    | null;
+  /**
    * Writes the article draft from the template, research, and brand voice. Leave blank to use PIPELINE_MODEL_GENERATE from the environment, or the platform default (Claude Opus 5).
    */
   generateModel?:
@@ -3107,6 +3139,7 @@ export interface EvidenceBankSelect<T extends boolean = true> {
  * via the `definition` "llm-settings_select".
  */
 export interface LlmSettingsSelect<T extends boolean = true> {
+  briefAngleModel?: T;
   generateModel?: T;
   factCheckModel?: T;
   qualitativeReviewModel?: T;
