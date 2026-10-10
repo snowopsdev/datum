@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.0](https://github.com/snowopsdev/datum/compare/v0.7.0...v0.8.0) (2026-10-10)
+
+
+### Features
+
+* **brief:** propose audience-grounded angles during research ([#142](https://github.com/snowopsdev/datum/issues/142)) ([7ade888](https://github.com/snowopsdev/datum/commit/7ade88842792a1ebc3379a6e948f3855c7f496d5))
+* **discovery:** rank suggested topics by audience fit ([#143](https://github.com/snowopsdev/datum/issues/143)) ([3ac904f](https://github.com/snowopsdev/datum/commit/3ac904f22b54e00e4690f3f25681fd374ec923c6))
+* **governance:** suggest setup changes from recurring review corrections ([#144](https://github.com/snowopsdev/datum/issues/144)) ([f0850d3](https://github.com/snowopsdev/datum/commit/f0850d34f2561edcd33ce244fcac6940ded94007))
+* **tenant:** control company mentions and carry brief direction into review ([#139](https://github.com/snowopsdev/datum/issues/139)) ([35aeb97](https://github.com/snowopsdev/datum/commit/35aeb972839c404098422e985ceb026029df967b))
+
+
+### Bug Fixes
+
+* **tenant:** address review findings across brief angles, discovery, and suggestions ([#145](https://github.com/snowopsdev/datum/issues/145)) ([226b4e3](https://github.com/snowopsdev/datum/commit/226b4e3caf263a3174ec876eb2f185aef876c215))
+* **tenant:** separate "Not our user" and churn triggers ([#140](https://github.com/snowopsdev/datum/issues/140)) ([5905ae6](https://github.com/snowopsdev/datum/commit/5905ae621ae067da8902259aeabec1c9caa05348))
+
+
+### Performance Improvements
+
+* cut admin and pipeline query load; fix audit and job-queue bugs ([#122](https://github.com/snowopsdev/datum/issues/122)) ([211267c](https://github.com/snowopsdev/datum/commit/211267cba6b983104343a5dfe6357c9233bc74ca))
+
 ## [0.7.0](https://github.com/snowopsdev/datum/compare/v0.6.4...v0.7.0) (2026-09-14)
 
 
