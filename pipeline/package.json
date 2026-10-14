@@ -30,7 +30,7 @@
     "dotenv": "17.4.2",
     "linkedom": "^0.18.13",
     "openai": "^7.15.0",
-    "payload": "3.89.0",
+    "payload": "3.90.2",
     "undici": "^8.10.2"
   },
   "devDependencies": {
