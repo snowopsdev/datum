@@ -4,9 +4,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import React from 'react'
 
+import { EditorBar } from '@/components/public/EditorBar'
+import { buildArticleJsonLd, serializeJsonLd } from '@/lib/articleJsonLd'
 import { buildArticleMetadata } from '@/lib/articleMetadata'
+import { articleDateline, faqAnchorId, readingMinutes } from '@/lib/articleReader'
 import { findPublishedArticle } from '@/lib/findPublishedArticle'
-import { lastH2HeadingText, lexicalBodyToHtml } from '@/lib/lexicalHtml'
+import { lastH2HeadingText, lexicalBodyToHtml, lexicalToPlainText } from '@/lib/lexicalHtml'
+import { getConfiguredSiteUrl } from '@/lib/siteUrl'
 import './article.css'
 
 type Props = {
@@ -40,6 +44,22 @@ export default async function PublishedArticlePage({ params }: Props) {
   const article = await findPublishedArticle(payload, slug)
   if (!article) notFound()
 
+  const profile = await payload.findGlobal({
+    slug: 'workspace-profile',
+    select: { companyName: true },
+    depth: 0,
+    overrideAccess: true,
+  })
+  const jsonLd = buildArticleJsonLd(article, {
+    siteUrl: getConfiguredSiteUrl(),
+    publisherName: profile.companyName?.trim() || undefined,
+  })
+  const dateline = articleDateline({
+    publishedAt: article.publishedAt,
+    updatedAt: article.updatedAt,
+    minutes: readingMinutes(lexicalToPlainText(article.body)),
+  })
+
   const html = lexicalBodyToHtml(article.body)
   const faq = article.faqItems ?? []
   // The template's outline can already end with its own "FAQ" heading; render
@@ -52,9 +72,20 @@ export default async function PublishedArticlePage({ params }: Props) {
         <Link className="datum-public__logo" href="/">
           Datum
         </Link>
+        <Link className="datum-public__all" href="/">
+          All articles
+        </Link>
       </header>
+      {jsonLd.map((node, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(node) }}
+        />
+      ))}
       <article className="datum-public__article">
         <h1>{article.title || article.keyword}</h1>
+        <p className="datum-public__dateline">{dateline.join(' · ')}</p>
         {article.metaDescription ? (
           <p className="datum-public__dek">{article.metaDescription}</p>
         ) : null}
@@ -66,15 +97,16 @@ export default async function PublishedArticlePage({ params }: Props) {
         {faq.length > 0 ? (
           <section className="datum-public__faq">
             {bodyEndsWithFaqHeading ? null : <h2>FAQ</h2>}
-            {faq.map((item) => (
+            {faq.map((item, i) => (
               <div className="datum-public__faq-item" key={item.id ?? item.question}>
-                <strong>{item.question}</strong>
+                <h3 id={faqAnchorId(item.question, i)}>{item.question}</h3>
                 <p>{item.answer}</p>
               </div>
             ))}
           </section>
         ) : null}
       </article>
+      <EditorBar articleId={article.id} />
     </div>
   )
 }
