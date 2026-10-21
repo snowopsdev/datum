@@ -120,7 +120,7 @@ describe('the needs-re-check filter', () => {
 })
 
 describe('normaliseClaimKey', () => {
-  it('ignores case, spacing and punctuation', () => {
+  it('ignores case, spacing and cosmetic punctuation', () => {
     const key = normaliseClaimKey('Kettle & Burr tested six budget espresso grinders for a month')
     assert.equal(
       normaliseClaimKey('  kettle  &  burr TESTED six budget espresso grinders, for a month.  '),
@@ -128,5 +128,25 @@ describe('normaliseClaimKey', () => {
     )
     assert.notEqual(normaliseClaimKey('Kettle & Burr tested seven grinders'), key)
     assert.equal(normaliseClaimKey(undefined), '')
+  })
+
+  it('keeps quantitative claims with different operators or units distinct', () => {
+    for (const [first, second] of [
+      ['conversion changed +5%', 'conversion changed -5%'],
+      ['conversion changed -5%', 'conversion changed 5%'],
+      ['latency <100ms', 'latency >100ms'],
+      ['latency <100ms', 'latency <=100ms'],
+      ['latency ≤100ms', 'latency ≥100ms'],
+      ['conversion changed 5%', 'conversion changed 5'],
+      ['cost $5', 'cost €5'],
+      ['latency 1.5ms', 'latency 1 5ms'],
+      ['latency .5ms', 'latency 5ms'],
+      ['volume 1,500', 'volume 1 500'],
+      ['ratio 1:2', 'ratio 1 2'],
+      ['rate 5/day', 'rate 5 day'],
+    ]) {
+      assert.notEqual(normaliseClaimKey(first), normaliseClaimKey(second), `${first} vs ${second}`)
+    }
+    assert.equal(normaliseClaimKey('Latency <100ms.'), normaliseClaimKey('latency <100ms'))
   })
 })

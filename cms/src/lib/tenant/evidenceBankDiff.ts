@@ -167,11 +167,13 @@ export function spliceVisible<T>(full: T[], visible: number[], edited: T[]): T[]
 
 /**
  * A claim reduced to what makes two phrasings the same claim: case, spacing
- * and punctuation do not count.
+ * and cosmetic punctuation do not count. Keep operators, units and numeric
+ * separators because they can change the meaning of a quantitative claim.
  */
 export const normaliseClaimKey = (claim: unknown): string =>
   text(claim)
     .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/[.,](?!\p{N})/gu, ' ')
+    .replace(/[^\p{L}\p{N}\p{S}%.,:/-]+/gu, ' ')
     .trim()
