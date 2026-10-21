@@ -7,7 +7,7 @@ export function changedFieldsOf(
 ): string[] {
   return Object.keys(data ?? {}).filter(
     (field) =>
-      !['createdAt', 'updatedAt'].includes(field) &&
+      !['createdAt', 'updatedAt', 'contentUpdatedAt'].includes(field) &&
       (operation === 'create' || !sameValue(data?.[field], previousDoc?.[field])),
   )
 }

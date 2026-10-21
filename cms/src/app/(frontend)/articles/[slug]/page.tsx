@@ -56,7 +56,7 @@ export default async function PublishedArticlePage({ params }: Props) {
   })
   const dateline = articleDateline({
     publishedAt: article.publishedAt,
-    updatedAt: article.updatedAt,
+    updatedAt: article.contentUpdatedAt,
     minutes: readingMinutes(lexicalToPlainText(article.body)),
   })
 

@@ -17,7 +17,7 @@ export type PublishedArticle = Pick<
   | 'ogDescription'
   | 'ogImage'
   | 'publishedAt'
-  | 'updatedAt'
+  | 'contentUpdatedAt'
 >
 
 const publicFields = {
@@ -32,7 +32,7 @@ const publicFields = {
   ogDescription: true,
   ogImage: true,
   publishedAt: true,
-  updatedAt: true,
+  contentUpdatedAt: true,
 } as const
 
 /** Resolve a published article by slug, or by numeric id when the path is an ID fallback. */

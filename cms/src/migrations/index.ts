@@ -20,6 +20,7 @@ import * as migration_20261007_121854_template_company_mentions from './20261007
 import * as migration_20261007_133223_brief_angles from './20261007_133223_brief_angles';
 import * as migration_20261007_133736_topic_relevance from './20261007_133736_topic_relevance';
 import * as migration_20261007_134746_setup_suggestions from './20261007_134746_setup_suggestions';
+import * as migration_20261021_145609_article_content_updated_at from './20261021_145609_article_content_updated_at';
 
 export const migrations = [
   {
@@ -130,6 +131,11 @@ export const migrations = [
   {
     up: migration_20261007_134746_setup_suggestions.up,
     down: migration_20261007_134746_setup_suggestions.down,
-    name: '20261007_134746_setup_suggestions'
+    name: '20261007_134746_setup_suggestions',
+  },
+  {
+    up: migration_20261021_145609_article_content_updated_at.up,
+    down: migration_20261021_145609_article_content_updated_at.down,
+    name: '20261021_145609_article_content_updated_at'
   },
 ];

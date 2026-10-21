@@ -12,7 +12,7 @@ function article(overrides: Partial<PublishedArticle> = {}): PublishedArticle {
     keyword: 'content ops',
     metaDescription: 'How content ops works.',
     publishedAt: '2026-10-20T10:00:00.000Z',
-    updatedAt: '2026-10-20T10:00:00.000Z',
+    contentUpdatedAt: null,
     ...overrides,
   }
 }
@@ -46,6 +46,19 @@ describe('buildArticleJsonLd', () => {
         { position: 2, name: 'Content Ops', item: 'https://datum.example/articles/content-ops' },
       ],
     })
+  })
+
+  it('uses only the public-content timestamp for dateModified', () => {
+    const edited = article({ contentUpdatedAt: '2026-11-02T09:00:00.000Z' })
+    expect(byType(buildArticleJsonLd(edited), 'Article')).toHaveProperty(
+      'dateModified',
+      '2026-11-02T09:00:00.000Z',
+    )
+    const draftEdit = article({ contentUpdatedAt: '2026-10-01T09:00:00.000Z' })
+    expect(byType(buildArticleJsonLd(draftEdit), 'Article')).toHaveProperty(
+      'dateModified',
+      draftEdit.publishedAt,
+    )
   })
 
   it('adds FAQPage only when the article has FAQ items', () => {

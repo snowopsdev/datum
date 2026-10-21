@@ -97,6 +97,13 @@ test.describe('Frontend', () => {
     })
     seededIds.push(article.id)
 
+    // A real public edit after publication owns the Updated note.
+    await payload.update({
+      collection: 'articles',
+      id: article.id,
+      data: { metaDescription: 'A revised dek for the structured data test.' },
+    })
+
     await page.goto(`/articles/${slug}`)
 
     const nodes = (await page.locator('script[type="application/ld+json"]').allTextContents()).map(
@@ -115,11 +122,35 @@ test.describe('Frontend', () => {
     expect(new Set(ids).size).toBe(2)
     expect(ids.every((id) => id.startsWith('faq-'))).toBe(true)
 
-    // Published in January, edited now: the dateline carries the later date.
+    // Published in January, content edited now: the dateline carries the later date.
     await expect(page.locator('.datum-public__dateline')).toHaveText(
       /^Jan 5, 2026 · 1 min read · Updated \w{3} \d{1,2}, \d{4}$/,
     )
     await expect(page.getByRole('link', { name: 'All articles' })).toHaveAttribute('href', '/')
+  })
+
+  test('operational saves do not claim an old article was updated', async ({ page }) => {
+    const slug = `e2e-operational-date-${Date.now()}`
+    const article = await seedArticle(payload, {
+      keyword: slug,
+      slug,
+      title: 'Unchanged public content',
+      status: 'published',
+      publishedAt: '2026-01-05T12:00:00.000Z',
+      body: plainTextToLexical('Some article body text.'),
+    })
+    seededIds.push(article.id)
+    await payload.update({
+      collection: 'articles',
+      id: article.id,
+      data: { reviewNotes: 'Internal note only.' },
+    })
+    await page.goto(`/articles/${slug}`)
+    await expect(page.locator('.datum-public__dateline')).toHaveText('Jan 5, 2026 · 1 min read')
+    const node = JSON.parse(
+      (await page.locator('script[type="application/ld+json"]').first().textContent()) || '{}',
+    )
+    expect(node.dateModified).toBe('2026-01-05T12:00:00.000Z')
   })
 
   test('freshly published article has no Updated note', async ({ page }) => {

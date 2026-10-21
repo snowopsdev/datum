@@ -30,6 +30,14 @@ export function buildArticleJsonLd(article: PublishedArticle, opts: Options = {}
     ? { '@type': 'Organization', name: opts.publisherName }
     : undefined
 
+  // Draft edits can predate publication; legacy rows have no content timestamp.
+  const dateModified =
+    article.contentUpdatedAt &&
+    (!article.publishedAt ||
+      new Date(article.contentUpdatedAt).getTime() > new Date(article.publishedAt).getTime())
+      ? article.contentUpdatedAt
+      : article.publishedAt
+
   const nodes: JsonLdNode[] = [
     {
       '@context': SCHEMA,
@@ -37,7 +45,7 @@ export function buildArticleJsonLd(article: PublishedArticle, opts: Options = {}
       headline,
       ...(article.metaDescription ? { description: article.metaDescription } : {}),
       ...(article.publishedAt ? { datePublished: article.publishedAt } : {}),
-      ...(article.updatedAt ? { dateModified: article.updatedAt } : {}),
+      ...(dateModified ? { dateModified } : {}),
       ...(isAbsoluteUrl(article.ogImage) ? { image: article.ogImage } : {}),
       ...(articleUrl ? { mainEntityOfPage: articleUrl } : {}),
       ...(organization ? { publisher: organization, author: organization } : {}),
