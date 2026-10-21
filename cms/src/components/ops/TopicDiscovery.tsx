@@ -49,6 +49,7 @@ export function TopicDiscovery({
   const [seed, setSeed] = useState('')
   const [pickedTemplateId, setTemplateId] = useState(templates[0]?.id ?? 0)
   const templateId = fixedTemplateId ?? pickedTemplateId
+  const templateName = templates.find((t) => t.id === templateId)?.name
   const [candidates, setCandidates] = useState<TopicCandidate[] | null>(null)
   const [searchedFor, setSearchedFor] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -350,7 +351,9 @@ export function TopicDiscovery({
                         ? 'Creating…'
                         : picked.size > 1
                           ? `Create 1 piece covering ${picked.size} searches`
-                          : 'Create piece'}
+                          : templateName
+                            ? `Create ${templateName}`
+                            : 'Create piece'}
                     </button>
                   )}
                 </div>

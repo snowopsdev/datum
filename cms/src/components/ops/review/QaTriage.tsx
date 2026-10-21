@@ -4,19 +4,23 @@ import React from 'react'
 
 import { qaFailures, type BoardArticle } from '../articleStatus'
 
+/**
+ * A check that never ran has no `passed` value. That is not a failure, so it
+ * gets its own grey state rather than being read as FAIL.
+ */
 function CheckRow({ label, passed }: { label: string; passed: boolean | null | undefined }) {
-  const ok = passed === true
+  const state = passed === true ? 'pass' : passed === false ? 'fail' : 'na'
   return (
     <div className="datum-ops__check">
-      <span className={`datum-ops__mark datum-ops__mark--${ok ? 'pass' : 'fail'}`}>
-        {ok ? 'PASS' : 'FAIL'}
+      <span className={`datum-ops__mark datum-ops__mark--${state}`}>
+        {state === 'pass' ? 'PASS' : state === 'fail' ? 'FAIL' : 'Not run'}
       </span>
       <span>{label}</span>
     </div>
   )
 }
 
-/** The four QA checks, pass or fail. */
+/** The four QA checks: pass, fail, or not run. */
 export function QaTriage({ article }: { article: BoardArticle }) {
   const qa = article.qaResults
   return (
