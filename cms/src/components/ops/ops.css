@@ -2614,6 +2614,108 @@
   align-items: center;
 }
 
+/* Suggested angles: a radio group of cards, one chosen at a time. */
+
+.datum-brief__angles {
+  display: grid;
+  gap: 8px;
+}
+
+.datum-brief__angle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-md);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.datum-brief__angle:hover:not(:disabled) {
+  border-color: rgba(0, 117, 222, 0.45);
+}
+
+.datum-brief__angle:focus-visible {
+  outline: 2px solid var(--ops-primary);
+  outline-offset: 2px;
+}
+
+.datum-brief__angle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.datum-brief__angle.is-selected {
+  border-color: var(--ops-primary);
+  box-shadow: 0 0 0 1px var(--ops-primary);
+  background: rgba(0, 117, 222, 0.05);
+}
+
+.datum-brief__angle-check {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--ops-ink-faint);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.datum-brief__angle.is-selected .datum-brief__angle-check {
+  border-color: var(--ops-primary);
+  background: var(--ops-primary);
+}
+
+.datum-brief__angle.is-selected .datum-brief__angle-check::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.datum-brief__angle-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.datum-brief__angle-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.datum-brief__angle-why {
+  font-size: 13px;
+  color: var(--ops-ink-muted);
+  line-height: 1.4;
+}
+
+.datum-brief__angle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.datum-brief__angle-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas);
+  font-size: 12px;
+  color: var(--ops-ink-secondary);
+}
+
 /* ── New content: template cards ───────────────────────────────────────── */
 
 .datum-new__cards {

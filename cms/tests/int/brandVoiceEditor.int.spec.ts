@@ -13,10 +13,11 @@ import type { BrandVoiceDTO, BrandVoiceInput } from '@/components/ops/brandVoice
 
 const saveBrandVoiceDraftAction = vi.fn(async (_id: number, _input: BrandVoiceInput) => undefined)
 const deleteDraftAction = vi.fn(async (_id: number) => undefined)
+const archiveBrandVoiceAction = vi.fn(async (_id: number) => undefined)
 
 vi.mock('@/components/ops/brandVoiceActions', () => ({
   activateBrandVoiceAction: vi.fn(async () => ({ ok: true })),
-  archiveBrandVoiceAction: vi.fn(async () => undefined),
+  archiveBrandVoiceAction: (id: number) => archiveBrandVoiceAction(id),
   createBrandVoiceDraftAction: vi.fn(async () => ({ id: 7 })),
   deleteDraftAction: (id: number) => deleteDraftAction(id),
   extractBrandVoiceFromUploadAction: vi.fn(),
@@ -75,6 +76,7 @@ const editor = (props: Partial<Parameters<typeof BrandVoiceEditor>[0]> = {}) =>
 beforeEach(() => {
   saveBrandVoiceDraftAction.mockClear()
   deleteDraftAction.mockClear()
+  archiveBrandVoiceAction.mockClear()
 })
 afterEach(cleanup)
 
@@ -143,4 +145,53 @@ it('advances the resume marker when the save comes from a question', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(saveBrandVoiceDraftAction).toHaveBeenCalled())
   expect(saveBrandVoiceDraftAction.mock.calls[0]?.[1].onboardingStep).toBe(3)
+})
+
+it('arms archive before it archives the active voice, and Escape backs out', () => {
+  render(editor({ records: [dto({ id: 1 })], selectedId: 1, initialMode: 'review' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  expect(archiveBrandVoiceAction).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: 'Confirm: archive' })).toBeTruthy()
+  // Focus lands on Cancel, the safe choice, rather than on the archive itself.
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(screen.queryByRole('button', { name: 'Confirm: archive' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Archive' })).toBeTruthy()
+  expect(archiveBrandVoiceAction).not.toHaveBeenCalled()
+})
+
+it('archives on the confirming click and says runs are blocked until another voice is active', async () => {
+  render(editor({ records: [dto({ id: 1 })], selectedId: 1, initialMode: 'review' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm: archive' }))
+
+  await waitFor(() => expect(archiveBrandVoiceAction).toHaveBeenCalledWith(1))
+  expect(
+    await screen.findByText('Archived. Runs are blocked until you activate another voice.'),
+  ).toBeTruthy()
+})
+
+it('says activating a voice archives the one that is active now', () => {
+  const active = dto({ id: 1, name: 'Acme voice' })
+  const archived = dto({ id: 2, name: 'Old voice', status: 'archived' })
+  render(editor({ records: [active, archived], selectedId: 2, initialMode: 'review' }))
+
+  expect(screen.getByRole('button', { name: 'Activate' })).toBeTruthy()
+  expect(screen.getByText(/Activating this archives “Acme voice”/)).toBeTruthy()
+})
+
+it('says nothing about archiving on activate when no other voice is active', () => {
+  render(
+    editor({
+      records: [dto({ id: 2, name: 'Old voice', status: 'archived' })],
+      selectedId: 2,
+      initialMode: 'review',
+    }),
+  )
+
+  expect(screen.getByRole('button', { name: 'Activate' })).toBeTruthy()
+  expect(screen.queryByText(/Activating this archives/)).toBeNull()
 })

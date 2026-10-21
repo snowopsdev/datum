@@ -3,7 +3,7 @@ import type { GovernanceAuditContext } from '../lib/governanceAudit'
 export const SetupSuggestions: CollectionConfig = {
   slug: 'setup-suggestions',
   admin: {
-    group: 'Governance',
+    group: false,
     useAsTitle: 'signature',
     defaultColumns: ['kind', 'count', 'status', 'lastSeenAt'],
   },
