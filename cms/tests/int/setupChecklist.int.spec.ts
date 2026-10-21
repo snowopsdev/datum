@@ -150,6 +150,36 @@ describe('loadSetupChecklistData', () => {
     })
   })
 
+  it('does not mark Workspace done, or offer a first piece, for a live workspace with no competitor', async () => {
+    const env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      ANTHROPIC_API_KEY: 'configured',
+      OPENAI_API_KEY: 'configured',
+    }
+    const readiness = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile({ targetDomain: 'acme.example' }, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+    stub.setup = { readiness, templates: [], modelsConfigured: false, icps: [], latestRun: null }
+
+    const data = await loadSetupChecklistData(payload)
+
+    expect(data.mode).toBe('live')
+    expect(data.ready).toBe(false)
+    expect(data.workspace).toMatchObject({ ready: false, competitorCount: 0 })
+    expect(checklistRows(data).find((row) => row.id === 'workspace')).toMatchObject({
+      done: false,
+      action: 'Finish',
+    })
+  })
+
   it('counts the workspace templates and reports whether models are chosen', async () => {
     const templates = await payload.count({ collection: 'templates', overrideAccess: true })
     const settings = await payload.findGlobal({

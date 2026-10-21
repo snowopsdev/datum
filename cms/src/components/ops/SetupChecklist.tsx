@@ -101,7 +101,11 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       done: data.workspace.ready,
       required: true,
       href: '/admin/ops/setup/workspace',
-      action: data.workspace.targetDomain ? 'Edit' : 'Set the domain',
+      action: !data.workspace.targetDomain
+        ? 'Set the domain'
+        : data.workspace.ready
+          ? 'Edit'
+          : 'Finish',
     },
     {
       id: 'voice',

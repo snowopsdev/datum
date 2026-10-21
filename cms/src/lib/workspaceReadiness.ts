@@ -24,6 +24,7 @@ import {
   type ResolvedWorkspaceProfile,
   TARGET_DOMAIN_ENV_VAR,
   tenantFingerprint,
+  workspaceBlockers,
   type WorkspaceProfileSource,
 } from './tenant'
 
@@ -229,8 +230,10 @@ export function evaluateRuntimeReadiness(
     // variable would send an operator to fix something that is already set.
     if (profile.placeholderDomain) placeholderVars.push(TARGET_DOMAIN_ENV_VAR)
     else if (!profile.targetDomain) missing.add(TARGET_DOMAIN_ENV_VAR)
+    // Zero competitors is not reported here: it is a Workspace-step blocker in
+    // governance (`workspaceBlockers`), and saying it twice would send the
+    // operator to an env var when the Workspace step is the fix.
     if (profile.placeholderCompetitors.length > 0) placeholderVars.push(COMPETITOR_DOMAINS_ENV_VAR)
-    else if (profile.competitors.length === 0) missing.add(COMPETITOR_DOMAINS_ENV_VAR)
     for (const model of models) {
       if (!model.configured && model.envVar) missing.add(model.envVar)
     }
@@ -295,26 +298,26 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
 
   const primaryIcp = input.icps.find((icp) => icp.primary) ?? input.icps[0] ?? null
   const icpsReady = input.icps.length > 0
-  const profileReady = profile.targetDomain !== null
+  // The same rule the Workspace editor shows. Competitors only gate a live
+  // workspace; mock mode researches against the demo competitors.
+  const workspaceProblems = workspaceBlockers(profile, { requireCompetitors: mode === 'live' })
+  const profileReady = workspaceProblems.length === 0
   // Governance is now three assets, not one. A workspace with a voice but no
   // domain researches the wrong site; one with no audience writes for nobody.
   const governanceBlockers: GovernanceBlocker[] = [
     ...(input.activeVoice === null
       ? [{ asset: 'voice' as const, message: 'Activate a brand voice' }]
       : []),
-    ...(profileReady
-      ? []
-      : [
-          {
-            asset: 'workspace' as const,
-            // An inherited `.env.example` is not a blank workspace, and being
-            // told to "set the target domain" when TARGET_DOMAIN is already
-            // set sends an operator looking in the wrong place.
-            message: profile.placeholderDomain
-              ? `Set the site Datum writes about (${profile.placeholderDomain} is the placeholder from .env.example)`
-              : 'Set the target domain',
-          },
-        ]),
+    ...workspaceProblems.map((blocker) => ({
+      asset: 'workspace' as const,
+      // An inherited `.env.example` is not a blank workspace, and being
+      // told to "set the target domain" when TARGET_DOMAIN is already
+      // set sends an operator looking in the wrong place.
+      message:
+        blocker.field === 'targetDomain' && profile.placeholderDomain
+          ? `Set the site Datum writes about (${profile.placeholderDomain} is the placeholder from .env.example)`
+          : blocker.message,
+    })),
     ...(icpsReady
       ? []
       : [

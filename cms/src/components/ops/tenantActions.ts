@@ -93,10 +93,12 @@ export async function saveWorkspaceProfileAction(
     revalidatePath(HUB_PATH)
     revalidatePath('/admin')
     revalidatePath('/admin/ops/setup/workspace')
-    const profile = resolveWorkspaceProfile(doc, process.env, {
-      mockDefault: modeFromEnv(process.env) === 'mock',
-    })
-    return { ok: true, problems: workspaceProfileProblems(profile) }
+    const mode = modeFromEnv(process.env)
+    const profile = resolveWorkspaceProfile(doc, process.env, { mockDefault: mode === 'mock' })
+    return {
+      ok: true,
+      problems: workspaceProfileProblems(profile, { requireCompetitors: mode === 'live' }),
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the workspace.') }
   }

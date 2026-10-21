@@ -12,6 +12,12 @@ import {
   VERIFICATION_DEPTHS,
   verifiedClaimProblems,
 } from '../../lib/tenant/evidenceBank'
+import {
+  evidenceBankChanges,
+  normaliseClaimKey,
+  spliceVisible,
+  visibleClaimIndexes,
+} from '../../lib/tenant/evidenceBankDiff'
 import { assistAction } from './setupActions'
 import { Field, RowsEditor } from './setupFields'
 import { SitePagesHint } from './SitePagesHint'
@@ -93,6 +99,9 @@ export function EvidenceBankEditor({
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(initial)
+  // The bank as last saved, kept apart from the draft so "unsaved" is a real
+  // comparison. Replaced when a save comes back.
+  const [saved, setSaved] = useState(initial)
   const [tab, setTab] = useState<Tab>(
     suggestion?.kind === 'rejected_ref' ? 'rejectedClaims' : 'verifiedClaims',
   )
@@ -108,10 +117,8 @@ export function EvidenceBankEditor({
     (row) => row.recheckAt && row.recheckAt.slice(0, 10) < today,
   ).length
   const unverifiedCount = draft.verifiedClaims.filter((row) => claimProblems(row).length > 0).length
-  const unsaved =
-    draft.verifiedClaims.filter((row) => !row.ref).length +
-    draft.facts.filter((row) => !row.ref).length +
-    draft.rejectedClaims.filter((row) => !row.ref).length
+  const unsaved = evidenceBankChanges(saved, draft).total
+  const needsNotes = notes.trim() === ''
 
   const save = () =>
     startTransition(async () => {
@@ -126,11 +133,15 @@ export function EvidenceBankEditor({
       // now have refs, and a row the action dropped for having no text should
       // disappear here too.
       setDraft(emptyEvidenceBankDraft(result.saved))
+      setSaved(emptyEvidenceBankDraft(result.saved))
       setMessage('Saved. New rows now have a ref the writer can cite.')
       router.refresh()
     })
 
-  const assist = (section: 'facts' | 'verifiedClaims') =>
+  const assist = (section: 'facts' | 'verifiedClaims') => {
+    // Claims come from the operator's notes; with none, there is nothing to
+    // turn into a claim and the model would only echo the site back.
+    if (section === 'verifiedClaims' && needsNotes) return
     startTransition(async () => {
       setError(null)
       setMessage(null)
@@ -170,39 +181,61 @@ export function EvidenceBankEditor({
             }),
           ],
         }))
-      } else {
-        setDraft((prev) => ({
-          ...prev,
-          verifiedClaims: [
-            ...prev.verifiedClaims,
-            ...proposed.map((row) => {
-              const r = (row ?? {}) as Record<string, unknown>
-              return {
-                claim: typeof r.claim === 'string' ? r.claim : '',
-                primarySource: typeof r.primarySource === 'string' ? r.primarySource : '',
-                sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl : '',
-                sourceDate: '',
-                sampleOrMethod: typeof r.sampleOrMethod === 'string' ? r.sampleOrMethod : '',
-                // Never anything stronger: a model reading your own site back
-                // to you has checked nothing. A person raises this after they
-                // put a source next to it.
-                verificationDepth: 'self_reported' as const,
-                limits: typeof r.limits === 'string' ? r.limits : '',
-                clearedSurfaces: [] as ClearedSurface[],
-                recheckAt: '',
-              }
-            }),
-          ],
-        }))
+        setMessage(
+          'Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.',
+        )
+        return
       }
+      // A claim the bank already holds, or one proposed twice in this batch,
+      // is dropped: it would only be a second row to reconcile by hand.
+      const seen = new Set(draft.verifiedClaims.map((row) => normaliseClaimKey(row.claim)))
+      let alreadyHere = 0
+      const fresh = proposed.flatMap((row) => {
+        const r = (row ?? {}) as Record<string, unknown>
+        const claim = typeof r.claim === 'string' ? r.claim : ''
+        const key = normaliseClaimKey(claim)
+        if (seen.has(key)) {
+          alreadyHere += 1
+          return []
+        }
+        seen.add(key)
+        return [
+          {
+            claim,
+            primarySource: typeof r.primarySource === 'string' ? r.primarySource : '',
+            sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl : '',
+            sourceDate: '',
+            sampleOrMethod: typeof r.sampleOrMethod === 'string' ? r.sampleOrMethod : '',
+            // Never anything stronger: a model reading your own site back
+            // to you has checked nothing. A person raises this after they
+            // put a source next to it.
+            verificationDepth: 'self_reported' as const,
+            limits: typeof r.limits === 'string' ? r.limits : '',
+            clearedSurfaces: [] as ClearedSurface[],
+            recheckAt: '',
+          },
+        ]
+      })
+      const note = alreadyHere > 0 ? ` ${alreadyHere} already in your bank, left out.` : ''
+      if (fresh.length === 0) {
+        setMessage(`Nothing new to add: ${alreadyHere} already in your bank.`)
+        return
+      }
+      setDraft((prev) => ({ ...prev, verifiedClaims: [...prev.verifiedClaims, ...fresh] }))
       setMessage(
-        'Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.',
+        `Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.${note}`,
       )
     })
+  }
 
-  const visibleClaims = needsRecheckOnly
-    ? draft.verifiedClaims.filter((row) => row.recheckAt && row.recheckAt.slice(0, 10) < today)
-    : draft.verifiedClaims
+  const isExpired = (row: (typeof draft.verifiedClaims)[number]) =>
+    Boolean(row.recheckAt && row.recheckAt.slice(0, 10) < today)
+  // With the filter on, a row with unsaved edits stays in the list so editing
+  // it cannot make it disappear, and new rows stay so they can be filled in.
+  const visibleIndexes = needsRecheckOnly
+    ? visibleClaimIndexes(draft.verifiedClaims, saved.verifiedClaims, isExpired)
+    : draft.verifiedClaims.map((_, index) => index)
+  const visibleClaims = visibleIndexes.map((index) => draft.verifiedClaims[index])
 
   return (
     <div className="datum-ops">
@@ -276,16 +309,9 @@ export function EvidenceBankEditor({
               onChange={(rows) =>
                 setDraft((prev) => ({
                   ...prev,
-                  // When the filter is on, the hidden rows are untouched: the
-                  // filtered list is spliced back over the ones it came from.
-                  verifiedClaims: needsRecheckOnly
-                    ? [
-                        ...prev.verifiedClaims.filter(
-                          (row) => !(row.recheckAt && row.recheckAt.slice(0, 10) < today),
-                        ),
-                        ...rows,
-                      ]
-                    : rows,
+                  // The visible rows are spliced back over the ones they came
+                  // from, so hidden rows are untouched and new ones append.
+                  verifiedClaims: spliceVisible(prev.verifiedClaims, visibleIndexes, rows),
                 }))
               }
               empty={() => ({
@@ -429,6 +455,10 @@ export function EvidenceBankEditor({
               onNotes={setNotes}
               onRun={() => assist('verifiedClaims')}
               disabled={pending}
+              blockedReason={
+                needsNotes ? 'Paste some notes first. Datum proposes claims from what you give it.' : null
+              }
+              notesLabel="Your notes (required)"
               mock={mock}
               sitePagesFetchedAt={sitePagesFetchedAt}
             />
@@ -567,8 +597,8 @@ export function EvidenceBankEditor({
             </button>
             <span className="datum-ops__hint">
               {unsaved > 0
-                ? `${unsaved} row${unsaved === 1 ? '' : 's'} not saved yet.`
-                : 'All saved.'}
+                ? `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`
+                : 'All saved'}
             </span>
           </div>
         </div>
@@ -585,6 +615,8 @@ function AssistPanel({
   onNotes,
   onRun,
   disabled,
+  blockedReason,
+  notesLabel = 'Your notes (optional)',
   mock,
   sitePagesFetchedAt,
 }: {
@@ -595,6 +627,9 @@ function AssistPanel({
   onNotes: (value: string) => void
   onRun: () => void
   disabled: boolean
+  /** Why the button cannot be pressed yet, shown beside it. */
+  blockedReason?: string | null
+  notesLabel?: string
   mock: boolean
   sitePagesFetchedAt: string | null
 }) {
@@ -607,7 +642,7 @@ function AssistPanel({
       <p className="datum-ops__hint">{blurb}</p>
       <SitePagesHint fetchedAt={sitePagesFetchedAt} />
       <div className="datum-ops__field">
-        <label htmlFor="eb-assist-notes">Your notes (optional)</label>
+        <label htmlFor="eb-assist-notes">{notesLabel}</label>
         <textarea
           id="eb-assist-notes"
           value={notes}
@@ -617,9 +652,20 @@ function AssistPanel({
         />
       </div>
       <div className="datum-ops__actions">
-        <button type="button" className="datum-ops__btn" onClick={onRun} disabled={disabled}>
+        <button
+          type="button"
+          className="datum-ops__btn"
+          onClick={onRun}
+          disabled={disabled || Boolean(blockedReason)}
+          aria-describedby={blockedReason ? 'eb-assist-blocked' : undefined}
+        >
           {disabled ? 'Working…' : buttonLabel}
         </button>
+        {blockedReason ? (
+          <span className="datum-ops__hint" id="eb-assist-blocked">
+            {blockedReason}
+          </span>
+        ) : null}
       </div>
     </div>
   )

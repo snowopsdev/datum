@@ -62,7 +62,9 @@ export async function SetupWorkspaceView(props: AdminViewServerProps) {
           }
           fallbackDomain={resolved.targetDomain}
           fallbackSource={resolved.source.targetDomain}
-          problems={workspaceProfileProblems(resolved)}
+          problems={workspaceProfileProblems(resolved, {
+            requireCompetitors: modeFromEnv(process.env) === 'live',
+          })}
         />
       </Gutter>
     </DefaultTemplate>
