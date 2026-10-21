@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 
 import { assignTemplateAction } from '../../actions'
 import { runSelectedArticlesAction } from '../../boardActions'
+import { announceRunQueued } from '../../runQueued'
 import {
   isRunnableStatus,
   NEXT_STAGE_VERB_FOR_STATUS,
@@ -45,7 +46,8 @@ function oneLineHint(value: string | null): string | null {
  * Archive is here too, but only while no run is carrying the piece. A stalled
  * `researched`/`drafted`/`qa_passed` article is owned by a person, not a run —
  * and with no Archive button on the only panel those statuses get, the sole
- * way to take one off the board was to pay for the run first.
+ * way to take one off the board was to pay for the run first. While a run is
+ * carrying it the panel has no controls at all: it says so instead.
  */
 export function RunNextStagePanel({
   action,
@@ -65,6 +67,19 @@ export function RunNextStagePanel({
 
   const status = article.status
   if (!isRunnableStatus(status)) return null
+  // A second run for a piece one is already carrying would write to it twice;
+  // `queueRunForArticles` refuses it too, so the panel does not offer it.
+  if (activeRunIncludesArticle) {
+    const stage = STAGE_LABEL[STATUS_META[status].stage]
+    return (
+      <div className="datum-ops__block">
+        <h3>{stage}</h3>
+        <p className="datum-ops__sub">
+          Datum is working on this — {stage}. Progress is in the run bar.
+        </p>
+      </div>
+    )
+  }
   const needsTemplate = status === 'topic_selected'
   const hint = needsTemplate ? oneLineHint(article.researchHint) : null
 
@@ -84,6 +99,7 @@ export function RunNextStagePanel({
         confirmLiveCost,
       })
       if (!result.ok) throw new Error(result.error)
+      announceRunQueued({ runId: result.runId })
       setNotice(result.message)
     })
   }
@@ -156,9 +172,7 @@ export function RunNextStagePanel({
           >
             {needsTemplate ? 'Assign and start research' : 'Run next stage'}
           </button>
-          {activeRunIncludesArticle ? null : (
-            <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
-          )}
+          <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
           <OpenInAdmin editHref={editHref} />
         </div>
       )}

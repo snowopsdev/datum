@@ -293,6 +293,9 @@ test.describe('Content ops', () => {
     await expect(page.getByText('Stalled')).toBeVisible()
     await page.getByRole('button', { name: 'Run next stage' }).click()
     await expect(page.getByText(/Started a run/)).toBeVisible()
+    // The run bar is woken by the action rather than the 15 s idle poll, and
+    // never shows an older finished run as this one's result.
+    await expect(page.locator('.datum-runbar')).toBeVisible({ timeout: 3000 })
   })
 
   test('reports page shows the pipeline runs panel', async () => {

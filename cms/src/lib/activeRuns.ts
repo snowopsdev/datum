@@ -53,6 +53,32 @@ export async function activeRunArticleIds(
 }
 
 /**
+ * The id of an active run that lists any of these articles, or null.
+ *
+ * What `queueRunForArticles` asks before queueing: the UI hides its run
+ * controls on the same fact (`activeRunIncludesArticle`), and this is the
+ * refusal behind it for a stale page or a direct call.
+ */
+export async function activeRunIdForArticles(
+  payload: Payload,
+  user: TypedUser | null,
+  articleIds: number[],
+): Promise<string | null> {
+  const { docs } = await payload.find({
+    collection: 'pipeline-runs',
+    where: {
+      and: [{ status: { in: [...ACTIVE_RUN_STATUSES] } }, { articles: { in: articleIds } }],
+    },
+    select: { runId: true },
+    limit: 1,
+    depth: 0,
+    user: user ?? undefined,
+    overrideAccess: false,
+  })
+  return docs[0]?.runId ?? null
+}
+
+/**
  * Whether an active run lists this one article.
  *
  * A count rather than `activeRunArticleIds().has(id)`: the review page asks

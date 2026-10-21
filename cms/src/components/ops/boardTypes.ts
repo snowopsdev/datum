@@ -89,6 +89,8 @@ export type RunStatusDTO = {
   mode: 'mock' | 'live'
   source: string
   startedLabel: string
+  /** When the run row was created, so the bar can tell an old run from the one just queued. */
+  createdAtIso: string
   /** ISO, so the bar can tick an elapsed counter rather than a fixed string. */
   startedAtIso: string | null
   articleCount: number

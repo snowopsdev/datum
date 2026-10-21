@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import { startContentRunAction } from './contentRunActions'
+import { announceRunQueued } from './runQueued'
 
 type Props = {
   templates: Array<{ id: number; name: string }>
@@ -47,7 +48,10 @@ export function ContentRunForm({
         confirmLiveCost,
       })
       setMessage(result.ok ? `Run ${result.runId.slice(0, 8)} queued.` : result.error)
-      if (result.ok) router.refresh()
+      if (result.ok) {
+        announceRunQueued({ runId: result.runId })
+        router.refresh()
+      }
     })
   }
 

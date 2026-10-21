@@ -46,6 +46,8 @@ export type CreateTopicsResult =
       skipped: number
       /** False when the workspace is not ready to run; the piece still exists. */
       researchQueued: boolean
+      /** The run research was queued on, when it was. */
+      runId?: string
       /**
        * Why research did not start, in the gate's own words — null when it
        * did. The piece is created either way, so this is the only thing that

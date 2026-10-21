@@ -6,7 +6,8 @@ import type { Payload, TypedUser } from 'payload'
 import { isRunnableStatus } from '../components/ops/articleStatus'
 import type { Article } from '../payload-types'
 
-import { createPipelineRun } from './createPipelineRun'
+import { activeRunIdForArticles } from './activeRuns'
+import { ArticleInActiveRunError, createPipelineRun } from './createPipelineRun'
 import type { WorkspaceReadiness } from './workspaceReadiness'
 
 /**
@@ -104,6 +105,16 @@ export async function queueRunForArticles(
       `Assign a template to ${plural(untemplated.length, 'article')} first — the pipeline skips articles without one.`,
     )
   }
+
+  // `selected` runs queue behind one another, which is right for different
+  // articles but would run the same article twice. The review page hides its
+  // run controls on this same fact; this is the refusal behind them.
+  const activeRunId = await activeRunIdForArticles(
+    payload,
+    user,
+    docs.map((doc) => doc.id),
+  )
+  if (activeRunId) throw new ArticleInActiveRunError(activeRunId, docs.length)
 
   // The run row needs one template for its own record; each article is still
   // written against its own, so a mixed selection runs correctly either way.

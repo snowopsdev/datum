@@ -25,6 +25,20 @@ export class ActivePipelineRunError extends Error {
   }
 }
 
+/**
+ * An active run already lists one of the articles, so a second run over the
+ * top would write to the same article twice. A subclass so callers that treat
+ * "a run is in the way" as a non-failure keep doing so.
+ */
+export class ArticleInActiveRunError extends ActivePipelineRunError {
+  constructor(runId: string, selected: number) {
+    super(runId)
+    // Only one active run is looked up, so this cannot say how many of a
+    // selection it holds — just that the selection overlaps it.
+    this.message = `${selected === 1 ? 'That article is' : 'Some of those articles are'} already in run ${runId}. Wait for it to finish.`
+  }
+}
+
 /** Atomically create the run record and its Payload job. */
 export async function createPipelineRun(
   payload: Payload,

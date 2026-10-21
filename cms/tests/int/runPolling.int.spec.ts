@@ -81,3 +81,68 @@ describe('run polling', () => {
     stop()
   })
 })
+
+describe('run polling wake', () => {
+  const wakeTarget = new EventTarget()
+  const announce = () => wakeTarget.dispatchEvent(new Event('datum:run-queued'))
+
+  it('polls at once on a wake, then holds a fast cadence before falling back to idle', async () => {
+    const poll = vi.fn(async () => false)
+    const stop = startRunPolling({ poll, visibility, wake: wakeTarget })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(poll).toHaveBeenCalledTimes(1)
+    announce()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(poll).toHaveBeenCalledTimes(2)
+    // Burst: one second apart for ten seconds, even though nothing is active yet.
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(poll).toHaveBeenCalledTimes(5)
+    await vi.advanceTimersByTimeAsync(7000)
+    expect(poll).toHaveBeenCalledTimes(12)
+    // Then the 15 s idle delay again.
+    await vi.advanceTimersByTimeAsync(14000)
+    expect(poll).toHaveBeenCalledTimes(12)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(poll).toHaveBeenCalledTimes(13)
+    stop()
+  })
+
+  it('never overlaps requests: a wake mid-request re-polls once it settles', async () => {
+    let finish: (active: boolean) => void = () => {
+      throw new Error('Not started')
+    }
+    const poll = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const stop = startRunPolling({ poll, visibility, wake: wakeTarget })
+    await vi.advanceTimersByTimeAsync(0)
+    announce()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(poll).toHaveBeenCalledTimes(1)
+    finish(false)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(poll).toHaveBeenCalledTimes(2)
+    stop()
+    finish(false)
+  })
+
+  it('ignores a wake while hidden or after stopping, and cleans up its listener', async () => {
+    const poll = vi.fn(async () => false)
+    const stop = startRunPolling({ poll, visibility, wake: wakeTarget })
+    await vi.advanceTimersByTimeAsync(0)
+    changeVisibility(true)
+    announce()
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(poll).toHaveBeenCalledTimes(1)
+    changeVisibility(false)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(poll).toHaveBeenCalledTimes(2)
+    stop()
+    announce()
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(poll).toHaveBeenCalledTimes(2)
+  })
+})

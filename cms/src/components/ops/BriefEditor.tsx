@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import { approveBriefAction, type BriefEdits, saveBriefAction } from './briefActions'
+import { announceRunQueued } from './runQueued'
 import type { BriefAngleOption } from '../../../../pipeline/src/brief'
 import './ops.css'
 
@@ -103,7 +104,10 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
     startTransition(async () => {
       const result = await approveBriefAction(articleId, edits(), { confirmLiveCost })
       setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
-      if (result.ok) router.refresh()
+      if (result.ok) {
+        if (result.runId) announceRunQueued({ runId: result.runId })
+        router.refresh()
+      }
     })
   }
 

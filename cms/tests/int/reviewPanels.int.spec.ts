@@ -118,12 +118,29 @@ it('offers Archive on a stalled runnable piece', () => {
   unmount()
 })
 
-it('hides Archive while a run is carrying the piece', () => {
+it('offers no run controls while a run is carrying the piece', () => {
   const { unmount } = render(
     React.createElement(RunNextStagePanel, runPanelProps({ activeRunIncludesArticle: true })),
   )
   expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Run next stage' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Run next stage' })).toBeNull()
+  expect(screen.getByText(/Datum is working on this/)).toBeTruthy()
+  unmount()
+})
+
+it('offers no research start while a run is carrying a topic_selected piece', () => {
+  const { unmount } = render(
+    React.createElement(
+      RunNextStagePanel,
+      runPanelProps({
+        activeRunIncludesArticle: true,
+        article: { id: 1, status: 'topic_selected', archived: false, templateId: 3 },
+      }),
+    ),
+  )
+  expect(screen.queryByRole('button', { name: 'Assign and start research' })).toBeNull()
+  expect(screen.queryByLabelText('Template')).toBeNull()
+  expect(screen.getByText(/Datum is working on this/)).toBeTruthy()
   unmount()
 })
 

@@ -90,7 +90,11 @@ describe('runSelectedArticlesAction', () => {
 
   it('queues a selected run for the ticked articles', async () => {
     const result = await runSelectedArticlesAction({ articleIds: [1] })
-    expect(result).toEqual({ ok: true, message: expect.stringContaining('1 article') })
+    expect(result).toEqual({
+      ok: true,
+      message: expect.stringContaining('1 article'),
+      runId: expect.any(String),
+    })
     expect(createPipelineRunMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),

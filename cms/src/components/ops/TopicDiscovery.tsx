@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useState, useTransition } from 'react'
 
+import { announceRunQueued } from './runQueued'
 import {
   createTopicsAction,
   discoverTopicsAction,
@@ -152,6 +153,7 @@ export function TopicDiscovery({
       setDone(`Created "${result.primary}". Researching it now — opening the piece.`)
       // The piece is where everything happens next; go there rather than
       // leaving the editor to find it in a list.
+      announceRunQueued({ runId: result.runId })
       router.push(`/admin/ops/articles/${result.articleId}`)
     })
   }

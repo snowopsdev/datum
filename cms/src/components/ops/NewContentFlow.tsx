@@ -8,6 +8,7 @@ import type { GovernanceBlocker } from '../../lib/workspaceReadiness'
 
 import { ContentRunForm } from './ContentRunForm'
 import { TopicDiscovery } from './TopicDiscovery'
+import { announceRunQueued } from './runQueued'
 import { createTopicsAction } from './topicDiscoveryActions'
 import './ops.css'
 
@@ -137,6 +138,7 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive, bloc
         )
         return
       }
+      announceRunQueued({ runId: result.runId })
       router.push(`/admin/ops/articles/${result.articleId}`)
     })
   }
