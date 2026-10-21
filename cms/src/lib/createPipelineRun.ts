@@ -1,6 +1,7 @@
 import { sql } from '@payloadcms/db-postgres'
 import { createLocalReq, type Payload, type TypedUser } from 'payload'
 
+import { activeRunIdForArticles } from './activeRuns'
 import type { WorkspaceReadiness } from './workspaceReadiness'
 
 export interface CreatePipelineRunInput {
@@ -64,6 +65,13 @@ export async function createPipelineRun(
     // Serialize the predicate check and insert. This transaction-scoped lock is
     // automatically released on commit or rollback, including process errors.
     await transaction.execute(sql`SELECT pg_advisory_xact_lock(424242, 434343)`)
+
+    // Recheck overlap under the creation lock using this transaction. An
+    // earlier UI/queue check can race another request that has not committed.
+    if (input.articleIds?.length) {
+      const activeRunId = await activeRunIdForArticles(payload, user, input.articleIds, req)
+      if (activeRunId) throw new ArticleInActiveRunError(activeRunId, input.articleIds.length)
+    }
 
     const active = await payload.find({
       collection: 'pipeline-runs',
