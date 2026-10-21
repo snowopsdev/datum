@@ -265,7 +265,7 @@ export function NewContentFlow({ templates, mode, pipelineReady, runActive, bloc
                     disabled={pending || !pipelineReady || !keyword.trim()}
                     type="submit"
                   >
-                    {pending ? 'Creating…' : `Create ${chosen.name.toLowerCase()}`}
+                    {pending ? 'Creating…' : `Create ${chosen.name}`}
                   </button>
                 )}
               </form>

@@ -43,7 +43,7 @@ vi.mock('@/components/ops/auditActions', () => ({ auditDetailsAction: vi.fn() })
 const { PANEL_FOR_STATUS, panelForArticle } = await import('@/components/ops/review')
 const { ArchivedPanel } = await import('@/components/ops/review/panels/ArchivedPanel')
 const { RunNextStagePanel } = await import('@/components/ops/review/panels/RunNextStagePanel')
-const { groupAuditEvents } = await import('@/components/ops/review/AuditTrail')
+const { AuditTrail, groupAuditEvents } = await import('@/components/ops/review/AuditTrail')
 const { Scorecard } = await import('@/components/ops/review/Scorecard')
 
 const entry = (overrides: Partial<AuditSummary>): AuditSummary => ({
@@ -158,6 +158,15 @@ it('groups model calls per run in the audit trail', () => {
   const rows = groupAuditEvents([call('r1'), call('r1'), statusChange(), call('r2')])
   expect(rows.map((r) => r.kind)).toEqual(['run', 'status', 'run'])
   expect(rows[0]).toMatchObject({ runId: 'r1', calls: 2 })
+})
+
+it('says 1 event, not 1 events, in the audit trail heading', () => {
+  const { unmount } = render(
+    React.createElement(AuditTrail, { articleId: 1, entries: [statusChange()] }),
+  )
+  expect(screen.getByText('1 event')).toBeTruthy()
+  expect(screen.queryByText('1 events')).toBeNull()
+  unmount()
 })
 
 /** A run whose single policy reason cites its single claim. */

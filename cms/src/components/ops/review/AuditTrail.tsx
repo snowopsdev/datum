@@ -149,7 +149,9 @@ export function AuditTrail({
           <h2 id="audit-trail-heading">Audit trail</h2>
           <p>Every change, run, model call, and decision on this piece.</p>
         </div>
-        <span>{entries.length} events</span>
+        <span>
+          {entries.length} event{entries.length === 1 ? '' : 's'}
+        </span>
       </div>
       {entries.length === 0 ? (
         <p className="datum-ops__empty">Nothing recorded yet. Tracking starts with the next change.</p>

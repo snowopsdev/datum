@@ -415,6 +415,16 @@
   color: var(--ops-orange);
 }
 
+/* A check that did not run: grey, and wide enough for its words. */
+.datum-ops__mark--na {
+  width: auto;
+  min-width: 44px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  background: var(--ops-canvas-soft);
+  color: var(--ops-ink-muted);
+}
+
 .datum-ops__field {
   margin-bottom: 12px;
 }
