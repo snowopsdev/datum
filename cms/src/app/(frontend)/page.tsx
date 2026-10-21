@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import React from 'react'
 
 import config from '@/payload.config'
+import { formatArticleDate } from '@/lib/articleReader'
 import { modeFromEnv } from '@/lib/workspaceReadiness'
 import { resolveWorkspaceProfile, type WorkspaceProfileDoc } from '@/lib/tenant/workspaceProfile'
 import './styles.css'
@@ -16,7 +17,13 @@ export default async function HomePage() {
   const [{ docs: published }, profileDoc, { user }] = await Promise.all([
     payload.find({
       collection: 'articles',
-      select: { title: true, keyword: true, slug: true },
+      select: {
+        title: true,
+        keyword: true,
+        slug: true,
+        metaDescription: true,
+        publishedAt: true,
+      },
       where: { status: { equals: 'published' } },
       limit: 12,
       depth: 0,
@@ -40,13 +47,12 @@ export default async function HomePage() {
     <div className="datum-home">
       <header className="datum-home__top">
         <div className="datum-home__logo">Datum</div>
-        <nav className="datum-home__nav">
-          {user ? (
+        {/* Readers get no sign-in link; editors go straight to /admin. */}
+        {user ? (
+          <nav className="datum-home__nav">
             <a href={`${payloadConfig.routes.admin}/ops/content`}>Admin</a>
-          ) : (
-            <a href={`${payloadConfig.routes.admin}/login`}>Log in</a>
-          )}
-        </nav>
+          </nav>
+        ) : null}
       </header>
       <main className="datum-home__main">
         <h1>Published articles</h1>
@@ -60,11 +66,24 @@ export default async function HomePage() {
           <p className="datum-home__empty">No published articles yet.</p>
         ) : (
           <ul className="datum-home__list">
-            {published.map((a) => (
-              <li key={a.id}>
-                <Link href={`/articles/${a.slug || a.id}`}>{a.title || a.keyword}</Link>
-              </li>
-            ))}
+            {published.map((a) => {
+              const date = formatArticleDate(a.publishedAt)
+              return (
+                <li key={a.id}>
+                  <Link href={`/articles/${a.slug || a.id}`}>
+                    <span className="datum-home__item-title">{a.title || a.keyword}</span>
+                    {a.metaDescription ? (
+                      <span className="datum-home__item-dek">{a.metaDescription}</span>
+                    ) : null}
+                    {date ? (
+                      <time className="datum-home__item-date" dateTime={a.publishedAt ?? undefined}>
+                        {date}
+                      </time>
+                    ) : null}
+                  </Link>
+                </li>
+              )
+            })}
           </ul>
         )}
       </main>

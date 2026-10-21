@@ -17,6 +17,7 @@
 .datum-public__top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 14px 20px;
   border-bottom: 1px solid var(--hairline);
   background: var(--canvas);
@@ -28,6 +29,16 @@
   font-size: 15px;
   color: var(--ink);
   text-decoration: none;
+}
+
+.datum-public__all {
+  font-size: 15px;
+  color: var(--ink-secondary);
+  text-decoration: none;
+}
+
+.datum-public__all:hover {
+  color: var(--primary);
 }
 
 .datum-public__article {
@@ -42,6 +53,12 @@
   letter-spacing: -1px;
   line-height: 1.1;
   margin: 0 0 12px;
+}
+
+.datum-public__dateline {
+  margin: 0 0 16px;
+  color: var(--ink-muted);
+  font-size: 14px;
 }
 
 .datum-public__dek {
@@ -92,12 +109,34 @@
   padding: 14px 0;
 }
 
-.datum-public__faq-item strong {
-  display: block;
-  margin-bottom: 4px;
+.datum-public__faq-item h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  scroll-margin-top: 16px;
 }
 
 .datum-public__faq-item p {
   margin: 0;
   color: var(--ink-secondary);
+}
+
+.datum-public__editor-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--ink);
+  color: var(--canvas);
+  font-size: 14px;
+}
+
+.datum-public__editor-bar a {
+  color: var(--canvas);
+  font-weight: 600;
 }

@@ -635,6 +635,10 @@ export interface Article {
    * Times this article was sent back for regeneration. Informational.
    */
   revisionCount?: number | null;
+  /**
+   * Last public-content edit, maintained automatically. Operational saves do not change it.
+   */
+  contentUpdatedAt?: string | null;
   publishedAt?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -1969,6 +1973,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   reviewJustification?: T;
   revisionNotes?: T;
   revisionCount?: T;
+  contentUpdatedAt?: T;
   publishedAt?: T;
   updatedAt?: T;
   createdAt?: T;

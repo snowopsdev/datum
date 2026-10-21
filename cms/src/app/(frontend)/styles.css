@@ -101,6 +101,30 @@ a:focus {
   font-size: 16px;
 }
 
-.datum-home__list a:hover {
+.datum-home__list a:hover .datum-home__item-title {
   color: #0075de;
+}
+
+.datum-home__item-title {
+  display: block;
+}
+
+.datum-home__item-dek {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #615d59;
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.datum-home__item-date {
+  display: block;
+  margin-top: 6px;
+  color: #615d59;
+  font-weight: 400;
+  font-size: 13px;
 }

@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
+import { trackArticleContentUpdate } from '../lib/articleContentUpdate'
 import { auditArticleChange } from '../lib/articleAudit'
 import { emitArticleStatusEvent } from '../lib/articleEvents'
 import { ARTICLE_STATUSES } from '../lib/articleStatusMeta'
@@ -40,6 +41,7 @@ export const Articles: CollectionConfig = {
       gateReadOnlyStatus,
       gateReviewOverride,
       gateVerifiedStatus,
+      trackArticleContentUpdate,
     ],
     afterChange: [auditArticleChange, emitArticleStatusEvent],
   },
@@ -504,6 +506,16 @@ export const Articles: CollectionConfig = {
       min: 0,
       admin: {
         description: 'Times this article was sent back for regeneration. Informational.',
+      },
+    },
+    {
+      name: 'contentUpdatedAt',
+      type: 'date',
+      access: { create: () => false, update: () => false },
+      admin: {
+        readOnly: true,
+        description:
+          'Last public-content edit, maintained automatically. Operational saves do not change it.',
       },
     },
     {

@@ -14,3 +14,12 @@ export function getMetadataBase(): URL | undefined {
   const siteUrl = getSiteUrl()
   return siteUrl ? new URL(siteUrl) : undefined
 }
+
+/**
+ * The explicitly configured origin only. Structured data embeds absolute URLs
+ * for crawlers, so unlike `getSiteUrl` it has no localhost dev fallback.
+ */
+export function getConfiguredSiteUrl(): string | undefined {
+  const configured = process.env.SITE_URL?.trim()
+  return configured ? configured.replace(/\/$/, '') : undefined
+}
