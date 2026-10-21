@@ -386,7 +386,10 @@ describe('regenerateArticleAction resolves the run through the current pointer',
     expect(revisionNotesSent()).toBe(
       '- [Structure] "game changer" appears in the body, and the platform style guide bans it. Remove "game changer" and say the same thing in plain words.',
     )
-    expect(findMock).not.toHaveBeenCalled()
+    // The only `find` left is the queue helper's active-run check.
+    expect(findMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'information-gain-runs' }),
+    )
   })
 
   it('sends only the reviewer note when there is neither a pointer nor a QA failure', async () => {
@@ -402,7 +405,10 @@ describe('regenerateArticleAction resolves the run through the current pointer',
     await regenerateArticleAction(1, 'add a comparison table')
 
     expect(revisionNotesSent()).toBe('Reviewer note: add a comparison table')
-    expect(findMock).not.toHaveBeenCalled()
+    // The only `find` left is the queue helper's active-run check.
+    expect(findMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'information-gain-runs' }),
+    )
   })
 
   it('treats a run row deleted since it was linked as no run at all', async () => {

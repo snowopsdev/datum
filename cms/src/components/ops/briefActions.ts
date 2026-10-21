@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
 
-import { ActivePipelineRunError } from '../../lib/createPipelineRun'
+import { ActivePipelineRunError, ArticleInActiveRunError } from '../../lib/createPipelineRun'
 import {
   type IcpOption,
   loadActiveAudienceOptions,
@@ -12,7 +12,9 @@ import {
 } from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
-export type BriefActionResult = { ok: true; message: string } | { ok: false; error: string }
+export type BriefActionResult =
+  | { ok: true; message: string; /** Set when approving queued a run. */ runId?: string }
+  | { ok: false; error: string }
 
 /** What the editor may change. Everything else on the brief is research output. */
 export interface BriefEdits {
@@ -195,13 +197,23 @@ export async function approveBriefAction(
 
     // The approved document, not the one read a moment ago: `queueRunForArticles`
     // refuses a status no stage picks up, and `brief_review` is one of those.
-    await queueRunForArticles(payload, user, [approved], readiness)
+    const { runId } = await queueRunForArticles(payload, user, [approved], readiness)
 
     // `queueRunForArticles` already revalidated the board and the dashboard's
     // run banner; this is the article's own page.
     revalidate(articleId)
-    return { ok: true, message: 'Brief approved. Writing has started.' }
+    return { ok: true, message: 'Brief approved. Writing has started.', runId }
   } catch (e) {
+    if (e instanceof ArticleInActiveRunError) {
+      // The status change already happened, but the run that carried the
+      // research still lists this piece, so no new run could be queued for it.
+      revalidate(articleId)
+      return {
+        ok: true,
+        message:
+          'Brief approved. The research run has not finished yet — run the next stage once it has.',
+      }
+    }
     if (e instanceof ActivePipelineRunError) {
       // The status change already happened, so the next run picks it up.
       revalidate(articleId)

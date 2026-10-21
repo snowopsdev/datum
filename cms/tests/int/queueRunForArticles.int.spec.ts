@@ -32,13 +32,16 @@ const readiness = (overrides: Record<string, unknown> = {}) =>
 
 const { revalidatePath } = await import('next/cache')
 const { gateRunReadiness, queueRunForArticles } = await import('@/lib/queueRunForArticles')
+const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
 
-const payload = {} as never
+const find = vi.fn()
+const payload = { find } as never
 const user = { id: 7, email: 'reviewer@example.com' } as never
 
 beforeEach(() => {
   vi.clearAllMocks()
   createPipelineRunMock.mockResolvedValue(undefined)
+  find.mockResolvedValue({ docs: [] })
 })
 
 describe('queueRunForArticles', () => {
@@ -118,6 +121,38 @@ describe('queueRunForArticles', () => {
       ),
     ).rejects.toThrow('1 article is archived')
     expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses an article an active run already carries, so it cannot be run twice', async () => {
+    find.mockResolvedValue({ docs: [{ runId: 'busy-run' }] })
+    const articles = [
+      { id: 1, status: 'drafted', template: 3 },
+      { id: 2, status: 'drafted', template: 3 },
+    ] as never
+    await expect(queueRunForArticles(payload, user, articles, readiness())).rejects.toThrow(
+      'Some of those articles are already in run busy-run.',
+    )
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'pipeline-runs',
+        where: {
+          and: [{ status: { in: ['queued', 'running'] } }, { articles: { in: [1, 2] } }],
+        },
+      }),
+    )
+    expect(createPipelineRunMock).not.toHaveBeenCalled()
+  })
+
+  it('raises the refusal as an active-run error so callers that tolerate one still do', async () => {
+    find.mockResolvedValue({ docs: [{ runId: 'busy-run' }] })
+    await expect(
+      queueRunForArticles(
+        payload,
+        user,
+        [{ id: 1, status: 'drafted', template: 3 }] as never,
+        readiness(),
+      ),
+    ).rejects.toBeInstanceOf(ActivePipelineRunError)
   })
 
   it('refuses an empty selection', async () => {

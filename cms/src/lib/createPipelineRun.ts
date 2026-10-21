@@ -1,6 +1,7 @@
 import { sql } from '@payloadcms/db-postgres'
 import { createLocalReq, type Payload, type TypedUser } from 'payload'
 
+import { activeRunIdForArticles } from './activeRuns'
 import type { WorkspaceReadiness } from './workspaceReadiness'
 
 export interface CreatePipelineRunInput {
@@ -22,6 +23,20 @@ export class ActivePipelineRunError extends Error {
   constructor(readonly runId: string) {
     super(`Run ${runId} is already in progress.`)
     this.name = 'ActivePipelineRunError'
+  }
+}
+
+/**
+ * An active run already lists one of the articles, so a second run over the
+ * top would write to the same article twice. A subclass so callers that treat
+ * "a run is in the way" as a non-failure keep doing so.
+ */
+export class ArticleInActiveRunError extends ActivePipelineRunError {
+  constructor(runId: string, selected: number) {
+    super(runId)
+    // Only one active run is looked up, so this cannot say how many of a
+    // selection it holds — just that the selection overlaps it.
+    this.message = `${selected === 1 ? 'That article is' : 'Some of those articles are'} already in run ${runId}. Wait for it to finish.`
   }
 }
 
@@ -50,6 +65,13 @@ export async function createPipelineRun(
     // Serialize the predicate check and insert. This transaction-scoped lock is
     // automatically released on commit or rollback, including process errors.
     await transaction.execute(sql`SELECT pg_advisory_xact_lock(424242, 434343)`)
+
+    // Recheck overlap under the creation lock using this transaction. An
+    // earlier UI/queue check can race another request that has not committed.
+    if (input.articleIds?.length) {
+      const activeRunId = await activeRunIdForArticles(payload, user, input.articleIds, req)
+      if (activeRunId) throw new ArticleInActiveRunError(activeRunId, input.articleIds.length)
+    }
 
     const active = await payload.find({
       collection: 'pipeline-runs',

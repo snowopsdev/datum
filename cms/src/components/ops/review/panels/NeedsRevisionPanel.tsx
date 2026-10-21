@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 
 import { regenerateArticleAction, resetToDraftedAction } from '../../actions'
+import { announceRunQueued } from '../../runQueued'
 import { revisitBriefAction } from '../../briefActions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
 import { EvidenceCard } from '../EvidenceCard'
@@ -63,7 +64,8 @@ export function NeedsRevisionPanel({
    * Throwing away that answer left the reviewer to guess, and the guess was
    * wrong precisely when the workspace was not ready to run.
    */
-  const reportQueued = (result: { queued: boolean; reason?: string }) => {
+  const reportQueued = (result: { queued: boolean; runId?: string; reason?: string }) => {
+    if (result.queued) announceRunQueued({ runId: result.runId })
     setNotice(result.queued ? 'Run queued' : (result.reason ?? 'No run was queued.'))
   }
 

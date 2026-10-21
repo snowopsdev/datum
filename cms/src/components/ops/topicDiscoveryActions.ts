@@ -287,11 +287,12 @@ export async function createTopicsAction(input: {
     // because "research will start once the workspace is ready" on its own
     // never told anyone what to go and fix.
     let researchQueued = false
+    let runId: string | undefined
     const { readiness } = setup
     let researchBlockedReason = gateRunReadiness(readiness, input.confirmLiveCost)
     if (!researchBlockedReason) {
       try {
-        await queueRunForArticles(payload, user, [created], readiness)
+        runId = (await queueRunForArticles(payload, user, [created], readiness)).runId
         researchQueued = true
       } catch (e) {
         // `selected` runs queue behind an active one, so this is only reached
@@ -310,6 +311,7 @@ export async function createTopicsAction(input: {
       covered: free.length,
       skipped: wanted.length - free.length,
       researchQueued,
+      runId,
       researchBlockedReason,
     }
   } catch (e) {

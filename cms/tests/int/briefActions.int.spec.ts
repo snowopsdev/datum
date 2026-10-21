@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const authMock = vi.fn(async () => ({ user: { id: 7, email: 'editor@example.com' } }))
 const findByIDMock = vi.fn(async (_args: unknown) => ({}) as never)
 const updateMock = vi.fn(async (_args: unknown) => ({}) as never)
+/** Active-run lookup in `queueRunForArticles`: nothing is carrying the article by default. */
+const findMock = vi.fn(async (_args: unknown) => ({ docs: [] }) as never)
 const createRunMock = vi.fn(async (_payload: unknown, _user: unknown, _input: unknown) => undefined)
 /** Two active audiences, so a brief has something to switch between. */
 const ICPS = [
@@ -37,7 +39,12 @@ vi.mock('payload', async (importOriginal) => {
   const actual = await importOriginal<typeof import('payload')>()
   return {
     ...actual,
-    getPayload: vi.fn(async () => ({ auth: authMock, findByID: findByIDMock, update: updateMock })),
+    getPayload: vi.fn(async () => ({
+      auth: authMock,
+      find: findMock,
+      findByID: findByIDMock,
+      update: updateMock,
+    })),
   }
 })
 vi.mock('@/lib/createPipelineRun', async (importOriginal) => {
@@ -76,6 +83,8 @@ beforeEach(() => {
   findByIDMock.mockReset()
   updateMock.mockReset()
   createRunMock.mockReset()
+  findMock.mockReset()
+  findMock.mockResolvedValue({ docs: [] } as never)
   readiness = freshReadiness()
   // `queueRunForArticles` queues the article the update wrote, so the update
   // has to hand a document back the way Payload does.
@@ -222,6 +231,18 @@ describe('approveBriefAction', () => {
     const result = await approveBriefAction(1, edits, { confirmLiveCost: true })
     expect(result.ok).toBe(true)
     expect(createRunMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a research run that still lists the piece instead of promising writing', async () => {
+    findByIDMock.mockResolvedValue(atBrief())
+    findMock.mockResolvedValueOnce({ docs: [{ runId: 'research-run' }] } as never)
+    const result = await approveBriefAction(1, edits)
+    expect(result).toEqual({
+      ok: true,
+      message:
+        'Brief approved. The research run has not finished yet — run the next stage once it has.',
+    })
+    expect(createRunMock).not.toHaveBeenCalled()
   })
 
   it('uses the shared gate wording when the runtime is not configured', async () => {

@@ -1,4 +1,4 @@
-import type { Payload, TypedUser } from 'payload'
+import type { Payload, PayloadRequest, TypedUser } from 'payload'
 
 /**
  * Which articles a pipeline run is actually carrying right now.
@@ -50,6 +50,35 @@ export async function activeRunArticleIds(
     }
   }
   return ids
+}
+
+/**
+ * The id of an active run that lists any of these articles, or null.
+ *
+ * What `queueRunForArticles` asks before queueing: the UI hides its run
+ * controls on the same fact (`activeRunIncludesArticle`), and this is the
+ * refusal behind it for a stale page or a direct call. Creation also passes
+ * its locked transaction request so this check and the insert are atomic.
+ */
+export async function activeRunIdForArticles(
+  payload: Payload,
+  user: TypedUser | null,
+  articleIds: number[],
+  req?: PayloadRequest,
+): Promise<string | null> {
+  const { docs } = await payload.find({
+    collection: 'pipeline-runs',
+    where: {
+      and: [{ status: { in: [...ACTIVE_RUN_STATUSES] } }, { articles: { in: articleIds } }],
+    },
+    req,
+    select: { runId: true },
+    limit: 1,
+    depth: 0,
+    user: user ?? undefined,
+    overrideAccess: false,
+  })
+  return docs[0]?.runId ?? null
 }
 
 /**

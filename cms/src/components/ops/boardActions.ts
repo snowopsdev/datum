@@ -13,7 +13,9 @@ import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTy
 
 const BOARD_PATH = '/admin/ops/content'
 
-export type BoardActionResult = { ok: true; message: string } | { ok: false; error: string }
+export type BoardActionResult =
+  | { ok: true; message: string; /** Set by the actions that queue a run. */ runId?: string }
+  | { ok: false; error: string }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
@@ -47,10 +49,11 @@ export async function runSelectedArticlesAction(input: {
       limit: ids.length,
       depth: 0,
     })
-    await queueRunForArticles(payload, user, docs, readiness)
+    const { runId } = await queueRunForArticles(payload, user, docs, readiness)
     return {
       ok: true,
       message: `Started a run for ${plural(docs.length, 'article')}. Progress shows in the run bar.`,
+      runId,
     }
   } catch (error) {
     if (error instanceof ActivePipelineRunError) {
@@ -218,6 +221,7 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       status: run.status,
       mode: run.mode,
       source: run.source,
+      createdAtIso: new Date(run.createdAt).toISOString(),
       startedLabel: started ? new Date(started).toLocaleTimeString() : 'just now',
       startedAtIso: started ? new Date(started).toISOString() : null,
       articleCount: ids.length,

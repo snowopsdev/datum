@@ -8,6 +8,7 @@ import type { ContentFilter, ContentPage } from './contentListData'
 import { isContentFilter } from './contentListData'
 import { OWNER_LABEL, STAGE_LABEL, stageOf } from './articleStatus'
 import { removeTopicsAction, runSelectedArticlesAction } from './boardActions'
+import { announceRunQueued } from './runQueued'
 import type { RunStatusDTO } from './boardTypes'
 import { RunStatusPanel } from './RunStatusPanel'
 import { PipelineStepper } from './PipelineStepper'
@@ -148,6 +149,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
       const result = await runSelectedArticlesAction({ articleIds: ids, confirmLiveCost })
       setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
       if (result.ok) {
+        announceRunQueued({ runId: result.runId })
         setPicked(new Set())
         router.refresh()
       }
