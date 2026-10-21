@@ -213,12 +213,41 @@ export function resolveWorkspaceProfile(
   }
 }
 
-/** What is still missing before the profile can drive a run, in the operator's words. */
-export function workspaceProfileProblems(profile: ResolvedWorkspaceProfile): string[] {
-  const problems: string[] = []
-  if (!profile.targetDomain) problems.push('Set the target domain')
-  if (profile.competitors.length === 0) problems.push('Add at least one competitor')
-  return problems
+/** One thing the Workspace step still needs, and the field that fixes it. */
+export interface WorkspaceBlocker {
+  field: 'targetDomain' | 'competitors'
+  message: string
+}
+
+/**
+ * What is still missing before the profile can drive a run, in the operator's
+ * words — the one rule the setup hub, the workspace editor and the run gate
+ * all read.
+ *
+ * Competitors are required when `requireCompetitors` is true (a live
+ * workspace): the gap report is measured against them, so a live workspace
+ * with none has nothing to research. Mock mode runs on demo competitors and
+ * passes false.
+ */
+export function workspaceBlockers(
+  profile: ResolvedWorkspaceProfile,
+  opts: { requireCompetitors?: boolean } = {},
+): WorkspaceBlocker[] {
+  const blockers: WorkspaceBlocker[] = []
+  if (!profile.targetDomain) {
+    blockers.push({ field: 'targetDomain', message: 'Set the target domain' })
+  }
+  if (opts.requireCompetitors !== false && profile.competitors.length === 0) {
+    blockers.push({ field: 'competitors', message: 'Add at least one competitor' })
+  }
+  return blockers
+}
+
+export function workspaceProfileProblems(
+  profile: ResolvedWorkspaceProfile,
+  opts: { requireCompetitors?: boolean } = {},
+): string[] {
+  return workspaceBlockers(profile, opts).map((blocker) => blocker.message)
 }
 
 /**

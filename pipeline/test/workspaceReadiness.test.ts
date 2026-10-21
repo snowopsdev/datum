@@ -200,7 +200,15 @@ describe('workspace readiness', () => {
     input.profile = envProfile(input.env)
     // Nothing in the environment, so both variables are still the fix to make.
     const envOnly = evaluateWorkspaceReadiness(input)
-    assert.deepEqual(envOnly.runtime.missing, ['COMPETITOR_DOMAINS', 'TARGET_DOMAIN'])
+    // Competitors are a Workspace-step blocker in governance, not an env var.
+    assert.deepEqual(envOnly.runtime.missing, ['TARGET_DOMAIN'])
+    assert.deepEqual(
+      envOnly.governance.blockers.filter((blocker) => blocker.asset === 'workspace'),
+      [
+        { asset: 'workspace', message: 'Set the target domain' },
+        { asset: 'workspace', message: 'Add at least one competitor' },
+      ],
+    )
     assert.equal(envOnly.tenant.profile.ready, false)
     assert.equal(envOnly.tenant.profile.targetDomain, null)
 
@@ -273,11 +281,53 @@ describe('workspace readiness', () => {
     assert.deepEqual(bare.governance.problems, [
       'Activate a brand voice',
       'Set the target domain',
+      'Add at least one competitor',
       'Add and activate at least one audience (ICP)',
     ])
     // Templates are seeded and unaffected, so `ready` fails on governance alone.
     assert.equal(bare.content.ready, true)
     assert.equal(bare.ready, false)
+  })
+
+  it('does not call a live workspace with zero competitors done, and says which step fixes it', () => {
+    const input = baseInput()
+    input.env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      OPENAI_API_KEY: 'configured',
+      ANTHROPIC_API_KEY: 'configured',
+    }
+    input.profile = resolveWorkspaceProfile({ targetDomain: 'acme.example' }, input.env)
+    const live = evaluateWorkspaceReadiness(input)
+
+    assert.equal(live.mode, 'live')
+    assert.equal(live.tenant.profile.ready, false)
+    assert.equal(live.tenant.profile.competitorCount, 0)
+    assert.equal(live.governance.ready, false)
+    assert.equal(live.ready, false)
+    assert.deepEqual(live.governance.blockers, [
+      { asset: 'workspace', message: 'Add at least one competitor' },
+    ])
+    // The env var is not what to fix, so the runtime does not say it twice.
+    assert.deepEqual(live.runtime.missing, [])
+    assert.equal(live.runtime.ready, true)
+
+    input.profile = resolveWorkspaceProfile(
+      { targetDomain: 'acme.example', competitors: [{ domain: 'rivalone.com' }] },
+      input.env,
+    )
+    assert.equal(evaluateWorkspaceReadiness(input).tenant.profile.ready, true)
+  })
+
+  it('keeps mock mode ready with no competitors saved', () => {
+    const input = baseInput()
+    input.profile = resolveWorkspaceProfile({ targetDomain: 'acme.example' }, {})
+    const mock = evaluateWorkspaceReadiness(input)
+
+    assert.equal(mock.mode, 'mock')
+    assert.equal(mock.tenant.profile.competitorCount, 0)
+    assert.equal(mock.tenant.profile.ready, true)
+    assert.equal(mock.governance.ready, true)
   })
 
   it('reports the primary audience, falling back to the first when none is flagged', () => {

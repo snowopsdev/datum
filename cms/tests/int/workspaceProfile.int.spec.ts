@@ -208,12 +208,14 @@ describe('the .env.example placeholders', () => {
     expect(readiness.tenant.profile.ready).toBe(false)
     expect(readiness.governance.problems).toEqual([
       'Set the site Datum writes about (example.com is the placeholder from .env.example)',
+      'Add at least one competitor',
     ])
     expect(readiness.governance.blockers).toEqual([
       {
         asset: 'workspace',
         message: 'Set the site Datum writes about (example.com is the placeholder from .env.example)',
       },
+      { asset: 'workspace', message: 'Add at least one competitor' },
     ])
   })
 
@@ -261,7 +263,9 @@ describe('the .env.example placeholders', () => {
     })
 
     expect(readiness.runtime.missing).toContain('TARGET_DOMAIN')
-    expect(readiness.runtime.missing).toContain('COMPETITOR_DOMAINS')
+    // Zero competitors is a Workspace-step blocker, not an env var to chase.
+    expect(readiness.runtime.missing).not.toContain('COMPETITOR_DOMAINS')
+    expect(readiness.governance.problems).toContain('Add at least one competitor')
     expect(readiness.runtime.problems).toEqual([])
   })
 
@@ -278,6 +282,9 @@ describe('the .env.example placeholders', () => {
       evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
     })
 
-    expect(readiness.governance.problems).toEqual(['Set the target domain'])
+    expect(readiness.governance.problems).toEqual([
+      'Set the target domain',
+      'Add at least one competitor',
+    ])
   })
 })

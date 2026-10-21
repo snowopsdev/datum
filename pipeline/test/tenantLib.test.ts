@@ -26,6 +26,7 @@ import {
   parseCompetitorDomainsEnv,
   resolveWorkspaceProfile,
   userAgentFor,
+  workspaceBlockers,
   workspaceProfileProblems,
   workspaceProfileToPrompt,
 } from '../../cms/src/lib/tenant'
@@ -203,6 +204,23 @@ describe('the .env.example placeholders', () => {
 
     assert.equal(profile.targetDomain, 'example.com')
     assert.equal(profile.placeholderDomain, null)
+  })
+})
+
+describe('workspaceBlockers', () => {
+  it('tags each problem with its field, and only asks for competitors when told to', () => {
+    const empty = resolveWorkspaceProfile(null, {})
+    assert.deepEqual(workspaceBlockers(empty), [
+      { field: 'targetDomain', message: 'Set the target domain' },
+      { field: 'competitors', message: 'Add at least one competitor' },
+    ])
+    assert.deepEqual(workspaceBlockers(empty, { requireCompetitors: false }), [
+      { field: 'targetDomain', message: 'Set the target domain' },
+    ])
+    assert.deepEqual(
+      workspaceProfileProblems(empty, { requireCompetitors: false }),
+      ['Set the target domain'],
+    )
   })
 })
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { WorkspaceReadiness } from '@/lib/workspaceReadiness'
+import { resolveWorkspaceProfile } from '@/lib/tenant'
+import { evaluateWorkspaceReadiness, type WorkspaceReadiness } from '@/lib/workspaceReadiness'
 
 /**
  * The one way to queue a run for articles that already exist. Both the board's
@@ -187,5 +188,30 @@ describe('gateRunReadiness', () => {
         }),
       ),
     ).toBe('Configure the required environment variables: a model we cannot serve.')
+  })
+
+  // One rule for the hub, the editor and this gate: a live workspace with no
+  // competitor is refused with the Workspace step, never a bare env var name.
+  it('names the Workspace step when a live workspace has no competitor', () => {
+    const env = {
+      MOCK_MODE: 'false',
+      AHREFS_API_KEY: 'configured',
+      ANTHROPIC_API_KEY: 'configured',
+      OPENAI_API_KEY: 'configured',
+    }
+    const live = evaluateWorkspaceReadiness({
+      env,
+      models: null,
+      activeVoice: { id: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      templates: [{ id: 1, name: 'Listicle', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      profile: resolveWorkspaceProfile({ targetDomain: 'acme.example' }, env),
+      icps: [{ id: 1, updatedAt: '2026-01-01T00:00:00.000Z', name: 'Ops lead', primary: true }],
+      positioning: { content: null, updatedAt: null },
+      evidenceBank: { content: null, updatedAt: null, asOf: '2026-01-01' },
+    })
+
+    expect(gateRunReadiness(live, true)).toBe(
+      'Finish setup before running the pipeline: Add at least one competitor.',
+    )
   })
 })
