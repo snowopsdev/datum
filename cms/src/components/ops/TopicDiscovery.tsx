@@ -350,7 +350,7 @@ export function TopicDiscovery({
                       {pending
                         ? 'Creating…'
                         : picked.size > 1
-                          ? `Create 1 piece covering ${picked.size} searches`
+                          ? `Create 1 ${templateName || 'piece'} covering ${picked.size} searches`
                           : templateName
                             ? `Create ${templateName}`
                             : 'Create piece'}

@@ -25,6 +25,14 @@ vi.mock('@/components/ops/topicDiscoveryActions', () => ({
         alreadyTaken: false,
         archived: false,
       },
+      {
+        keyword: 'home espresso machine',
+        volume: 800,
+        difficulty: 10,
+        opportunity: 90,
+        alreadyTaken: false,
+        archived: false,
+      },
     ],
     cached: false,
     fetchedAt: new Date().toISOString(),
@@ -79,4 +87,32 @@ it('names the template its topics will be written as on the suggest create butto
 
   expect(screen.getByRole('button', { name: 'Create How-To' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Create piece' })).toBeNull()
+})
+
+it.each([
+  { templateId: 2, label: 'How-To' },
+  { templateId: 999, label: 'piece' },
+])('names $label when combining several searches into one piece', async ({ templateId, label }) => {
+  render(
+    React.createElement(TopicDiscovery, {
+      templates,
+      mode: 'mock',
+      templateId,
+      pipelineReady: true,
+    }),
+  )
+
+  fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'espresso' } })
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Find topics' }))
+  })
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Select espresso machine' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select home espresso machine' }))
+
+  expect(
+    screen.getByRole('button', { name: `Create 1 ${label} covering 2 searches` }),
+  ).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select home espresso machine' }))
+  expect(screen.getByRole('button', { name: `Create ${label}` })).toBeTruthy()
 })
