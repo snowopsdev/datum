@@ -59,6 +59,30 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
 
   const edits = (): BriefEdits => ({ angle, audience, sections, notes, icpId })
 
+  const angleOptions = initial.angleOptions ?? []
+  /** The chosen card holds the single tab stop; a hand-typed angle leaves the first one. */
+  const focusableAngle = Math.max(
+    0,
+    angleOptions.findIndex((option) => option.angle === angle),
+  )
+
+  /** Arrow keys move the choice and the focus together, as a native radio group does. */
+  const moveAngle = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const count = angleOptions.length
+    let next: number
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % count
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp')
+      next = (index - 1 + count) % count
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = count - 1
+    else return
+    event.preventDefault()
+    setAngle(angleOptions[next].angle)
+    const radios =
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+    radios?.[next]?.focus()
+  }
+
   /**
    * Switching audiences rewrites the line, unless the editor has already
    * written their own. The server applies the same rule when it saves — this
@@ -134,17 +158,41 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
         </ol>
       </div>
 
-      {initial.angleOptions?.length ? (
-        <div className="datum-brief__sections" aria-label="Suggested angles">
+      {angleOptions.length ? (
+        <div className="datum-brief__sections">
           <h3>Suggested angles</h3>
-          {initial.angleOptions.map((option, index) => (
-            <button key={index} type="button" className="datum-ops__btn" disabled={pending}
-              aria-pressed={angle === option.angle} onClick={() => setAngle(option.angle)}>
-              <strong>{option.angle}</strong><br />
-              <span className="datum-ops__hint">{option.rationale}</span><br />
-              <span className="datum-ops__hint">For: {option.pain ?? 'Template direction'} · Fills: {option.gaps.join(', ') || '—'}</span>
-            </button>
-          ))}
+          <div aria-label="Suggested angles" className="datum-brief__angles" role="radiogroup">
+            {angleOptions.map((option, index) => {
+              const selected = angle === option.angle
+              return (
+                <button
+                  aria-checked={selected}
+                  className={`datum-brief__angle${selected ? ' is-selected' : ''}`}
+                  disabled={pending}
+                  key={index}
+                  onClick={() => setAngle(option.angle)}
+                  onKeyDown={(event) => moveAngle(event, index)}
+                  role="radio"
+                  tabIndex={index === focusableAngle ? 0 : -1}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="datum-brief__angle-check" />
+                  <span className="datum-brief__angle-body">
+                    <strong className="datum-brief__angle-title">{option.angle}</strong>
+                    <span className="datum-brief__angle-why">{option.rationale}</span>
+                    <span className="datum-brief__angle-chips">
+                      <span className="datum-brief__angle-chip">
+                        For: {option.pain ?? 'Template direction'}
+                      </span>
+                      <span className="datum-brief__angle-chip">
+                        Fills: {option.gaps.join(', ') || '—'}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       ) : null}
       <label className="datum-ops__field">

@@ -109,7 +109,7 @@ export function checklistRows(data: SetupChecklistData): Row[] {
       blurb: 'How every draft sounds, and the words it may never use.',
       state: data.voice.active
         ? `Active: ${data.voice.name || 'Untitled brand voice'}`
-        : 'No active voice — drafts would run on the platform style guide alone',
+        : 'No active voice — runs are blocked until you activate one',
       done: data.voice.active,
       required: true,
       href: '/admin/ops/setup/brand-voice',

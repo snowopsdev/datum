@@ -175,3 +175,14 @@ it('renders readiness recommendations alongside setup suggestions', () => {
   expect(html).toContain('Complete 1 unverified claim')
   expect(html).toContain('Scan now')
 })
+
+describe('the Brand voice row', () => {
+  it('says runs are blocked without an active voice, not that drafts fall back to the platform guide', () => {
+    const rows = checklistRows({ ...readyData, voice: { name: null, active: false } })
+
+    expect(rows.find((row) => row.id === 'voice')).toMatchObject({
+      done: false,
+      state: 'No active voice — runs are blocked until you activate one',
+    })
+  })
+})

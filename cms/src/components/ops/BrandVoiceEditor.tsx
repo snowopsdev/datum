@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import React, { useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import {
   type BrandVoiceContent,
@@ -244,6 +244,21 @@ export function BrandVoiceEditor({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Archiving the active voice leaves runs with no voice at all, so it takes a
+  // second click. Escape backs out from anywhere; Cancel takes focus, so the
+  // safe choice is the one the keyboard lands on.
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const cancelArchiveRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!confirmArchive) return
+    cancelArchiveRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setConfirmArchive(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [confirmArchive])
 
   // Reload the working copy when the server picks a different record than the
   // one in hand. Saving a new voice also changes the selection — to the record
@@ -256,6 +271,7 @@ export function BrandVoiceEditor({
       setContent(contentOf(selected))
       setStep(initialStep(selected, null))
       setConfirmDelete(false)
+      setConfirmArchive(false)
     }
   }
 
@@ -263,6 +279,8 @@ export function BrandVoiceEditor({
   const status = record?.status ?? 'draft'
   const hasDraft = records.some((r) => r.status === 'draft')
   const hasActive = records.some((r) => r.status === 'active')
+  // Activating this voice archives that one in the same write (cascadeSingleActive).
+  const activeElsewhere = records.find((r) => r.status === 'active' && r.id !== workingId) ?? null
   const problems = brandVoiceActivationProblems(content)
   const current = BRAND_VOICE_STEPS[step].id
   // The picker is how you get back: to another voice, or to the saved one you
@@ -328,6 +346,7 @@ export function BrandVoiceEditor({
     setError(null)
     setDrafting(true)
     setConfirmDelete(false)
+    setConfirmArchive(false)
   }
 
   const uploadGuide = (file: File) =>
@@ -355,6 +374,7 @@ export function BrandVoiceEditor({
     setMessage(null)
     setError(null)
     setConfirmDelete(false)
+    setConfirmArchive(false)
     setWorkingId(id)
     setContent(contentOf(next))
     const nextStep = initialStep(next, null)
@@ -377,16 +397,20 @@ export function BrandVoiceEditor({
         setError(result.error)
         return
       }
-      setMessage(`${content.name || 'Brand voice'} is now active and governs every pipeline run.`)
+      const superseded = activeElsewhere
+        ? ` “${activeElsewhere.name || 'Untitled brand voice'}” is archived.`
+        : ''
+      setMessage(
+        `${content.name || 'Brand voice'} is now active and governs every pipeline run.${superseded}`,
+      )
     })
 
   const archive = () =>
     run(async () => {
       if (workingId == null) return
+      setConfirmArchive(false)
       await archiveBrandVoiceAction(workingId)
-      setMessage(
-        'Archived. The pipeline runs on the platform style guide alone until you activate another voice.',
-      )
+      setMessage('Archived. Runs are blocked until you activate another voice.')
     })
 
   const remove = () =>
@@ -497,17 +521,53 @@ export function BrandVoiceEditor({
             Save
           </button>
           {status !== 'active' ? (
+            <>
+              <button
+                type="button"
+                className="datum-ops__btn datum-ops__btn--primary"
+                onClick={activate}
+                disabled={pending || problems.length > 0}
+                title={problems.length ? problems.join('; ') : undefined}
+              >
+                Activate
+              </button>
+              {activeElsewhere ? (
+                <span className="datum-ops__hint">
+                  Activating this archives “{activeElsewhere.name || 'Untitled brand voice'}”, the
+                  current voice.
+                </span>
+              ) : null}
+            </>
+          ) : confirmArchive ? (
+            <>
+              <button
+                type="button"
+                className="datum-ops__btn datum-ops__btn--danger"
+                onClick={archive}
+                disabled={pending}
+              >
+                Confirm: archive
+              </button>
+              <button
+                ref={cancelArchiveRef}
+                type="button"
+                className="datum-ops__btn"
+                onClick={() => setConfirmArchive(false)}
+                disabled={pending}
+              >
+                Cancel
+              </button>
+              <span className="datum-ops__hint">
+                Runs are blocked until you activate another voice.
+              </span>
+            </>
+          ) : (
             <button
               type="button"
-              className="datum-ops__btn datum-ops__btn--primary"
-              onClick={activate}
-              disabled={pending || problems.length > 0}
-              title={problems.length ? problems.join('; ') : undefined}
+              className="datum-ops__btn"
+              onClick={() => setConfirmArchive(true)}
+              disabled={pending}
             >
-              Activate
-            </button>
-          ) : (
-            <button type="button" className="datum-ops__btn" onClick={archive} disabled={pending}>
               Archive
             </button>
           )}
