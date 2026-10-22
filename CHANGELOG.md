@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0](https://github.com/snowopsdev/datum/compare/v0.8.0...v0.9.0) (2026-10-22)
+
+
+### Features
+
+* **public:** add article structured data, dateline and editor bar ([#155](https://github.com/snowopsdev/datum/issues/155)) ([7a15a5f](https://github.com/snowopsdev/datum/commit/7a15a5f3950b65b9a723117d96c0401c1972642f))
+* **ui:** AA colour tokens, one focus ring and a skip link ([7cedcdd](https://github.com/snowopsdev/datum/commit/7cedcdddd2368fe2ad9ef25c9c3c2924bd698cd2))
+* **ui:** AA colour tokens, one focus ring and a skip link ([bbcf610](https://github.com/snowopsdev/datum/commit/bbcf6100a68bd345136aaf7ab83b2a182f789e82))
+* **ui:** guard unsaved edits on the setup and template editors ([#159](https://github.com/snowopsdev/datum/issues/159)) ([3dbba7b](https://github.com/snowopsdev/datum/commit/3dbba7bba72d07b61cb39e07eb95f6ae24a43dfd))
+* **ui:** motion tokens and a single feedback model for the review page ([#158](https://github.com/snowopsdev/datum/issues/158)) ([4f94e3a](https://github.com/snowopsdev/datum/commit/4f94e3aa980ec30c0f691699767105d145a4a05c))
+
+
+### Bug Fixes
+
+* **evidence,setup:** honest evidence save state, dedupe proposals, one workspace readiness rule ([#154](https://github.com/snowopsdev/datum/issues/154)) ([8607d7f](https://github.com/snowopsdev/datum/commit/8607d7fde878a00b56f2b8631facef381a0ba08a))
+* **nav,brief,brand-voice:** remove duplicate governance group, style angle choices, correct archive copy ([#152](https://github.com/snowopsdev/datum/issues/152)) ([317b2e3](https://github.com/snowopsdev/datum/commit/317b2e3d9b6d55a2273085a6b9074cde5b5e62d9))
+* **review:** show unrun QA checks as Not run and correct event and create labels ([#153](https://github.com/snowopsdev/datum/issues/153)) ([58682f3](https://github.com/snowopsdev/datum/commit/58682f36a4967cf399b8d01b6f01dc5da16c7c4e))
+* **runs:** wake the run bar on queue actions and keep failures visible ([#151](https://github.com/snowopsdev/datum/issues/151)) ([e5d04c5](https://github.com/snowopsdev/datum/commit/e5d04c5bed53d700bc408412dd5f0431a9337019))
+* **ui:** draw the focus ring as an outline and cover the secret field ([57f78d0](https://github.com/snowopsdev/datum/commit/57f78d087a6f32a1c18414e71f77dcac6c29f548))
+
 ## [0.8.0](https://github.com/snowopsdev/datum/compare/v0.7.0...v0.8.0) (2026-10-10)
 
 
