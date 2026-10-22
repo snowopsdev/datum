@@ -150,6 +150,7 @@ export function useReviewAction(): ReviewAction {
     // A stale toast must not undo something newer than what it reported.
     if (!which || which !== undoRef.current) return
     setError(null)
+    setArmed(null)
     dismissUndoToast()
     startTransition(async () => {
       try {
@@ -170,6 +171,11 @@ export function useReviewAction(): ReviewAction {
   const runAction = (fn: () => Promise<unknown>) => {
     setError(null)
     setNotice(null)
+    // Whatever runs, nothing stays armed: the slot is page-level, so a confirm
+    // left armed outlives the refresh and turns up on the panel that replaces
+    // this one. `refocus` is left alone — a confirm's own Go has already set it
+    // through `disarm`, and any other action keeps the focus it has.
+    setArmed(null)
     startTransition(async () => {
       try {
         await fn()

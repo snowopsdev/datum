@@ -113,6 +113,17 @@ it('Archive acts at once and backs out of a confirm armed elsewhere', async () =
   expect(archiveMock).toHaveBeenCalledWith(1)
 })
 
+it('any other action backs out of an armed confirm, so it cannot outlive the refresh', async () => {
+  render(React.createElement(Page))
+  fireEvent.click(screen.getByRole('button', { name: 'Regenerate from gaps' }))
+  expect(confirms()).toHaveLength(1)
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Revisit brief' }))
+  })
+  expect(confirms()).toHaveLength(0)
+})
+
 it('Escape disarms and focus returns to the trigger', () => {
   render(React.createElement(Page))
   fireEvent.click(screen.getByRole('button', { name: 'Regenerate from gaps' }))
