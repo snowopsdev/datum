@@ -1,17 +1,27 @@
 import React from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * F4: the armed-confirm slot, Undo and the reasoned send-back, rendered with
  * the real `useReviewAction` so the slot is genuinely shared between panels.
  */
-const { toastSuccess, toastDismiss, sendBackMock, archiveMock, unarchiveMock } = vi.hoisted(() => ({
+const {
+  toastSuccess,
+  toastDismiss,
+  sendBackMock,
+  archiveMock,
+  unarchiveMock,
+  unscheduleMock,
+  scheduleMock,
+} = vi.hoisted(() => ({
   toastSuccess: vi.fn(() => 'toast-1'),
   toastDismiss: vi.fn(),
   sendBackMock: vi.fn(async () => undefined),
   archiveMock: vi.fn(async () => undefined),
   unarchiveMock: vi.fn(async () => undefined),
+  unscheduleMock: vi.fn(async () => ({ previousPublishAt: null as string | null })),
+  scheduleMock: vi.fn(async () => ({ publishAt: '' })),
 }))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
@@ -20,9 +30,12 @@ vi.mock('@/components/ops/actions', () => ({
   archiveArticleAction: archiveMock,
   assignTemplateAction: vi.fn(),
   regenerateArticleAction: vi.fn(),
+  publishArticleAction: vi.fn(),
   resetToDraftedAction: vi.fn(),
+  scheduleArticleAction: scheduleMock,
   sendBackAction: sendBackMock,
   unarchiveArticleAction: unarchiveMock,
+  unscheduleArticleAction: unscheduleMock,
 }))
 vi.mock('@/components/ops/briefActions', () => ({ revisitBriefAction: vi.fn() }))
 vi.mock('@/components/ops/runQueued', () => ({ announceRunQueued: vi.fn() }))
@@ -31,6 +44,7 @@ const { useReviewAction } = await import('@/components/ops/review/useReviewActio
 const { ArchiveAction } = await import('@/components/ops/review/ArchiveAction')
 const { SendBackAction } = await import('@/components/ops/review/SendBackAction')
 const { NeedsRevisionPanel } = await import('@/components/ops/review/panels/NeedsRevisionPanel')
+const { ApprovedPanel } = await import('@/components/ops/review/panels/ApprovedPanel')
 
 const article = {
   id: 1,
@@ -42,23 +56,29 @@ const article = {
   evidenceCitations: [],
 }
 
-function Page() {
+function Page({ approvedPublishAt }: { approvedPublishAt?: string }) {
   const action = useReviewAction()
+  const props = {
+    action,
+    activeRunIncludesArticle: false,
+    editHref: '/x',
+    mode: 'mock',
+    run: null,
+    runIsCurrent: false,
+    scheduleExpired: false,
+    scoreInvalidatedBy: null,
+    templates: [],
+  }
   return React.createElement(
     React.Fragment,
     null,
-    React.createElement(NeedsRevisionPanel, {
-      action,
-      activeRunIncludesArticle: false,
-      article,
-      editHref: '/x',
-      mode: 'mock',
-      run: null,
-      runIsCurrent: false,
-      scheduleExpired: false,
-      scoreInvalidatedBy: null,
-      templates: [],
-    } as never),
+    approvedPublishAt
+      ? React.createElement(ApprovedPanel, {
+          ...props,
+          article: { ...article, status: 'approved', publishAt: approvedPublishAt },
+        } as never)
+      : React.createElement(NeedsRevisionPanel, { ...props, article } as never),
+    action.error ? React.createElement('p', { role: 'alert' }, action.error) : null,
     action.notice
       ? React.createElement(
           'p',
@@ -120,6 +140,57 @@ it('Archive offers Undo, toasts it, and Undo unarchives', async () => {
   })
   expect(unarchiveMock).toHaveBeenCalledWith(1)
   expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+})
+
+it('a failed Undo keeps the notice and its Undo, so it can be retried', async () => {
+  unarchiveMock.mockRejectedValueOnce(new Error('Network down'))
+  render(React.createElement(Page))
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  })
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  })
+  expect(screen.getByText('Network down')).toBeTruthy()
+  expect(screen.getByText('Archived — it is off the content board.')).toBeTruthy()
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  })
+  expect(unarchiveMock).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+})
+
+describe('Unschedule Undo checks the clock, not the rendered page', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('offers no Undo when the removed time has already passed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-01-01T12:00:00Z'))
+    unscheduleMock.mockResolvedValueOnce({ previousPublishAt: '2030-01-01T11:00:00.000Z' })
+    render(React.createElement(Page, { approvedPublishAt: '2030-01-01T11:00:00.000Z' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unschedule' }))
+    })
+    expect(screen.getByText(/Unscheduled/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('refuses an Undo pressed after the time passed, and keeps it on screen', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-01-01T12:00:00Z'))
+    unscheduleMock.mockResolvedValueOnce({ previousPublishAt: '2030-01-01T12:05:00.000Z' })
+    render(React.createElement(Page, { approvedPublishAt: '2030-01-01T12:05:00.000Z' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unschedule' }))
+    })
+    vi.setSystemTime(new Date('2030-01-01T12:10:00Z'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    })
+    expect(scheduleMock).not.toHaveBeenCalled()
+    expect(screen.getByText(/That time has passed/)).toBeTruthy()
+  })
 })
 
 it('Send back is disabled until a reason is entered, and a chip prefills an empty one', async () => {

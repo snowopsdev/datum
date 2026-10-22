@@ -150,10 +150,15 @@ export function useReviewAction(): ReviewAction {
     // A stale toast must not undo something newer than what it reported.
     if (!which || which !== undoRef.current) return
     setError(null)
-    setNotice(null)
+    dismissUndoToast()
     startTransition(async () => {
       try {
         await which.run()
+        // Only now is there nothing left to undo. A failed Undo keeps its
+        // notice and chip so it can be retried, rather than leaving the
+        // action it reported as permanent.
+        undoRef.current = null
+        setUndo(null)
         setNoticeState(which.done)
         router.refresh()
       } catch (error) {

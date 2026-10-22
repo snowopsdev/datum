@@ -30,6 +30,9 @@ function utcInputValueToIso(value: string): string {
   return `${value.length === 16 ? `${value}:00` : value}Z`
 }
 
+/** Whether a stored schedule instant is still in the future. */
+const isAhead = (iso: string) => new Date(iso).getTime() > Date.now()
+
 /** Signed off and waiting: publish it now, or pick a time. */
 export function ApprovedPanel({ action, article, editHref, scheduleExpired }: PanelProps) {
   const { pending, runAction, setNotice } = action
@@ -71,15 +74,23 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
               runAction(async () => {
                 const { previousPublishAt } = await unscheduleArticleAction(article.id)
                 setScheduleAt('')
-                // An expired schedule is not worth restoring: scheduling it
-                // again would be refused as a time in the past.
+                // A time already past is not worth restoring: scheduling it
+                // again is refused. Checked against the clock now and again on
+                // Undo, not the `scheduleExpired` the page was rendered with.
                 setNotice(
                   'Unscheduled — it stays approved until you publish it.',
-                  previousPublishAt && !scheduleExpired
+                  previousPublishAt && isAhead(previousPublishAt)
                     ? {
                         label: 'Undo',
                         toast: 'Unscheduled',
-                        run: () => scheduleArticleAction(article.id, previousPublishAt),
+                        run: async () => {
+                          if (!isAhead(previousPublishAt)) {
+                            throw new Error(
+                              'That time has passed — pick a new one to schedule it again.',
+                            )
+                          }
+                          await scheduleArticleAction(article.id, previousPublishAt)
+                        },
                         done: `Schedule restored for ${formatAuditTimestamp(previousPublishAt)}`,
                       }
                     : undefined,
