@@ -243,6 +243,8 @@ function Harness({
     }),
     h(SaveButton, { guard, onClick: () => void guard.submit(), pending: false }),
     h('button', { onClick: guard.discard, type: 'button' }, 'Revert'),
+    // A switch inside the editor, like picking another template: no unload.
+    h('button', { onClick: () => guard.guardLeave(() => {}), type: 'button' }, 'Switch'),
     h('a', { href: '/elsewhere' }, 'Elsewhere'),
     h('a', { href: '#here' }, 'Here'),
     h('a', { href: '/new-tab', target: '_blank' }, 'New tab'),
@@ -573,6 +575,18 @@ describe('useDirtyGuard', () => {
       })
       expect(screen.queryByRole('alertdialog')).toBeNull()
       expect(reached).toHaveLength(0)
+    })
+
+    it('still warns on a reload right after a switch that stayed on the page', () => {
+      render(harness())
+      type('a', 'edited')
+      fireEvent.click(screen.getByRole('button', { name: 'Switch' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+
+      const unload = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(unload)
+      expect(unload.defaultPrevented).toBe(true)
     })
 
     it('lets new-tab and same-page links be', () => {

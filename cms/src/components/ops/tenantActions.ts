@@ -203,7 +203,9 @@ export async function createIcpAction(
     return {
       ok: true,
       id: doc.id,
-      saved: content,
+      // As stored, and as the page reads it: the new id, a blank name as
+      // "Untitled audience".
+      saved: icpContentOf(doc),
       dropped: droppedRows(input, content),
       updatedAt: versionOf(doc),
     }
@@ -231,7 +233,7 @@ export async function saveIcpAction(
     return {
       ok: true,
       problems: icpCompletenessProblems(content),
-      saved: content,
+      saved: icpContentOf(doc),
       dropped: droppedRows(input, content),
       updatedAt: versionOf(doc),
     }
@@ -344,7 +346,7 @@ export async function saveAndActivateIcpAction(
       id: savedId,
       status: 'active',
       primary,
-      saved: content,
+      saved: icpContentOf(doc),
       dropped: droppedRows(input, content),
       updatedAt: versionOf(doc),
     }
@@ -426,7 +428,7 @@ export async function savePositioningAction(
     return {
       ok: true,
       problems: positioningCompletenessProblems(content),
-      saved: content,
+      saved: positioningContentOf(doc),
       dropped: droppedRows(input, content),
       updatedAt: versionOf(doc),
     }

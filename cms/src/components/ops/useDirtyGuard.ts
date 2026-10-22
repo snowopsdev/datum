@@ -282,15 +282,11 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
   const confirmLeaveWith = (request: LeaveRequest) => {
     setLeave(null)
     replaying.current = true
-    hardLeaving.current = true
     try {
       request.proceed()
     } finally {
       replaying.current = false
     }
-    setTimeout(() => {
-      hardLeaving.current = false
-    }, 2000)
   }
 
   const confirmLeave = () => {
@@ -329,6 +325,13 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
       event.preventDefault()
       event.stopImmediatePropagation()
       guardLeaveRef.current(() => {
+        // Only a link can unload the page, so only a link silences the
+        // browser's own prompt behind the dialog. A record switch inside the
+        // editor stays on the page, and a reload after it must still warn.
+        hardLeaving.current = true
+        setTimeout(() => {
+          hardLeaving.current = false
+        }, 2000)
         if (anchor.isConnected) anchor.click()
         else window.location.assign(anchor.href)
       }, anchor)

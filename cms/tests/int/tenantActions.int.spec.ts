@@ -279,6 +279,21 @@ describe('audience lifecycle', () => {
     expect((await auditRows('icp_activated')).length).toBeGreaterThan(0)
   })
 
+  it('returns the audience as stored: its new id, and a blank name as Untitled audience', async () => {
+    const created = await createIcpAction({ ...emptyIcpContent(''), who: 'Somebody.' })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    createdIcpIds.push(created.id)
+    expect(created.saved.id).toBe(created.id)
+    expect(created.saved.name).toBe('Untitled audience')
+
+    const saved = await saveIcpAction(created.id, { ...created.saved, name: '' })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    expect(saved.saved.name).toBe('Untitled audience')
+    expect(saved.saved.id).toBe(created.id)
+  })
+
   it('surfaces the activation gate’s own words instead of throwing', async () => {
     const created = await createIcpAction({
       ...emptyIcpContent(`Half done ${randomUUID().slice(0, 8)}`),
