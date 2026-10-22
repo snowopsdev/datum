@@ -27,6 +27,7 @@ vi.mock('@/components/ops/brandVoiceActions', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }))
+vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
 
 const { BrandVoiceEditor } = await import('@/components/ops/BrandVoiceEditor')
 
@@ -129,8 +130,13 @@ it('says on every step why an incomplete active voice cannot be saved', () => {
 
 it('leaves the resume marker alone when a save comes from a read-only step', async () => {
   const draft = dto({ status: 'draft', onboardingStep: 2 })
-  render(editor({ records: [draft], selectedId: 1, initialMode: 'guide' }))
+  render(editor({ records: [draft], selectedId: 1, initialMode: 'onboarding' }))
 
+  // Save is for what has changed: edit question 3, then read the guide.
+  fireEvent.change(screen.getByLabelText('Who are you talking to?'), {
+    target: { value: 'Clinic managers' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /Export guide/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(saveBrandVoiceDraftAction).toHaveBeenCalled())
   expect(saveBrandVoiceDraftAction.mock.calls[0]?.[0]).toBe(1)
@@ -142,6 +148,9 @@ it('advances the resume marker when the save comes from a question', async () =>
   render(editor({ records: [draft], selectedId: 1, initialMode: 'onboarding' }))
 
   // Resumes on question 3 (index 2); saving there answers it.
+  fireEvent.change(screen.getByLabelText('Who are you talking to?'), {
+    target: { value: 'Clinic managers' },
+  })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(saveBrandVoiceDraftAction).toHaveBeenCalled())
   expect(saveBrandVoiceDraftAction.mock.calls[0]?.[1].onboardingStep).toBe(3)

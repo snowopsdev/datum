@@ -13,6 +13,7 @@ import type { BriefAngleOption } from '../../../pipeline/src/brief'
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }))
+vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
 vi.mock('@/components/ops/briefActions', () => ({
   approveBriefAction: vi.fn(async () => ({ ok: true, message: 'Approved' })),
   saveBriefAction: vi.fn(async () => ({ ok: true, message: 'Saved' })),

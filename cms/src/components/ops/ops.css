@@ -3273,3 +3273,104 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   white-space: nowrap;
   border: 0;
 }
+
+/* ── Unsaved changes (F5) ────────────────────────────────────────────────
+   The dot, the sticky bar and the leave dialog. The dot is a -deco colour: it
+   is a mark, and the count beside it carries the words. */
+.datum-ops__dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ops-ink-muted);
+  font-size: 14px;
+}
+
+.datum-ops__dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-orange-deco);
+  flex: 0 0 auto;
+}
+
+/* Sticks to the bottom of the view, above the fixed run bar whose height
+   `GlobalRunBar` publishes. */
+.datum-ops__unsaved-bar {
+  position: sticky;
+  bottom: calc(var(--datum-runbar-h, 0px) + 12px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 8px 10px 8px 14px;
+  background: var(--ops-canvas);
+  border: 1px solid var(--ops-edge-orange);
+  border-radius: var(--ops-radius-lg);
+  box-shadow: var(--ops-shadow);
+  animation: datum-unsaved-in var(--ds-dur-base) var(--ds-ease-decel);
+}
+
+.datum-ops__unsaved-count {
+  flex: 1 1 auto;
+  font-size: 14px;
+  color: var(--ops-ink);
+}
+
+@keyframes datum-unsaved-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.datum-ops__restore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--ops-wash-primary);
+  border: 1px solid var(--ops-edge-primary);
+  border-radius: var(--ops-radius-md);
+  color: var(--ops-ink);
+  font-size: 14px;
+}
+
+.datum-ops__restore > span {
+  flex: 1 1 auto;
+}
+
+.datum-ops__dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--ds-surface) 75%, transparent);
+  animation: datum-unsaved-in var(--ds-dur-fast) var(--ds-ease-decel);
+}
+
+.datum-ops__dialog {
+  max-width: 420px;
+  width: 100%;
+  padding: 18px 20px;
+  background: var(--ops-canvas);
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  box-shadow: var(--ops-shadow);
+}
+
+.datum-ops__dialog h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.datum-ops__dialog p {
+  margin: 0 0 14px;
+  color: var(--ops-ink-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}

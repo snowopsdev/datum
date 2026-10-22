@@ -31,11 +31,38 @@ import {
   workspaceProfileProblems,
 } from '../../lib/tenant'
 import { evaluateRuntimeReadiness, modeFromEnv } from '../../lib/workspaceReadiness'
+import { droppedRows, type EvidenceSaveCounts, type WorkspaceSaveCounts } from './saveMessages'
 import type { EvidenceBankInput, WorkspaceProfileInput } from './setupTypes'
 
 export type TenantActionResult = { ok: true } | { ok: false; error: string }
 /** A save that succeeded, plus what is still missing from the saved asset. */
 export type SaveResult = { ok: true; problems: string[] } | { ok: false; error: string }
+
+/**
+ * A save of an asset the server parses before storing. `saved` is what was
+ * stored (the editor adopts it, so rows the parser dropped leave the form) and
+ * `dropped` is how many rows that was.
+ */
+export type ParsedSaveResult<T> =
+  | { ok: true; problems: string[]; saved: T; dropped: number; updatedAt: string | null }
+  | { ok: false; error: string }
+
+const versionOf = (doc: unknown): string | null =>
+  doc && typeof (doc as { updatedAt?: unknown }).updatedAt === 'string'
+    ? (doc as { updatedAt: string }).updatedAt
+    : null
+
+/** The workspace save also says how many competitors it kept and why it dropped the rest. */
+export type WorkspaceSaveResult =
+  | {
+      ok: true
+      problems: string[]
+      counts: WorkspaceSaveCounts
+      /** The profile as stored: domains reduced to the host, dropped rows gone. */
+      saved: WorkspaceProfileInput
+      updatedAt: string | null
+    }
+  | { ok: false; error: string }
 
 const HUB_PATH = '/admin/ops/setup'
 
@@ -61,18 +88,20 @@ const dateOrNull = (value: string | null | undefined): string | null =>
  */
 export async function saveWorkspaceProfileAction(
   input: WorkspaceProfileInput,
-): Promise<SaveResult> {
+): Promise<WorkspaceSaveResult> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const competitors = input.competitors
       .map((row) => ({ domain: normaliseDomain(row.domain), name: (row.name ?? '').trim() }))
       .filter((row): row is { domain: string; name: string } => row.domain !== null)
+    const invalid = input.competitors.length - competitors.length
     const seen = new Set<string>()
     const deduped = competitors.filter((row) => {
       if (seen.has(row.domain)) return false
       seen.add(row.domain)
       return true
     })
+    const duplicate = competitors.length - deduped.length
     const targetDomain = normaliseDomain(input.targetDomain) ?? ''
     const data = {
       companyName: (input.companyName ?? '').trim(),
@@ -98,6 +127,9 @@ export async function saveWorkspaceProfileAction(
     return {
       ok: true,
       problems: workspaceProfileProblems(profile, { requireCompetitors: mode === 'live' }),
+      counts: { competitors: deduped.length, invalid, duplicate },
+      saved: data,
+      updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : null,
     }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the workspace.') }
@@ -153,7 +185,10 @@ function revalidateIcps(id?: number | string) {
 
 export async function createIcpAction(
   input: IcpContent,
-): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; id: number; saved: IcpContent; dropped: number; updatedAt: string | null }
+  | { ok: false; error: string }
+> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
@@ -165,17 +200,26 @@ export async function createIcpAction(
       overrideAccess: false,
     })
     revalidateIcps(doc.id)
-    return { ok: true, id: doc.id }
+    return {
+      ok: true,
+      id: doc.id,
+      saved: content,
+      dropped: droppedRows(input, content),
+      updatedAt: versionOf(doc),
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not create the audience.') }
   }
 }
 
-export async function saveIcpAction(id: number, input: IcpContent): Promise<SaveResult> {
+export async function saveIcpAction(
+  id: number,
+  input: IcpContent,
+): Promise<ParsedSaveResult<IcpContent>> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
-    await payload.update({
+    const doc = await payload.update({
       collection: 'icps',
       id,
       data: { ...icpFields(content), name: content.name || 'Untitled audience' },
@@ -184,7 +228,13 @@ export async function saveIcpAction(id: number, input: IcpContent): Promise<Save
       overrideAccess: false,
     })
     revalidateIcps(id)
-    return { ok: true, problems: icpCompletenessProblems(content) }
+    return {
+      ok: true,
+      problems: icpCompletenessProblems(content),
+      saved: content,
+      dropped: droppedRows(input, content),
+      updatedAt: versionOf(doc),
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the audience.') }
   }
@@ -221,7 +271,15 @@ export async function saveAndActivateIcpAction(
   input: IcpContent,
   options: { makePrimary: boolean },
 ): Promise<
-  | { ok: true; id: number; status: 'active'; primary: boolean }
+  | {
+      ok: true
+      id: number
+      status: 'active'
+      primary: boolean
+      saved: IcpContent
+      dropped: number
+      updatedAt: string | null
+    }
   | { ok: false; error: string; id?: number }
 > {
   let savedId: number | undefined
@@ -281,7 +339,15 @@ export async function saveAndActivateIcpAction(
     }
 
     revalidateIcps(savedId)
-    return { ok: true, id: savedId, status: 'active', primary }
+    return {
+      ok: true,
+      id: savedId,
+      status: 'active',
+      primary,
+      saved: content,
+      dropped: droppedRows(input, content),
+      updatedAt: versionOf(doc),
+    }
   } catch (e) {
     // The save may well have landed before the activation was refused, and the
     // caller is handed its id to keep editing — so the list and the editor have
@@ -330,11 +396,13 @@ export async function deleteIcpDraftAction(id: number): Promise<TenantActionResu
 // Positioning
 // ---------------------------------------------------------------------------
 
-export async function savePositioningAction(input: PositioningContent): Promise<SaveResult> {
+export async function savePositioningAction(
+  input: PositioningContent,
+): Promise<ParsedSaveResult<PositioningContent>> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const content = positioningContentOf(input)
-    await payload.updateGlobal({
+    const doc = await payload.updateGlobal({
       slug: 'positioning',
       data: {
         ...content,
@@ -355,7 +423,13 @@ export async function savePositioningAction(input: PositioningContent): Promise<
     revalidatePath(HUB_PATH)
     revalidatePath('/admin')
     revalidatePath('/admin/ops/setup/positioning')
-    return { ok: true, problems: positioningCompletenessProblems(content) }
+    return {
+      ok: true,
+      problems: positioningCompletenessProblems(content),
+      saved: content,
+      dropped: droppedRows(input, content),
+      updatedAt: versionOf(doc),
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the positioning.') }
   }
@@ -376,7 +450,10 @@ export async function savePositioningAction(input: PositioningContent): Promise<
 export async function saveEvidenceBankAction(
   input: EvidenceBankInput,
   suggestionId?: number,
-): Promise<{ ok: true; saved: EvidenceBankContent } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; saved: EvidenceBankContent; counts: EvidenceSaveCounts; updatedAt: string | null }
+  | { ok: false; error: string }
+> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const ref = (value: string | undefined) =>
@@ -415,6 +492,8 @@ export async function saveEvidenceBankAction(
           replacement: row.replacement ?? '',
         })),
     }
+    const sent = input.verifiedClaims.length + input.facts.length + input.rejectedClaims.length
+    const kept = data.verifiedClaims.length + data.facts.length + data.rejectedClaims.length
     const doc = await payload.updateGlobal({
       slug: 'evidence-bank',
       data,
@@ -431,7 +510,17 @@ export async function saveEvidenceBankAction(
     await completeSuggestionAfterEdit(payload, user, suggestionId, 'evidence-bank')
     // The saved document, not the input: the hook has just minted refs for the
     // new rows, and the editor needs them to show what a draft would cite.
-    return { ok: true, saved: evidenceBankContentOf(doc) }
+    return {
+      ok: true,
+      saved: evidenceBankContentOf(doc),
+      counts: {
+        claims: data.verifiedClaims.length,
+        facts: data.facts.length,
+        rejected: data.rejectedClaims.length,
+        skipped: sent - kept,
+      },
+      updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : null,
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the evidence bank.') }
   }

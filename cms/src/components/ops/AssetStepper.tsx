@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react'
 
+import { type AnyGuard, LeaveDialog, RestoreNotice, UnsavedBar } from './DirtyGuardUi'
 import { assistAction, type AssistAsset } from './setupActions'
 import { SitePagesHint } from './SitePagesHint'
 import './ops.css'
@@ -71,6 +72,12 @@ type Props<Id extends string> = {
   problemsTitle?: string
   error?: string | null
   message?: string | null
+  /** The editor's unsaved-change guard; it adds the restore notice, sticky bar and leave dialog. */
+  guard?: AnyGuard
+  /** What the bar's Save runs: the same save as the footer's button. */
+  onSave?: () => void
+  /** The save is not allowed yet (an active record that would be left incomplete). */
+  saveBlocked?: boolean
 }
 
 /**
@@ -131,6 +138,9 @@ export function AssetStepper<Id extends string>({
   problemsTitle = 'Still missing',
   error,
   message,
+  guard,
+  onSave,
+  saveBlocked,
 }: Props<Id>) {
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [assistError, setAssistError] = useState<string | null>(null)
@@ -186,6 +196,7 @@ export function AssetStepper<Id extends string>({
         {headerExtra}
       </div>
       <p className="datum-ops__lede">{lede}</p>
+      {guard ? <RestoreNotice guard={guard} /> : null}
       {beforeSteps}
 
       <div className="datum-ops__stepper">
@@ -208,7 +219,11 @@ export function AssetStepper<Id extends string>({
         <div className="datum-ops__step">
           <h2>{current.title}</h2>
           <p className="datum-ops__sub">{current.blurb}</p>
-          {error ? <p className="datum-ops__error">{error}</p> : null}
+          {error ? (
+            <p className="datum-ops__error" role="alert">
+              {error}
+            </p>
+          ) : null}
           {message ? <p className="datum-ops__ok">{message}</p> : null}
 
           {children}
@@ -302,6 +317,10 @@ export function AssetStepper<Id extends string>({
           ) : null}
         </div>
       </div>
+      {guard && onSave ? (
+        <UnsavedBar blocked={saveBlocked} guard={guard} onSave={onSave} pending={busy} />
+      ) : null}
+      {guard ? <LeaveDialog guard={guard} /> : null}
     </div>
   )
 }

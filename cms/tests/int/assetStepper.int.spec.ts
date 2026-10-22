@@ -9,6 +9,8 @@ import { afterEach, expect, it, vi } from 'vitest'
  */
 vi.mock('@/components/ops/setupActions', () => ({ assistAction: vi.fn() }))
 vi.mock('@/components/ops/tenantActions', () => ({ saveEvidenceBankAction: vi.fn() }))
+// The evidence editor toasts its save results; the real module pulls in CSS vitest cannot load.
+vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) =>

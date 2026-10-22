@@ -5,6 +5,8 @@ import type { Template } from '../../payload-types'
 export type TemplateConfigDTO = {
   id: number
   name: string
+  /** The version this form was loaded on, so a local copy is not put over a newer save. */
+  updatedAt: string
   companyMentions: CompanyMentions
   outline: string
   example: string
@@ -27,6 +29,7 @@ export function toTemplateDTO(doc: Template): TemplateConfigDTO {
   return {
     id: doc.id,
     name: doc.name,
+    updatedAt: doc.updatedAt,
     companyMentions: companyMentionsOf(doc),
     outline: lexicalToPlainText(doc.outline),
     example: lexicalToPlainText(doc.example),

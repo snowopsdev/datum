@@ -65,6 +65,7 @@ export async function SetupWorkspaceView(props: AdminViewServerProps) {
           problems={workspaceProfileProblems(resolved, {
             requireCompetitors: modeFromEnv(process.env) === 'live',
           })}
+          updatedAt={(doc as { updatedAt?: string }).updatedAt ?? null}
         />
       </Gutter>
     </DefaultTemplate>

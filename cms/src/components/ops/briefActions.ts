@@ -13,7 +13,16 @@ import {
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
 export type BriefActionResult =
-  | { ok: true; message: string; /** Set when approving queued a run. */ runId?: string }
+  | {
+      ok: true
+      message: string
+      /** Set when approving queued a run. */
+      runId?: string
+      /** What was stored: sections without a heading are gone, a swapped audience has its new line. */
+      saved?: BriefEdits
+      /** Sections the save left out for having no heading. */
+      dropped?: number
+    }
   | { ok: false; error: string }
 
 /** What the editor may change. Everything else on the brief is research output. */
@@ -118,7 +127,15 @@ export async function saveBriefAction(
       },
     })
     revalidate(articleId)
-    return { ok: true, message: 'Brief saved.' }
+    return {
+      ok: true,
+      message:
+        edits.sections.length > next.sections.length
+          ? `Brief saved · ${edits.sections.length - next.sections.length} section${edits.sections.length - next.sections.length === 1 ? '' : 's'} with no heading removed`
+          : 'Brief saved.',
+      saved: { ...next, icpId: nextIcpId },
+      dropped: edits.sections.length - next.sections.length,
+    }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the brief.') }
   }

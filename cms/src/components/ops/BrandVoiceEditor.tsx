@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useRef, useState, useTransition } from 'react'
 
@@ -9,6 +10,7 @@ import {
   emptyBrandVoiceContent,
 } from '../../lib/brandVoice'
 import { AssetStepper } from './AssetStepper'
+import { SaveButton } from './DirtyGuardUi'
 import { AuditTimeline } from './AuditTimeline'
 import {
   activateBrandVoiceAction,
@@ -32,6 +34,7 @@ import {
 } from './brandVoiceTypes'
 import { SuggestionEditorContext } from './SetupSuggestions'
 import type { SetupSuggestionDTO } from './suggestionTypes'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 const VIEW_PATH = '/admin/ops/setup/brand-voice'
@@ -328,6 +331,29 @@ export function BrandVoiceEditor({
    */
   const answeredThrough = step < STEP_COUNT ? step + 1 : (record?.onboardingStep ?? 0)
 
+  // The working copy against the saved record. A new voice has no record to
+  // compare with, so it is compared with an empty one and keyed apart.
+  const guard = useDirtyGuard<BrandVoiceContent>({
+    formKey: `brand-voice:${workingId ?? 'new'}`,
+    value: content,
+    initial: contentOf(record),
+    version: record?.updatedAt ?? null,
+    onReset: setContent,
+    labels: { name: 'the name' },
+    save: async () => {
+      setError(null)
+      setMessage(null)
+      try {
+        const id = await persist(answeredThrough)
+        toast.success(`Saved ${content.name || 'brand voice'}.`)
+        return { saved: content, key: `brand-voice:${id}` }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Action failed')
+        return null
+      }
+    },
+  })
+
   // The URL carries the mode, not the step: a reload comes back to the same
   // part of the flow without a server round trip on every click of the rail.
   const goToStep = (next: number) => {
@@ -384,14 +410,15 @@ export function BrandVoiceEditor({
   }
 
   const save = () =>
-    run(async () => {
-      await persist(answeredThrough)
-      setMessage(`Saved ${content.name || 'brand voice'}.`)
+    startTransition(async () => {
+      await guard.submit()
     })
 
   const activate = () =>
     run(async () => {
       const id = await persist(STEP_COUNT)
+      // Saved whether or not the gate then accepts the activation.
+      guard.markSaved(content, { key: `brand-voice:${id}` })
       const result = await activateBrandVoiceAction(id)
       if (!result.ok) {
         setError(result.error)
@@ -417,6 +444,8 @@ export function BrandVoiceEditor({
     run(async () => {
       if (workingId == null) return
       await deleteDraftAction(workingId)
+      // Nothing of a deleted draft is worth keeping a copy of.
+      guard.markSaved(content)
       setConfirmDelete(false)
       // Deleting the last voice puts the workspace back where it started, so
       // the entry cards must come back with it.
@@ -438,7 +467,11 @@ export function BrandVoiceEditor({
         </div>
         <p className="datum-ops__lede">{LEDE} Start by telling us who you are.</p>
         {error ? <p className="datum-ops__error">{error}</p> : null}
-        <EntryCards onStart={startOnboarding} onUpload={uploadGuide} disabled={pending} />
+        <EntryCards
+                  onStart={() => guard.guardLeave(startOnboarding)}
+                  onUpload={(file) => guard.guardLeave(() => uploadGuide(file))}
+                  disabled={pending}
+                />
       </div>
     )
   }
@@ -468,7 +501,10 @@ export function BrandVoiceEditor({
                 id="bv-record"
                 value={workingId ?? ''}
                 onChange={(e) => {
-                  if (e.target.value) openRecord(Number(e.target.value))
+                  const next = Number(e.target.value)
+                  if (e.target.value && next !== workingId) {
+                    guard.guardLeave(() => openRecord(next))
+                  }
                 }}
                 disabled={pending}
               >
@@ -488,12 +524,20 @@ export function BrandVoiceEditor({
             hasActive ? (
               <details className="datum-ops__bv-replace">
                 <summary>Replace this voice</summary>
-                <EntryCards onStart={startOnboarding} onUpload={uploadGuide} disabled={pending} />
+                <EntryCards
+                  onStart={() => guard.guardLeave(startOnboarding)}
+                  onUpload={(file) => guard.guardLeave(() => uploadGuide(file))}
+                  disabled={pending}
+                />
               </details>
             ) : (
               <div className="datum-ops__bv-replace is-open">
                 <strong>Replace this voice</strong>
-                <EntryCards onStart={startOnboarding} onUpload={uploadGuide} disabled={pending} />
+                <EntryCards
+                  onStart={() => guard.guardLeave(startOnboarding)}
+                  onUpload={(file) => guard.guardLeave(() => uploadGuide(file))}
+                  disabled={pending}
+                />
               </div>
             )
           ) : null}
@@ -509,17 +553,18 @@ export function BrandVoiceEditor({
       problemsTitle={problemsTitle}
       error={error}
       message={message}
+      guard={guard}
+      onSave={save}
+      saveBlocked={status === 'active' && problems.length > 0}
       actions={
         <>
-          <button
-            type="button"
-            className="datum-ops__btn datum-ops__btn--primary"
+          <SaveButton
+            blocked={status === 'active' && problems.length > 0}
+            guard={guard}
             onClick={save}
-            disabled={pending || (status === 'active' && problems.length > 0)}
+            pending={pending}
             title={status === 'active' && problems.length ? problems.join('; ') : undefined}
-          >
-            Save
-          </button>
+          />
           {status !== 'active' ? (
             <>
               <button
