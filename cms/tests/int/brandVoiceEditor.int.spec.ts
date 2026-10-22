@@ -2,7 +2,7 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import { emptyBrandVoiceContent } from '@/lib/brandVoice'
+import { brandVoiceContentOf, emptyBrandVoiceContent } from '@/lib/brandVoice'
 import type { BrandVoiceDTO, BrandVoiceInput } from '@/components/ops/brandVoiceTypes'
 
 /**
@@ -11,8 +11,10 @@ import type { BrandVoiceDTO, BrandVoiceInput } from '@/components/ops/brandVoice
  * and what a save writes to the resume marker.
  */
 
-const saveBrandVoiceDraftAction = vi.fn(async (_id: number, _input: BrandVoiceInput) => ({
+// As the real action does: the content back as stored.
+const saveBrandVoiceDraftAction = vi.fn(async (_id: number, input: BrandVoiceInput) => ({
   updatedAt: '2030-01-01T00:00:00.000Z',
+  saved: brandVoiceContentOf({ ...input, name: input.name || 'Untitled brand voice' }),
 }))
 const deleteDraftAction = vi.fn(async (_id: number) => undefined)
 const archiveBrandVoiceAction = vi.fn(async (_id: number) => undefined)
@@ -20,7 +22,11 @@ const archiveBrandVoiceAction = vi.fn(async (_id: number) => undefined)
 vi.mock('@/components/ops/brandVoiceActions', () => ({
   activateBrandVoiceAction: vi.fn(async () => ({ ok: true })),
   archiveBrandVoiceAction: (id: number) => archiveBrandVoiceAction(id),
-  createBrandVoiceDraftAction: vi.fn(async () => ({ id: 7, updatedAt: '2030-01-01T00:00:00.000Z' })),
+  createBrandVoiceDraftAction: vi.fn(async (input: BrandVoiceInput) => ({
+    id: 7,
+    updatedAt: '2030-01-01T00:00:00.000Z',
+    saved: input,
+  })),
   deleteDraftAction: (id: number) => deleteDraftAction(id),
   extractBrandVoiceFromUploadAction: vi.fn(),
   saveBrandVoiceDraftAction: (id: number, input: BrandVoiceInput) =>
@@ -252,4 +258,16 @@ it('tags an edit made after a save with the version that save returned', async (
     },
     { timeout: 2000 },
   )
+})
+
+it('shows the voice as stored after a save, so a blank name is not left looking saved', async () => {
+  localStorage.clear()
+  const draft = dto({ status: 'draft', onboardingStep: 9, name: 'Acme voice' })
+  render(editor({ records: [draft], selectedId: 1, initialMode: 'onboarding' }))
+  fireEvent.click(screen.getByRole('button', { name: /Brand essence/ }))
+  const name = () => screen.getByLabelText(/^Brand voice name/) as HTMLInputElement
+  fireEvent.change(name(), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(name().value).toBe('Untitled brand voice'))
+  expect(document.querySelector('.datum-ops__dirty')?.textContent).toBe('')
 })

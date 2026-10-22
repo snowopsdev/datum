@@ -781,6 +781,10 @@ describe('saveTemplateConfigAction', () => {
       const result = await saveTemplateConfigAction(template.id, input)
       expect(result.dropped).toBe(3)
       expect(result.updatedAt).toEqual(expect.any(String))
+      // The template as stored, for the editor to show.
+      expect(result.template.dos).toEqual(['Name the tool'])
+      expect(result.template.requiredSections).toEqual(['Verdict'])
+      expect(result.template.updatedAt).toBe(result.updatedAt)
       const saved = await payload.findByID({
         collection: 'templates',
         id: template.id,

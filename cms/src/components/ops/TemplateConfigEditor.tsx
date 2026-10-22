@@ -138,15 +138,17 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
           requiredSections: requiredSections.split('\n'),
           seoSpec: seo,
         })
-        // The textareas show what was kept, so a left-over blank line is gone.
-        applyForm(form)
+        // The textareas show what was stored, through the same mapping the
+        // page reads it with: a blank line or padded outline is gone.
+        const saved = formOf(result.template)
+        applyForm(saved)
         toast.success(
           result.dropped > 0
             ? `Saved ${selected.name} · ${result.dropped} empty line${result.dropped === 1 ? '' : 's'} removed`
             : `Saved ${selected.name}`,
         )
         router.refresh()
-        return { saved: form, version: result.updatedAt }
+        return { saved, version: result.updatedAt }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Save failed')
         return null

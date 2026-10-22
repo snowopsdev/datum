@@ -31,7 +31,7 @@ export type TemplateConfigInput = {
 export async function saveTemplateConfigAction(
   templateId: number,
   input: TemplateConfigInput,
-): Promise<{ dropped: number; updatedAt: string }> {
+): Promise<{ dropped: number; updatedAt: string; template: TemplateConfigDTO }> {
   const { payload, user } = await requireUser('Unauthorized')
   const lines = [...input.dos, ...input.donts, ...input.requiredSections]
   const dropped = lines.filter((line) => !line.trim()).length
@@ -70,7 +70,9 @@ export async function saveTemplateConfigAction(
     overrideAccess: false,
   })
   revalidatePath('/admin/ops/templates')
-  return { dropped, updatedAt: updated.updatedAt }
+  // As stored: the outline and example come back from Lexical trimmed, and the
+  // lists without their blank lines, which the editor must show.
+  return { dropped, updatedAt: updated.updatedAt, template: toTemplateDTO(updated) }
 }
 
 /**
