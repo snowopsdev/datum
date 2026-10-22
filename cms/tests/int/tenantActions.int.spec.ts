@@ -755,14 +755,13 @@ describe('saveEvidenceBankAction', () => {
 
 describe('saveTemplateConfigAction', () => {
   it('counts the blank lines it left out and returns the stored version', async () => {
-    const { docs } = await payload.find({
+    // Its own template: CI's database is not seeded, and a seeded one is not
+    // this test's to edit.
+    const template = await payload.create({
       collection: 'templates',
-      depth: 0,
-      limit: 1,
+      data: { name: `Save counts ${Date.now()}` },
       overrideAccess: true,
     })
-    const template = docs[0]
-    if (!template) throw new Error('the seeded database has no template')
     const input = {
       companyMentions: 'mention' as const,
       dos: ['Name the tool', '', '   '],
@@ -791,18 +790,7 @@ describe('saveTemplateConfigAction', () => {
       expect(saved.dos?.map((row) => row.text)).toEqual(['Name the tool'])
       expect(saved.requiredSections?.map((row) => row.heading)).toEqual(['Verdict'])
     } finally {
-      await payload.update({
-        collection: 'templates',
-        id: template.id,
-        data: {
-          dos: template.dos,
-          donts: template.donts,
-          requiredSections: template.requiredSections,
-          seoSpec: template.seoSpec,
-          companyMentions: template.companyMentions,
-        },
-        overrideAccess: true,
-      })
+      await payload.delete({ collection: 'templates', id: template.id, overrideAccess: true })
     }
   })
 })
