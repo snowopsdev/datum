@@ -52,6 +52,14 @@ export function changeCountOf<T>(value: T, snapshot: T, countChanges?: CountChan
 
 export const storageKey = (formKey: string) => `${KEY_PREFIX}${formKey}`
 
+/**
+ * A form key that belongs to one signed-in user. localStorage outlives a
+ * sign-out and is shared by everyone on the browser, so a draft must only
+ * ever go back to the person who typed it.
+ */
+export const ownedKey = (owner: string | number | null | undefined, formKey: string) =>
+  `${owner ?? 'anon'}/${formKey}`
+
 /** The browser's localStorage, or null where there is none or it throws on access. */
 export function browserStorage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null {
   try {

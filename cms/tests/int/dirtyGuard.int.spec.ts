@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const auth = vi.hoisted(() => ({ user: { id: 7 } as { id: number } | null }))
+vi.mock('@payloadcms/ui', () => ({ useAuth: () => ({ user: auth.user }) }))
+
 import {
   agoLabel,
   changeCountOf,
@@ -9,6 +12,7 @@ import {
   describeChanged,
   guardedAnchor,
   LOCAL_COPY_TTL_MS,
+  ownedKey,
   readLocalCopy,
   restoreDecision,
   sameValue,
@@ -193,6 +197,9 @@ describe('save messages say what was kept and dropped', () => {
 type Form = { a: string; b: string }
 const INITIAL: Form = { a: 'one', b: 'two' }
 
+/** The keys the hook writes, as the signed-in user (id 7) of the mock. */
+const own = (key: string) => ownedKey(7, key)
+
 function Harness({
   formKey = 'form:1',
   initial = INITIAL,
@@ -251,7 +258,7 @@ const dirtyStatus = () => document.querySelector('.datum-ops__dirty')?.textConte
 const type = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const stored = (key = 'form:1') => {
-  const raw = localStorage.getItem(storageKey(key))
+  const raw = localStorage.getItem(storageKey(own(key)))
   return raw ? (JSON.parse(raw) as { value: Form; savedAt: string | null; at: number }) : null
 }
 
@@ -347,7 +354,7 @@ describe('useDirtyGuard', () => {
   })
 
   it('puts back an unsaved edit made on the version the server still has', () => {
-    writeLocalCopy('form:1', { value: { a: 'mine', b: 'two' }, savedAt: 'v1', at: NOW - 2 * 60_000 })
+    writeLocalCopy(own('form:1'), { value: { a: 'mine', b: 'two' }, savedAt: 'v1', at: NOW - 2 * 60_000 })
     render(harness())
     expect((screen.getByLabelText('a') as HTMLInputElement).value).toBe('mine')
     expect(screen.getByText("Restored the edit you hadn't saved, from 2 minutes ago.")).toBeTruthy()
@@ -359,7 +366,7 @@ describe('useDirtyGuard', () => {
   })
 
   it('asks instead of applying when the record was saved elsewhere since', () => {
-    writeLocalCopy('form:1', { value: { a: 'mine', b: 'two' }, savedAt: 'v0', at: NOW - 5 * 60_000 })
+    writeLocalCopy(own('form:1'), { value: { a: 'mine', b: 'two' }, savedAt: 'v0', at: NOW - 5 * 60_000 })
     const onReset = vi.fn()
     render(harness({ onReset }))
     expect(onReset).not.toHaveBeenCalled()
@@ -378,7 +385,7 @@ describe('useDirtyGuard', () => {
   })
 
   it('can discard the older edit instead', () => {
-    writeLocalCopy('form:1', { value: { a: 'mine', b: 'two' }, savedAt: 'v0', at: NOW - 60_000 })
+    writeLocalCopy(own('form:1'), { value: { a: 'mine', b: 'two' }, savedAt: 'v0', at: NOW - 60_000 })
     render(harness())
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     expect(stored()).toBeNull()
@@ -386,7 +393,7 @@ describe('useDirtyGuard', () => {
   })
 
   it('ignores a copy that is expired, corrupt, or no different from what is saved', () => {
-    writeLocalCopy('form:1', {
+    writeLocalCopy(own('form:1'), {
       value: { a: 'mine', b: 'two' },
       savedAt: 'v1',
       at: NOW - LOCAL_COPY_TTL_MS - 1000,
@@ -396,12 +403,12 @@ describe('useDirtyGuard', () => {
     expect(screen.queryByText(/Restored the edit/)).toBeNull()
     unmount()
 
-    localStorage.setItem(storageKey('form:1'), '{broken')
+    localStorage.setItem(storageKey(own('form:1')), '{broken')
     const second = render(harness())
     expect(screen.queryByText(/Restored the edit/)).toBeNull()
     second.unmount()
 
-    writeLocalCopy('form:1', { value: { ...INITIAL }, savedAt: 'v1', at: NOW })
+    writeLocalCopy(own('form:1'), { value: { ...INITIAL }, savedAt: 'v1', at: NOW })
     render(harness())
     expect(screen.queryByText(/Restored the edit/)).toBeNull()
   })
@@ -579,8 +586,42 @@ describe('useDirtyGuard', () => {
     })
   })
 
+  it('never hands an unsaved draft to another person on the same browser', () => {
+    const first = render(harness())
+    type('a', 'mine')
+    act(() => void vi.advanceTimersByTime(500))
+    expect(stored()?.value.a).toBe('mine')
+    first.unmount()
+
+    auth.user = { id: 8 }
+    try {
+      render(harness())
+      expect((screen.getByLabelText('a') as HTMLInputElement).value).toBe(INITIAL.a)
+      expect(screen.queryByText(/Restored the edit/)).toBeNull()
+      expect(dirtyStatus()).toBe('')
+    } finally {
+      auth.user = { id: 7 }
+    }
+  })
+
+  it('takes a refreshed version only with the content it belongs to', () => {
+    const { rerender } = render(harness({ version: 'v1' }))
+    type('a', 'edited')
+
+    // Someone else saved: the refreshed page brings their content with v2.
+    rerender(harness({ version: 'v2', initial: { ...INITIAL, b: 'theirs' } }))
+    act(() => void vi.advanceTimersByTime(500))
+    expect(stored()?.savedAt).toBe('v1')
+
+    // A refresh that saved nothing new to this form (a site fetch, say).
+    rerender(harness({ version: 'v3', initial: INITIAL }))
+    type('a', 'edited again')
+    act(() => void vi.advanceTimersByTime(500))
+    expect(stored()?.savedAt).toBe('v3')
+  })
+
   it('treats a different formKey as a different record, with its own baseline and copy', () => {
-    writeLocalCopy('form:2', { value: { a: 'two-mine', b: 'two' }, savedAt: 'v1', at: NOW - 60_000 })
+    writeLocalCopy(own('form:2'), { value: { a: 'two-mine', b: 'two' }, savedAt: 'v1', at: NOW - 60_000 })
     const { rerender } = render(harness({ formKey: 'form:1' }))
     expect(dirtyStatus()).toBe('')
 

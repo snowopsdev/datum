@@ -11,7 +11,10 @@ import { ICP_FIXTURE } from '@/lib/tenant/fixtures'
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }))
-vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
+vi.mock('@payloadcms/ui', () => ({
+  toast: { success: vi.fn(), dismiss: vi.fn() },
+  useAuth: () => ({ user: { id: 1 } }),
+}))
 vi.mock('@/components/ops/tenantActions', () => ({
   archiveIcpAction: vi.fn(),
   createIcpAction: vi.fn(),

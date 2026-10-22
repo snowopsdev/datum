@@ -29,7 +29,10 @@ vi.mock('@/components/ops/brandVoiceActions', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }))
-vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
+vi.mock('@payloadcms/ui', () => ({
+  toast: { success: vi.fn(), dismiss: vi.fn() },
+  useAuth: () => ({ user: { id: 1 } }),
+}))
 
 const { BrandVoiceEditor } = await import('@/components/ops/BrandVoiceEditor')
 
@@ -244,7 +247,7 @@ it('tags an edit made after a save with the version that save returned', async (
   fireEvent.change(who(), { target: { value: 'Clinic owners' } })
   await waitFor(
     () => {
-      const raw = localStorage.getItem('datum:draft:brand-voice:1')
+      const raw = localStorage.getItem('datum:draft:1/brand-voice:1')
       expect(raw && JSON.parse(raw).savedAt).toBe('2030-01-01T00:00:00.000Z')
     },
     { timeout: 2000 },

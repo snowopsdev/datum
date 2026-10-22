@@ -13,7 +13,10 @@ import type { BriefAngleOption } from '../../../pipeline/src/brief'
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }))
-vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
+vi.mock('@payloadcms/ui', () => ({
+  toast: { success: vi.fn(), dismiss: vi.fn() },
+  useAuth: () => ({ user: { id: 1 } }),
+}))
 vi.mock('@/components/ops/briefActions', () => ({
   approveBriefAction: vi.fn(async () => ({ ok: true, message: 'Approved' })),
   saveBriefAction: vi.fn(async () => ({ ok: true, message: 'Saved' })),
@@ -153,7 +156,7 @@ it('takes the saved brief as stored, so a trimmed angle is not left dirty, and k
   fireEvent.change(angle(), { target: { value: 'A newer angle' } })
   await waitFor(
     () => {
-      const raw = localStorage.getItem('datum:draft:brief:article:1')
+      const raw = localStorage.getItem('datum:draft:1/brief:article:1')
       expect(raw && JSON.parse(raw).savedAt).toBe('2030-01-01T00:00:00.000Z')
     },
     { timeout: 2000 },

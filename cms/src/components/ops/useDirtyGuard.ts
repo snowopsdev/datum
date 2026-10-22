@@ -1,5 +1,6 @@
 'use client'
 
+import { useAuth } from '@payloadcms/ui'
 import { useEffect, useRef, useState } from 'react'
 
 import {
@@ -9,6 +10,7 @@ import {
   clearLocalCopy,
   guardedAnchor,
   LOCAL_WRITE_DEBOUNCE_MS,
+  ownedKey,
   readLocalCopy,
   restoreDecision,
   sameValue,
@@ -92,7 +94,11 @@ export type DirtyGuard<T> = {
  * button are not covered; the local copy is what keeps an edit in that case.
  */
 export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
-  const { formKey, value, initial, version = null } = options
+  const { value, initial, version = null } = options
+  // Every key below is this user's: see `ownedKey`.
+  const { user } = useAuth()
+  const owner = user?.id ?? null
+  const formKey = ownedKey(owner, options.formKey)
   const optionsRef = useRef(options)
 
   const [core, setCore] = useState<{ key: string; saved: T; version: string | null }>({
@@ -104,13 +110,16 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
   // never a frame comparing the new form with the old record's baseline.
   const live = core.key === formKey ? core : { key: formKey, saved: initial, version }
   if (core.key !== formKey) setCore(live)
-  // The version follows the page's `updatedAt`. It only changes under us when
-  // one of this editor's own actions refreshed the page (a save, a site fetch),
-  // so taking it keeps a copy made afterwards tied to what the server has.
+  // The version follows the page's `updatedAt`, but only together with the
+  // content it belongs to. After this editor's own save or a site fetch the
+  // refreshed record matches the baseline, so the new version is taken. A
+  // refresh after someone else's save (a finished run refreshes every admin
+  // page) brings content this form was never compared with: keep the old
+  // version, so a copy made now still asks before it is put back.
   const [seenVersion, setSeenVersion] = useState(version)
   if (seenVersion !== version) {
     setSeenVersion(version)
-    setCore({ ...live, version })
+    if (sameValue(initial, live.saved)) setCore({ ...live, version })
   }
 
   const [savedAt, setSavedAt] = useState<Date | null>(null)
@@ -210,7 +219,7 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
   }, [formKey, valueJson, dirty, live.version, waiting])
 
   const markSaved: DirtyGuard<T>['markSaved'] = (next, extra) => {
-    const key = extra?.key ?? keyRef.current
+    const key = extra?.key ? ownedKey(owner, extra.key) : keyRef.current
     if (key !== keyRef.current) adoptedKey.current = key
     clearLocalCopy(keyRef.current)
     clearLocalCopy(key)
