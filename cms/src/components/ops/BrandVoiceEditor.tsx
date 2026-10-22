@@ -430,7 +430,7 @@ export function BrandVoiceEditor({
   // including the workspace that just deleted its last one.
   if (records.length === 0 && workingId == null && !drafting) {
     return (
-      <div className="datum-ops">
+      <div id="ops-main" tabIndex={-1} className="datum-ops">
         <SuggestionEditorContext suggestion={suggestion} />
         <div className="datum-ops__header">
           <h1>Brand voice</h1>

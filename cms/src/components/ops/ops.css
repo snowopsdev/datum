@@ -1,18 +1,106 @@
 /* Datum ops views — tokens from root DESIGN.md (Notion) */
+
+/* ── Colour tokens (F1) ──────────────────────────────────────────────────
+   `--ds-*` hold literal values so contrast is a property of this file rather
+   than of whatever Payload's theme resolves to. `--ops-*` are the aliases the
+   rest of this stylesheet uses. Both live on :root, not .datum-ops, because the
+   run bar, runtime banner and skip link render outside any ops view.
+
+   tests/int/dsContrast.int.spec.ts parses this block and enforces:
+     text pairs >= 4.5:1, non-text (-deco, focus ring) >= 3:1.
+   -text is for glyphs; -deco is for dots, bars, borders and tint bases.
+   A filled button's hover darkens, so white-on-hover stays >= 4.5:1.
+   Dark values sit on Payload's html[data-theme='dark'] elevation scale.
+   Tints are color-mix() of a -deco over transparent; the test reads the percent. */
+:root {
+  --ds-surface: #ffffff;
+  --ds-surface-soft: #f5f5f5;
+  --ds-hairline: #dddddd;
+  --ds-ink: #2f2f2f;
+  --ds-ink-secondary: #2f2f2f;
+  --ds-ink-muted: #5f5b56;
+  --ds-ink-faint: #666666;
+
+  --ds-primary: #0f6f99;
+  --ds-primary-hover: #0b5f85;
+  --ds-on-primary: #ffffff;
+  --ds-primary-text: #0d6b94;
+  --ds-primary-deco: #0f6f99;
+
+  --ds-success-text: #0c7525;
+  --ds-success-deco: #159a31;
+  --ds-info-text: #0b65a8;
+  --ds-info-deco: #3b8fd6;
+  --ds-warning-text: #96570b;
+  --ds-warning-deco: #dd5b00;
+  --ds-danger-text: #b63636;
+  --ds-danger-deco: #c0332c;
+
+  --ds-tint-wash: 6%;
+  --ds-tint: 10%;
+  --ds-edge: 40%;
+
+  --ds-focus-gap: var(--ds-surface);
+  --ds-focus-ring: #0f6f99;
+
+  --ops-primary: var(--ds-primary);
+  --ops-primary-active: var(--ds-primary-hover);
+  --ops-primary-text: var(--ds-primary-text);
+  --ops-on-primary: var(--ds-on-primary);
+  --ops-canvas: var(--ds-surface);
+  --ops-canvas-soft: var(--ds-surface-soft);
+  --ops-ink: var(--ds-ink);
+  --ops-ink-secondary: var(--ds-ink-secondary);
+  --ops-ink-muted: var(--ds-ink-muted);
+  --ops-ink-faint: var(--ds-ink-faint);
+  --ops-hairline: var(--ds-hairline);
+  --ops-orange: var(--ds-warning-text);
+  --ops-orange-deco: var(--ds-warning-deco);
+  --ops-green: var(--ds-success-text);
+  --ops-green-deco: var(--ds-success-deco);
+  --ops-sky: var(--ds-info-text);
+  --ops-sky-deco: var(--ds-info-deco);
+  --ops-red: var(--ds-danger-text);
+  --ops-red-deco: var(--ds-danger-deco);
+
+  --ops-wash-primary: color-mix(in srgb, var(--ds-primary-deco) var(--ds-tint-wash), transparent);
+  --ops-tint-primary: color-mix(in srgb, var(--ds-primary-deco) var(--ds-tint), transparent);
+  --ops-edge-primary: color-mix(in srgb, var(--ds-primary-deco) var(--ds-edge), transparent);
+  --ops-tint-green: color-mix(in srgb, var(--ds-success-deco) var(--ds-tint), transparent);
+  --ops-tint-sky: color-mix(in srgb, var(--ds-info-deco) var(--ds-tint), transparent);
+  --ops-wash-orange: color-mix(in srgb, var(--ds-warning-deco) var(--ds-tint-wash), transparent);
+  --ops-tint-orange: color-mix(in srgb, var(--ds-warning-deco) var(--ds-tint), transparent);
+  --ops-edge-orange: color-mix(in srgb, var(--ds-warning-deco) var(--ds-edge), transparent);
+  --ops-tint-red: color-mix(in srgb, var(--ds-danger-deco) var(--ds-tint), transparent);
+}
+
+html[data-theme='dark'] {
+  --ds-surface: #141414;
+  --ds-surface-soft: #222222;
+  --ds-hairline: #3c3c3c;
+  --ds-ink: #ffffff;
+  --ds-ink-secondary: #ebebeb;
+  --ds-ink-muted: #b5b5b5;
+  --ds-ink-faint: #9a9a9a;
+
+  --ds-primary: #1677a6;
+  --ds-primary-hover: #0f6f99;
+  --ds-primary-text: #5bb6e3;
+  --ds-primary-deco: #4aa8d8;
+
+  --ds-success-text: #4cc26a;
+  --ds-success-deco: #1aae39;
+  --ds-info-text: #7cc0f5;
+  --ds-info-deco: #62aef0;
+  --ds-warning-text: #df8411;
+  --ds-warning-deco: #dd5b00;
+  --ds-danger-text: #f66d67;
+  --ds-danger-deco: #f66d67;
+
+  --ds-focus-ring: #4aa8d8;
+}
+
 .datum-ops {
-  --ops-primary: var(--theme-success-500, #0075de);
-  --ops-primary-active: var(--theme-success-400, #005bab);
-  --ops-canvas: var(--theme-elevation-0, #ffffff);
-  --ops-canvas-soft: var(--theme-elevation-50, #f6f5f4);
-  --ops-ink: var(--theme-text, #000000);
-  --ops-ink-secondary: var(--theme-elevation-800, #31302e);
-  --ops-ink-muted: var(--theme-elevation-600, #615d59);
-  --ops-ink-faint: var(--theme-elevation-500, #a39e98);
-  --ops-hairline: var(--theme-elevation-150, #e6e6e6);
-  --ops-orange: var(--theme-warning-600, #dd5b00);
-  --ops-green: #1aae39;
-  --ops-sky: #62aef0;
-  --ops-red: var(--theme-error-600, #c0332c);
   --ops-radius-xs: 4px;
   --ops-radius-md: 8px;
   --ops-radius-lg: 12px;
@@ -31,6 +119,62 @@
     sans-serif;
 }
 
+/* ── Focus ring + skip link (F2) ─────────────────────────────────────────
+   One ring for every interactive element in an ops view, the nav, the run bar
+   and the webhook secret field: a 2px --ds-focus-ring outline, offset 2px so
+   the surface (--ds-focus-gap) shows between it and the control. An outline,
+   not a box-shadow, so selected and active states that draw their own shadow
+   cannot hide it, and forced-colors mode keeps it. Unlayered on purpose:
+   Payload's `a:focus { outline: none }` and its field focus styles sit in
+   `@layer payload-default`, and unlayered rules win. */
+:where(.datum-ops, .datum-ops-nav, .datum-runbar, .datum-runtime, .datum-secret-field)
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='tab'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible,
+.datum-skip-link:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The skip target takes focus from script; it is a landing point, not a control. */
+#ops-main:focus {
+  outline: none;
+}
+
+.datum-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 8px 16px;
+  border-radius: var(--ops-radius-full, 9999px);
+  background: var(--ops-primary);
+  color: var(--ops-on-primary);
+  font:
+    600 14px/1.4 Inter,
+    -apple-system,
+    system-ui,
+    'Segoe UI',
+    Helvetica,
+    Arial,
+    sans-serif;
+  text-decoration: none;
+  /* Off-screen until focused, but still in the tab order and the a11y tree. */
+  transform: translateY(-200%);
+}
+
+.datum-skip-link:focus,
+.datum-skip-link:focus-visible {
+  transform: none;
+}
+
 .datum-ops-nav {
   margin: 12px 0 4px;
   padding: 0 8px;
@@ -44,7 +188,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.125px;
-  color: var(--theme-elevation-500, #a39e98);
+  color: var(--ops-ink-faint);
   margin: 0 0 6px 8px;
 }
 
@@ -52,7 +196,7 @@
   display: block;
   padding: 8px 12px;
   border-radius: 5px;
-  color: var(--theme-text, #31302e);
+  color: var(--ops-ink);
   text-decoration: none;
   font-size: 15px;
 }
@@ -63,7 +207,7 @@
 
 .datum-ops-nav__link.is-active {
   background: var(--theme-elevation-100, rgba(0, 0, 0, 0.08));
-  color: var(--theme-elevation-900, var(--theme-text, #31302e));
+  color: var(--ops-ink);
   font-weight: 600;
 }
 
@@ -91,7 +235,7 @@
 
 .datum-ops__eyebrow {
   margin: 0;
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.125px;
@@ -149,7 +293,7 @@
   border: 0;
   border-radius: 9999px;
   background: var(--ops-primary);
-  color: #ffffff;
+  color: var(--ops-on-primary);
   font-size: 16px;
   font-weight: 500;
   text-decoration: none;
@@ -171,7 +315,6 @@
 }
 
 @media (max-width: 760px) {
-
   .datum-ops__run-form,
   .datum-ops__run-form label:not(.datum-ops__cost-confirm) {
     width: 100%;
@@ -196,8 +339,8 @@
   letter-spacing: 0.125px;
   padding: 4px 8px;
   border-radius: var(--ops-radius-full);
-  background: rgba(0, 117, 222, 0.1);
-  color: var(--ops-primary);
+  background: var(--ops-tint-primary);
+  color: var(--ops-primary-text);
   white-space: nowrap;
   flex: 0 0 auto;
   line-height: 1.3;
@@ -250,7 +393,7 @@
 
 .datum-ops__btn--primary {
   background: var(--ops-primary);
-  color: #fff;
+  color: var(--ops-on-primary);
   border-color: var(--ops-primary);
   border-radius: var(--ops-radius-full);
   padding: 6px 18px;
@@ -406,12 +549,12 @@
 }
 
 .datum-ops__mark--pass {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
 .datum-ops__mark--fail {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
 }
 
@@ -607,7 +750,7 @@
 
 .datum-ops__switcher button.is-active {
   background: var(--ops-primary);
-  color: #fff;
+  color: var(--ops-on-primary);
 }
 
 .datum-ops__bar-row {
@@ -687,7 +830,7 @@
 }
 
 .datum-ops__tpl-list button.is-active {
-  background: rgba(0, 117, 222, 0.08);
+  background: var(--ops-wash-primary);
   box-shadow: inset 3px 0 0 var(--ops-primary);
 }
 
@@ -719,7 +862,7 @@
 }
 
 .datum-ops__tabs button.is-active {
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
   border-bottom-color: var(--ops-primary);
   font-weight: 600;
 }
@@ -850,7 +993,7 @@
 }
 
 .datum-ops__audit-details summary {
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -928,12 +1071,12 @@
 }
 
 .datum-ops__status--active {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
 .datum-ops__status--draft {
-  background: rgba(98, 174, 240, 0.15);
+  background: var(--ops-tint-sky);
   color: var(--ops-sky);
 }
 
@@ -957,7 +1100,7 @@
 .datum-ops__link-btn {
   border: 0;
   background: transparent;
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
   font: inherit;
   font-size: 14px;
   font-weight: 500;
@@ -972,7 +1115,7 @@
 
 .datum-ops__btn--danger {
   color: var(--ops-orange);
-  border-color: rgba(221, 91, 0, 0.35);
+  border-color: var(--ops-edge-orange);
 }
 
 .datum-ops__section-title {
@@ -1141,11 +1284,11 @@
 .datum-ops__progress-seg.is-done .datum-ops__progress-num {
   background: var(--ops-primary);
   border-color: var(--ops-primary);
-  color: #fff;
+  color: var(--ops-on-primary);
 }
 
 .datum-ops__progress-seg.is-current button {
-  background: rgba(0, 117, 222, 0.08);
+  background: var(--ops-wash-primary);
   box-shadow: inset 3px 0 0 var(--ops-primary);
   color: var(--ops-ink);
   font-weight: 600;
@@ -1153,7 +1296,7 @@
 
 .datum-ops__progress-seg.is-current .datum-ops__progress-num {
   border-color: var(--ops-primary);
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__step {
@@ -1268,8 +1411,8 @@
 }
 
 .datum-ops__checklist {
-  border: 1px solid rgba(221, 91, 0, 0.35);
-  background: rgba(221, 91, 0, 0.06);
+  border: 1px solid var(--ops-edge-orange);
+  background: var(--ops-wash-orange);
   border-radius: var(--ops-radius-md);
   padding: 12px 14px;
   margin-bottom: 14px;
@@ -1487,22 +1630,22 @@
 }
 
 .datum-ops__ig-decision--PASS {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
 .datum-ops__ig-decision--REVISE {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
 }
 
 .datum-ops__ig-decision--HUMAN_REVIEW {
-  background: rgba(98, 174, 240, 0.18);
-  color: var(--ops-primary);
+  background: var(--ops-tint-sky);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__ig-decision--BLOCK {
-  background: rgba(192, 51, 44, 0.12);
+  background: var(--ops-tint-red);
   color: var(--ops-red);
 }
 
@@ -1560,8 +1703,8 @@
 }
 
 .datum-ops__ig-gate--on {
-  background: rgba(0, 117, 222, 0.1);
-  color: var(--ops-primary);
+  background: var(--ops-tint-primary);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__ig-metric-value {
@@ -1656,17 +1799,17 @@
 }
 
 .datum-ops__ig-sev--REVISE {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
 }
 
 .datum-ops__ig-sev--HUMAN_REVIEW {
-  background: rgba(98, 174, 240, 0.18);
-  color: var(--ops-primary);
+  background: var(--ops-tint-sky);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__ig-sev--BLOCK {
-  background: rgba(192, 51, 44, 0.12);
+  background: var(--ops-tint-red);
   color: var(--ops-red);
 }
 
@@ -1702,7 +1845,7 @@
 }
 
 .datum-ops__ig-table tr:target td {
-  background: rgba(0, 117, 222, 0.06);
+  background: var(--ops-wash-primary);
 }
 
 .datum-ops__ig-claim-text {
@@ -1756,22 +1899,22 @@
 }
 
 .datum-ops__ig-flag--bad {
-  background: rgba(192, 51, 44, 0.12);
+  background: var(--ops-tint-red);
   color: var(--ops-red);
 }
 
 .datum-ops__ig-flag--warn {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
 }
 
 .datum-ops__ig-flag--info {
-  background: rgba(98, 174, 240, 0.18);
-  color: var(--ops-primary);
+  background: var(--ops-tint-sky);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__ig-flag--good {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
@@ -1781,8 +1924,8 @@
 }
 
 .datum-ops__ig-summary .datum-ops__ig-summary-gated {
-  background: rgba(0, 117, 222, 0.1);
-  color: var(--ops-primary);
+  background: var(--ops-tint-primary);
+  color: var(--ops-primary-text);
   cursor: help;
 }
 
@@ -1806,11 +1949,11 @@
 }
 
 .datum-ops__runstatus--succeeded {
-  border-left-color: var(--ops-green);
+  border-left-color: var(--ops-green-deco);
 }
 
 .datum-ops__runstatus--failed {
-  border-left-color: var(--ops-red);
+  border-left-color: var(--ops-red-deco);
 }
 
 .datum-ops__runstatus-head {
@@ -1827,17 +1970,17 @@
 
 .datum-ops__pill--running,
 .datum-ops__pill--queued {
-  background: rgba(0, 117, 222, 0.12);
-  color: var(--ops-primary);
+  background: var(--ops-tint-primary);
+  color: var(--ops-primary-text);
 }
 
 .datum-ops__pill--succeeded {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
 .datum-ops__pill--failed {
-  background: rgba(192, 51, 44, 0.12);
+  background: var(--ops-tint-red);
   color: var(--ops-red);
 }
 
@@ -1864,7 +2007,7 @@
    below opt their own buttons back out of it. */
 
 .datum-ops__tpl-add {
-  color: var(--ops-primary);
+  color: var(--ops-primary-text);
   font-weight: 600;
 }
 
@@ -1904,10 +2047,10 @@
   right: 0;
   bottom: 0;
   z-index: 100;
-  background: var(--theme-elevation-0, #ffffff);
-  border-top: 1px solid var(--theme-elevation-150, #e6e6e6);
+  background: var(--ops-canvas);
+  border-top: 1px solid var(--ops-hairline);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
-  color: var(--theme-text, #000000);
+  color: var(--ops-ink);
   font-family:
     Inter,
     -apple-system,
@@ -1948,32 +2091,32 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--theme-elevation-400, #9a9a9a);
+  background: var(--ops-ink-faint);
 }
 
 .datum-runbar__dot--queued,
 .datum-runbar__dot--running {
-  background: #0075de;
+  background: var(--ds-primary-deco);
   animation: datum-runbar-pulse 1.4s ease-in-out infinite;
 }
 
 .datum-runbar__dot--succeeded {
-  background: #1aae39;
+  background: var(--ops-green-deco);
 }
 
 .datum-runbar__dot--failed {
-  background: var(--theme-error-600, #c0332c);
+  background: var(--ops-red-deco);
 }
 
 @keyframes datum-runbar-pulse {
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(0, 117, 222, 0.5);
+    box-shadow: 0 0 0 0 var(--ops-edge-primary);
   }
   50% {
     opacity: 0.65;
-    box-shadow: 0 0 0 6px rgba(0, 117, 222, 0);
+    box-shadow: 0 0 0 6px transparent;
   }
 }
 
@@ -2000,7 +2143,7 @@
 
 .datum-runbar__detail {
   font-size: 12px;
-  color: var(--theme-elevation-600, #615d59);
+  color: var(--ops-ink-muted);
   /* One line: the bar is a status line, not a log. */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2011,7 +2154,7 @@
   flex: 0 1 220px;
   height: 5px;
   border-radius: 9999px;
-  background: var(--theme-elevation-150, #e6e6e6);
+  background: var(--ops-hairline);
   overflow: hidden;
 }
 
@@ -2019,7 +2162,7 @@
   display: block;
   height: 100%;
   border-radius: 9999px;
-  background: #0075de;
+  background: var(--ds-primary-deco);
   transition: width 400ms ease;
 }
 
@@ -2033,7 +2176,7 @@
 .datum-runbar__link {
   font-size: 13px;
   font-weight: 600;
-  color: #0075de;
+  color: var(--ops-primary-text);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -2045,7 +2188,7 @@
 .datum-runbar__close {
   border: 0;
   background: transparent;
-  color: var(--theme-elevation-600, #615d59);
+  color: var(--ops-ink-muted);
   font-size: 20px;
   line-height: 1;
   padding: 2px 6px;
@@ -2054,7 +2197,7 @@
 }
 
 .datum-runbar__close:hover {
-  background: var(--theme-elevation-100, #f1f1f1);
+  background: var(--ops-canvas-soft);
 }
 
 @media (max-width: 700px) {
@@ -2066,8 +2209,8 @@
 /* Expanded run detail: per-stage model-call counts, above the bar's own row. */
 .datum-runbar__detail-panel {
   /* Sits above the status row, so its rule goes on the bottom edge. */
-  border-bottom: 1px solid var(--theme-elevation-150, #e6e6e6);
-  background: var(--theme-elevation-50, #f6f5f4);
+  border-bottom: 1px solid var(--ops-hairline);
+  background: var(--ops-canvas-soft);
   padding: 10px 20px 12px;
 }
 
@@ -2090,7 +2233,7 @@
 }
 
 .datum-runbar__detail-num {
-  color: var(--theme-elevation-600, #615d59);
+  color: var(--ops-ink-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -2099,7 +2242,7 @@
   max-width: 1600px;
   margin: 8px auto 0;
   font-size: 11px;
-  color: var(--theme-elevation-500, #8a8a8a);
+  color: var(--ops-ink-faint);
 }
 
 /* ── QA failure detail ──────────────────────────────────────────────────
@@ -2345,7 +2488,7 @@
 }
 
 .datum-content__row--you {
-  border-left-color: var(--ops-orange);
+  border-left-color: var(--ops-orange-deco);
 }
 
 .datum-content__pick {
@@ -2402,12 +2545,12 @@
   font-weight: 600;
   letter-spacing: 0.2px;
   white-space: nowrap;
-  background: rgba(0, 117, 222, 0.1);
-  color: var(--ops-primary);
+  background: var(--ops-tint-primary);
+  color: var(--ops-primary-text);
 }
 
 .datum-content__owner--you {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
 }
 
@@ -2418,14 +2561,14 @@
  * allowed to wrap rather than run under the button beside it.
  */
 .datum-content__owner--stalled {
-  background: rgba(221, 91, 0, 0.12);
+  background: var(--ops-tint-orange);
   color: var(--ops-orange);
   white-space: normal;
   text-align: center;
 }
 
 .datum-content__owner--done {
-  background: rgba(26, 174, 57, 0.12);
+  background: var(--ops-tint-green);
   color: var(--ops-green);
 }
 
@@ -2487,7 +2630,7 @@
   gap: 18px;
   padding: 20px;
   border: 1px solid var(--ops-hairline);
-  border-left: 3px solid var(--ops-orange);
+  border-left: 3px solid var(--ops-orange-deco);
   border-radius: var(--ops-radius-lg);
   background: var(--ops-canvas);
   margin-bottom: 20px;
@@ -2502,8 +2645,8 @@
   margin: 12px 0 0;
   padding: 12px 14px 12px 32px;
   border-radius: var(--ops-radius-md);
-  background: rgba(221, 91, 0, 0.06);
-  border: 1px solid rgba(221, 91, 0, 0.35);
+  background: var(--ops-wash-orange);
+  border: 1px solid var(--ops-edge-orange);
   font-size: 13px;
   color: var(--ops-ink-secondary);
   display: grid;
@@ -2650,12 +2793,7 @@
 }
 
 .datum-brief__angle:hover:not(:disabled) {
-  border-color: rgba(0, 117, 222, 0.45);
-}
-
-.datum-brief__angle:focus-visible {
-  outline: 2px solid var(--ops-primary);
-  outline-offset: 2px;
+  border-color: var(--ops-edge-primary);
 }
 
 .datum-brief__angle:disabled {
@@ -2666,7 +2804,7 @@
 .datum-brief__angle.is-selected {
   border-color: var(--ops-primary);
   box-shadow: 0 0 0 1px var(--ops-primary);
-  background: rgba(0, 117, 222, 0.05);
+  background: var(--ops-wash-primary);
 }
 
 .datum-brief__angle-check {
@@ -2689,7 +2827,7 @@
   content: '';
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--ops-on-primary);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-1px, -1px);
 }
@@ -2753,12 +2891,12 @@
 }
 
 .datum-new__card:hover {
-  border-color: rgba(0, 117, 222, 0.45);
+  border-color: var(--ops-edge-primary);
 }
 
 .datum-new__card.is-selected {
   border-color: var(--ops-primary);
-  box-shadow: 0 0 0 2px rgba(0, 117, 222, 0.2);
+  box-shadow: 0 0 0 2px var(--ops-tint-primary);
 }
 
 .datum-new__card strong {
@@ -2798,7 +2936,7 @@
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--theme-elevation-500);
+  color: var(--ops-ink-faint);
   margin-right: 8px;
 }
 
@@ -2860,7 +2998,7 @@
 .datum-ops__table td {
   text-align: left;
   padding: 4px 10px 4px 0;
-  border-bottom: 1px solid var(--theme-elevation-100, #e5e5e5);
+  border-bottom: 1px solid var(--ops-hairline);
 }
 
 .datum-ops__table th {
@@ -2912,12 +3050,12 @@
   border-radius: 50%;
   font-size: 12px;
   line-height: 1;
-  color: var(--theme-elevation-500);
+  color: var(--ops-ink-faint);
 }
 
 .datum-setup__mark.is-done {
-  border-color: var(--theme-success-500, #2e7d32);
-  color: var(--theme-success-500, #2e7d32);
+  border-color: var(--ops-green-deco);
+  color: var(--ops-green);
 }
 
 .datum-setup__mark.is-optional {
@@ -3027,11 +3165,6 @@
   font-family: inherit;
   font-size: 1rem;
   line-height: 1.5;
-}
-
-.datum-secret-field__input:focus-visible {
-  outline: 2px solid var(--theme-elevation-400);
-  outline-offset: 1px;
 }
 
 .datum-secret-field__toggle {

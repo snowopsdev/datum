@@ -169,7 +169,7 @@ export function ContentList({ content, latestRun, mode }: Props) {
   }
 
   return (
-    <div className="datum-ops" aria-busy={navigating}>
+    <div id="ops-main" tabIndex={-1} className="datum-ops" aria-busy={navigating}>
       <div className="datum-ops__header">
         <h1>Content</h1>
         <Link className="datum-ops__btn datum-ops__btn--primary" href="/admin/ops/new">

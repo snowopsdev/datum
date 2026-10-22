@@ -219,7 +219,7 @@ export function SetupChecklist(props: SetupChecklistData) {
   }
 
   return (
-    <main className="datum-ops datum-setup">
+    <main id="ops-main" tabIndex={-1} className="datum-ops datum-setup">
       <p className="datum-ops__eyebrow">
         {props.ready
           ? 'Ready'

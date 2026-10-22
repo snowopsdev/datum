@@ -238,7 +238,7 @@ export function EvidenceBankEditor({
   const visibleClaims = visibleIndexes.map((index) => draft.verifiedClaims[index])
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <SuggestionEditorContext suggestion={suggestion} />
       <div className="datum-ops__header">
         <h1>Evidence bank</h1>

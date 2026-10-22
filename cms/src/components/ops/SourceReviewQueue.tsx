@@ -220,7 +220,7 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
   const shown = buckets[tab]
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <div className="datum-ops__header">
         <h1>Source review</h1>
         <span className="datum-ops__pill">governance</span>
