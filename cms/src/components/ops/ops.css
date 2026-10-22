@@ -43,6 +43,19 @@
   --ds-focus-gap: var(--ds-surface);
   --ds-focus-ring: #0f6f99;
 
+  /* Motion (F3). Durations are tokens, not literals, so reduced motion is one
+     rule: the media query below zeroes them and every tokenised transition and
+     animation becomes instant. The 1.4s run pulse is the one literal left, and
+     has its own guard. */
+  --ds-dur-instant: 90ms;
+  --ds-dur-fast: 140ms;
+  --ds-dur-base: 220ms;
+  --ds-dur-slow: 360ms;
+  --ds-dur-emph: 520ms;
+  --ds-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-decel: cubic-bezier(0, 0, 0, 1);
+  --ds-ease-accel: cubic-bezier(0.3, 0, 1, 1);
+
   --ops-primary: var(--ds-primary);
   --ops-primary-active: var(--ds-primary-hover);
   --ops-primary-text: var(--ds-primary-text);
@@ -72,6 +85,16 @@
   --ops-tint-orange: color-mix(in srgb, var(--ds-warning-deco) var(--ds-tint), transparent);
   --ops-edge-orange: color-mix(in srgb, var(--ds-warning-deco) var(--ds-edge), transparent);
   --ops-tint-red: color-mix(in srgb, var(--ds-danger-deco) var(--ds-tint), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-dur-instant: 0ms;
+    --ds-dur-fast: 0ms;
+    --ds-dur-base: 0ms;
+    --ds-dur-slow: 0ms;
+    --ds-dur-emph: 0ms;
+  }
 }
 
 html[data-theme='dark'] {
@@ -1113,6 +1136,64 @@ html[data-theme='dark'] {
   cursor: not-allowed;
 }
 
+/* The run bar is fixed across the bottom of the admin, so while it shows the
+   bottom-left toaster sits above it instead of over its stage text or its open
+   detail panel. `GlobalRunBar` publishes the bar's height; the fallback is the
+   collapsed bar. */
+body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
+  margin-bottom: calc(var(--datum-runbar-h, 56px) + 8px);
+}
+
+/* The Undo action on a Payload toast: Payload styles the toast unstyled, so the
+   button inherits the toast's own text colour and keeps its contrast. */
+.payload-toast-item [data-button] {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 4px 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.datum-ops__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.datum-ops__chip {
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-full);
+  background: var(--ops-canvas);
+  color: var(--ops-ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease-standard),
+    border-color var(--ds-dur-fast) var(--ds-ease-standard);
+}
+
+.datum-ops__chip:hover:not(:disabled) {
+  border-color: var(--ops-edge-primary);
+}
+
+.datum-ops__chip[aria-pressed='true'] {
+  background: var(--ops-tint-primary);
+  border-color: var(--ops-primary);
+}
+
+.datum-ops__chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .datum-ops__btn--danger {
   color: var(--ops-orange);
   border-color: var(--ops-edge-orange);
@@ -2059,7 +2140,7 @@ html[data-theme='dark'] {
     Helvetica,
     Arial,
     sans-serif;
-  animation: datum-runbar-in 180ms ease-out;
+  animation: datum-runbar-in var(--ds-dur-base) var(--ds-ease-decel);
 }
 
 @keyframes datum-runbar-in {
@@ -2068,12 +2149,6 @@ html[data-theme='dark'] {
   }
   to {
     transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .datum-runbar {
-    animation: none;
   }
 }
 
@@ -2163,7 +2238,11 @@ html[data-theme='dark'] {
   height: 100%;
   border-radius: 9999px;
   background: var(--ds-primary-deco);
-  transition: width 400ms ease;
+  /* Scaled rather than resized: width animates layout, a transform does not.
+     The width is the whole track and the fill's scale is the progress. */
+  width: 100%;
+  transform-origin: left center;
+  transition: transform var(--ds-dur-slow) var(--ds-ease-standard);
 }
 
 .datum-runbar__actions {
@@ -2787,9 +2866,9 @@ html[data-theme='dark'] {
   text-align: left;
   cursor: pointer;
   transition:
-    border-color 120ms ease,
-    background-color 120ms ease,
-    box-shadow 120ms ease;
+    border-color var(--ds-dur-fast) var(--ds-ease-standard),
+    background-color var(--ds-dur-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-dur-fast) var(--ds-ease-standard);
 }
 
 .datum-brief__angle:hover:not(:disabled) {
@@ -2886,8 +2965,8 @@ html[data-theme='dark'] {
   cursor: pointer;
   text-decoration: none;
   transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+    border-color var(--ds-dur-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-dur-fast) var(--ds-ease-standard);
 }
 
 .datum-new__card:hover {

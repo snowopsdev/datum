@@ -13,6 +13,7 @@ import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
 import type { Article } from '@/payload-types'
 
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
+import { isSendBackReasonCode, type SendBackReasonCode } from './sendBackReasons'
 
 /**
  * Nulls every `informationGain` key. The group has `access.update: () =>
@@ -112,6 +113,13 @@ export type QueuedRunResult = { queued: boolean; runId?: string; reason?: string
  * named after, which a `beforeChange` gate is free to have overridden.
  */
 export type StatusResult = { status: ArticleStatus }
+
+/**
+ * Publishing also says where the piece went, so the notice can link to it. The
+ * address is `/articles/${slug || id}` — the same rule `findPublishedArticle`
+ * resolves with — and `slug` is null when the piece has none.
+ */
+export type PublishResult = StatusResult & { slug: string | null }
 
 /**
  * `queueRun: false` for a caller that will start the run itself (or wants none
@@ -267,7 +275,7 @@ export async function approveArticleAction(
 export async function publishArticleAction(
   articleId: number,
   reviewNotes?: string,
-): Promise<StatusResult> {
+): Promise<PublishResult> {
   const { payload, user } = await requireUser('Unauthorized')
   const published = await payload.update({
     collection: 'articles',
@@ -286,7 +294,7 @@ export async function publishArticleAction(
   })
   revalidatePublishedArticle(published)
   revalidateOps(articleId)
-  return { status: published.status }
+  return { status: published.status, slug: published.slug ?? null }
 }
 
 /**
@@ -341,9 +349,21 @@ export async function scheduleArticleAction(articleId: number, publishAt: string
   return { publishAt: iso }
 }
 
-/** Takes the date back off, leaving the article approved and unpublished. */
+/**
+ * Takes the date back off, leaving the article approved and unpublished.
+ *
+ * Answers with the date it took off so the page can offer Undo: the inverse is
+ * `scheduleArticleAction` with that instant, and nothing else remembers it.
+ */
 export async function unscheduleArticleAction(articleId: number) {
   const { payload, user } = await requireUser('Unauthorized')
+  const before = await payload.findByID({
+    collection: 'articles',
+    id: articleId,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -353,6 +373,7 @@ export async function unscheduleArticleAction(articleId: number) {
     overrideAccess: false,
   })
   revalidateOps(articleId)
+  return { previousPublishAt: before?.publishAt ?? null }
 }
 
 /**
@@ -410,9 +431,31 @@ export async function unarchiveArticleAction(articleId: number) {
   revalidateOps(articleId)
 }
 
-export async function sendBackAction(articleId: number, reviewNotes: string) {
+/**
+ * Sends a piece back to the writer, with a reason the writer will read.
+ *
+ * The reason is required: it lands in `reviewNotes` and on the failing
+ * qualitative check, and a placeholder there ("Editor sent back for
+ * revision.") tells the next draft nothing. The optional `reasonCode` is the
+ * chip the reviewer picked; it is recorded in the audit details and is not
+ * the reason itself.
+ *
+ * There is no Undo: the send clears the scores and the schedule, and putting
+ * them back would be a fabrication. The panel arms a confirm instead.
+ */
+export async function sendBackAction(
+  articleId: number,
+  reviewNotes: string,
+  reasonCode?: SendBackReasonCode,
+) {
   const { payload, user } = await requireUser('Unauthorized')
-  const note = reviewNotes.trim() || 'Editor sent back for revision.'
+  const note = reviewNotes.trim()
+  if (!note) {
+    throw new Error('Say why this is going back — the writer reads it.')
+  }
+  if (reasonCode !== undefined && !isSendBackReasonCode(reasonCode)) {
+    throw new Error('Unknown send-back reason.')
+  }
   await payload.update({
     collection: 'articles',
     id: articleId,
@@ -436,6 +479,7 @@ export async function sendBackAction(articleId: number, reviewNotes: string) {
     },
     context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
       reviewNotes: note,
+      reasonCode: reasonCode ?? null,
       ...CLEARED_SCHEDULE,
     }),
     user,

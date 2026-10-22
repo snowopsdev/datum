@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react'
 
-import { overrideReviewAction, sendBackAction } from '../../actions'
+import { overrideReviewAction } from '../../actions'
 import { revisitBriefAction } from '../../briefActions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
+import { SendBackAction } from '../SendBackAction'
 import type { PanelProps } from '../types'
 
 /**
@@ -57,21 +58,6 @@ export function ReviewDecisionPanel({ action, article, editHref, run }: PanelPro
           Override to verified
         </button>
         <button
-          type="button"
-          className="datum-ops__btn"
-          disabled={pending}
-          onClick={() =>
-            runAction(() =>
-              sendBackAction(
-                article.id,
-                justification.trim() || 'Sent back after information-gain review.',
-              ),
-            )
-          }
-        >
-          Send back
-        </button>
-        <button
           className="datum-ops__btn"
           disabled={pending}
           onClick={() =>
@@ -88,6 +74,7 @@ export function ReviewDecisionPanel({ action, article, editHref, run }: PanelPro
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      <SendBackAction action={action} articleId={article.id} />
     </div>
   )
 }

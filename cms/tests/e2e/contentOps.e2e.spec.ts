@@ -194,7 +194,11 @@ test.describe('Content ops', () => {
     await page.getByRole('button', { name: 'Publish now' }).click()
     // Publishing keeps the reviewer on the article: the page re-renders in
     // place and the panel for the new status replaces the one just used.
-    await expect(page.getByText('Published · view it')).toBeVisible()
+    await expect(page.getByText(/^Published ·/)).toBeVisible()
+    await expect(page.getByRole('link', { name: 'view it' })).toHaveAttribute(
+      'href',
+      `/articles/${slug}`,
+    )
     await expect(page).toHaveURL(new RegExp(`/admin/ops/articles/${article.id}`))
     await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible()
 
@@ -254,7 +258,6 @@ test.describe('Content ops', () => {
 
     await page.goto(`/admin/ops/articles/${article.id}`)
     await page.getByRole('button', { name: 'Archive' }).click()
-    await page.getByRole('button', { name: 'Confirm: archive' }).click()
     await expect(page.getByText('Archived — it is off the content board.')).toBeVisible()
 
     const search = `?q=${encodeURIComponent(keyword)}&page=1`

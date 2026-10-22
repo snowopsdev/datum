@@ -58,12 +58,12 @@ export function RunNextStagePanel({
   scoreInvalidatedBy,
   templates,
 }: PanelProps) {
-  const { pending, runAction, setNotice } = action
+  const { arm, armed, disarm, pending, runAction, setNotice } = action
   const [templateId, setTemplateId] = useState(
     article.templateId != null ? String(article.templateId) : '',
   )
   /** Live mode only: the run is one confirmation away from spending money. */
-  const [confirming, setConfirming] = useState(false)
+  const confirming = armed === 'run-next'
 
   const status = article.status
   if (!isRunnableStatus(status)) return null
@@ -89,7 +89,7 @@ export function RunNextStagePanel({
    * so on `topic_selected` the two are one action.
    */
   const startRun = (confirmLiveCost: boolean) => {
-    setConfirming(false)
+    disarm()
     runAction(async () => {
       if (status === 'topic_selected' && templateId) {
         await assignTemplateAction(article.id, Number(templateId))
@@ -147,17 +147,13 @@ export function RunNextStagePanel({
             <button
               type="button"
               className="datum-ops__btn datum-ops__btn--primary"
+              data-confirm-go="run-next"
               disabled={pending}
               onClick={() => startRun(true)}
             >
               Confirm
             </button>
-            <button
-              type="button"
-              className="datum-ops__btn"
-              disabled={pending}
-              onClick={() => setConfirming(false)}
-            >
+            <button type="button" className="datum-ops__btn" disabled={pending} onClick={disarm}>
               Cancel
             </button>
           </div>
@@ -167,8 +163,9 @@ export function RunNextStagePanel({
           <button
             type="button"
             className="datum-ops__btn datum-ops__btn--primary"
+            data-confirm-trigger="run-next"
             disabled={pending || (needsTemplate && !templateId)}
-            onClick={() => (mode === 'live' ? setConfirming(true) : startRun(false))}
+            onClick={() => (mode === 'live' ? arm('run-next') : startRun(false))}
           >
             {needsTemplate ? 'Assign and start research' : 'Run next stage'}
           </button>

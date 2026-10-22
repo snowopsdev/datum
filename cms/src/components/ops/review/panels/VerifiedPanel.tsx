@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react'
 
-import { approveArticleAction, publishArticleAction, sendBackAction } from '../../actions'
+import { approveArticleAction, publishArticleAction } from '../../actions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
+import { SendBackAction } from '../SendBackAction'
 import { DECISION_LABEL, type PanelProps } from '../types'
 
 /**
@@ -56,26 +57,25 @@ export function VerifiedPanel({ action, article, editHref, run, runIsCurrent }: 
           disabled={pending}
           onClick={() =>
             runAction(async () => {
-              const { status } = await publishArticleAction(article.id, notes)
-              setNotice(status === 'published' ? 'Published · view it' : `Saved as ${status}.`)
+              const { slug, status } = await publishArticleAction(article.id, notes)
+              setNotice(
+                status === 'published'
+                  ? {
+                      text: 'Published ·',
+                      href: `/articles/${slug || article.id}`,
+                      hrefLabel: 'view it',
+                    }
+                  : `Saved as ${status}.`,
+              )
             })
           }
         >
           Approve &amp; publish
         </button>
-        <button
-          type="button"
-          className="datum-ops__btn"
-          disabled={pending}
-          onClick={() =>
-            runAction(() => sendBackAction(article.id, notes || 'Sent back for revision.'))
-          }
-        >
-          Send back
-        </button>
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      <SendBackAction action={action} articleId={article.id} />
     </div>
   )
 }

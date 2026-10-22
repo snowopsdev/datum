@@ -2,14 +2,10 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 
-import {
-  publishArticleAction,
-  scheduleArticleAction,
-  sendBackAction,
-  unscheduleArticleAction,
-} from '../../actions'
+import { publishArticleAction, scheduleArticleAction, unscheduleArticleAction } from '../../actions'
 import { formatAuditTimestamp } from '../../articleStatus'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
+import { SendBackAction } from '../SendBackAction'
 import type { PanelProps } from '../types'
 
 /**
@@ -33,6 +29,9 @@ function toUtcInputValue(iso: string | null): string {
 function utcInputValueToIso(value: string): string {
   return `${value.length === 16 ? `${value}:00` : value}Z`
 }
+
+/** Whether a stored schedule instant is still in the future. */
+const isAhead = (iso: string) => new Date(iso).getTime() > Date.now()
 
 /** Signed off and waiting: publish it now, or pick a time. */
 export function ApprovedPanel({ action, article, editHref, scheduleExpired }: PanelProps) {
@@ -73,9 +72,32 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
             disabled={pending}
             onClick={() =>
               runAction(async () => {
-                await unscheduleArticleAction(article.id)
+                const { previousPublishAt } = await unscheduleArticleAction(article.id)
                 setScheduleAt('')
-                setNotice('Unscheduled — it stays approved until you publish it.')
+                // A time already past is not worth restoring: scheduling it
+                // again is refused. Checked against the clock now and again on
+                // Undo, not the `scheduleExpired` the page was rendered with.
+                setNotice(
+                  'Unscheduled — it stays approved until you publish it.',
+                  previousPublishAt && isAhead(previousPublishAt)
+                    ? {
+                        label: 'Undo',
+                        toast: 'Unscheduled',
+                        run: async () => {
+                          if (!isAhead(previousPublishAt)) {
+                            throw new Error(
+                              'That time has passed — pick a new one to schedule it again.',
+                            )
+                          }
+                          await scheduleArticleAction(article.id, previousPublishAt)
+                          // The input was cleared on Unschedule and is seeded
+                          // only once, so put the restored time back in it.
+                          setScheduleAt(toUtcInputValue(previousPublishAt))
+                        },
+                        done: `Schedule restored for ${formatAuditTimestamp(previousPublishAt)}`,
+                      }
+                    : undefined,
+                )
               })
             }
           >
@@ -87,11 +109,6 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
           Publish it now, or pick a time and Datum publishes it for you.
         </p>
       )}
-      {/* Shown rather than assumed: Send back writes this text into
-          `reviewNotes` and onto the failing qualitative check, and the box
-          arrives holding the note the *approving* reviewer left. Sending that
-          back as the reason for a revision would put "reads well" on the draft
-          as a failure. */}
       <div className="datum-ops__field">
         <label htmlFor="note">Review notes</label>
         <textarea
@@ -123,8 +140,16 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
           disabled={pending}
           onClick={() =>
             runAction(async () => {
-              const { status } = await publishArticleAction(article.id, notes)
-              setNotice(status === 'published' ? 'Published · view it' : `Saved as ${status}.`)
+              const { slug, status } = await publishArticleAction(article.id, notes)
+              setNotice(
+                status === 'published'
+                  ? {
+                      text: 'Published ·',
+                      href: `/articles/${slug || article.id}`,
+                      hrefLabel: 'view it',
+                    }
+                  : `Saved as ${status}.`,
+              )
             })
           }
         >
@@ -153,19 +178,10 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
         >
           Schedule
         </button>
-        <button
-          type="button"
-          className="datum-ops__btn"
-          disabled={pending}
-          onClick={() =>
-            runAction(() => sendBackAction(article.id, notes.trim() || 'Sent back after approval.'))
-          }
-        >
-          Send back
-        </button>
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      <SendBackAction action={action} articleId={article.id} />
     </div>
   )
 }

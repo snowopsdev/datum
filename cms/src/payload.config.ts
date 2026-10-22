@@ -51,6 +51,11 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    // Payload's own sonner toaster. Bottom-left keeps toasts clear of the
+    // action rows on the right of the review page; a plain success lasts 6s
+    // and one carrying Undo sets its own 8s (`useReviewAction`). Errors do not
+    // go here — the toaster is aria-live polite only, so they stay inline.
+    toast: { duration: 6000, limit: 3, position: 'bottom-left' },
     components: {
       afterNavLinks: ['/components/ops/ExtraOpsNavLinks#ExtraOpsNavLinks'],
       // A provider is the only slot that wraps every admin route, which is what

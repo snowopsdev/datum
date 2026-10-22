@@ -11,7 +11,7 @@ import { AuditTrail } from './review/AuditTrail'
 import { ReviewHeader, ReviewTitle } from './review/ReviewHeader'
 import { Scorecard } from './review/Scorecard'
 import { SeoResearch } from './review/SeoResearch'
-import { useReviewAction } from './review/useReviewAction'
+import { noticeText, useReviewAction } from './review/useReviewAction'
 import './ops.css'
 
 type Props = {
@@ -84,10 +84,38 @@ export function ArticleReview({
         </div>
 
         <aside className="datum-ops__review-aside">
-          {action.error ? <p className="datum-ops__error">{action.error}</p> : null}
+          {/* Errors are announced and stay beside the action that failed; the
+              toast region is polite-only and gone in seconds. */}
+          {action.error ? (
+            <p className="datum-ops__error" role="alert">
+              {action.error}
+            </p>
+          ) : null}
           {action.notice ? (
             <p className="datum-ops__ok" role="status">
-              {action.notice}
+              {noticeText(action.notice)}
+              {typeof action.notice !== 'string' && action.notice.href ? (
+                <>
+                  {' '}
+                  <a href={action.notice.href} rel="noreferrer noopener" target="_blank">
+                    {action.notice.hrefLabel ?? 'View it'}
+                  </a>
+                </>
+              ) : null}
+              {action.undo ? (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="datum-ops__link-btn"
+                    data-notice-undo=""
+                    disabled={action.pending}
+                    onClick={action.runUndo}
+                  >
+                    {action.undo.label}
+                  </button>
+                </>
+              ) : null}
             </p>
           ) : null}
 

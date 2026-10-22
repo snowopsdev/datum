@@ -239,3 +239,14 @@ it('numbers the step out of the five content stages the piece stepper shows', as
   await act(() => vi.advanceTimersByTimeAsync(0))
   expect(screen.getByText('Step 3 of 5 · Writing the draft · test article')).toBeTruthy()
 })
+
+it('draws progress with a scaleX transform, keeping the progressbar semantics', async () => {
+  mocks.poll.mockResolvedValue(run('running'))
+  const { container } = render(React.createElement(GlobalRunBar))
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  const bar = screen.getByRole('progressbar', { name: 'Run progress' })
+  const now = Number(bar.getAttribute('aria-valuenow'))
+  const fill = container.querySelector<HTMLElement>('.datum-runbar__fill')!
+  expect(fill.style.width).toBe('')
+  expect(fill.style.transform).toBe(`scaleX(${now / 100})`)
+})

@@ -94,6 +94,7 @@ const {
   resetToDraftedAction,
   scheduleArticleAction,
   sendBackAction,
+  unarchiveArticleAction,
   unscheduleArticleAction,
 } = await import('@/components/ops/actions')
 
@@ -599,10 +600,49 @@ describe('scheduling, unscheduling and archiving', () => {
     )
   })
 
+  // Undo needs the date that was taken off; nothing else remembers it.
+  it('unscheduleArticleAction returns the date it took off, and Undo restores it', async () => {
+    const prior = '2099-01-01T09:00:00.000Z'
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved', publishAt: prior } as never)
+    await expect(unscheduleArticleAction(1)).resolves.toEqual({ previousPublishAt: prior })
+
+    // The inverse is an ordinary schedule at that instant, written as a new
+    // audit event rather than by touching the one the unschedule left.
+    updateMock.mockClear()
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved' } as never)
+    await scheduleArticleAction(1, prior)
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { publishAt: prior },
+        context: expect.objectContaining({
+          articleAudit: expect.objectContaining({ event: 'publish_scheduled' }),
+        }),
+      }),
+    )
+  })
+
+  it('unscheduleArticleAction returns null when nothing was scheduled', async () => {
+    findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved', publishAt: null } as never)
+    await expect(unscheduleArticleAction(1)).resolves.toEqual({ previousPublishAt: null })
+  })
+
   it('archiveArticleAction refuses while a run is active', async () => {
     countMock.mockResolvedValueOnce({ totalDocs: 1 } as never)
     await expect(archiveArticleAction(1)).rejects.toThrow(/active run/)
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  // Undo is unarchive. The audit trail is append-only, so it adds an event.
+  it('Undo of an archive writes a new unarchived event and keeps the archived one', async () => {
+    await archiveArticleAction(1)
+    await unarchiveArticleAction(1)
+    expect(updateMock).toHaveBeenCalledTimes(2)
+    const events = updateMock.mock.calls.map(
+      ([args]) =>
+        (args as { context: { articleAudit: { event: string } } }).context.articleAudit.event,
+    )
+    expect(events).toEqual(['article_archived', 'article_unarchived'])
+    expect(updateMock.mock.calls[1][0]).toMatchObject({ data: { archived: false } })
   })
 
   it('archiveArticleAction sets archived and records who did it', async () => {
@@ -674,20 +714,38 @@ describe('moving an article off approved takes its schedule with it', () => {
   /**
    * The approved panel's Send back used to hand over the note the *approving*
    * reviewer had left, which landed "reads well" on the draft as the reason
-   * the qualitative check failed. The page now shows the box it is sending, and
-   * the action refuses to invent a reason out of whitespace either way.
+   * the qualitative check failed. A reason is required now, so a blank one is
+   * refused instead of being replaced with a placeholder.
    */
-  it('sendBackAction never turns an empty note into a revision reason', async () => {
-    await sendBackAction(1, '   ')
+  it('sendBackAction rejects an empty or whitespace reason and writes nothing', async () => {
+    await expect(sendBackAction(1, '')).rejects.toThrow(/why/i)
+    await expect(sendBackAction(1, '   \n ')).rejects.toThrow(/why/i)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('sendBackAction stores the reason in reviewNotes and the chip code in the audit details', async () => {
+    await sendBackAction(1, '  The third section has no source.  ', 'weak_evidence')
     const data = dataSent() as {
       reviewNotes: string
       qaResults: { qualitativeReview: { notes: string; passed: boolean } }
     }
-    expect(data.reviewNotes).toBe('Editor sent back for revision.')
+    expect(data.reviewNotes).toBe('The third section has no source.')
     expect(data.qaResults.qualitativeReview).toMatchObject({
       passed: false,
-      notes: 'Editor sent back for revision.',
+      notes: 'The third section has no source.',
     })
+    expect(auditSent().details).toMatchObject({
+      reviewNotes: 'The third section has no source.',
+      reasonCode: 'weak_evidence',
+    })
+  })
+
+  it('sendBackAction records no code when none was picked, and refuses an unknown one', async () => {
+    await sendBackAction(1, 'Needs another pass')
+    expect(auditSent().details).toMatchObject({ reasonCode: null })
+    updateMock.mockClear()
+    await expect(sendBackAction(1, 'x', 'bogus' as never)).rejects.toThrow(/reason/i)
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })
 
@@ -706,7 +764,16 @@ describe('approve and publish report the status they left behind', () => {
     await expect(approveArticleAction(1, 'reads well')).resolves.toEqual({ status: 'approved' })
   })
 
-  it('publishArticleAction returns the published status', async () => {
-    await expect(publishArticleAction(1)).resolves.toEqual({ status: 'published' })
+  it('publishArticleAction returns the published status and the slug to link to', async () => {
+    updateMock.mockResolvedValueOnce({ id: 1, status: 'published', slug: 'cold-brew' } as never)
+    await expect(publishArticleAction(1)).resolves.toEqual({
+      status: 'published',
+      slug: 'cold-brew',
+    })
+  })
+
+  it('publishArticleAction returns a null slug for a piece that has none', async () => {
+    updateMock.mockResolvedValueOnce({ id: 1, status: 'published' } as never)
+    await expect(publishArticleAction(1)).resolves.toEqual({ status: 'published', slug: null })
   })
 })
