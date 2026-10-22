@@ -107,12 +107,17 @@ export function BriefEditor({
         setMessage({ ok: false, text: result.error })
         return null
       }
+      // Every field as stored: the angle and notes come back trimmed, and a
+      // field left as typed would stay dirty against them for good.
       const saved = result.saved ?? edits()
+      setAngle(saved.angle)
       setAudience(saved.audience)
       setSections(saved.sections)
+      setNotes(saved.notes)
+      setIcpId(saved.icpId)
       toast.success(result.message)
       router.refresh()
-      return { saved }
+      return { saved, version: result.updatedAt }
     },
   })
 

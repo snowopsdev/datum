@@ -214,6 +214,13 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
     if (key !== keyRef.current) adoptedKey.current = key
     clearLocalCopy(keyRef.current)
     clearLocalCopy(key)
+    // Now, not on the next render: "Save and leave" navigates straight after
+    // this, and the unload and unmount flushes read these refs. Still dirty,
+    // they would write the pre-save copy back.
+    dirtyRef.current = false
+    savedRef.current = next
+    keyRef.current = key
+    if (extra?.version !== undefined) versionRef.current = extra.version
     setCore((current) => ({
       key,
       saved: next,
@@ -318,8 +325,9 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
       }, anchor)
     }
     const onUnload = (event: BeforeUnloadEvent) => {
-      flushRef.current()
+      // A confirmed leave has already flushed (Leave) or saved (Save and leave).
       if (hardLeaving.current) return
+      flushRef.current()
       event.preventDefault()
       event.returnValue = ''
     }

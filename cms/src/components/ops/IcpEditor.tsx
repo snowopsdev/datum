@@ -257,9 +257,17 @@ export function IcpEditor({
       message={message}
       guard={guard}
       onSave={save}
+      // An active audience must stay complete: `gateIcpActivation` refuses the save.
+      saveBlocked={status === 'active' && problems.length > 0}
       actions={
         <>
-          <SaveButton guard={guard} onClick={save} pending={pending} />
+          <SaveButton
+            blocked={status === 'active' && problems.length > 0}
+            guard={guard}
+            onClick={save}
+            pending={pending}
+            title={status === 'active' && problems.length ? problems.join('; ') : undefined}
+          />
           {current === 'review' ? (
             <>
               <label className="datum-ops__inline-check">

@@ -1,5 +1,5 @@
 import React from 'react'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import type { BriefAngleOption } from '../../../pipeline/src/brief'
@@ -20,6 +20,7 @@ vi.mock('@/components/ops/briefActions', () => ({
 }))
 
 const { BriefEditor } = await import('@/components/ops/BriefEditor')
+const { saveBriefAction } = await import('@/components/ops/briefActions')
 
 afterEach(cleanup)
 
@@ -126,4 +127,35 @@ it('checks a card on click and then holds the tab stop', () => {
   expect(checked()).toEqual(['false', 'false', 'true'])
   expect(radios().map((radio) => radio.tabIndex)).toEqual([-1, -1, 0])
   expect(screen.getByDisplayValue(angleOptions[2].angle)).toBeTruthy()
+})
+
+it('takes the saved brief as stored, so a trimmed angle is not left dirty, and keeps its version', async () => {
+  localStorage.clear()
+  vi.mocked(saveBriefAction).mockResolvedValueOnce({
+    ok: true,
+    message: 'Brief saved.',
+    saved: { angle: 'A new angle', audience: '', sections: [], notes: 'Keep it short', icpId: null },
+    updatedAt: '2030-01-01T00:00:00.000Z',
+  })
+  render(editor('An old angle'))
+  const angle = () => screen.getByLabelText(/^Angle/) as HTMLInputElement
+  fireEvent.change(angle(), { target: { value: '  A new angle  ' } })
+  fireEvent.change(screen.getByLabelText(/^Notes for the writer/), {
+    target: { value: 'Keep it short\n' },
+  })
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  })
+  expect(angle().value).toBe('A new angle')
+  expect(document.querySelector('.datum-ops__dirty')?.textContent).toBe('')
+
+  // An edit after the save is tagged with the version the save returned.
+  fireEvent.change(angle(), { target: { value: 'A newer angle' } })
+  await waitFor(
+    () => {
+      const raw = localStorage.getItem('datum:draft:brief:article:1')
+      expect(raw && JSON.parse(raw).savedAt).toBe('2030-01-01T00:00:00.000Z')
+    },
+    { timeout: 2000 },
+  )
 })

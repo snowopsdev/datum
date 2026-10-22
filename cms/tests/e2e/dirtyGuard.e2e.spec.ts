@@ -192,6 +192,9 @@ test.describe('Unsaved-change guard', () => {
     await page.goto(`${serverURL}/admin/ops/setup/evidence`)
     const claim = page.locator('#eb-claims-0-claim')
     await expect(claim).toBeVisible()
+    // Hydrated before typing: on a cold dev server, text typed into the
+    // server-rendered textarea gets merged with what React then renders.
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
     const before = await claim.inputValue()
     await claim.fill(`${before} (draft)`)
     await expect(dirtyText(page)).toHaveText('1 unsaved change')

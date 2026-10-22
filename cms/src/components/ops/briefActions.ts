@@ -22,6 +22,8 @@ export type BriefActionResult =
       saved?: BriefEdits
       /** Sections the save left out for having no heading. */
       dropped?: number
+      /** The article's `updatedAt` after the save. */
+      updatedAt?: string
     }
   | { ok: false; error: string }
 
@@ -103,7 +105,7 @@ export async function saveBriefAction(
     const previousIcpId = icpIdOf(article.icp)
     const nextIcpId = edits.icpId ?? previousIcpId
     next.audience = resolveAudience(next, previousIcpId, nextIcpId, icps)
-    await payload.update({
+    const updated = await payload.update({
       collection: 'articles',
       id: articleId,
       data: {
@@ -135,6 +137,7 @@ export async function saveBriefAction(
           : 'Brief saved.',
       saved: { ...next, icpId: nextIcpId },
       dropped: edits.sections.length - next.sections.length,
+      updatedAt: updated.updatedAt,
     }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not save the brief.') }

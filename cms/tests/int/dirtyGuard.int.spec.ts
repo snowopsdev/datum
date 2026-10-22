@@ -535,6 +535,27 @@ describe('useDirtyGuard', () => {
       expect(screen.queryByRole('alertdialog')).toBeNull()
     })
 
+    it('Save and leave leaves no copy behind, even when the page unloads at once', async () => {
+      const { unmount } = render(harness())
+      type('a', 'edited')
+      fireEvent.click(screen.getByRole('link', { name: 'Elsewhere' }))
+      expect(stored()).not.toBeNull()
+      // A hard navigation: the replayed click unloads the page before React
+      // has rendered the save, then the editor unmounts.
+      const unload = () => window.dispatchEvent(new Event('beforeunload'))
+      document.addEventListener('click', unload)
+      try {
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: 'Save and leave' }))
+        })
+      } finally {
+        document.removeEventListener('click', unload)
+      }
+      expect(reached).toHaveLength(1)
+      unmount()
+      expect(stored()).toBeNull()
+    })
+
     it('Save and leave stays on the page when the save fails', async () => {
       render(harness({ save: async () => null }))
       type('a', 'edited')
