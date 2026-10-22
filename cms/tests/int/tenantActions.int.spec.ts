@@ -55,6 +55,8 @@ const {
   saveWorkspaceProfileAction,
 } = await import('@/components/ops/tenantActions')
 
+const { saveTemplateConfigAction } = await import('@/components/ops/templateActions')
+const { evidenceSaveMessage, workspaceSaveMessage } = await import('@/components/ops/saveMessages')
 const { emptyIcpContent, icpContentOf } = await import('@/lib/tenant/icp')
 const { emptyPositioningContent } = await import('@/lib/tenant/positioning')
 const { ICP_FIXTURE, ICP_FIXTURE_SECONDARY } = await import('@/lib/tenant/fixtures')
@@ -142,6 +144,21 @@ describe('saveWorkspaceProfileAction', () => {
     })
 
     expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // What the save kept and dropped, so the editor can say so and show what was stored.
+    expect(result.counts).toEqual({ competitors: 2, invalid: 1, duplicate: 1 })
+    expect(workspaceSaveMessage(result.counts)).toBe(
+      'Saved · 2 competitors kept, 1 invalid removed, 1 duplicate removed',
+    )
+    expect(result.saved).toMatchObject({
+      companyName: 'Acme',
+      targetDomain: 'acme.example.com',
+      competitors: [
+        { domain: 'rival.example.com', name: 'Rival' },
+        { domain: 'other.example.com', name: 'other.example.com' },
+      ],
+    })
+    expect(result.updatedAt).toEqual(expect.any(String))
     const doc = (await payload.findGlobal({
       slug: 'workspace-profile',
       depth: 0,
@@ -210,7 +227,7 @@ describe('audience lifecycle', () => {
       ...completeIcp(nameA),
       who: 'Owns content for a 60-person company.',
     })
-    expect(saved).toEqual({ ok: true, problems: [] })
+    expect(saved).toMatchObject({ ok: true, problems: [], dropped: 0 })
 
     const activated = await saveAndActivateExisting(created.id)
     expect(activated.ok).toBe(true)
@@ -260,6 +277,21 @@ describe('audience lifecycle', () => {
     expect(afterArchive.primary).toBe(false)
 
     expect((await auditRows('icp_activated')).length).toBeGreaterThan(0)
+  })
+
+  it('returns the audience as stored: its new id, and a blank name as Untitled audience', async () => {
+    const created = await createIcpAction({ ...emptyIcpContent(''), who: 'Somebody.' })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    createdIcpIds.push(created.id)
+    expect(created.saved.id).toBe(created.id)
+    expect(created.saved.name).toBe('Untitled audience')
+
+    const saved = await saveIcpAction(created.id, { ...created.saved, name: '' })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    expect(saved.saved.name).toBe('Untitled audience')
+    expect(saved.saved.id).toBe(created.id)
   })
 
   it('surfaces the activation gate’s own words instead of throwing', async () => {
@@ -331,7 +363,7 @@ describe('saveAndActivateIcpAction', () => {
       { ...completeIcp(name), who: 'Owns content for a 200-person company.' },
       { makePrimary: true },
     )
-    expect(saved).toEqual({ ok: true, id: created.id, status: 'active', primary: true })
+    expect(saved).toMatchObject({ ok: true, id: created.id, status: 'active', primary: true })
 
     const doc = await payload.findByID({
       collection: 'icps',
@@ -422,7 +454,7 @@ describe('saveAndActivateIcpAction', () => {
       { ...completeIcp(name), who: 'Owns content for a 400-person company.' },
       { makePrimary: true },
     )
-    expect(second).toEqual({ ok: true, id: first.id, status: 'active', primary: true })
+    expect(second).toMatchObject({ ok: true, id: first.id, status: 'active', primary: true })
 
     expect(forRecord(await auditRows('icp_activated'), first.id)).toHaveLength(1)
     expect(forRecord(await auditRows('icp_primary_set'), first.id)).toHaveLength(1)
@@ -595,6 +627,10 @@ describe('savePositioningAction', () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
+    // Nothing was left out of this one, and what comes back is what was stored.
+    expect(result.dropped).toBe(0)
+    expect(result.saved.category).toBe('Content pipelines')
+    expect(result.saved.coreClaims[0]?.evidenceRef).toBe('E4')
     expect(result.problems).toContain('Write the customer promise')
     expect(result.problems.some((p) => p.startsWith('Write exactly three core claims'))).toBe(true)
 
@@ -608,6 +644,39 @@ describe('savePositioningAction', () => {
     // the same entry however it was typed.
     expect(doc.coreClaims?.[0]?.evidenceRef).toBe('E4')
     expect((await auditRows('positioning_updated')).length).toBeGreaterThan(0)
+  })
+})
+
+describe('saves that parse what they are sent report what the parser left out', () => {
+  it('positioning: an empty core claim is counted and gone from what comes back', async () => {
+    const result = await savePositioningAction({
+      ...emptyPositioningContent(),
+      category: 'Content pipelines',
+      coreClaims: [
+        { claim: 'Every claim carries its evidence.', evidenceRef: 'E4' },
+        { claim: '   ', evidenceRef: '' },
+      ],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.dropped).toBe(1)
+    expect(result.saved.coreClaims).toHaveLength(1)
+  })
+
+  it('audience: an empty pain is counted and gone from what comes back', async () => {
+    const created = await createIcpAction({
+      ...completeIcp(`Dropped rows ${randomUUID().slice(0, 6)}`),
+      pains: [
+        { statement: 'Ships five pieces a month.', evidence: [], confidence: 'inference' },
+        { statement: '  ', evidence: [], confidence: 'inference' },
+      ],
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    createdIcpIds.push(created.id)
+    expect(created.dropped).toBe(1)
+    expect(created.saved.pains).toHaveLength(1)
+    expect(created.updatedAt).toEqual(expect.any(String))
   })
 })
 
@@ -660,6 +729,7 @@ describe('saveEvidenceBankAction', () => {
     })
     expect(second.ok).toBe(true)
     if (!second.ok) return
+    expect(second.counts).toEqual({ claims: 1, facts: 1, rejected: 0, skipped: 0 })
     // The action hands back the saved document, which is how the editor shows
     // a just-typed row the ref a draft would cite it by.
     expect(second.saved.facts[0]?.ref).toMatch(/^F\d+$/)
@@ -685,11 +755,61 @@ describe('saveEvidenceBankAction', () => {
       rejectedClaims: [{ claim: '   ', status: 'rejected', reason: 'typo', replacement: '' }],
     })
     expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // ...and says so, rather than reporting a clean save.
+    expect(result.counts).toEqual({ claims: 0, facts: 0, rejected: 0, skipped: 1 })
+    expect(evidenceSaveMessage(result.counts)).toBe('Saved · 0 claims, 1 empty row skipped')
     const doc = (await payload.findGlobal({
       slug: 'evidence-bank',
       depth: 0,
       overrideAccess: true,
     })) as { rejectedClaims?: unknown[] }
     expect(doc.rejectedClaims ?? []).toHaveLength(0)
+  })
+})
+
+describe('saveTemplateConfigAction', () => {
+  it('counts the blank lines it left out and returns the stored version', async () => {
+    // Its own template: CI's database is not seeded, and a seeded one is not
+    // this test's to edit.
+    const template = await payload.create({
+      collection: 'templates',
+      data: { name: `Save counts ${Date.now()}` },
+      overrideAccess: true,
+    })
+    const input = {
+      companyMentions: 'mention' as const,
+      dos: ['Name the tool', '', '   '],
+      donts: ['Hype'],
+      requiredSections: ['', 'Verdict'],
+      seoSpec: {
+        titleTagMaxLength: 60,
+        metaDescriptionMaxLength: 160,
+        headingStructureRules: '',
+        faqRequired: true,
+        faqMinQuestions: 3,
+        faqMaxQuestions: 6,
+        ogTagsRequired: true,
+      },
+    }
+    try {
+      const result = await saveTemplateConfigAction(template.id, input)
+      expect(result.dropped).toBe(3)
+      expect(result.updatedAt).toEqual(expect.any(String))
+      // The template as stored, for the editor to show.
+      expect(result.template.dos).toEqual(['Name the tool'])
+      expect(result.template.requiredSections).toEqual(['Verdict'])
+      expect(result.template.updatedAt).toBe(result.updatedAt)
+      const saved = await payload.findByID({
+        collection: 'templates',
+        id: template.id,
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(saved.dos?.map((row) => row.text)).toEqual(['Name the tool'])
+      expect(saved.requiredSections?.map((row) => row.heading)).toEqual(['Verdict'])
+    } finally {
+      await payload.delete({ collection: 'templates', id: template.id, overrideAccess: true })
+    }
   })
 })

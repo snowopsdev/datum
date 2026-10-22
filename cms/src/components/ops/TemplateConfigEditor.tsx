@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import { useRouter } from 'next/navigation'
 import React, { useMemo, useState, useTransition } from 'react'
 
@@ -8,8 +9,10 @@ import {
   type CompanyMentions,
   DEFAULT_COMPANY_MENTIONS,
 } from '../../lib/tenant/companyMentions'
+import { LeaveDialog, RestoreNotice, SaveButton, UnsavedBar } from './DirtyGuardUi'
 import { createTemplateAction, saveTemplateConfigAction } from './templateActions'
 import type { TemplateConfigDTO } from './templateTypes'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 type Tab = 'outline' | 'rules' | 'seo' | 'examples'
@@ -18,6 +21,54 @@ type Props = {
   templates: TemplateConfigDTO[]
   initialId: number | null
 }
+
+/** Everything the Save button saves, in the shape the unsaved check compares. */
+type TemplateForm = {
+  outline: string
+  example: string
+  companyMentions: CompanyMentions
+  dos: string[]
+  donts: string[]
+  requiredSections: string[]
+  seoSpec: TemplateConfigDTO['seoSpec']
+}
+
+const DEFAULT_SEO: TemplateConfigDTO['seoSpec'] = {
+  titleTagMaxLength: 60,
+  metaDescriptionMaxLength: 160,
+  headingStructureRules: '',
+  faqRequired: true,
+  faqMinQuestions: 3,
+  faqMaxQuestions: 6,
+  ogTagsRequired: true,
+}
+
+const FORM_LABELS = {
+  outline: 'the outline',
+  example: 'the example',
+  companyMentions: 'company mentions',
+  dos: 'the dos',
+  donts: 'the don’ts',
+  requiredSections: 'the required sections',
+  seoSpec: 'the SEO limits',
+}
+
+/** One entry per non-blank line: what the save keeps, so a stray newline is not a change. */
+const linesOf = (text: string) =>
+  text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+const formOf = (t: TemplateConfigDTO | null): TemplateForm => ({
+  outline: t?.outline ?? '',
+  example: t?.example ?? '',
+  companyMentions: t?.companyMentions ?? DEFAULT_COMPANY_MENTIONS,
+  dos: t?.dos ?? [],
+  donts: t?.donts ?? [],
+  requiredSections: t?.requiredSections ?? [],
+  seoSpec: t?.seoSpec ?? DEFAULT_SEO,
+})
 
 export function TemplateConfigEditor({ templates, initialId }: Props) {
   const router = useRouter()
@@ -38,68 +89,93 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
   const [requiredSections, setRequiredSections] = useState(
     (selected?.requiredSections ?? []).join('\n'),
   )
-  const [seo, setSeo] = useState(
-    selected?.seoSpec ?? {
-      titleTagMaxLength: 60,
-      metaDescriptionMaxLength: 160,
-      headingStructureRules: '',
-      faqRequired: true,
-      faqMinQuestions: 3,
-      faqMaxQuestions: 6,
-      ogTagsRequired: true,
-    },
-  )
+  const [seo, setSeo] = useState(selected?.seoSpec ?? DEFAULT_SEO)
   const [pending, startTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [outlineDirty, setOutlineDirty] = useState(false)
-  const [exampleDirty, setExampleDirty] = useState(false)
   const [newName, setNewName] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const loadTemplate = (t: TemplateConfigDTO) => {
-    setSelectedId(t.id)
-    setOutline(t.outline)
-    setExample(t.example)
-    setCompanyMentions(t.companyMentions)
-    setDos(t.dos.join('\n'))
-    setDonts(t.donts.join('\n'))
-    setRequiredSections(t.requiredSections.join('\n'))
-    setSeo(t.seoSpec)
-    setOutlineDirty(false)
-    setExampleDirty(false)
-    setMessage(null)
-    setError(null)
-    router.replace(`/admin/ops/templates?id=${t.id}`)
+  const applyForm = (form: TemplateForm) => {
+    setOutline(form.outline)
+    setExample(form.example)
+    setCompanyMentions(form.companyMentions)
+    setDos(form.dos.join('\n'))
+    setDonts(form.donts.join('\n'))
+    setRequiredSections(form.requiredSections.join('\n'))
+    setSeo(form.seoSpec)
   }
 
-  const save = () => {
-    if (!selected) return
-    setMessage(null)
-    setError(null)
-    startTransition(async () => {
+  const form: TemplateForm = {
+    outline,
+    example,
+    companyMentions,
+    dos: linesOf(dos),
+    donts: linesOf(donts),
+    requiredSections: linesOf(requiredSections),
+    seoSpec: seo,
+  }
+
+  const guard = useDirtyGuard<TemplateForm>({
+    formKey: `template:${selected?.id ?? 'none'}`,
+    value: form,
+    initial: formOf(selected),
+    version: selected?.updatedAt ?? null,
+    onReset: applyForm,
+    labels: FORM_LABELS,
+    save: async (baseline) => {
+      if (!selected) return null
+      setError(null)
       try {
-        await saveTemplateConfigAction(selected.id, {
-          ...(outlineDirty ? { outline } : {}),
-          ...(exampleDirty ? { example } : {}),
+        const result = await saveTemplateConfigAction(selected.id, {
+          // The outline and example go through a lossy plain-to-Lexical
+          // conversion, so they are only sent when they actually changed.
+          ...(form.outline !== baseline.outline ? { outline } : {}),
+          ...(form.example !== baseline.example ? { example } : {}),
           companyMentions,
           dos: dos.split('\n'),
           donts: donts.split('\n'),
           requiredSections: requiredSections.split('\n'),
           seoSpec: seo,
         })
-        setOutlineDirty(false)
-        setExampleDirty(false)
-        setMessage(`Saved ${selected.name}`)
+        // The textareas show what was stored, through the same mapping the
+        // page reads it with: a blank line or padded outline is gone.
+        const saved = formOf(result.template)
+        applyForm(saved)
+        toast.success(
+          result.dropped > 0
+            ? `Saved ${selected.name} · ${result.dropped} empty line${result.dropped === 1 ? '' : 's'} removed`
+            : `Saved ${selected.name}`,
+        )
         router.refresh()
+        return { saved, version: result.updatedAt }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Save failed')
+        return null
       }
-    })
+    },
+  })
+
+  const loadTemplate = (t: TemplateConfigDTO) => {
+    setSelectedId(t.id)
+    applyForm(formOf(t))
+    setMessage(null)
+    setError(null)
+    router.replace(`/admin/ops/templates?id=${t.id}`)
   }
+
+  const save = () =>
+    startTransition(async () => {
+      await guard.submit()
+    })
 
   const create = (event: React.FormEvent) => {
     event.preventDefault()
+    // Creating one opens it, which would replace the edit in progress.
+    guard.guardLeave(createNow)
+  }
+
+  const createNow = () => {
     setMessage(null)
     setError(null)
     startTransition(async () => {
@@ -172,7 +248,11 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
           QA checks every draft against it. You need at least one before the pipeline will touch a
           topic. <code>npm run seed</code> installs three worked examples, or start your own here.
         </p>
-        {error ? <p className="datum-ops__error">{error}</p> : null}
+        {error ? (
+          <p className="datum-ops__error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <section className="datum-ops__panel">
           <h2>New template</h2>
           <div className="datum-ops__panel-body">{newTemplateForm}</div>
@@ -192,6 +272,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
         below or add your own. <strong>Required sections</strong> and <strong>SEO</strong> limits
         are enforced on every draft. The outline and dos and don&rsquo;ts guide the writer.
       </p>
+      <RestoreNotice guard={guard} />
 
       <div className="datum-ops__tpl">
         <aside className="datum-ops__tpl-list">
@@ -200,7 +281,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
               key={t.id}
               type="button"
               className={t.id === selected.id ? 'is-active' : undefined}
-              onClick={() => loadTemplate(t)}
+              onClick={() => {
+                if (t.id !== selected.id) guard.guardLeave(() => loadTemplate(t))
+              }}
             >
               {t.name}
               <span>
@@ -252,7 +335,11 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
             <h2>
               {selected.name} · {tab}
             </h2>
-            {error ? <p className="datum-ops__error">{error}</p> : null}
+            {error ? (
+              <p className="datum-ops__error" role="alert">
+                {error}
+              </p>
+            ) : null}
             {message ? <p className="datum-ops__ok">{message}</p> : null}
 
             {tab === 'outline' ? (
@@ -266,10 +353,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                   <textarea
                     id="outline"
                     value={outline}
-                    onChange={(e) => {
-                      setOutline(e.target.value)
-                      setOutlineDirty(true)
-                    }}
+                    onChange={(e) => setOutline(e.target.value)}
                     disabled={pending}
                     style={{ minHeight: 200 }}
                   />
@@ -447,10 +531,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                   <textarea
                     id="example"
                     value={example}
-                    onChange={(e) => {
-                      setExample(e.target.value)
-                      setExampleDirty(true)
-                    }}
+                    onChange={(e) => setExample(e.target.value)}
                     disabled={pending}
                     style={{ minHeight: 180 }}
                   />
@@ -459,18 +540,13 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
             ) : null}
 
             <div className="datum-ops__actions">
-              <button
-                type="button"
-                className="datum-ops__btn datum-ops__btn--primary"
-                disabled={pending}
-                onClick={save}
-              >
-                Save config
-              </button>
+              <SaveButton guard={guard} onClick={save} pending={pending} />
             </div>
           </div>
         </div>
       </div>
+      <UnsavedBar guard={guard} onSave={save} pending={pending} />
+      <LeaveDialog guard={guard} />
     </div>
   )
 }

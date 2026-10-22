@@ -44,6 +44,21 @@ test.describe('Evidence bank editor', () => {
     const context = await browser.newContext()
     page = await context.newPage()
     await login({ dashboardPath, page, user: testUser })
+    // A test that ends with an unsaved edit would otherwise hold the next
+    // navigation behind the browser's own leave prompt.
+    page.on('dialog', (dialog) => void dialog.accept())
+  })
+
+  // Each test starts from what is saved. A test that ends with an unsaved edit
+  // leaves a local copy (written again as its page unloads), and the next load
+  // would restore it. So leave first, then drop the copies.
+  test.beforeEach(async () => {
+    await page.goto('/admin')
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('datum:draft:')) localStorage.removeItem(key)
+      }
+    })
   })
 
   test.afterAll(async () => {
@@ -60,21 +75,29 @@ test.describe('Evidence bank editor', () => {
     await cleanupTestUser()
   })
 
-  test('says how many changes are unsaved, and All saved only when none are', async () => {
+  // The dot-and-count beside Save. The bar repeats it for the eye, so a text
+  // match would find two; this is the one live region.
+  const unsaved = () => page.locator('.datum-ops__dirty')
+  const saveButton = () => page.getByRole('button', { name: 'Save', exact: true })
+
+  test('says how many changes are unsaved, and nothing is saveable when none are', async () => {
     await page.goto('/admin/ops/setup/evidence')
-    await expect(page.getByText('All saved', { exact: true })).toBeVisible()
+    await expect(saveButton()).toBeDisabled()
+    await expect(unsaved()).toHaveText('')
 
     const claim = page.locator('#eb-claims-1-claim')
     const before = await claim.inputValue()
     await claim.fill(`${before} (edited)`)
-    await expect(page.getByText('1 unsaved change', { exact: true })).toBeVisible()
+    await expect(unsaved()).toHaveText('1 unsaved change')
+    await expect(saveButton()).toBeEnabled()
 
     // Typing the original text back is no change at all.
     await claim.fill(before)
-    await expect(page.getByText('All saved', { exact: true })).toBeVisible()
+    await expect(unsaved()).toHaveText('')
+    await expect(saveButton()).toBeDisabled()
 
     await page.getByRole('button', { name: 'Remove' }).nth(1).click()
-    await expect(page.getByText('1 unsaved change', { exact: true })).toBeVisible()
+    await expect(unsaved()).toHaveText('1 unsaved change')
   })
 
   test('keeps an edited row visible under the re-check filter, without duplicating it on save', async () => {
@@ -87,7 +110,7 @@ test.describe('Evidence bank editor', () => {
     // while it holds an unsaved edit.
     await page.locator('#eb-claims-0-recheckAt').fill('2027-06-30')
     await expect(page.locator('#eb-claims-0-claim')).toBeVisible()
-    await expect(page.getByText('1 unsaved change', { exact: true })).toBeVisible()
+    await expect(unsaved()).toHaveText('1 unsaved change')
 
     await page.getByRole('button', { name: 'Add a claim' }).click()
     await expect(page.locator('#eb-claims-1-claim')).toBeVisible()
@@ -95,10 +118,12 @@ test.describe('Evidence bank editor', () => {
     await page.getByLabel('Only show claims that need a re-check').uncheck()
     // 7 seeded claims minus none, plus the new one: no row appears twice.
     const total = await page.locator('[id^="eb-claims-"][id$="-claim"]').count()
-    await page.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(page.getByText(/^Saved\./)).toBeVisible()
+    await saveButton().click()
+    // The save says what it kept, in a toast, and the button says when.
+    await expect(page.getByText(/Saved · \d+ claims/)).toBeVisible()
     await expect(page.locator('[id^="eb-claims-"][id$="-claim"]')).toHaveCount(total)
-    await expect(page.getByText('All saved', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Saved ·/ })).toBeDisabled()
+    await expect(unsaved()).toHaveText('')
   })
 
   test('blocks Propose without notes, and leaves out claims the bank already holds', async () => {
@@ -114,6 +139,6 @@ test.describe('Evidence bank editor', () => {
     await propose.click()
     await expect(page.getByText(/already in your bank/)).toBeVisible()
     await expect(rows).toHaveCount(count)
-    await expect(page.getByText('All saved', { exact: true })).toBeVisible()
+    await expect(unsaved()).toHaveText('')
   })
 })

@@ -52,6 +52,7 @@ export async function EvidenceBankView(props: AdminViewServerProps) {
         <EvidenceBankEditor
           suggestion={suggestion}
           initial={emptyEvidenceBankDraft(evidenceBankContentOf(doc))}
+          updatedAt={typeof doc.updatedAt === 'string' ? doc.updatedAt : null}
           sitePagesFetchedAt={
             (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
           }

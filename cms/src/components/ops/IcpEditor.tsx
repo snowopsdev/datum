@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
@@ -11,8 +12,10 @@ import {
   icpContentOf,
 } from '../../lib/tenant/icp'
 import { AssetStepper, hasSectionContent } from './AssetStepper'
+import { SaveButton } from './DirtyGuardUi'
 import { ICP_SECTION_COMPONENTS } from './icpSections'
 import { ICP_STEPS, type IcpDTO, type IcpStepId } from './icpTypes'
+import { parsedSaveMessage } from './saveMessages'
 import {
   archiveIcpAction,
   createIcpAction,
@@ -20,9 +23,22 @@ import {
   saveAndActivateIcpAction,
   saveIcpAction,
 } from './tenantActions'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 const LIST_PATH = '/admin/ops/setup/audiences'
+
+const ICP_FIELD_LABELS: Record<string, string> = {
+  name: 'the name',
+  who: 'who it is',
+  pains: 'the pains',
+  motivation: 'the motivation',
+  solution: 'the solution',
+  competition: 'the competition',
+  channels: 'the channels',
+  churnTriggers: 'the churn triggers',
+  notOurUser: 'who it is not',
+}
 
 /**
  * Merge one assistant section into the form.
@@ -94,8 +110,8 @@ export function IcpEditor({
     return { [stepId]: content[stepId as keyof IcpContent] }
   }
 
-  /** Create on first save, update afterwards; returns the id or null on failure. */
-  const persist = async (): Promise<number | null> => {
+  /** Create on first save, update afterwards; returns what was stored, or null on failure. */
+  const persist = async () => {
     if (id == null) {
       const created = await createIcpAction(content)
       if (!created.ok) {
@@ -104,15 +120,35 @@ export function IcpEditor({
       }
       setId(created.id)
       router.replace(`${LIST_PATH}/${created.id}`)
-      return created.id
+      return created
     }
     const saved = await saveIcpAction(id, content)
     if (!saved.ok) {
       setError(saved.error)
       return null
     }
-    return id
+    return { ...saved, id }
   }
+
+  const guard = useDirtyGuard<IcpContent>({
+    formKey: `icp:${id ?? 'new'}`,
+    value: content,
+    initial: record ? icpContentOf(record) : emptyIcpContent(),
+    version: record?.updatedAt ?? null,
+    onReset: setContent,
+    labels: ICP_FIELD_LABELS,
+    save: async () => {
+      setError(null)
+      setMessage(null)
+      const result = await persist()
+      if (!result) return null
+      // What was stored: a row the parser left out is gone from the form too.
+      setContent(result.saved)
+      toast.success(parsedSaveMessage(`Saved ${content.name || 'the audience'}.`, result.dropped))
+      router.refresh()
+      return { saved: result.saved, version: result.updatedAt, key: `icp:${result.id}` }
+    },
+  })
 
   const run = (fn: () => Promise<void>) => {
     setError(null)
@@ -121,11 +157,8 @@ export function IcpEditor({
   }
 
   const save = () =>
-    run(async () => {
-      const savedId = await persist()
-      if (savedId == null) return
-      setMessage(`Saved ${content.name || 'the audience'}.`)
-      router.refresh()
+    startTransition(async () => {
+      await guard.submit()
     })
 
   const saveAndActivate = () =>
@@ -140,11 +173,14 @@ export function IcpEditor({
       if (id == null && result.id != null) {
         setId(result.id)
         router.replace(`${LIST_PATH}/${result.id}`)
+        guard.markSaved(content, { key: `icp:${result.id}` })
       }
       if (!result.ok) {
         setError(result.error)
         return
       }
+      setContent(result.saved)
+      guard.markSaved(result.saved, { version: result.updatedAt, key: `icp:${result.id}` })
       setStatus('active')
       setPrimary(result.primary)
       setMessage(
@@ -178,6 +214,8 @@ export function IcpEditor({
         setConfirmDelete(false)
         return
       }
+      // Nothing of a deleted draft is worth keeping a copy of.
+      guard.markSaved(content)
       router.replace(LIST_PATH)
       router.refresh()
     })
@@ -217,16 +255,19 @@ export function IcpEditor({
       }
       error={error}
       message={message}
+      guard={guard}
+      onSave={save}
+      // An active audience must stay complete: `gateIcpActivation` refuses the save.
+      saveBlocked={status === 'active' && problems.length > 0}
       actions={
         <>
-          <button
-            type="button"
-            className="datum-ops__btn datum-ops__btn--primary"
+          <SaveButton
+            blocked={status === 'active' && problems.length > 0}
+            guard={guard}
             onClick={save}
-            disabled={pending}
-          >
-            Save
-          </button>
+            pending={pending}
+            title={status === 'active' && problems.length ? problems.join('; ') : undefined}
+          />
           {current === 'review' ? (
             <>
               <label className="datum-ops__inline-check">

@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
@@ -18,6 +19,8 @@ import {
   spliceVisible,
   visibleClaimIndexes,
 } from '../../lib/tenant/evidenceBankDiff'
+import { LeaveDialog, RestoreNotice, SaveButton, UnsavedBar } from './DirtyGuardUi'
+import { evidenceSaveMessage } from './saveMessages'
 import { assistAction } from './setupActions'
 import { Field, RowsEditor } from './setupFields'
 import { SitePagesHint } from './SitePagesHint'
@@ -25,6 +28,7 @@ import { type EvidenceBankDraft, emptyEvidenceBankDraft, type NewRow } from './s
 import { saveEvidenceBankAction } from './tenantActions'
 import { SuggestionEditorContext } from './SetupSuggestions'
 import type { SetupSuggestionDTO } from './suggestionTypes'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 type Tab = 'verifiedClaims' | 'facts' | 'rejectedClaims'
@@ -84,12 +88,15 @@ const SURFACE_LABEL: Record<ClearedSurface, string> = {
  */
 export function EvidenceBankEditor({
   initial,
+  updatedAt = null,
   today,
   sitePagesFetchedAt,
   suggestion,
 }: {
   suggestion?: SetupSuggestionDTO | null
   initial: EvidenceBankDraft
+  /** The bank's version, so an edit kept in the browser is not put over a newer save. */
+  updatedAt?: string | null
   today: string
   /**
    * From the workspace profile. Both assist panels below read the site pages,
@@ -99,9 +106,6 @@ export function EvidenceBankEditor({
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(initial)
-  // The bank as last saved, kept apart from the draft so "unsaved" is a real
-  // comparison. Replaced when a save comes back.
-  const [saved, setSaved] = useState(initial)
   const [tab, setTab] = useState<Tab>(
     suggestion?.kind === 'rejected_ref' ? 'rejectedClaims' : 'verifiedClaims',
   )
@@ -113,29 +117,49 @@ export function EvidenceBankEditor({
   const [mock, setMock] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  const expiredCount = draft.verifiedClaims.filter(
-    (row) => row.recheckAt && row.recheckAt.slice(0, 10) < today,
-  ).length
-  const unverifiedCount = draft.verifiedClaims.filter((row) => claimProblems(row).length > 0).length
-  const unsaved = evidenceBankChanges(saved, draft).total
-  const needsNotes = notes.trim() === ''
-
-  const save = () =>
-    startTransition(async () => {
+  // "Unsaved" is a real comparison against the bank as last saved, counted the
+  // way the save counts: a blank row is not a change.
+  const guard = useDirtyGuard<EvidenceBankDraft>({
+    formKey: 'evidence',
+    value: draft,
+    initial,
+    version: updatedAt,
+    onReset: setDraft,
+    countChanges: (value, saved) => evidenceBankChanges(saved, value).total,
+    labels: {
+      verifiedClaims: 'the claims',
+      facts: 'the facts',
+      rejectedClaims: 'the rejected claims',
+    },
+    save: async () => {
       setError(null)
       setMessage(null)
       const result = await saveEvidenceBankAction(draft, suggestion?.id)
       if (!result.ok) {
         setError(result.error)
-        return
+        return null
       }
       // Adopt the saved document rather than keeping the typed copy: the rows
       // now have refs, and a row the action dropped for having no text should
       // disappear here too.
-      setDraft(emptyEvidenceBankDraft(result.saved))
-      setSaved(emptyEvidenceBankDraft(result.saved))
-      setMessage('Saved. New rows now have a ref the writer can cite.')
+      const adopted = emptyEvidenceBankDraft(result.saved)
+      setDraft(adopted)
+      toast.success(evidenceSaveMessage(result.counts))
       router.refresh()
+      return { saved: adopted, version: result.updatedAt }
+    },
+  })
+  const saved = guard.saved
+
+  const expiredCount = draft.verifiedClaims.filter(
+    (row) => row.recheckAt && row.recheckAt.slice(0, 10) < today,
+  ).length
+  const unverifiedCount = draft.verifiedClaims.filter((row) => claimProblems(row).length > 0).length
+  const needsNotes = notes.trim() === ''
+
+  const save = () =>
+    startTransition(async () => {
+      await guard.submit()
     })
 
   const assist = (section: 'facts' | 'verifiedClaims') => {
@@ -267,7 +291,12 @@ export function EvidenceBankEditor({
 
       <div className="datum-ops__tab-panel datum-ops__tab-panel--wide">
         <p className="datum-ops__sub">{TAB_BLURB[tab]}</p>
-        {error ? <p className="datum-ops__error">{error}</p> : null}
+        <RestoreNotice guard={guard} />
+        {error ? (
+          <p className="datum-ops__error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {message ? <p className="datum-ops__ok">{message}</p> : null}
         {warnings.length > 0 ? (
           <ul className="datum-ops__list">
@@ -587,22 +616,12 @@ export function EvidenceBankEditor({
 
         <div className="datum-ops__review-footer">
           <div className="datum-ops__actions">
-            <button
-              type="button"
-              className="datum-ops__btn datum-ops__btn--primary"
-              onClick={save}
-              disabled={pending}
-            >
-              Save
-            </button>
-            <span className="datum-ops__hint">
-              {unsaved > 0
-                ? `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`
-                : 'All saved'}
-            </span>
+            <SaveButton guard={guard} onClick={save} pending={pending} />
           </div>
         </div>
       </div>
+      <UnsavedBar guard={guard} onSave={save} pending={pending} />
+      <LeaveDialog guard={guard} />
     </div>
   )
 }

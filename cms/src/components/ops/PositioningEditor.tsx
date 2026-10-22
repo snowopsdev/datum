@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import Link from 'next/link'
 import React, { useState, useTransition } from 'react'
 
@@ -10,12 +11,15 @@ import {
   positioningStatus,
 } from '../../lib/tenant/positioning'
 import { AssetStepper, hasSectionContent } from './AssetStepper'
+import { SaveButton } from './DirtyGuardUi'
 import {
   POSITIONING_SECTION_COMPONENTS,
   POSITIONING_STEPS,
   type PositioningStepId,
 } from './positioningSections'
+import { parsedSaveMessage } from './saveMessages'
 import { savePositioningAction } from './tenantActions'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 /** Which content keys each assist section is allowed to write. */
@@ -31,9 +35,12 @@ const SECTION_KEYS: Record<Exclude<PositioningStepId, 'review'>, (keyof Position
 
 export function PositioningEditor({
   initial,
+  updatedAt = null,
   sitePagesFetchedAt,
 }: {
   initial: PositioningContent
+  /** The global's version, so an edit kept in the browser is not put over a newer save. */
+  updatedAt?: string | null
   /** From the workspace profile: null warns that the assistant has nothing to read. */
   sitePagesFetchedAt: string | null
 }) {
@@ -54,16 +61,48 @@ export function PositioningEditor({
     return value
   }
 
-  const save = () =>
-    startTransition(async () => {
+  const guard = useDirtyGuard<PositioningContent>({
+    formKey: 'positioning',
+    value: content,
+    initial,
+    version: updatedAt,
+    onReset: setContent,
+    labels: {
+      category: 'the category',
+      goal: 'the goal',
+      promise: 'the promise',
+      activePosition: 'the active position',
+      statement: 'the statement',
+      macroFrame: 'the macro frame',
+      landscape: 'the landscape',
+      coreClaims: 'the core claims',
+      pillars: 'the pillars',
+      enemy: 'the enemy',
+      archetype: 'the archetype',
+      essence: 'the essence',
+      descriptorLadder: 'the descriptor ladder',
+      vocabularyReachFor: 'the vocabulary',
+      vocabularyAvoid: 'the vocabulary',
+      openRulings: 'the open rulings',
+    },
+    save: async () => {
       setError(null)
       setMessage(null)
       const result = await savePositioningAction(content)
       if (!result.ok) {
         setError(result.error)
-        return
+        return null
       }
-      setMessage('Saved. The next run writes with this position.')
+      // What was stored: a row the parser left out is gone from the form too.
+      setContent(result.saved)
+      toast.success(parsedSaveMessage('Saved. The next run writes with this position.', result.dropped))
+      return { saved: result.saved, version: result.updatedAt }
+    },
+  })
+
+  const save = () =>
+    startTransition(async () => {
+      await guard.submit()
     })
 
   const applyAssist = (stepId: PositioningStepId, value: Record<string, unknown>) => {
@@ -111,16 +150,9 @@ export function PositioningEditor({
       problemsTitle="A finished position still needs"
       error={error}
       message={message}
-      actions={
-        <button
-          type="button"
-          className="datum-ops__btn datum-ops__btn--primary"
-          onClick={save}
-          disabled={pending}
-        >
-          Save
-        </button>
-      }
+      guard={guard}
+      onSave={save}
+      actions={<SaveButton guard={guard} onClick={save} pending={pending} />}
     >
       {Section ? (
         <Section content={content} onChange={setContent} disabled={pending} />

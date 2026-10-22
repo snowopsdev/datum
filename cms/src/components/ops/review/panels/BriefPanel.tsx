@@ -55,6 +55,7 @@ export function BriefMain({
       keyword={article.keyword}
       mode={mode}
       templateName={article.templateName}
+      updatedAt={article.updatedAt}
     />
   )
 }

@@ -1,10 +1,13 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import { approveBriefAction, type BriefEdits, saveBriefAction } from './briefActions'
+import { LeaveDialog, RestoreNotice, SaveButton, UnsavedBar } from './DirtyGuardUi'
 import { announceRunQueued } from './runQueued'
+import { useDirtyGuard } from './useDirtyGuard'
 import type { BriefAngleOption } from '../../../../pipeline/src/brief'
 import './ops.css'
 
@@ -23,6 +26,8 @@ type Props = {
   keyword: string
   templateName: string | null
   mode: 'mock' | 'live'
+  /** The article's version, so an edit kept in the browser is not put over a newer save. */
+  updatedAt?: string | null
   /** Active audiences, primary first. Empty when the workspace has none. */
   icps: BriefIcpOption[]
   initial: {
@@ -45,7 +50,15 @@ type Props = {
  * want. Approving is what starts the writing — there is no separate run
  * button to find afterwards.
  */
-export function BriefEditor({ articleId, keyword, templateName, mode, icps, initial }: Props) {
+export function BriefEditor({
+  articleId,
+  keyword,
+  templateName,
+  mode,
+  updatedAt = null,
+  icps,
+  initial,
+}: Props) {
   const router = useRouter()
   const [angle, setAngle] = useState(initial.angle)
   const [audience, setAudience] = useState(initial.audience)
@@ -59,6 +72,54 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
   const [pending, startTransition] = useTransition()
 
   const edits = (): BriefEdits => ({ angle, audience, sections, notes, icpId })
+
+  // Sections are compared by what they say, not by the list keys the rows
+  // render under, so reordering or removing one cannot fool the comparison.
+  const guard = useDirtyGuard<BriefEdits>({
+    formKey: `brief:article:${articleId}`,
+    value: edits(),
+    initial: {
+      angle: initial.angle,
+      audience: initial.audience,
+      sections: initial.sections,
+      notes: initial.notes,
+      icpId: initial.icpId,
+    },
+    version: updatedAt,
+    onReset: (value) => {
+      setAngle(value.angle)
+      setAudience(value.audience)
+      setSections(value.sections)
+      setNotes(value.notes)
+      setIcpId(value.icpId)
+    },
+    labels: {
+      angle: 'the angle',
+      audience: 'the audience',
+      sections: 'the sections',
+      notes: 'the notes',
+      icpId: 'the audience',
+    },
+    save: async () => {
+      setMessage(null)
+      const result = await saveBriefAction(articleId, edits())
+      if (!result.ok) {
+        setMessage({ ok: false, text: result.error })
+        return null
+      }
+      // Every field as stored: the angle and notes come back trimmed, and a
+      // field left as typed would stay dirty against them for good.
+      const saved = result.saved ?? edits()
+      setAngle(saved.angle)
+      setAudience(saved.audience)
+      setSections(saved.sections)
+      setNotes(saved.notes)
+      setIcpId(saved.icpId)
+      toast.success(result.message)
+      router.refresh()
+      return { saved, version: result.updatedAt }
+    },
+  })
 
   const angleOptions = initial.angleOptions ?? []
   /** The chosen card holds the single tab stop; a hand-typed angle leaves the first one. */
@@ -108,14 +169,10 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
     setNewHeading('')
   }
 
-  const save = () => {
-    setMessage(null)
+  const save = () =>
     startTransition(async () => {
-      const result = await saveBriefAction(articleId, edits())
-      setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
-      if (result.ok) router.refresh()
+      await guard.submit()
     })
-  }
 
   /**
    * Approve, and with it start writing. In live mode that is a paid call, so
@@ -126,9 +183,12 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
     setMessage(null)
     setConfirming(false)
     startTransition(async () => {
-      const result = await approveBriefAction(articleId, edits(), { confirmLiveCost })
+      const sent = edits()
+      const result = await approveBriefAction(articleId, sent, { confirmLiveCost })
       setMessage({ ok: result.ok, text: result.ok ? result.message : result.error })
       if (result.ok) {
+        // Approved with these edits: the piece moves on, so nothing is left unsaved.
+        guard.markSaved(sent)
         if (result.runId) announceRunQueued({ runId: result.runId })
         router.refresh()
       }
@@ -137,6 +197,7 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
 
   return (
     <div className="datum-brief">
+      <RestoreNotice guard={guard} />
       <div className="datum-brief__intro">
         <p className="datum-ops__eyebrow">Brief · step 2 of 5</p>
         <h2>Check the plan before we write</h2>
@@ -356,7 +417,10 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
       </label>
 
       {message ? (
-        <p className={message.ok ? 'datum-ops__ok' : 'datum-ops__error'} role="status">
+        <p
+          className={message.ok ? 'datum-ops__ok' : 'datum-ops__error'}
+          role={message.ok ? 'status' : 'alert'}
+        >
           {message.text}
         </p>
       ) : null}
@@ -395,12 +459,12 @@ export function BriefEditor({ articleId, keyword, templateName, mode, icps, init
             >
               {pending ? 'Working…' : 'Approve and write'}
             </button>
-            <button className="datum-ops__btn" disabled={pending} onClick={save} type="button">
-              Save for later
-            </button>
+            <SaveButton guard={guard} onClick={save} pending={pending} />
           </>
         )}
       </div>
+      <UnsavedBar guard={guard} onSave={save} pending={pending} />
+      <LeaveDialog guard={guard} />
     </div>
   )
 }

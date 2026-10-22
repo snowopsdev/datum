@@ -1,15 +1,19 @@
 'use client'
 
+import { toast } from '@payloadcms/ui'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
 import type { SitePage } from '../../lib/tenant/workspaceProfile'
 import { AssetStepper, hasSectionContent, type AssetStep } from './AssetStepper'
+import { SaveButton } from './DirtyGuardUi'
+import { workspaceSaveMessage } from './saveMessages'
 import { Field, RowsEditor } from './setupFields'
 import { refreshSitePagesAction } from './setupActions'
 import { saveWorkspaceProfileAction } from './tenantActions'
 import type { WorkspaceProfileInput } from './setupTypes'
+import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
 type StepId = 'profile' | 'competitors' | 'pages'
@@ -43,6 +47,8 @@ export type WorkspaceEditorData = WorkspaceProfileInput & {
   fallbackDomain: string | null
   fallbackSource: 'env' | 'default' | 'admin'
   problems: string[]
+  /** The profile's version, so an edit kept in the browser is not put over a newer save. */
+  updatedAt?: string | null
 }
 
 /**
@@ -67,23 +73,53 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const save = () =>
-    startTransition(async () => {
+  const form: WorkspaceProfileInput = { companyName, targetDomain, siteNotes, competitors }
+  const guard = useDirtyGuard<WorkspaceProfileInput>({
+    formKey: 'workspace',
+    value: form,
+    initial: {
+      companyName: props.companyName,
+      targetDomain: props.targetDomain,
+      siteNotes: props.siteNotes,
+      competitors: props.competitors,
+    },
+    version: props.updatedAt ?? null,
+    onReset: (value) => {
+      setCompanyName(value.companyName)
+      setTargetDomain(value.targetDomain)
+      setSiteNotes(value.siteNotes)
+      setCompetitors(value.competitors)
+    },
+    labels: {
+      companyName: 'the company name',
+      targetDomain: 'the target domain',
+      siteNotes: 'the site notes',
+      competitors: 'the competitors',
+    },
+    save: async () => {
       setError(null)
       setMessage(null)
-      const result = await saveWorkspaceProfileAction({
-        companyName,
-        targetDomain,
-        siteNotes,
-        competitors,
-      })
+      const result = await saveWorkspaceProfileAction(form)
       if (!result.ok) {
         setError(result.error)
-        return
+        return null
       }
       setProblems(result.problems)
-      setMessage('Saved. The next run researches this domain.')
+      // What was stored, not what was typed: a pasted URL is now a host and a
+      // row that was not a domain is gone, so the form must not still show it.
+      setCompanyName(result.saved.companyName)
+      setTargetDomain(result.saved.targetDomain)
+      setSiteNotes(result.saved.siteNotes)
+      setCompetitors(result.saved.competitors)
+      toast.success(workspaceSaveMessage(result.counts))
       router.refresh()
+      return { saved: result.saved, version: result.updatedAt }
+    },
+  })
+
+  const save = () =>
+    startTransition(async () => {
+      await guard.submit()
     })
 
   const fetchPages = () =>
@@ -149,16 +185,9 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
       problemsTitle="Before a run can research this workspace"
       error={error}
       message={message}
-      actions={
-        <button
-          type="button"
-          className="datum-ops__btn datum-ops__btn--primary"
-          onClick={save}
-          disabled={pending}
-        >
-          Save
-        </button>
-      }
+      guard={guard}
+      onSave={save}
+      actions={<SaveButton guard={guard} onClick={save} pending={pending} />}
     >
       {current === 'profile' ? (
         <>

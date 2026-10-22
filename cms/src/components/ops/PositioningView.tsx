@@ -38,6 +38,7 @@ export async function PositioningView(props: AdminViewServerProps) {
       <Gutter>
         <PositioningEditor
           initial={positioningContentOf(doc)}
+          updatedAt={typeof doc.updatedAt === 'string' ? doc.updatedAt : null}
           sitePagesFetchedAt={
             (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
           }

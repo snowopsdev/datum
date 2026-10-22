@@ -27,8 +27,14 @@ export type TemplateConfigInput = {
   }
 }
 
-export async function saveTemplateConfigAction(templateId: number, input: TemplateConfigInput) {
+/** `dropped` counts the blank lines the save left out, so the editor can say so. */
+export async function saveTemplateConfigAction(
+  templateId: number,
+  input: TemplateConfigInput,
+): Promise<{ dropped: number; updatedAt: string; template: TemplateConfigDTO }> {
   const { payload, user } = await requireUser('Unauthorized')
+  const lines = [...input.dos, ...input.donts, ...input.requiredSections]
+  const dropped = lines.filter((line) => !line.trim()).length
   const data: Record<string, unknown> = {
     // Through the reader, so a stray value from the client saves as the default.
     companyMentions: companyMentionsOf(input),
@@ -56,7 +62,7 @@ export async function saveTemplateConfigAction(templateId: number, input: Templa
     data.example = plainTextToLexical(input.example)
   }
 
-  await payload.update({
+  const updated = await payload.update({
     collection: 'templates',
     id: templateId,
     data,
@@ -64,6 +70,9 @@ export async function saveTemplateConfigAction(templateId: number, input: Templa
     overrideAccess: false,
   })
   revalidatePath('/admin/ops/templates')
+  // As stored: the outline and example come back from Lexical trimmed, and the
+  // lists without their blank lines, which the editor must show.
+  return { dropped, updatedAt: updated.updatedAt, template: toTemplateDTO(updated) }
 }
 
 /**
