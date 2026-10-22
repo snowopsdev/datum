@@ -11,10 +11,7 @@ import { QaFailures, QaTriage } from '../QaTriage'
 import type { PanelProps } from '../types'
 
 /** The information-gain reasons, restated beside the controls that act on them. */
-function IgReasonsAside({
-  run,
-  runIsCurrent,
-}: Pick<PanelProps, 'run' | 'runIsCurrent'>) {
+function IgReasonsAside({ run, runIsCurrent }: Pick<PanelProps, 'run' | 'runIsCurrent'>) {
   if (!run || run.reasons.length === 0) return null
   return (
     <div className="datum-ops__block">
@@ -48,13 +45,14 @@ export function NeedsRevisionPanel({
   run,
   runIsCurrent,
 }: PanelProps) {
-  const { pending, runAction, setNotice } = action
+  const { arm, armed, disarm, pending, runAction, setNotice } = action
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
-  /** Live mode only: reset and regenerate queue a run, so they cost money. */
-  const [pendingReviewAction, setPendingReviewAction] = useState<'reset' | 'regenerate' | null>(
-    null,
-  )
+  // Every confirm here is the page's one armed slot, so arming one disarms
+  // the other. Live mode only: reset and regenerate queue a run, so they cost
+  // money and take a second confirm.
+  const confirmRegenerate = armed === 'regenerate'
+  const pendingReviewAction =
+    armed === 'live-reset' ? 'reset' : armed === 'live-regenerate' ? 'regenerate' : null
   const revisionCount = article.revisionCount ?? 0
 
   /**
@@ -77,7 +75,7 @@ export function NeedsRevisionPanel({
    * live.
    */
   const runReviewAction = (which: 'reset' | 'regenerate', confirmLiveCost: boolean) => {
-    setPendingReviewAction(null)
+    disarm()
     runAction(async () => {
       const options = { confirmLiveCost }
       reportQueued(
@@ -89,7 +87,7 @@ export function NeedsRevisionPanel({
   }
 
   const requestReviewAction = (which: 'reset' | 'regenerate') => {
-    if (mode === 'live') setPendingReviewAction(which)
+    if (mode === 'live') arm(`live-${which}`)
     else runReviewAction(which, false)
   }
 
@@ -140,17 +138,13 @@ export function NeedsRevisionPanel({
               <button
                 type="button"
                 className="datum-ops__btn datum-ops__btn--primary"
+                data-confirm-go={armed ?? undefined}
                 disabled={pending}
                 onClick={() => runReviewAction(pendingReviewAction, true)}
               >
                 Confirm
               </button>
-              <button
-                type="button"
-                className="datum-ops__btn"
-                disabled={pending}
-                onClick={() => setPendingReviewAction(null)}
-              >
+              <button type="button" className="datum-ops__btn" disabled={pending} onClick={disarm}>
                 Cancel
               </button>
             </div>
@@ -160,6 +154,7 @@ export function NeedsRevisionPanel({
             <button
               type="button"
               className="datum-ops__btn datum-ops__btn--primary"
+              data-confirm-trigger="live-reset"
               disabled={pending}
               onClick={() => requestReviewAction('reset')}
             >
@@ -179,6 +174,7 @@ export function NeedsRevisionPanel({
                 <button
                   type="button"
                   className="datum-ops__btn datum-ops__btn--danger"
+                  data-confirm-go="regenerate"
                   disabled={pending}
                   onClick={() => requestReviewAction('regenerate')}
                 >
@@ -188,7 +184,7 @@ export function NeedsRevisionPanel({
                   type="button"
                   className="datum-ops__btn"
                   disabled={pending}
-                  onClick={() => setConfirmRegenerate(false)}
+                  onClick={disarm}
                 >
                   Cancel
                 </button>
@@ -197,8 +193,9 @@ export function NeedsRevisionPanel({
               <button
                 type="button"
                 className="datum-ops__btn"
+                data-confirm-trigger="regenerate live-regenerate"
                 disabled={pending}
-                onClick={() => setConfirmRegenerate(true)}
+                onClick={() => arm('regenerate')}
               >
                 Regenerate from gaps
               </button>

@@ -326,7 +326,7 @@ export function GlobalRunBar() {
             >
               <span
                 className="datum-runbar__fill"
-                style={{ width: `${Math.round(progress * 100)}%` }}
+                style={{ transform: `scaleX(${Math.round(progress * 100) / 100})` }}
               />
             </div>
           ) : null}

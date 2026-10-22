@@ -32,6 +32,7 @@ vi.mock('@/components/ops/actions', () => ({
   unarchiveArticleAction: vi.fn(),
   unscheduleArticleAction: vi.fn(),
 }))
+vi.mock('@payloadcms/ui', () => ({ toast: { success: vi.fn(), dismiss: vi.fn() } }))
 vi.mock('@/components/ops/briefActions', () => ({
   revisitBriefAction: vi.fn(),
   saveBriefAction: vi.fn(),
@@ -88,11 +89,16 @@ it('maps every article status to exactly one panel', () => {
 const runPanelProps = (over: Record<string, unknown> = {}) =>
   ({
     action: {
+      armed: null,
+      arm: () => {},
+      disarm: () => {},
       error: null,
       notice: null,
       pending: false,
       runAction: () => {},
+      runUndo: () => {},
       setNotice: () => {},
+      undo: null,
     },
     article: {
       id: 1,
