@@ -42,7 +42,6 @@
 
   --ds-focus-gap: var(--ds-surface);
   --ds-focus-ring: #0f6f99;
-  --ds-focus: 0 0 0 2px var(--ds-focus-gap), 0 0 0 4px var(--ds-focus-ring);
 
   --ops-primary: var(--ds-primary);
   --ops-primary-active: var(--ds-primary-hover);
@@ -121,17 +120,27 @@ html[data-theme='dark'] {
 }
 
 /* ── Focus ring + skip link (F2) ─────────────────────────────────────────
-   One ring for every interactive element in an ops view, the nav and the run
-   bar: a 2px gap in the surface colour and a 4px ring (--ds-focus, token block
-   above). Unlayered on purpose: Payload's `a:focus { outline: none }` and its
-   field focus styles sit in `@layer payload-default`, and unlayered rules win.
-   The transparent outline is what Windows forced-colors mode renders instead. */
-:where(.datum-ops, .datum-ops-nav, .datum-runbar, .datum-runtime, .datum-skip-link)
-  :is(a, button, input, select, textarea, summary, [role='tab'], [tabindex]:not([tabindex='-1'])):focus-visible,
+   One ring for every interactive element in an ops view, the nav, the run bar
+   and the webhook secret field: a 2px --ds-focus-ring outline, offset 2px so
+   the surface (--ds-focus-gap) shows between it and the control. An outline,
+   not a box-shadow, so selected and active states that draw their own shadow
+   cannot hide it, and forced-colors mode keeps it. Unlayered on purpose:
+   Payload's `a:focus { outline: none }` and its field focus styles sit in
+   `@layer payload-default`, and unlayered rules win. */
+:where(.datum-ops, .datum-ops-nav, .datum-runbar, .datum-runtime, .datum-secret-field)
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='tab'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible,
 .datum-skip-link:focus-visible {
-  outline: 2px solid transparent;
+  outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
-  box-shadow: var(--ds-focus);
 }
 
 /* The skip target takes focus from script; it is a landing point, not a control. */
@@ -306,7 +315,6 @@ html[data-theme='dark'] {
 }
 
 @media (max-width: 760px) {
-
   .datum-ops__run-form,
   .datum-ops__run-form label:not(.datum-ops__cost-confirm) {
     width: 100%;

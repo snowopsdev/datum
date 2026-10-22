@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
 
 import { cleanupOpsUser, opsPayload, opsTestUser, seedOpsUser } from '../helpers/seedContentOps'
 
@@ -68,21 +68,42 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   test('a keyboard-focused ops link and button show the focus ring', async ({ page }) => {
     await page.goto(`${serverURL}/admin/ops/content`)
     await expect(page.locator('#ops-main')).toBeVisible()
-    const link = page.locator('#ops-main a').first()
-    await link.focus()
-    await page.keyboard.press('Shift+Tab')
-    await page.keyboard.press('Tab')
-    await expect(link).toBeFocused()
-    const shadow = await link.evaluate((el) => getComputedStyle(el).boxShadow)
-    expect(shadow).not.toBe('none')
+    await expectRingOnKeyboardFocus(page.locator('#ops-main a').first())
 
     const button = page.locator('#ops-main button').first()
-    if (await button.count()) {
-      await button.focus()
-      await page.keyboard.press('Shift+Tab')
-      await page.keyboard.press('Tab')
-      await expect(button).toBeFocused()
-      expect(await button.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none')
-    }
+    if (await button.count()) await expectRingOnKeyboardFocus(button)
+  })
+
+  test('a selected template card keeps the focus ring over its selected shadow', async ({
+    page,
+  }) => {
+    await page.goto(`${serverURL}/admin/ops/new`)
+    // With more than one template nothing starts selected; pick the first.
+    await page.locator('.datum-new__card[role="radio"]').first().click()
+    const selected = page.locator('.datum-new__card.is-selected')
+    await expect(selected).toBeVisible()
+    await expectRingOnKeyboardFocus(selected)
+  })
+
+  test('the webhook secret field, outside any ops view, shows the focus ring', async ({ page }) => {
+    await page.goto(`${serverURL}/admin/globals/webhook-settings`)
+    const input = page.locator('.datum-secret-field__input')
+    await expect(input).toBeVisible()
+    await expectRingOnKeyboardFocus(input)
   })
 })
+
+/** Focus by keyboard (so :focus-visible applies) and check the ring is drawn. */
+async function expectRingOnKeyboardFocus(target: Locator) {
+  await target.focus()
+  await target.page().keyboard.press('Shift+Tab')
+  await target.page().keyboard.press('Tab')
+  await expect(target).toBeFocused()
+  const ring = await target.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return { style: style.outlineStyle, width: style.outlineWidth, color: style.outlineColor }
+  })
+  expect(ring.style).toBe('solid')
+  expect(ring.width).toBe('2px')
+  expect(ring.color).not.toBe('rgba(0, 0, 0, 0)')
+}
