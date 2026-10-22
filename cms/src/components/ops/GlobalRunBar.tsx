@@ -56,6 +56,25 @@ const elapsed = (fromIso: string | null, now: number): string => {
 }
 
 /**
+ * Publishes the bar's rendered height as `--datum-runbar-h`, so the bottom
+ * toaster in `ops.css` sits above it — including when the detail panel is open
+ * and the bar is several rows tall. A callback ref, so it follows whichever of
+ * the bar's two forms is mounted.
+ */
+function trackBarHeight(node: HTMLDivElement | null) {
+  if (!node) return
+  const root = document.documentElement
+  const publish = () => root.style.setProperty('--datum-runbar-h', `${node.offsetHeight}px`)
+  publish()
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish)
+  observer?.observe(node)
+  return () => {
+    observer?.disconnect()
+    root.style.removeProperty('--datum-runbar-h')
+  }
+}
+
+/**
  * A run's status, on every admin page.
  *
  * Mounted from `admin.components.providers`, so it survives navigation: a live
@@ -203,7 +222,7 @@ export function GlobalRunBar() {
     return (
       <>
         {live}
-        <div className="datum-runbar datum-runbar--queued">
+        <div className="datum-runbar datum-runbar--queued" ref={trackBarHeight}>
           <div className="datum-runbar__inner">
             <span className="datum-runbar__dot datum-runbar__dot--queued" aria-hidden="true" />
             <div className="datum-runbar__text">
@@ -263,7 +282,7 @@ export function GlobalRunBar() {
   return (
     <>
       {live}
-      <div className={`datum-runbar datum-runbar--${run.status}`}>
+      <div className={`datum-runbar datum-runbar--${run.status}`} ref={trackBarHeight}>
         {/*
         Rendered before the status row: the bar is anchored to the bottom edge,
         so a panel after the row would push the row up off its anchor. This way

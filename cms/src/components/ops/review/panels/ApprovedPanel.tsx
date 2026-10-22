@@ -90,6 +90,9 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
                             )
                           }
                           await scheduleArticleAction(article.id, previousPublishAt)
+                          // The input was cleared on Unschedule and is seeded
+                          // only once, so put the restored time back in it.
+                          setScheduleAt(toUtcInputValue(previousPublishAt))
                         },
                         done: `Schedule restored for ${formatAuditTimestamp(previousPublishAt)}`,
                       }

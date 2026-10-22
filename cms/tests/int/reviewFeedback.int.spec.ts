@@ -176,6 +176,25 @@ describe('Unschedule Undo checks the clock, not the rendered page', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
+  it('an Undo in time reschedules and puts the time back in the input', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-01-01T12:00:00Z'))
+    unscheduleMock.mockResolvedValueOnce({ previousPublishAt: '2030-01-01T12:05:00.000Z' })
+    const { container } = render(
+      React.createElement(Page, { approvedPublishAt: '2030-01-01T12:05:00.000Z' }),
+    )
+    const input = () => container.querySelector<HTMLInputElement>('#publish-at')!
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unschedule' }))
+    })
+    expect(input().value).toBe('')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    })
+    expect(scheduleMock).toHaveBeenCalledWith(1, '2030-01-01T12:05:00.000Z')
+    expect(input().value).toBe('2030-01-01T12:05')
+  })
+
   it('refuses an Undo pressed after the time passed, and keeps it on screen', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2030-01-01T12:00:00Z'))

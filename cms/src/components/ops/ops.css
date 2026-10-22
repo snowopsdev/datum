@@ -1137,9 +1137,11 @@ html[data-theme='dark'] {
 }
 
 /* The run bar is fixed across the bottom of the admin, so while it shows the
-   bottom-left toaster sits above it instead of over its stage text. */
+   bottom-left toaster sits above it instead of over its stage text or its open
+   detail panel. `GlobalRunBar` publishes the bar's height; the fallback is the
+   collapsed bar. */
 body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
-  margin-bottom: 64px;
+  margin-bottom: calc(var(--datum-runbar-h, 56px) + 8px);
 }
 
 /* The Undo action on a Payload toast: Payload styles the toast unstyled, so the
