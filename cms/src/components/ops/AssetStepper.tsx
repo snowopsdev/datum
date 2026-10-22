@@ -180,7 +180,7 @@ export function AssetStepper<Id extends string>({
   }
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <div className="datum-ops__header">
         <h1>{heading}</h1>
         {headerExtra}

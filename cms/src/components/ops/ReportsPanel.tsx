@@ -89,7 +89,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
   }
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <div className="datum-ops__header">
         <h1>Reports</h1>
         <Link className="datum-ops__btn" href="/admin/ops/content" prefetch={false}>

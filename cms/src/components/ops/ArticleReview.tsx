@@ -70,7 +70,7 @@ export function ArticleReview({
   const StatusPanel = PANEL_FOR_KEY[panelKeyFor(article)]
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <ReviewHeader activeRunIncludesArticle={activeRunIncludesArticle} article={article} />
 
       <div className="datum-ops__review">

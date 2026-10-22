@@ -163,7 +163,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
 
   if (!selected) {
     return (
-      <div className="datum-ops">
+      <div id="ops-main" tabIndex={-1} className="datum-ops">
         <div className="datum-ops__header">
           <h1>Templates</h1>
         </div>
@@ -182,7 +182,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
   }
 
   return (
-    <div className="datum-ops">
+    <div id="ops-main" tabIndex={-1} className="datum-ops">
       <div className="datum-ops__header">
         <h1>Templates</h1>
         <span className="datum-ops__pill">config</span>
