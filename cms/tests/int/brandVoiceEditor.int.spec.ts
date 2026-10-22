@@ -271,3 +271,22 @@ it('shows the voice as stored after a save, so a blank name is not left looking 
   await waitFor(() => expect(name().value).toBe('Untitled brand voice'))
   expect(document.querySelector('.datum-ops__dirty')?.textContent).toBe('')
 })
+
+it('opens a restored first voice in the editor, not behind the entry cards', async () => {
+  localStorage.clear()
+  const typed = { ...emptyBrandVoiceContent('Half-made voice'), persona: 'The colleague.' }
+  localStorage.setItem(
+    'datum:draft:1/brand-voice:new',
+    JSON.stringify({ value: typed, savedAt: null, at: Date.now() - 60_000 }),
+  )
+  render(editor())
+
+  expect(await screen.findByText(/Restored the edit you hadn't saved/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Start onboarding' })).toBeNull()
+  expect(screen.getByRole('list', { name: 'Setup progress' })).toBeTruthy()
+
+  // Discarding it puts the workspace back where it was: the entry cards.
+  const banner = document.querySelector<HTMLElement>('.datum-ops__restore')!
+  fireEvent.click(within(banner).getByRole('button', { name: 'Discard' }))
+  expect(await screen.findByRole('button', { name: 'Start onboarding' })).toBeTruthy()
+})

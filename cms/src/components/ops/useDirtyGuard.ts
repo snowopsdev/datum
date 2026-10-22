@@ -112,14 +112,24 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
   if (core.key !== formKey) setCore(live)
   // The version follows the page's `updatedAt`, but only together with the
   // content it belongs to. After this editor's own save or a site fetch the
-  // refreshed record matches the baseline, so the new version is taken. A
-  // refresh after someone else's save (a finished run refreshes every admin
-  // page) brings content this form was never compared with: keep the old
-  // version, so a copy made now still asks before it is put back.
+  // refreshed record matches the baseline, so the new version is taken. When
+  // someone else saved (a finished run refreshes every admin page), a clean
+  // form takes their record whole, so it never shows, or later saves over,
+  // what is no longer there. A dirty one keeps its old version and baseline,
+  // so a copy made now still asks before it is put back.
   const [seenVersion, setSeenVersion] = useState(version)
   if (seenVersion !== version) {
     setSeenVersion(version)
-    if (sameValue(initial, live.saved)) setCore({ ...live, version })
+    const clean = options.countChanges
+      ? options.countChanges(value, live.saved) <= 0
+      : sameValue(value, live.saved)
+    if (sameValue(initial, live.saved)) {
+      setCore({ ...live, version })
+    } else if (clean) {
+      setCore({ ...live, saved: initial, version })
+      // This component's own state, so it may be set while rendering.
+      options.onReset(initial)
+    }
   }
 
   const [savedAt, setSavedAt] = useState<Date | null>(null)

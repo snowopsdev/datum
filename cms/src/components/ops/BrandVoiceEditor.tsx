@@ -468,8 +468,10 @@ export function BrandVoiceEditor({
 
   // ------------------------------------------------------------------ empty
   // A workspace with no voice picks how to make one before it gets a rail —
-  // including the workspace that just deleted its last one.
-  if (records.length === 0 && workingId == null && !drafting) {
+  // including the workspace that just deleted its last one. Not while a first
+  // voice that was never saved has been restored: the rail is where it, its
+  // banner and the leave dialog are, and the cards would only sit in front.
+  if (records.length === 0 && workingId == null && !drafting && !guard.dirty && !guard.restore) {
     return (
       <div id="ops-main" tabIndex={-1} className="datum-ops">
         <SuggestionEditorContext suggestion={suggestion} />

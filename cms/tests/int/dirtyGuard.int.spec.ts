@@ -634,6 +634,18 @@ describe('useDirtyGuard', () => {
     expect(stored()?.savedAt).toBe('v3')
   })
 
+  it('takes another person’s saved record whole while the form is clean', () => {
+    const { rerender } = render(harness({ version: 'v1' }))
+    rerender(harness({ version: 'v2', initial: { ...INITIAL, b: 'theirs' } }))
+    expect((screen.getByLabelText('b') as HTMLInputElement).value).toBe('theirs')
+    expect(dirtyStatus()).toBe('')
+
+    // And an edit now is made on their version.
+    type('a', 'mine')
+    act(() => void vi.advanceTimersByTime(500))
+    expect(stored()?.savedAt).toBe('v2')
+  })
+
   it('treats a different formKey as a different record, with its own baseline and copy', () => {
     writeLocalCopy(own('form:2'), { value: { a: 'two-mine', b: 'two' }, savedAt: 'v1', at: NOW - 60_000 })
     const { rerender } = render(harness({ formKey: 'form:1' }))
