@@ -1,5 +1,5 @@
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { emptyBrandVoiceContent } from '@/lib/brandVoice'
@@ -11,14 +11,16 @@ import type { BrandVoiceDTO, BrandVoiceInput } from '@/components/ops/brandVoice
  * and what a save writes to the resume marker.
  */
 
-const saveBrandVoiceDraftAction = vi.fn(async (_id: number, _input: BrandVoiceInput) => undefined)
+const saveBrandVoiceDraftAction = vi.fn(async (_id: number, _input: BrandVoiceInput) => ({
+  updatedAt: '2030-01-01T00:00:00.000Z',
+}))
 const deleteDraftAction = vi.fn(async (_id: number) => undefined)
 const archiveBrandVoiceAction = vi.fn(async (_id: number) => undefined)
 
 vi.mock('@/components/ops/brandVoiceActions', () => ({
   activateBrandVoiceAction: vi.fn(async () => ({ ok: true })),
   archiveBrandVoiceAction: (id: number) => archiveBrandVoiceAction(id),
-  createBrandVoiceDraftAction: vi.fn(async () => ({ id: 7 })),
+  createBrandVoiceDraftAction: vi.fn(async () => ({ id: 7, updatedAt: '2030-01-01T00:00:00.000Z' })),
   deleteDraftAction: (id: number) => deleteDraftAction(id),
   extractBrandVoiceFromUploadAction: vi.fn(),
   saveBrandVoiceDraftAction: (id: number, input: BrandVoiceInput) =>
@@ -203,4 +205,48 @@ it('says nothing about archiving on activate when no other voice is active', () 
 
   expect(screen.getByRole('button', { name: 'Activate' })).toBeTruthy()
   expect(screen.queryByText(/Activating this archives/)).toBeNull()
+})
+
+it('offers no "Save and leave" when the voice cannot be saved as it stands', async () => {
+  const incomplete = dto({ persona: '' })
+  render(
+    React.createElement(
+      React.Fragment,
+      null,
+      editor({ records: [incomplete], selectedId: 1 }),
+      React.createElement('a', { href: '/admin/ops/content' }, 'Content'),
+    ),
+  )
+  // Any edit: the persona it is missing keeps Save refused either way.
+  fireEvent.click(screen.getByRole('button', { name: /Target audience/ }))
+  fireEvent.change(screen.getByLabelText('Who are you talking to?'), {
+    target: { value: 'Clinic managers' },
+  })
+
+  fireEvent.click(screen.getByRole('link', { name: 'Content' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).queryByRole('button', { name: 'Save and leave' })).toBeNull()
+  expect(within(dialog).getByRole('button', { name: 'Leave' })).toBeTruthy()
+  expect(within(dialog).getByRole('button', { name: 'Stay' })).toBeTruthy()
+})
+
+it('tags an edit made after a save with the version that save returned', async () => {
+  localStorage.clear()
+  const draft = dto({ status: 'draft', onboardingStep: 9 })
+  render(editor({ records: [draft], selectedId: 1, initialMode: 'onboarding' }))
+  const who = () => screen.getByLabelText('Who are you talking to?')
+  fireEvent.click(screen.getByRole('button', { name: /Target audience/ }))
+
+  fireEvent.change(who(), { target: { value: 'Clinic managers' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(saveBrandVoiceDraftAction).toHaveBeenCalled())
+
+  fireEvent.change(who(), { target: { value: 'Clinic owners' } })
+  await waitFor(
+    () => {
+      const raw = localStorage.getItem('datum:draft:brand-voice:1')
+      expect(raw && JSON.parse(raw).savedAt).toBe('2030-01-01T00:00:00.000Z')
+    },
+    { timeout: 2000 },
+  )
 })

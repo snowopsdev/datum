@@ -32,7 +32,9 @@ function toData(input: BrandVoiceInput) {
   }
 }
 
-export async function createBrandVoiceDraftAction(input: BrandVoiceInput): Promise<{ id: number }> {
+export async function createBrandVoiceDraftAction(
+  input: BrandVoiceInput,
+): Promise<{ id: number; updatedAt: string }> {
   const { payload, user } = await requireUser('Unauthorized')
   const doc = await payload.create({
     collection: 'brand-voices',
@@ -44,16 +46,16 @@ export async function createBrandVoiceDraftAction(input: BrandVoiceInput): Promi
     overrideAccess: false,
   })
   revalidatePath(VIEW_PATH)
-  return { id: doc.id }
+  return { id: doc.id, updatedAt: doc.updatedAt }
 }
 
 export async function saveBrandVoiceDraftAction(
   id: number,
   input: BrandVoiceInput,
   suggestionId?: number,
-): Promise<void> {
+): Promise<{ updatedAt: string }> {
   const { payload, user } = await requireUser('Unauthorized')
-  await payload.update({
+  const doc = await payload.update({
     collection: 'brand-voices',
     id,
     data: toData(input),
@@ -66,6 +68,9 @@ export async function saveBrandVoiceDraftAction(
   await completeSuggestionAfterEdit(payload, user, suggestionId, 'brand-voice')
   revalidatePath(VIEW_PATH)
   revalidatePath('/admin/ops/setup')
+  // The editor tags its local copy with this, so an edit made after this
+  // save is not mistaken for one made before someone else's.
+  return { updatedAt: doc.updatedAt }
 }
 
 export async function activateBrandVoiceAction(

@@ -320,7 +320,8 @@ export function AssetStepper<Id extends string>({
       {guard && onSave ? (
         <UnsavedBar blocked={saveBlocked} guard={guard} onSave={onSave} pending={busy} />
       ) : null}
-      {guard ? <LeaveDialog guard={guard} /> : null}
+      {/* A save the editor refuses would only close the dialog without leaving. */}
+      {guard ? <LeaveDialog canSave={!saveBlocked} guard={guard} /> : null}
     </div>
   )
 }

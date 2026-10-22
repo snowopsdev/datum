@@ -307,21 +307,25 @@ export function BrandVoiceEditor({
   }
 
   /**
-   * Create or update the working record; returns its id.
+   * Create or update the working record; returns its id and new `updatedAt`.
    *
    * `onboardingStep` only ever climbs: it marks how far the interview got, so
    * revisiting question two on a finished voice must not rewind it.
    */
-  const persist = async (answeredThrough: number): Promise<number> => {
+  const persist = async (answeredThrough: number): Promise<{ id: number; version: string }> => {
     const onboardingStep = Math.max(record?.onboardingStep ?? 0, answeredThrough)
     if (workingId == null) {
-      const { id } = await createBrandVoiceDraftAction({ ...content, onboardingStep })
+      const { id, updatedAt } = await createBrandVoiceDraftAction({ ...content, onboardingStep })
       setWorkingId(id)
       router.replace(`${VIEW_PATH}?id=${id}&mode=${modeOf(step)}`)
-      return id
+      return { id, version: updatedAt }
     }
-    await saveBrandVoiceDraftAction(workingId, { ...content, onboardingStep }, suggestion?.id)
-    return workingId
+    const { updatedAt } = await saveBrandVoiceDraftAction(
+      workingId,
+      { ...content, onboardingStep },
+      suggestion?.id,
+    )
+    return { id: workingId, version: updatedAt }
   }
 
   /**
@@ -344,9 +348,9 @@ export function BrandVoiceEditor({
       setError(null)
       setMessage(null)
       try {
-        const id = await persist(answeredThrough)
+        const { id, version } = await persist(answeredThrough)
         toast.success(`Saved ${content.name || 'brand voice'}.`)
-        return { saved: content, key: `brand-voice:${id}` }
+        return { saved: content, key: `brand-voice:${id}`, version }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Action failed')
         return null
@@ -416,9 +420,9 @@ export function BrandVoiceEditor({
 
   const activate = () =>
     run(async () => {
-      const id = await persist(STEP_COUNT)
+      const { id, version } = await persist(STEP_COUNT)
       // Saved whether or not the gate then accepts the activation.
-      guard.markSaved(content, { key: `brand-voice:${id}` })
+      guard.markSaved(content, { key: `brand-voice:${id}`, version })
       const result = await activateBrandVoiceAction(id)
       if (!result.ok) {
         setError(result.error)
