@@ -149,6 +149,7 @@ export interface Config {
       'content-run': TaskContentRun;
       'webhook-deliver': TaskWebhookDeliver;
       'publish-due': TaskPublishDue;
+      'recover-stale-runs': TaskRecoverStaleRuns;
       'collect-setup-suggestions': TaskCollectSetupSuggestions;
       inline: {
         input: unknown;
@@ -1462,12 +1463,12 @@ export interface PipelineRun {
   id: number;
   runId: string;
   /**
-   * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.
+   * Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first; `cli` is `npm run pipeline:run`, which advances every article waiting at a stage.
    */
   source: 'admin' | 'cli' | 'selected';
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   mode: 'mock' | 'live';
-  template: number | Template;
+  template?: (number | null) | Template;
   requestedCount: number;
   articles?: (number | Article)[] | null;
   configFingerprint: string;
@@ -1501,6 +1502,7 @@ export interface PipelineRun {
   errorSummary?: string | null;
   requestedBy: string;
   startedAt?: string | null;
+  heartbeatAt?: string | null;
   completedAt?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -1574,7 +1576,13 @@ export interface PayloadJob {
     | {
         executedAt: string;
         completedAt: string;
-        taskSlug: 'inline' | 'content-run' | 'webhook-deliver' | 'publish-due' | 'collect-setup-suggestions';
+        taskSlug:
+          | 'inline'
+          | 'content-run'
+          | 'webhook-deliver'
+          | 'publish-due'
+          | 'recover-stale-runs'
+          | 'collect-setup-suggestions';
         taskID: string;
         input?:
           | {
@@ -1607,7 +1615,16 @@ export interface PayloadJob {
         id?: string | null;
       }[]
     | null;
-  taskSlug?: ('inline' | 'content-run' | 'webhook-deliver' | 'publish-due' | 'collect-setup-suggestions') | null;
+  taskSlug?:
+    | (
+        | 'inline'
+        | 'content-run'
+        | 'webhook-deliver'
+        | 'publish-due'
+        | 'recover-stale-runs'
+        | 'collect-setup-suggestions'
+      )
+    | null;
   queue?: string | null;
   waitUntil?: string | null;
   processing?: boolean | null;
@@ -2394,6 +2411,7 @@ export interface PipelineRunsSelect<T extends boolean = true> {
   errorSummary?: T;
   requestedBy?: T;
   startedAt?: T;
+  heartbeatAt?: T;
   completedAt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -3404,6 +3422,33 @@ export interface TaskPublishDue {
   input?: unknown;
   output: {
     published:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskRecover-stale-runs".
+ */
+export interface TaskRecoverStaleRuns {
+  input?: unknown;
+  output: {
+    recoveredRuns:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    failedJobs:
       | {
           [k: string]: unknown;
         }

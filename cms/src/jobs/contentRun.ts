@@ -3,6 +3,15 @@ import type { Payload, TaskConfig } from 'payload'
 import { fetchTopics } from '../../../pipeline/src/fetchTopics'
 import { buildStageContext, loadStageInputs } from '../../../pipeline/src/runContext'
 import { runPipeline } from '../../../pipeline/src/stages'
+import {
+  RUN_HEARTBEAT_INTERVAL_MS,
+  type RunHeartbeat,
+  RunLeaseLostError,
+  safeRunError,
+  settledRunData,
+  startRunHeartbeat,
+  updateRunIfStatus,
+} from '../lib/pipelineRunLease'
 import type { PipelineRun } from '../payload-types'
 
 type ContentRunTask = {
@@ -10,26 +19,39 @@ type ContentRunTask = {
   output: { articleIds: number[]; finalStatuses: Record<string, number> }
 }
 
-function safeError(error: unknown): string {
-  let message = error instanceof Error ? error.message : 'Content run failed'
-  for (const name of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'AHREFS_API_KEY', 'PAYLOAD_SECRET']) {
-    const secret = process.env[name]
-    if (secret) message = message.replaceAll(secret, '[redacted]')
-  }
-  return message.replace(/(sk-|api[_-]?key[=: ]+)[^\s,;]+/gi, '$1[redacted]').slice(0, 500)
+export interface ExecuteContentRunOptions {
+  /** How often the lease is refreshed; tests shorten it. */
+  heartbeatIntervalMs?: number
 }
 
-async function executeContentRun(payload: Payload, run: PipelineRun) {
-  const startedAt = new Date().toISOString()
-  await payload.update({
-    collection: 'pipeline-runs',
-    id: run.id,
-    overrideAccess: true,
-    data: { status: 'running', startedAt, errorSummary: null },
-  })
+export async function executeContentRun(
+  payload: Payload,
+  run: PipelineRun,
+  { heartbeatIntervalMs = RUN_HEARTBEAT_INTERVAL_MS }: ExecuteContentRunOptions = {},
+) {
+  let heartbeat: RunHeartbeat | null = null
+  // Every write below is fenced on the status the run expects to find, so a
+  // run that recovery failed under this worker is never written back over.
+  const writeRunning = async (data: Partial<PipelineRun>) => {
+    if (!(await updateRunIfStatus(payload, run.id, 'running', data))) {
+      throw new RunLeaseLostError(run.runId)
+    }
+  }
 
   try {
-    const templateId = typeof run.template === 'object' ? run.template.id : run.template
+    const startedAt = new Date().toISOString()
+    // The claim: only a queued row becomes running. A row recovery already
+    // failed stays failed, and the job ends without touching it.
+    const claimed = await updateRunIfStatus(payload, run.id, 'queued', {
+      status: 'running',
+      startedAt,
+      heartbeatAt: startedAt,
+      errorSummary: null,
+    })
+    if (!claimed) throw new RunLeaseLostError(run.runId)
+    heartbeat = startRunHeartbeat(payload, run, heartbeatIntervalMs)
+
+    const templateId = typeof run.template === 'object' ? run.template?.id : run.template
     let articleIds: number[]
     const inputs = await loadStageInputs(payload, run.mode)
     const { tenant, brandVoice } = inputs
@@ -52,6 +74,8 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
         throw new Error('This run has no articles attached.')
       }
     } else {
+      if (templateId == null) throw new Error('This run has no template to discover topics for.')
+      heartbeat.signal.throwIfAborted()
       const fetched = await fetchTopics(stageContext, {
         count: run.requestedCount,
         templateId,
@@ -63,54 +87,24 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       }
     }
 
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: { articles: articleIds },
-    })
+    await writeRunning({ articles: articleIds })
 
-    const result = await runPipeline(stageContext, { articleIds })
-    const completedAt = new Date().toISOString()
-    // A run that advanced nothing is not a success, whatever the job queue
-    // thinks. `runPipeline` deliberately swallows a single article's failure so
-    // the rest of the batch survives, which means the only signal that anything
-    // went wrong is `result.failed` — and reporting `succeeded` regardless left
-    // an operator staring at a card that had not moved with nowhere to look.
-    const advanced = Object.values(result.finalStatuses).reduce((sum, n) => sum + n, 0)
-    const status = advanced === 0 && result.failed > 0 ? 'failed' : 'succeeded'
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: {
-        status,
-        articles: articleIds,
-        finalStatuses: result.finalStatuses,
-        warnings: result.failures.length > 0 ? result.failures : null,
-        errorSummary:
-          result.failures.length > 0
-            ? result.failures
-                .map((f) => `${f.stage}: "${f.keyword}" — ${safeError(new Error(f.message))}`)
-                .join('\n\n')
-            : null,
-        completedAt,
-      },
-    })
+    const result = await runPipeline(stageContext, { articleIds, signal: heartbeat.signal })
+    await writeRunning({ ...settledRunData(result), articles: articleIds })
     return result
   } catch (error) {
-    const errorSummary = safeError(error)
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: {
+    const errorSummary = safeRunError(error)
+    // Fenced too: a lost lease means the row already says what happened.
+    if (!(error instanceof RunLeaseLostError)) {
+      await updateRunIfStatus(payload, run.id, 'running', {
         status: 'failed',
         errorSummary,
         completedAt: new Date().toISOString(),
-      },
-    })
+      })
+    }
     throw new Error(errorSummary)
+  } finally {
+    heartbeat?.stop()
   }
 }
 

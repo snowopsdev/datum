@@ -32,6 +32,7 @@ import { WebhookSettings } from './globals/WebhookSettings'
 import { WorkspaceProfile } from './globals/WorkspaceProfile'
 import { ContentRunTask } from './jobs/contentRun'
 import { PublishDueTask } from './jobs/publishDue'
+import { RecoverStaleRunsTask } from './jobs/recoverStaleRuns'
 import { WebhookDeliverTask } from './jobs/webhookDeliver'
 
 const filename = fileURLToPath(import.meta.url)
@@ -190,7 +191,13 @@ export default buildConfig({
     WebhookSettings,
   ],
   jobs: {
-    tasks: [ContentRunTask, WebhookDeliverTask, PublishDueTask, CollectSetupSuggestionsTask],
+    tasks: [
+      ContentRunTask,
+      WebhookDeliverTask,
+      PublishDueTask,
+      RecoverStaleRunsTask,
+      CollectSetupSuggestionsTask,
+    ],
     enableConcurrencyControl: true,
     processingOrder: 'createdAt',
     // Production runs no queues in-process; the external scheduler calls

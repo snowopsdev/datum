@@ -67,6 +67,13 @@ export interface RunPipelineOptions {
   articleIds?: number[]
   /** Stages to walk; defaults to the real pipeline. Tests pass their own. */
   stages?: Stage[]
+  /**
+   * Aborted when the run's lease is lost (`cms/src/lib/pipelineRunLease.ts`):
+   * the run row was recovered under it. The run then throws the abort reason
+   * before it reads another batch or writes another article, rather than
+   * advancing work a newer run may now hold.
+   */
+  signal?: AbortSignal
 }
 
 /** What one stage did to its batch in a single run. */
@@ -127,7 +134,9 @@ export async function runPipeline(
   const stageSummaries: StageRunSummary[] = []
   const failures: StageFailure[] = []
   let totalFailed = 0
+  const { signal } = options
   for (const stage of options.stages ?? stages) {
+    signal?.throwIfAborted()
     // `archived` is deliberately part of the entry query rather than a board-only
     // filter: an archived topic still holds a pipeline status, so leaving it out
     // here would let a run pick up work somebody explicitly took off the board.
@@ -154,9 +163,11 @@ export async function runPipeline(
       // which is the same convergent-rerun property the whole loop relies on.
       // The counts still come back in the result, so `index.ts` exits non-zero
       // and a scheduled run's alerting sees stuck articles.
+      signal?.throwIfAborted()
       try {
         const outcome = await stage.run(article, ctx)
         const warnings = outcome.warnings ?? []
+        signal?.throwIfAborted()
         await ctx.payload.update({
           collection: 'articles',
           depth: 0,
@@ -193,6 +204,8 @@ export async function runPipeline(
           `[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`,
         )
       } catch (error) {
+        // A lost lease ends the whole run, not this one article.
+        if (signal?.aborted) throw signal.reason
         failed += 1
         const message = error instanceof Error ? error.message : String(error)
         failures.push({

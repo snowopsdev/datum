@@ -10,7 +10,7 @@ All background work runs on Payload's jobs queue. In development every queue aut
 |---|---|---|---|
 | `content` | `npm run jobs:run --workspace cms` (`payload jobs:run --queue content --limit 1`) | your call (each invocation processes one job) | `content-run`: a full pipeline run |
 | `webhooks` | `npm run jobs:webhooks --workspace cms` (`payload jobs:run --queue webhooks`) | every minute or faster | `webhook-deliver`: signed status-event POSTs |
-| `scheduled` | `npm run jobs:scheduled --workspace cms` (`payload jobs:run --queue scheduled --handle-schedules --limit 1`) | every minute or faster | `publish-due`: publishes due `approved` articles (cron-scheduled every 5 minutes). `collect-setup-suggestions`: the daily 03:00 scan behind the setup suggestions (see [setup-suggestions.md](setup-suggestions.md)). `--handle-schedules` is what enqueues the next occurrence of each |
+| `scheduled` | `npm run jobs:scheduled --workspace cms` (`payload jobs:run --queue scheduled --handle-schedules --limit 1`) | every minute or faster | `publish-due`: publishes due `approved` articles (cron-scheduled every 5 minutes). `recover-stale-runs`: fails runs whose worker stopped responding (every 5 minutes; see [Stuck runs](#stuck-runs)). `collect-setup-suggestions`: the daily 03:00 scan behind the setup suggestions (see [setup-suggestions.md](setup-suggestions.md)). `--handle-schedules` is what enqueues the next occurrence of each |
 
 Invoke the npm scripts, or set `NODE_ENV=production` yourself if you call `payload jobs:run` directly. The Payload CLI does not set it, and without it the Postgres adapter runs its development schema push against the database on every invocation, outside migrations. The three scripts set `DISABLE_DEV_PUSH=true` so they are safe either way.
 
@@ -19,6 +19,15 @@ Invoke the npm scripts, or set `NODE_ENV=production` yourself if you call `paylo
 - **One active run at a time.** `createPipelineRun` takes a `read committed` transaction plus a Postgres advisory lock (`pg_advisory_xact_lock(424242, 434343)`); a second concurrent launch gets `ActivePipelineRunError`. Runs from the `selected` source are exempt from the one-active-run rule.
 - `content-run` has `retries: 0` and concurrency key `content-pipeline`: a failed run stays failed (its articles keep their statuses and the next run retries them), and two runs never execute concurrently.
 - One article's failure never fails its batch; it keeps its status and is retried by the next run. A run that advanced nothing and had failures is recorded `failed` with a redacted `errorSummary` on its `pipeline-runs` row.
+
+### Stuck runs
+
+A run holds a lease on its `pipeline-runs` row while it is `running`. Whatever executes it — the `content-run` worker or `npm run pipeline:run` — writes `heartbeatAt` when it claims the row and every 60 seconds after that. Elapsed time alone never ends a run: a long run whose process is alive keeps refreshing its lease.
+
+- **Recovery.** `recover-stale-runs` (on the `scheduled` queue, every 5 minutes) fails any `running` run whose `heartbeatAt` — or `startedAt`, for a row with no heartbeat — is more than **15 minutes** old. It also releases the `content-run` job the dead worker left `processing`, by marking it failed (`hasError`), which frees the `content-pipeline` concurrency key so queued runs start again; the job is not re-run. A job that a worker took but never started (its run still `queued`) is released after the same 15 minutes, and its run is failed with it.
+- **What an operator sees.** The run turns `failed` in the run bar and in Reports, with the summary "The worker stopped responding: no heartbeat since …". Its articles keep the status they last saved, and the next run picks them up again. No article or audit row is written by recovery. Worst case, from the process dying to the next run starting, is 15 minutes plus one 5-minute tick plus your scheduler cadence.
+- **Fencing.** Every write a run makes to its own row after claiming it is conditional on the row still being `running`. A process that was only stalled (not dead) and comes back after recovery finds its row failed: its heartbeat aborts the pipeline before the next article write, its final write is refused, and the recovered state stands.
+- **Interrupting the CLI.** Ctrl-C (SIGINT) or SIGTERM marks a CLI run failed straight away. A CLI that is killed outright (SIGKILL, a lost machine) is recovered like a dead worker.
 
 ### Scheduled publishing
 

@@ -25,7 +25,7 @@ export const PipelineRuns: CollectionConfig = {
       options: ['admin', 'cli', 'selected'],
       admin: {
         description:
-          'Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first.',
+          'Where the run came from. `selected` runs the articles a person ticked on the board; `admin` discovers new content-gap topics first; `cli` is `npm run pipeline:run`, which advances every article waiting at a stage.',
       },
     },
     {
@@ -36,7 +36,8 @@ export const PipelineRuns: CollectionConfig = {
       options: ['queued', 'running', 'succeeded', 'failed'],
     },
     { name: 'mode', type: 'select', required: true, options: ['mock', 'live'] },
-    { name: 'template', type: 'relationship', relationTo: 'templates', required: true },
+    // Empty only on a `cli` run, which advances articles of every template.
+    { name: 'template', type: 'relationship', relationTo: 'templates' },
     // `admin` runs are capped at 5 because each one buys a fresh topic. A
     // `selected` run buys nothing new — it advances articles that already
     // exist — so the ceiling is only there to stop a runaway select-all, and
@@ -50,6 +51,13 @@ export const PipelineRuns: CollectionConfig = {
     { name: 'errorSummary', type: 'textarea' },
     { name: 'requestedBy', type: 'text', required: true },
     { name: 'startedAt', type: 'date' },
+    {
+      // The run's lease (`lib/pipelineRunLease.ts`): refreshed every minute by
+      // whatever is executing the run. `recover-stale-runs` fails a `running`
+      // row whose heartbeat is more than 15 minutes old.
+      name: 'heartbeatAt',
+      type: 'date',
+    },
     { name: 'completedAt', type: 'date' },
   ],
 }
