@@ -188,7 +188,7 @@ export function TopicDiscovery({
                         {c.alreadyTaken ? (
                           <span className="datum-ops__pill datum-ops__pill--muted datum-ops__pill--tight">
                             {' '}
-                            {c.archived ? 'removed from the board' : 'already on the board'}
+                            {c.archived ? 'removed from Content' : 'already in Content'}
                           </span>
                         ) : null}
                       </td>
@@ -376,7 +376,7 @@ export function TopicDiscovery({
                 <p className="datum-ops__hint">
                   The template decides the shape of the article — a how-to, a comparison, or a
                   ranked list — and QA checks the draft against it, so pick the one that matches how
-                  you would answer the topic. You can change it per article on the board later.
+                  you would answer the topic. You can change it per article later.
                 </p>
               </>
             )}
