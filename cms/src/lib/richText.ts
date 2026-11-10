@@ -321,7 +321,7 @@ export function inlineText(node: unknown): string {
   return childrenOf(n).map(inlineText).join('')
 }
 
-function inlineMarkdown(node: Loose): string {
+function inlineMarkdown(node: Loose, italic = '*'): string {
   if (node.type === 'linebreak') return '\n'
   if (node.type === 'tab') return '\t'
   if (typeof node.text === 'string') {
@@ -331,15 +331,48 @@ function inlineMarkdown(node: Loose): string {
     let marked = core
     if (format & FORMAT_CODE) marked = `\`${marked}\``
     if (format & FORMAT_BOLD) marked = `**${marked}**`
-    if (format & FORMAT_ITALIC) marked = `*${marked}*`
+    if (format & FORMAT_ITALIC) marked = `${italic}${marked}${italic}`
     return lead + marked + trail
   }
-  const inner = childrenOf(node).map(inlineMarkdown).join('')
+  const inner = inlineRunMarkdown(childrenOf(node))
   if (node.type === 'link' || node.type === 'autolink') {
     const url = linkUrlOf(node)
     return url && inner.trim() ? `[${inner}](${url})` : inner
   }
   return inner
+}
+
+/**
+ * Markdown for a run of sibling inline nodes. Neighbours with the same marks are
+ * joined first. Where two `*` delimiters would still touch (`**Bold***italic*`
+ * reads back as literal asterisks), the italic side is written with `_`.
+ */
+function inlineRunMarkdown(nodes: Loose[]): string {
+  const merged: Loose[] = []
+  for (const node of nodes) {
+    const prev = merged[merged.length - 1]
+    const sameMarks =
+      prev !== undefined &&
+      typeof prev.text === 'string' &&
+      typeof node.text === 'string' &&
+      prev.type === node.type &&
+      formatOf(prev) === formatOf(node)
+    if (sameMarks) merged[merged.length - 1] = { ...prev, text: `${prev.text}${node.text}` }
+    else merged.push(node)
+  }
+  const pieces = merged.map((node) => inlineMarkdown(node))
+  for (let k = 1; k < pieces.length; k++) {
+    if (!pieces[k - 1].endsWith('*') || !pieces[k].startsWith('*')) continue
+    for (const side of [k, k - 1]) {
+      const alt = inlineMarkdown(merged[side], '_')
+      // `_` only opens and closes away from letters and digits.
+      if (alt === pieces[side]) continue
+      if (isWordChar(pieces[side - 1]?.slice(-1)) || isWordChar(pieces[side + 1]?.[0])) continue
+      pieces[side] = alt
+      break
+    }
+  }
+  return pieces.join('')
 }
 
 const levelOf = (tag: unknown, fallback: number): number => {
@@ -370,10 +403,8 @@ function listLines(list: Loose, depth: number, markdown: boolean): string[] {
       continue
     }
     const kids = childrenOf(item)
-    const text = kids
-      .filter((kid) => kid.type !== 'list')
-      .map((kid) => (markdown ? inlineMarkdown(kid) : inlineText(kid)))
-      .join('')
+    const inline = kids.filter((kid) => kid.type !== 'list')
+    const text = (markdown ? inlineRunMarkdown(inline) : inline.map(inlineText).join(''))
       .replace(/\s*\n\s*/g, ' ')
       .trim()
     if (text) {
@@ -390,7 +421,7 @@ function listLines(list: Loose, depth: number, markdown: boolean): string[] {
 
 function blockLines(node: Loose, markdown: boolean): string[] {
   if (node.type === 'list') return listLines(node, 0, markdown)
-  const text = (markdown ? childrenOf(node).map(inlineMarkdown).join('') : inlineText(node)).trim()
+  const text = (markdown ? inlineRunMarkdown(childrenOf(node)) : inlineText(node)).trim()
   if (!text) return []
   if (node.type === 'heading' && markdown) {
     return [`${'#'.repeat(levelOf(node.tag, 2))} ${text.replace(/\s*\n\s*/g, ' ')}`]

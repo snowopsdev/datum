@@ -192,6 +192,24 @@ describe('template textarea round trip', () => {
     expect(lexicalToMarkdown(body, '\n')).toBe(text)
   })
 
+  // Adjacent nodes with different marks used to come back as `**Bold***italic*`,
+  // which the next save read as literal asterisks.
+  it('keeps adjacent bold and italic apart through a save', () => {
+    for (const text of ['**Bold**_italic_', '_italic_**Bold** after', 'a **b**_c_ and `d`']) {
+      const body = plainTextToLexical(text)
+      expect(lexicalToMarkdownText(body)).toBe(text)
+      expect(plainTextToLexical(lexicalToMarkdownText(body))).toEqual(body)
+    }
+  })
+
+  it('writes neighbouring text nodes with the same marks as one run', () => {
+    const bold = (text: string) => ({ type: 'text', text, format: 1, version: 1 })
+    const body = {
+      root: { type: 'root', children: [{ type: 'paragraph', children: [bold('Bo'), bold('ld')] }] },
+    }
+    expect(lexicalToMarkdownText(body as never)).toBe('**Bold**')
+  })
+
   // Readers of the words (reading time, banned-phrase matching) get no markers:
   // a bolded half of a phrase must still match the phrase.
   it('gives plain text with no markdown to the readers that want words', () => {
