@@ -787,7 +787,8 @@ describe('saveTemplateConfigAction', () => {
         ogTagsRequired: true,
       },
     })
-    expect(result).toEqual({ ok: false, error: expect.any(String) })
+    // Payload's own refusal (no such template), not a generic fallback.
+    expect(result).toEqual({ ok: false, error: expect.stringMatching(/not found/i) })
     expect(result.ok === false && result.error.length).toBeGreaterThan(0)
   })
 

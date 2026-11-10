@@ -119,7 +119,9 @@ export async function saveBriefAction(
     if (article.status !== 'brief_review') {
       return { ok: false, error: 'This brief has already been approved; the piece has moved on.' }
     }
-    if (loadedUpdatedAt && new Date(article.updatedAt).getTime() > new Date(loadedUpdatedAt).getTime()) {
+    // Any difference, not only a later one: two saves in the same millisecond,
+    // or one stamped by an instance with a slower clock, are still two saves.
+    if (loadedUpdatedAt && Date.parse(article.updatedAt) !== Date.parse(loadedUpdatedAt)) {
       return { ok: false, error: BRIEF_CHANGED_ELSEWHERE }
     }
     const next = cleanEdits(edits)
@@ -335,7 +337,15 @@ export async function revisitBriefAction(articleId: number): Promise<BriefAction
           actorType: 'user' as const,
           event: 'brief_reopened',
           summary: `Sent back to the brief from ${article.status}`,
-          details: { from: article.status },
+          // What a revisit clears, so the trail says the schedule and the
+          // old verdicts went with it.
+          details: {
+            from: article.status,
+            publishAt: null,
+            revisionNotes: null,
+            qaResults: null,
+            informationGain: null,
+          },
         },
       },
     })

@@ -1,3 +1,5 @@
+import { APIError } from 'payload'
+
 import { errorMessage } from '../../lib/errorMessage'
 
 /**
@@ -19,7 +21,9 @@ export type ActionResult<T extends object = object> = ({ ok: true } & T) | Actio
  * The body keeps throwing for its refusals — that reads best where the check
  * sits — and this is the one place they become data. An unexpected failure (a
  * database outage) is caught too, so the reviewer sees its message rather than
- * a redacted one; `fallback` covers a thrown value that carries none.
+ * a redacted one, and it is logged, because Next no longer logs an error the
+ * action did not throw. A gate's own refusal (an `APIError` below 500) is not
+ * a fault and is not logged. `fallback` covers a thrown value with no message.
  */
 export async function attempt<T extends object>(
   fallback: string,
@@ -28,6 +32,8 @@ export async function attempt<T extends object>(
   try {
     return { ok: true, ...(await body()) }
   } catch (error) {
+    const refusal = error instanceof APIError && error.status < 500
+    if (!refusal) console.error(`[server action] ${fallback}`, error)
     return { ok: false, error: errorMessage(error, fallback) }
   }
 }

@@ -51,6 +51,7 @@ const {
   unarchiveArticleAction,
   unscheduleArticleAction,
 } = await import('@/components/ops/actions')
+const { deleteDraftAction } = await import('@/components/ops/brandVoiceActions')
 const { findPublishedArticle } = await import('@/lib/findPublishedArticle')
 const { default: HomePage } = await import('@/app/(frontend)/page')
 
@@ -207,6 +208,25 @@ describe('a real gate refusal arrives as a value', () => {
     expect((await reload(article.id)).status).toBe('needs_review')
   })
 
+  it('deleteDraftAction returns its refusal for a voice that is not a draft', async () => {
+    const voice = await payload.create({
+      collection: 'brand-voices',
+      overrideAccess: true,
+      data: { name: `Archived voice ${randomUUID()}`, status: 'archived' } as never,
+    })
+    expect(await deleteDraftAction(voice.id)).toEqual({
+      ok: false,
+      error: 'Only drafts can be deleted. Archive an active brand voice instead.',
+    })
+    const still = await payload.findByID({
+      collection: 'brand-voices',
+      id: voice.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(still.status).toBe('archived')
+  })
+
   it('approveArticleAction returns the publication-path gate’s message', async () => {
     const article = await makeArticle({ status: 'drafted' })
     const result = await approveArticleAction(article.id)
@@ -238,6 +258,11 @@ describe('the narrowed article reads still see what the actions need', () => {
       error: 'Someone else saved this brief since you opened it. Reload to see their changes.',
     })
     expect((await reload(article.id)).brief?.angle).toBe('Second')
+
+    // Any other version is refused too, not only an older one: a clock that
+    // runs ahead must not let a stale form through.
+    const ahead = await saveBriefAction(article.id, { ...edits, angle: 'Third' }, '2099-01-01T00:00:00.000Z')
+    expect(ahead.ok).toBe(false)
 
     // Holding the version the first save returned, the next save goes through.
     const stored = first.ok ? first.updatedAt : undefined
