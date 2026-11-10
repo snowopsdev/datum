@@ -31,7 +31,7 @@
     "editor.formatOnSave": true
   },
   "editor.formatOnSaveMode": "file",
-  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.path": "../node_modules/typescript/lib",
   "js/ts.tsdk.promptToUseWorkspaceVersion": true,
   "[javascript][typescript][typescriptreact]": {
     "editor.codeActionsOnSave": {
