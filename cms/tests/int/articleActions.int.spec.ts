@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { APIError } from 'payload'
+
 import { gateReviewOverride, gateVerifiedStatus } from '@/lib/articleReviewGate'
 import { buildRegenerateRevisionNotes } from '@/components/ops/articleStatus'
 
@@ -39,13 +41,14 @@ const updateMock = vi.fn(
 // and globals, and `createPipelineRun` opens a Postgres transaction and takes an
 // advisory lock. `ActivePipelineRunError` is kept real (importOriginal) because
 // `actions.ts` branches on `instanceof`.
-const { createPipelineRunMock, loadWorkspaceSetupMock } = vi.hoisted(() => ({
+const { createPipelineRunMock, loadWorkspaceSetupMock, revalidatePathMock } = vi.hoisted(() => ({
   createPipelineRunMock: vi.fn(),
   loadWorkspaceSetupMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
 }))
 
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidatePath: revalidatePathMock }))
 vi.mock('@/lib/loadWorkspaceReadiness', () => ({
   loadWorkspaceSetup: loadWorkspaceSetupMock,
   loadActiveAudienceOptions: vi.fn(async () => []),
@@ -159,10 +162,11 @@ describe('buildRegenerateRevisionNotes', () => {
   })
 })
 
-// overrideReviewAction sends { status: 'verified', reviewJustification, reviewedBy } through
-// the same beforeChange chain as any other write — gateReviewOverride then gateVerifiedStatus
-// (see Articles.ts). These simulate that exact shape end to end.
-describe('overrideReviewAction write shape through both gates', () => {
+// The write shape overrideReviewAction sends — { status: 'verified', reviewJustification,
+// reviewedBy } — run straight through the two hooks it depends on, gateReviewOverride then
+// gateVerifiedStatus (see Articles.ts). This exercises the hooks, not the action: the action
+// itself is covered by 'overrideReviewAction only overrides…' and the gate refusal test below.
+describe('the two review gates, given the write shape overrideReviewAction sends', () => {
   const runGates = (data: Record<string, unknown>, originalDoc: Record<string, unknown>) => {
     const context: Record<string, unknown> = {}
     const afterFirst = gateReviewOverride({
@@ -358,12 +362,14 @@ describe('reset and regenerate refuse an article whose brief was never approved'
   for (const status of ['topic_selected', 'brief_review'] as const) {
     it(`refuses both at ${status} without writing anything`, async () => {
       findByIDMock.mockResolvedValue({ id: 1, status, revisionCount: 0 } as never)
-      await expect(regenerateArticleAction(1, 'again')).rejects.toThrow(
-        'no approved brief yet, so it cannot be regenerated',
-      )
-      await expect(resetToDraftedAction(1, 'again')).rejects.toThrow(
-        'no approved brief yet, so it cannot be reset',
-      )
+      await expect(regenerateArticleAction(1, 'again')).resolves.toEqual({
+        ok: false,
+        error: expect.stringContaining('no approved brief yet, so it cannot be regenerated'),
+      })
+      await expect(resetToDraftedAction(1, 'again')).resolves.toEqual({
+        ok: false,
+        error: expect.stringContaining('no approved brief yet, so it cannot be reset'),
+      })
       expect(updateMock).not.toHaveBeenCalled()
     })
   }
@@ -408,9 +414,10 @@ describe('overrideReviewAction only overrides a decision that is waiting for one
   for (const status of ['verified', 'approved', 'published', 'drafted'] as const) {
     it(`refuses ${status} without writing anything`, async () => {
       findByIDMock.mockResolvedValue({ id: 1, status } as never)
-      await expect(overrideReviewAction(1, 'checked the sources by hand')).rejects.toThrow(
-        'Only an article in Needs review or Blocked can be overridden.',
-      )
+      await expect(overrideReviewAction(1, 'checked the sources by hand')).resolves.toEqual({
+        ok: false,
+        error: 'Only an article in Needs review or Blocked can be overridden.',
+      })
       expect(updateMock).not.toHaveBeenCalled()
     })
   }
@@ -585,8 +592,7 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
 
   it('resetToDraftedAction queues a selected run for the article', async () => {
     const result = await resetToDraftedAction(1, 'fixed the intro')
-    expect(result.queued).toBe(true)
-    expect(result.runId).toEqual(expect.any(String))
+    expect(result).toMatchObject({ ok: true, queued: true, runId: expect.any(String) })
     expect(createPipelineRunMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -596,7 +602,7 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
 
   it('regenerateArticleAction queues a selected run for the article', async () => {
     const result = await regenerateArticleAction(1, 'tighten it')
-    expect(result.queued).toBe(true)
+    expect(result).toMatchObject({ ok: true, queued: true })
     expect(createPipelineRunMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -607,7 +613,11 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
   it('regenerateArticleAction reports when a run is already active', async () => {
     createPipelineRunMock.mockRejectedValueOnce(new ActivePipelineRunError('run-42'))
     const result = await regenerateArticleAction(1, 'tighten it')
-    expect(result).toEqual({ queued: false, reason: 'Run run-42 is already in progress.' })
+    expect(result).toEqual({
+      ok: true,
+      queued: false,
+      reason: 'Run run-42 is already in progress.',
+    })
   })
 
   it('still performs the update when the run cannot be queued', async () => {
@@ -630,6 +640,7 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
     )
     const result = await resetToDraftedAction(1, 'fixed the intro')
     expect(result).toEqual({
+      ok: true,
       queued: false,
       reason:
         'Finish setup before running the pipeline: Set the target domain; Add and activate at least one audience (ICP).',
@@ -645,6 +656,7 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
     )
     const result = await regenerateArticleAction(1)
     expect(result).toEqual({
+      ok: true,
       queued: false,
       reason: 'Configure the required environment variables: OPENAI_API_KEY.',
     })
@@ -654,18 +666,19 @@ describe('resetToDraftedAction and regenerateArticleAction queue the run themsel
   it('does not spend live money without confirmation, and queues when it is given', async () => {
     loadWorkspaceSetupMock.mockResolvedValue(readySetup({ mode: 'live' }))
     expect(await regenerateArticleAction(1)).toEqual({
+      ok: true,
       queued: false,
       reason: 'Confirm the live provider cost before starting this run.',
     })
     expect(createPipelineRunMock).not.toHaveBeenCalled()
 
     const confirmed = await regenerateArticleAction(1, undefined, { confirmLiveCost: true })
-    expect(confirmed.queued).toBe(true)
+    expect(confirmed).toMatchObject({ ok: true, queued: true })
   })
 
   it('skips the run entirely when the caller asks it to', async () => {
     const result = await resetToDraftedAction(1, 'fixed the intro', { queueRun: false })
-    expect(result).toEqual({ queued: false })
+    expect(result).toEqual({ ok: true, queued: false })
     expect(createPipelineRunMock).not.toHaveBeenCalled()
     expect(updateMock).toHaveBeenCalled()
   })
@@ -687,12 +700,18 @@ describe('scheduling, unscheduling and archiving', () => {
   })
 
   it('scheduleArticleAction rejects a past date', async () => {
-    await expect(scheduleArticleAction(1, '2020-01-01T00:00:00Z')).rejects.toThrow(/future/)
+    await expect(scheduleArticleAction(1, '2020-01-01T00:00:00Z')).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/future/),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('scheduleArticleAction rejects a value that is not a date at all', async () => {
-    await expect(scheduleArticleAction(1, 'next tuesday')).rejects.toThrow(/date and time/)
+    await expect(scheduleArticleAction(1, 'next tuesday')).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/date and time/),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -714,7 +733,10 @@ describe('scheduling, unscheduling and archiving', () => {
   // else is inert intent dressed up as a promise the page would then repeat.
   it('scheduleArticleAction refuses an article that is not approved', async () => {
     findByIDMock.mockResolvedValueOnce({ id: 1, status: 'needs_revision' } as never)
-    await expect(scheduleArticleAction(1, '2099-01-01T09:00:00Z')).rejects.toThrow(/approved/)
+    await expect(scheduleArticleAction(1, '2099-01-01T09:00:00Z')).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/approved/),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -734,7 +756,7 @@ describe('scheduling, unscheduling and archiving', () => {
   it('unscheduleArticleAction returns the date it took off, and Undo restores it', async () => {
     const prior = '2099-01-01T09:00:00.000Z'
     findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved', publishAt: prior } as never)
-    await expect(unscheduleArticleAction(1)).resolves.toEqual({ previousPublishAt: prior })
+    await expect(unscheduleArticleAction(1)).resolves.toEqual({ ok: true, previousPublishAt: prior })
 
     // The inverse is an ordinary schedule at that instant, written as a new
     // audit event rather than by touching the one the unschedule left.
@@ -753,12 +775,15 @@ describe('scheduling, unscheduling and archiving', () => {
 
   it('unscheduleArticleAction returns null when nothing was scheduled', async () => {
     findByIDMock.mockResolvedValueOnce({ id: 1, status: 'approved', publishAt: null } as never)
-    await expect(unscheduleArticleAction(1)).resolves.toEqual({ previousPublishAt: null })
+    await expect(unscheduleArticleAction(1)).resolves.toEqual({ ok: true, previousPublishAt: null })
   })
 
   it('archiveArticleAction refuses while a run is active', async () => {
     countMock.mockResolvedValueOnce({ totalDocs: 1 } as never)
-    await expect(archiveArticleAction(1)).rejects.toThrow(/active run/)
+    await expect(archiveArticleAction(1)).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/active run/),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -848,8 +873,14 @@ describe('moving an article off approved takes its schedule with it', () => {
    * refused instead of being replaced with a placeholder.
    */
   it('sendBackAction rejects an empty or whitespace reason and writes nothing', async () => {
-    await expect(sendBackAction(1, '')).rejects.toThrow(/why/i)
-    await expect(sendBackAction(1, '   \n ')).rejects.toThrow(/why/i)
+    await expect(sendBackAction(1, '')).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/why/i),
+    })
+    await expect(sendBackAction(1, '   \n ')).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/why/i),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -874,7 +905,10 @@ describe('moving an article off approved takes its schedule with it', () => {
     await sendBackAction(1, 'Needs another pass')
     expect(auditSent().details).toMatchObject({ reasonCode: null })
     updateMock.mockClear()
-    await expect(sendBackAction(1, 'x', 'bogus' as never)).rejects.toThrow(/reason/i)
+    await expect(sendBackAction(1, 'x', 'bogus' as never)).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/reason/i),
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 })
@@ -891,12 +925,13 @@ describe('approve and publish report the status they left behind', () => {
   })
 
   it('approveArticleAction returns the approved status', async () => {
-    await expect(approveArticleAction(1, 'reads well')).resolves.toEqual({ status: 'approved' })
+    await expect(approveArticleAction(1, 'reads well')).resolves.toEqual({ ok: true, status: 'approved' })
   })
 
   it('publishArticleAction returns the published status and the slug to link to', async () => {
     updateMock.mockResolvedValueOnce({ id: 1, status: 'published', slug: 'cold-brew' } as never)
     await expect(publishArticleAction(1)).resolves.toEqual({
+      ok: true,
       status: 'published',
       slug: 'cold-brew',
     })
@@ -904,6 +939,114 @@ describe('approve and publish report the status they left behind', () => {
 
   it('publishArticleAction returns a null slug for a piece that has none', async () => {
     updateMock.mockResolvedValueOnce({ id: 1, status: 'published' } as never)
-    await expect(publishArticleAction(1)).resolves.toEqual({ status: 'published', slug: null })
+    await expect(publishArticleAction(1)).resolves.toEqual({ ok: true, status: 'published', slug: null })
+  })
+})
+
+/**
+ * Next redacts the message of an error thrown from a server action in a
+ * production build, so a refusal the reviewer has to read must come back as a
+ * value. These pin that for the gate's own wording, the signed-out case and an
+ * unexpected failure.
+ */
+describe('refusals arrive as { ok: false, error } instead of a throw', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+    findByIDMock.mockResolvedValue({ id: 1, status: 'needs_review' } as never)
+  })
+
+  it("carries the gate's APIError message through unchanged", async () => {
+    const message = 'Moving an article from needs_review to verified requires a new reviewJustification'
+    updateMock.mockRejectedValueOnce(new APIError(message, 400))
+    await expect(overrideReviewAction(1, 'checked by hand')).resolves.toEqual({
+      ok: false,
+      error: message,
+    })
+  })
+
+  it('does the same for the approve, publish and archive writes', async () => {
+    for (const run of [
+      () => approveArticleAction(1),
+      () => publishArticleAction(1),
+      () => archiveArticleAction(1),
+      () => unarchiveArticleAction(1),
+    ]) {
+      updateMock.mockRejectedValueOnce(
+        new APIError('An article cannot move from drafted to approved.', 400),
+      )
+      await expect(run()).resolves.toEqual({
+        ok: false,
+        error: 'An article cannot move from drafted to approved.',
+      })
+    }
+  })
+
+  it('answers a signed-out caller with the message instead of throwing', async () => {
+    authMock.mockResolvedValue({ user: null } as never)
+    await expect(sendBackAction(1, 'because')).resolves.toEqual({ ok: false, error: 'Unauthorized' })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('still reports an unexpected failure rather than a redacted throw', async () => {
+    updateMock.mockRejectedValueOnce(new Error('connection terminated unexpectedly'))
+    await expect(approveArticleAction(1)).resolves.toEqual({
+      ok: false,
+      error: 'connection terminated unexpectedly',
+    })
+  })
+})
+
+// A reset writes `drafted`, which queues QA over the body. At `researched` the brief is
+// approved but nothing has been written, so there is no body to check.
+describe('resetToDraftedAction refuses an article that has no draft yet', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  it('refuses researched, writes nothing, and says why', async () => {
+    findByIDMock.mockResolvedValue({ id: 1, status: 'researched' } as never)
+    await expect(resetToDraftedAction(1, 'again')).resolves.toEqual({
+      ok: false,
+      error: expect.stringContaining('has not been drafted yet'),
+    })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves regenerate working at researched', async () => {
+    findByIDMock.mockResolvedValue({ id: 1, status: 'researched', revisionCount: 0 } as never)
+    await expect(regenerateArticleAction(1, 'again')).resolves.toMatchObject({ ok: true })
+    expect(updateMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Archiving a published piece withdraws it from the public site
+// (`findPublishedArticle` skips archived rows), but the page is ISR-cached, so
+// the cache has to be purged by the action or the piece stays up for minutes.
+describe('archiving and unarchiving a published piece purges its public page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    countMock.mockResolvedValue({ totalDocs: 0 } as never)
+  })
+
+  const purged = () => revalidatePathMock.mock.calls.map(([path]) => path as string)
+
+  it('purges /articles/<id> and /articles/<slug> on archive and on unarchive', async () => {
+    updateMock.mockResolvedValue({ id: 1, status: 'published', slug: 'cold-brew' } as never)
+    await archiveArticleAction(1)
+    expect(purged()).toEqual(expect.arrayContaining(['/articles/1', '/articles/cold-brew']))
+    revalidatePathMock.mockClear()
+    await unarchiveArticleAction(1)
+    expect(purged()).toEqual(expect.arrayContaining(['/articles/1', '/articles/cold-brew']))
+  })
+
+  it('leaves the public cache alone for a piece that was never public', async () => {
+    updateMock.mockResolvedValue({ id: 1, status: 'approved', slug: 'cold-brew' } as never)
+    await archiveArticleAction(1)
+    expect(purged().filter((path) => path.startsWith('/articles/'))).toEqual([])
   })
 })

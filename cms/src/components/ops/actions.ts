@@ -12,6 +12,8 @@ import { gateRunReadiness, queueRunForArticles } from '@/lib/queueRunForArticles
 import { revalidatePublishedArticle } from '@/lib/revalidatePublishedArticle'
 import type { Article } from '@/payload-types'
 
+import { attempt, type ActionResult } from './actionResult'
+import { CLEARED_SCHEDULE, NULL_QA_RESULTS } from './articleReset'
 import { buildRegenerateRevisionNotes, type ArticleStatus } from './articleStatus'
 import { isSendBackReasonCode, type SendBackReasonCode } from './sendBackReasons'
 
@@ -38,38 +40,6 @@ import { isSendBackReasonCode, type SendBackReasonCode } from './sendBackReasons
  */
 const NULL_INFORMATION_GAIN = CLEARED_INFORMATION_GAIN
 
-const NULL_QA_RESULTS = {
-  structural: { passed: null, violations: null },
-  factCheck: { passed: null, notes: null, sources: null },
-  qualitativeReview: {
-    passed: null,
-    notes: null,
-    voiceScore: null,
-    voiceNotes: null,
-    notTraitViolations: null,
-  },
-  // Without this the evidence verdict of the draft being thrown away stays on
-  // the article, and the review page shows it against text QA has not seen.
-  evidenceCheck: { passed: null, notes: null, claims: null },
-} as const
-
-/**
- * What every action that moves an article off `approved` writes to `publishAt`.
- *
- * A schedule is inert on any other status, which made leaving it in place look
- * free — and it is, right up to the moment the piece is approved a second
- * time. Then the five-minute `publish-due` tick finds a date that passed days
- * ago, publishes immediately, and the reviewer who had not finished looking at
- * the draft gets no say and no explanation. Taking the date back at the moment
- * it stops applying is the only point where the intent is unambiguous: the
- * person sending this piece back has just said it is not ready to go out.
- *
- * The audit details record the write (`publishAt: null`) the same way they
- * already record `reviewNotes` — what the action wrote, not a claim about what
- * was there before.
- */
-const CLEARED_SCHEDULE = { publishAt: null } as const
-
 /**
  * Statuses where no brief has been approved, so there is no draft to redo.
  *
@@ -83,11 +53,18 @@ const NO_APPROVED_BRIEF: readonly ArticleStatus[] = ['topic_selected', 'brief_re
 const noApprovedBrief = (verb: string) =>
   `This article has no approved brief yet, so it cannot be ${verb}. Approve the brief first.`
 
-async function requireApprovedBrief(
+/**
+ * Reset also has nothing to act on at `researched`: the brief is approved but
+ * no draft exists yet, so writing `drafted` would queue QA over an empty body.
+ * Regenerate is fine there (it writes `researched`), which is why this is not
+ * part of `NO_APPROVED_BRIEF`.
+ */
+const NOT_DRAFTED_YET = 'researched' satisfies ArticleStatus
+
+async function requireDraftToReset(
   payload: Awaited<ReturnType<typeof requireUser>>['payload'],
   user: Awaited<ReturnType<typeof requireUser>>['user'],
   articleId: number,
-  verb: string,
 ): Promise<void> {
   const { status } = await payload.findByID({
     collection: 'articles',
@@ -97,7 +74,12 @@ async function requireApprovedBrief(
     overrideAccess: false,
     user,
   })
-  if (NO_APPROVED_BRIEF.includes(status)) throw new Error(noApprovedBrief(verb))
+  if (NO_APPROVED_BRIEF.includes(status)) throw new Error(noApprovedBrief('reset'))
+  if (status === NOT_DRAFTED_YET) {
+    throw new Error(
+      'This article has not been drafted yet, so there is nothing to reset. Run the next stage to write it.',
+    )
+  }
 }
 
 function revalidateOps(articleId?: number | string) {
@@ -240,95 +222,113 @@ async function currentInformationGainRun(
   return docs[0] ?? null
 }
 
-export async function assignTemplateAction(articleId: number, templateId: number) {
-  const { payload, user } = await requireUser('Unauthorized')
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: { template: templateId },
-    context: auditContext(user, 'template_assigned', 'Template assigned', { templateId }),
-    user,
-    overrideAccess: false,
+/**
+ * Every action below answers `{ ok: true, ... } | { ok: false, error }` (see
+ * `actionResult.ts`): a thrown server-action error is redacted in a production
+ * build, and the refusals here — a gate's explanation, an active run, a missing
+ * justification — are exactly what the reviewer has to read.
+ */
+export async function assignTemplateAction(
+  articleId: number,
+  templateId: number,
+): Promise<ActionResult> {
+  return attempt('Could not assign the template.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: { template: templateId },
+      context: auditContext(user, 'template_assigned', 'Template assigned', { templateId }),
+      user,
+      overrideAccess: false,
+    })
+    revalidateOps(articleId)
+    return {}
   })
-  revalidateOps(articleId)
 }
 
 export async function resetToDraftedAction(
   articleId: number,
   reviewNotes?: string,
   options?: ReviewActionOptions,
-): Promise<QueuedRunResult> {
-  const { payload, user } = await requireUser('Unauthorized')
-  await requireApprovedBrief(payload, user, articleId, 'reset')
-  const updated = await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'drafted' satisfies ArticleStatus,
-      reviewNotes: reviewNotes?.trim() || null,
-      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-      qaResults: NULL_QA_RESULTS,
-      informationGain: NULL_INFORMATION_GAIN,
-      ...CLEARED_SCHEDULE,
-    },
-    context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
-      reviewNotes: reviewNotes?.trim() || null,
-      ...CLEARED_SCHEDULE,
-    }),
-    user,
-    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
-    overrideAccess: true,
+): Promise<ActionResult<QueuedRunResult>> {
+  return attempt('Could not reset the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    await requireDraftToReset(payload, user, articleId)
+    const updated = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'drafted' satisfies ArticleStatus,
+        reviewNotes: reviewNotes?.trim() || null,
+        reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+        qaResults: NULL_QA_RESULTS,
+        informationGain: NULL_INFORMATION_GAIN,
+        ...CLEARED_SCHEDULE,
+      },
+      context: auditContext(user, 'revision_reset', 'Article reset to drafted', {
+        reviewNotes: reviewNotes?.trim() || null,
+        ...CLEARED_SCHEDULE,
+      }),
+      user,
+      // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+      overrideAccess: true,
+    })
+    revalidateOps(articleId)
+    return queueRunAfterRework(payload, user, updated, options)
   })
-  revalidateOps(articleId)
-  return queueRunAfterRework(payload, user, updated, options)
 }
 
 export async function approveArticleAction(
   articleId: number,
   reviewNotes?: string,
-): Promise<StatusResult> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const approved = await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'approved' satisfies ArticleStatus,
-      reviewNotes: reviewNotes?.trim() || null,
-      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-    },
-    context: auditContext(user, 'article_approved', 'Article approved', {
-      reviewNotes: reviewNotes?.trim() || null,
-    }),
-    user,
-    overrideAccess: false,
+): Promise<ActionResult<StatusResult>> {
+  return attempt('Could not approve the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const approved = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'approved' satisfies ArticleStatus,
+        reviewNotes: reviewNotes?.trim() || null,
+        reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+      },
+      context: auditContext(user, 'article_approved', 'Article approved', {
+        reviewNotes: reviewNotes?.trim() || null,
+      }),
+      user,
+      overrideAccess: false,
+    })
+    revalidateOps(articleId)
+    return { status: approved.status }
   })
-  revalidateOps(articleId)
-  return { status: approved.status }
 }
 
 export async function publishArticleAction(
   articleId: number,
   reviewNotes?: string,
-): Promise<PublishResult> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const published = await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'published' satisfies ArticleStatus,
-      publishedAt: new Date().toISOString(),
-      reviewNotes: reviewNotes?.trim() || null,
-      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-    },
-    context: auditContext(user, 'article_published', 'Article published', {
-      reviewNotes: reviewNotes?.trim() || null,
-    }),
-    user,
-    overrideAccess: false,
+): Promise<ActionResult<PublishResult>> {
+  return attempt('Could not publish the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const published = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'published' satisfies ArticleStatus,
+        publishedAt: new Date().toISOString(),
+        reviewNotes: reviewNotes?.trim() || null,
+        reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+      },
+      context: auditContext(user, 'article_published', 'Article published', {
+        reviewNotes: reviewNotes?.trim() || null,
+      }),
+      user,
+      overrideAccess: false,
+    })
+    revalidatePublishedArticle(published)
+    revalidateOps(articleId)
+    return { status: published.status, slug: published.slug ?? null }
   })
-  revalidatePublishedArticle(published)
-  revalidateOps(articleId)
-  return { status: published.status, slug: published.slug ?? null }
 }
 
 /**
@@ -351,36 +351,42 @@ export async function publishArticleAction(
  * it as UTC and sends an explicit `Z` — the same zone every other timestamp on
  * that page is shown in, rather than a zone the reviewer has to infer.
  */
-export async function scheduleArticleAction(articleId: number, publishAt: string) {
-  const { payload, user } = await requireUser('Unauthorized')
-  const when = new Date(publishAt)
-  if (Number.isNaN(when.getTime())) {
-    throw new Error('Pick a date and time to schedule this article.')
-  }
-  if (when.getTime() <= Date.now()) {
-    throw new Error('Pick a time in the future to schedule this article.')
-  }
-  const article = await payload.findByID({
-    collection: 'articles',
-    id: articleId,
-    depth: 0,
-    overrideAccess: false,
-    user,
+export async function scheduleArticleAction(
+  articleId: number,
+  publishAt: string,
+): Promise<ActionResult<{ publishAt: string }>> {
+  return attempt('Could not schedule the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const when = new Date(publishAt)
+    if (Number.isNaN(when.getTime())) {
+      throw new Error('Pick a date and time to schedule this article.')
+    }
+    if (when.getTime() <= Date.now()) {
+      throw new Error('Pick a time in the future to schedule this article.')
+    }
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { status: true },
+      overrideAccess: false,
+      user,
+    })
+    if (article.status !== 'approved') {
+      throw new Error('Only an approved article can be scheduled. Approve it first.')
+    }
+    const iso = when.toISOString()
+    await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: { publishAt: iso },
+      context: auditContext(user, 'publish_scheduled', 'Publish scheduled', { publishAt: iso }),
+      user,
+      overrideAccess: false,
+    })
+    revalidateOps(articleId)
+    return { publishAt: iso }
   })
-  if (article.status !== 'approved') {
-    throw new Error('Only an approved article can be scheduled. Approve it first.')
-  }
-  const iso = when.toISOString()
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: { publishAt: iso },
-    context: auditContext(user, 'publish_scheduled', 'Publish scheduled', { publishAt: iso }),
-    user,
-    overrideAccess: false,
-  })
-  revalidateOps(articleId)
-  return { publishAt: iso }
 }
 
 /**
@@ -389,80 +395,98 @@ export async function scheduleArticleAction(articleId: number, publishAt: string
  * Answers with the date it took off so the page can offer Undo: the inverse is
  * `scheduleArticleAction` with that instant, and nothing else remembers it.
  */
-export async function unscheduleArticleAction(articleId: number) {
-  const { payload, user } = await requireUser('Unauthorized')
-  const before = await payload.findByID({
-    collection: 'articles',
-    id: articleId,
-    depth: 0,
-    overrideAccess: false,
-    user,
+export async function unscheduleArticleAction(
+  articleId: number,
+): Promise<ActionResult<{ previousPublishAt: string | null }>> {
+  return attempt('Could not clear the schedule.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const before = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { publishAt: true },
+      overrideAccess: false,
+      user,
+    })
+    await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: { publishAt: null },
+      context: auditContext(user, 'publish_unscheduled', 'Publish schedule cleared'),
+      user,
+      overrideAccess: false,
+    })
+    revalidateOps(articleId)
+    return { previousPublishAt: before?.publishAt ?? null }
   })
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: { publishAt: null },
-    context: auditContext(user, 'publish_unscheduled', 'Publish schedule cleared'),
-    user,
-    overrideAccess: false,
-  })
-  revalidateOps(articleId)
-  return { previousPublishAt: before?.publishAt ?? null }
 }
 
 /**
- * Takes a piece off the board without destroying it — see the `archived` field
- * on `Articles.ts` for why a hard delete is not on offer.
+ * Takes a piece off the content list without destroying it — see the `archived`
+ * field on `Articles.ts` for why a hard delete is not on offer.
  *
  * Refused while a `queued`/`running` run lists the article, through the same
  * `activeRunIncludesArticle` the review page and the content list resolve
  * "Datum is working on this" with. A run mid-flight writes a status, a body
  * and cost rows onto an article the reviewer has just declared dead, and the
  * pipeline's own skip (`archived` articles are passed over at selection) does
- * not help a run that already picked this one up. Throwing is right here where
- * the queue helpers merely report: nothing was written, so there is no half of
- * the action to be honest about.
+ * not help a run that already picked this one up. Nothing is written when it
+ * refuses, so there is no half of the action to be honest about.
  *
- * No reason is taken. The archive control is a two-click confirm in a row of
- * buttons with nowhere to type one, and a parameter no caller can reach is an
- * audit field that is always null pretending to be a field somebody fills in.
- * Who archived it and when is recorded either way.
+ * Archiving a *published* piece also withdraws it from the public site
+ * (`findPublishedArticle` and the home list skip archived rows), so the cached
+ * page is purged here: ISR would otherwise keep serving it for up to five
+ * minutes. `unarchiveArticleAction` purges it again on the way back.
+ *
+ * No reason is taken. The archive control is a one-click action with an Undo,
+ * and a parameter no caller can reach is an audit field that is always null
+ * pretending to be a field somebody fills in. Who archived it and when is
+ * recorded either way.
  */
-export async function archiveArticleAction(articleId: number) {
-  const { payload, user } = await requireUser('Unauthorized')
-  if (await activeRunIncludesArticle(payload, user, articleId)) {
-    throw new Error(
-      'This article is in an active run. Wait for the run to finish before archiving it.',
-    )
-  }
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: { archived: true },
-    context: auditContext(user, 'article_archived', 'Article archived'),
-    user,
-    overrideAccess: false,
+export async function archiveArticleAction(articleId: number): Promise<ActionResult> {
+  return attempt('Could not archive the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    if (await activeRunIncludesArticle(payload, user, articleId)) {
+      throw new Error(
+        'This article is in an active run. Wait for the run to finish before archiving it.',
+      )
+    }
+    const updated = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: { archived: true },
+      context: auditContext(user, 'article_archived', 'Article archived'),
+      user,
+      overrideAccess: false,
+    })
+    if (updated.status === 'published') revalidatePublishedArticle(updated)
+    revalidateOps(articleId)
+    return {}
   })
-  revalidateOps(articleId)
 }
 
 /**
- * Puts an archived piece back on the board, at the status it had when it was
- * archived. `gateArchivedStatus` refuses every status change and schedule
- * while a piece is archived, so this is the one door out of that state; the
- * status panel for wherever it lands takes over from there.
+ * Puts an archived piece back on the content list, at the status it had when
+ * it was archived (a published one is public again). `gateArchivedStatus`
+ * refuses every status change and schedule while a piece is archived, so this
+ * is the one door out of that state; the status panel for wherever it lands
+ * takes over from there.
  */
-export async function unarchiveArticleAction(articleId: number) {
-  const { payload, user } = await requireUser('Unauthorized')
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: { archived: false },
-    context: auditContext(user, 'article_unarchived', 'Article unarchived'),
-    user,
-    overrideAccess: false,
+export async function unarchiveArticleAction(articleId: number): Promise<ActionResult> {
+  return attempt('Could not unarchive the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const updated = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: { archived: false },
+      context: auditContext(user, 'article_unarchived', 'Article unarchived'),
+      user,
+      overrideAccess: false,
+    })
+    if (updated.status === 'published') revalidatePublishedArticle(updated)
+    revalidateOps(articleId)
+    return {}
   })
-  revalidateOps(articleId)
 }
 
 /**
@@ -481,49 +505,52 @@ export async function sendBackAction(
   articleId: number,
   reviewNotes: string,
   reasonCode?: SendBackReasonCode,
-) {
-  const { payload, user } = await requireUser('Unauthorized')
-  const note = reviewNotes.trim()
-  if (!note) {
-    throw new Error('Say why this is going back — the writer reads it.')
-  }
-  if (reasonCode !== undefined && !isSendBackReasonCode(reasonCode)) {
-    throw new Error('Unknown send-back reason.')
-  }
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'needs_revision' satisfies ArticleStatus,
-      reviewNotes: note,
-      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-      qaResults: {
-        structural: { passed: true, violations: [] },
-        factCheck: { passed: true, notes: 'OK' },
-        qualitativeReview: {
-          passed: false,
-          notes: note,
-          voiceScore: null,
-          voiceNotes: null,
-          notTraitViolations: [],
+): Promise<ActionResult> {
+  return attempt('Could not send the article back.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const note = reviewNotes.trim()
+    if (!note) {
+      throw new Error('Say why this is going back — the writer reads it.')
+    }
+    if (reasonCode !== undefined && !isSendBackReasonCode(reasonCode)) {
+      throw new Error('Unknown send-back reason.')
+    }
+    await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'needs_revision' satisfies ArticleStatus,
+        reviewNotes: note,
+        reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+        qaResults: {
+          structural: { passed: true, violations: [] },
+          factCheck: { passed: true, notes: 'OK' },
+          qualitativeReview: {
+            passed: false,
+            notes: note,
+            voiceScore: null,
+            voiceNotes: null,
+            notTraitViolations: [],
+          },
+          // An omitted group is refilled from the stored document, so the old
+          // draft's evidence verdict has to be cleared by name.
+          evidenceCheck: NULL_QA_RESULTS.evidenceCheck,
         },
-        // An omitted group is refilled from the stored document, so the old
-        // draft's evidence verdict has to be cleared by name.
-        evidenceCheck: NULL_QA_RESULTS.evidenceCheck,
+        informationGain: NULL_INFORMATION_GAIN,
+        ...CLEARED_SCHEDULE,
       },
-      informationGain: NULL_INFORMATION_GAIN,
-      ...CLEARED_SCHEDULE,
-    },
-    context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
-      reviewNotes: note,
-      reasonCode: reasonCode ?? null,
-      ...CLEARED_SCHEDULE,
-    }),
-    user,
-    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
-    overrideAccess: true,
+      context: auditContext(user, 'article_sent_back', 'Article sent back for revision', {
+        reviewNotes: note,
+        reasonCode: reasonCode ?? null,
+        ...CLEARED_SCHEDULE,
+      }),
+      user,
+      // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+      overrideAccess: true,
+    })
+    revalidateOps(articleId)
+    return {}
   })
-  revalidateOps(articleId)
 }
 
 /**
@@ -535,52 +562,60 @@ export async function sendBackAction(
  * `gateVerifiedStatus` requires that same freshness before it will allow
  * `verified` for an article that never earned a `PASS`. Neither hook is
  * bypassed by anything here: this call uses `overrideAccess: false`, same as
- * every other reviewer action, and simply lets the hooks' `APIError` propagate
- * to the caller — catching and re-wrapping it would strip the message the
- * gate wrote explaining *why* the override was refused (e.g. a stale or
- * missing justification), which is the one thing the reviewer needs to see.
+ * every other reviewer action. The hooks' `APIError` is returned as
+ * `{ ok: false, error }` with its message intact — re-wording it would strip
+ * the explanation of *why* the override was refused (e.g. a stale or missing
+ * justification), which is the one thing the reviewer needs to see.
  */
-export async function overrideReviewAction(articleId: number, justification: string) {
-  const { payload, user } = await requireUser('Unauthorized')
-  const trimmed = justification.trim()
-  if (!trimmed) {
-    throw new Error('A justification is required to override this decision')
-  }
-  const article = await payload.findByID({
-    collection: 'articles',
-    id: articleId,
-    overrideAccess: false,
-    user,
-  })
-  const from = article.status
-  // The gates only judge a move out of these two statuses. From anywhere else
-  // (a stale page on an article someone already overrode, say) they let the
-  // write through, and the audit row below would record an override that did
-  // not happen.
-  if (!OVERRIDABLE_STATUSES.includes(from as (typeof OVERRIDABLE_STATUSES)[number])) {
-    throw new Error('Only an article in Needs review or Blocked can be overridden.')
-  }
-  const runId = (await currentInformationGainRun(payload, article, user))?.id ?? null
-  await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'verified' satisfies ArticleStatus,
-      reviewJustification: trimmed,
-      reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
-    },
-    context: auditContext(
+export async function overrideReviewAction(
+  articleId: number,
+  justification: string,
+): Promise<ActionResult> {
+  return attempt('Could not override this decision.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const trimmed = justification.trim()
+    if (!trimmed) {
+      throw new Error('A justification is required to override this decision')
+    }
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { status: true, informationGain: { run: true } },
+      overrideAccess: false,
       user,
-      from === 'blocked' ? 'block_overridden' : 'review_overridden',
-      from === 'blocked'
-        ? 'Reviewer overrode blocked to verified'
-        : 'Reviewer overrode needs_review to verified',
-      { justification: trimmed, runId },
-    ),
-    user,
-    overrideAccess: false,
+    })
+    const from = article.status
+    // The gates only judge a move out of these two statuses. From anywhere else
+    // (a stale page on an article someone already overrode, say) they let the
+    // write through, and the audit row below would record an override that did
+    // not happen.
+    if (!OVERRIDABLE_STATUSES.includes(from as (typeof OVERRIDABLE_STATUSES)[number])) {
+      throw new Error('Only an article in Needs review or Blocked can be overridden.')
+    }
+    const runId = (await currentInformationGainRun(payload, article, user))?.id ?? null
+    await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'verified' satisfies ArticleStatus,
+        reviewJustification: trimmed,
+        reviewedBy: typeof user.email === 'string' ? user.email : String(user.id),
+      },
+      context: auditContext(
+        user,
+        from === 'blocked' ? 'block_overridden' : 'review_overridden',
+        from === 'blocked'
+          ? 'Reviewer overrode blocked to verified'
+          : 'Reviewer overrode needs_review to verified',
+        { justification: trimmed, runId },
+      ),
+      user,
+      overrideAccess: false,
+    })
+    revalidateOps(articleId)
+    return {}
   })
-  revalidateOps(articleId)
 }
 
 /**
@@ -596,38 +631,49 @@ export async function regenerateArticleAction(
   articleId: number,
   note?: string,
   options?: ReviewActionOptions,
-): Promise<QueuedRunResult> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const article = await payload.findByID({
-    collection: 'articles',
-    id: articleId,
-    overrideAccess: false,
-    user,
-  })
-  if (NO_APPROVED_BRIEF.includes(article.status)) throw new Error(noApprovedBrief('regenerated'))
-  const run = await currentInformationGainRun(payload, article, user)
-  const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
-  const updated = await payload.update({
-    collection: 'articles',
-    id: articleId,
-    data: {
-      status: 'researched' satisfies ArticleStatus,
-      revisionNotes,
-      revisionCount: (article.revisionCount ?? 0) + 1,
-      qaResults: NULL_QA_RESULTS,
-      informationGain: NULL_INFORMATION_GAIN,
-      ...CLEARED_SCHEDULE,
-    },
-    context: auditContext(
+): Promise<ActionResult<QueuedRunResult>> {
+  return attempt('Could not regenerate the article.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: {
+        status: true,
+        qaResults: true,
+        revisionCount: true,
+        informationGain: { run: true },
+      },
+      overrideAccess: false,
       user,
-      'article_regenerate_requested',
-      'Article sent back for regeneration',
-      { note: note?.trim() || null, runId: run?.id ?? null, ...CLEARED_SCHEDULE },
-    ),
-    user,
-    // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
-    overrideAccess: true,
+    })
+    if (NO_APPROVED_BRIEF.includes(article.status)) {
+      throw new Error(noApprovedBrief('regenerated'))
+    }
+    const run = await currentInformationGainRun(payload, article, user)
+    const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
+    const updated = await payload.update({
+      collection: 'articles',
+      id: articleId,
+      data: {
+        status: 'researched' satisfies ArticleStatus,
+        revisionNotes,
+        revisionCount: (article.revisionCount ?? 0) + 1,
+        qaResults: NULL_QA_RESULTS,
+        informationGain: NULL_INFORMATION_GAIN,
+        ...CLEARED_SCHEDULE,
+      },
+      context: auditContext(
+        user,
+        'article_regenerate_requested',
+        'Article sent back for regeneration',
+        { note: note?.trim() || null, runId: run?.id ?? null, ...CLEARED_SCHEDULE },
+      ),
+      user,
+      // See NULL_INFORMATION_GAIN above — required to clear the informationGain group.
+      overrideAccess: true,
+    })
+    revalidateOps(articleId)
+    return queueRunAfterRework(payload, user, updated, options)
   })
-  revalidateOps(articleId)
-  return queueRunAfterRework(payload, user, updated, options)
 }

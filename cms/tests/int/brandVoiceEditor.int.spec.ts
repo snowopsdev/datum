@@ -14,16 +14,22 @@ import type { BrandVoiceDTO, BrandVoiceInput } from '@/components/ops/brandVoice
 
 // As the real action does: the content back as stored.
 const saveBrandVoiceDraftAction = vi.fn(async (_id: number, input: BrandVoiceInput) => ({
+  ok: true as const,
   updatedAt: '2030-01-01T00:00:00.000Z',
   saved: brandVoiceContentOf({ ...input, name: input.name || 'Untitled brand voice' }),
 }))
-const deleteDraftAction = vi.fn(async (_id: number) => undefined)
-const archiveBrandVoiceAction = vi.fn(async (_id: number) => undefined)
+const deleteDraftAction = vi.fn(async (_id: number): Promise<{ ok: true } | { ok: false; error: string }> => ({
+  ok: true,
+}))
+const archiveBrandVoiceAction = vi.fn(async (_id: number): Promise<{ ok: true } | { ok: false; error: string }> => ({
+  ok: true,
+}))
 
 vi.mock('@/components/ops/brandVoiceActions', () => ({
   activateBrandVoiceAction: vi.fn(async () => ({ ok: true })),
   archiveBrandVoiceAction: (id: number) => archiveBrandVoiceAction(id),
   createBrandVoiceDraftAction: vi.fn(async (input: BrandVoiceInput) => ({
+    ok: true,
     id: 7,
     updatedAt: '2030-01-01T00:00:00.000Z',
     saved: input,
@@ -90,6 +96,8 @@ beforeEach(() => {
   saveBrandVoiceDraftAction.mockClear()
   deleteDraftAction.mockClear()
   archiveBrandVoiceAction.mockClear()
+  archiveBrandVoiceAction.mockResolvedValue({ ok: true })
+  deleteDraftAction.mockResolvedValue({ ok: true })
 })
 afterEach(cleanup)
 
@@ -290,4 +298,61 @@ it('opens a restored first voice in the editor, not behind the entry cards', asy
   const banner = document.querySelector<HTMLElement>('.datum-ops__restore')!
   fireEvent.click(within(banner).getByRole('button', { name: 'Discard' }))
   expect(await screen.findByRole('button', { name: 'Start onboarding' })).toBeTruthy()
+})
+
+// A thrown server-action error is redacted in a production build, so a refused
+// write comes back as { ok: false } and the editor has to show its message.
+it('shows why an archive was refused instead of announcing it', async () => {
+  archiveBrandVoiceAction.mockResolvedValueOnce({ ok: false, error: 'This voice is in use.' })
+  render(editor({ records: [dto({ id: 1 })], selectedId: 1, initialMode: 'review' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm: archive' }))
+
+  expect(await screen.findByText('This voice is in use.')).toBeTruthy()
+  expect(screen.queryByText(/Runs are blocked until you activate another voice\.$/)).toBeNull()
+})
+
+it('shows why a delete was refused and keeps the draft in the editor', async () => {
+  deleteDraftAction.mockResolvedValueOnce({ ok: false, error: 'Only drafts can be deleted.' })
+  render(editor({ records: [dto({ status: 'draft', onboardingStep: 3 })], selectedId: 1 }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+  expect(await screen.findByText('Only drafts can be deleted.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Start onboarding' })).toBeNull()
+})
+
+it('shows why a save was refused', async () => {
+  saveBrandVoiceDraftAction.mockResolvedValueOnce({ ok: false, error: 'Name is too long.' } as never)
+  render(editor({ records: [dto({ status: 'draft', onboardingStep: 3 })], selectedId: 1 }))
+  fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Changed' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+  expect(await screen.findByText('Name is too long.')).toBeTruthy()
+})
+
+// Arming swaps the trigger for its confirm buttons; without focus management
+// the keyboard user is dropped onto <body> each time.
+it('keeps focus through the delete confirm: the safe choice on arm, the trigger on cancel', () => {
+  render(editor({ records: [dto({ status: 'draft', onboardingStep: 3 })], selectedId: 1 }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep it' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete draft' }))
+})
+
+it('returns focus to Archive when the archive confirm is cancelled or escaped', () => {
+  render(editor({ records: [dto({ id: 1 })], selectedId: 1, initialMode: 'review' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Archive' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Archive' }))
 })

@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react'
 
+import { unwrap } from '../actionResult'
 import { sendBackAction } from '../actions'
 import { SEND_BACK_REASONS, type SendBackReasonCode } from '../sendBackReasons'
 import type { ReviewAction } from './useReviewAction'
@@ -73,7 +74,9 @@ export function SendBackAction({ action, articleId }: { action: ReviewAction; ar
               disabled={pending || !ready}
               onClick={() => {
                 disarm()
-                runAction(() => sendBackAction(articleId, reason, code ?? undefined))
+                runAction(async () => {
+                  unwrap(await sendBackAction(articleId, reason, code ?? undefined))
+                })
               }}
             >
               Confirm: send back

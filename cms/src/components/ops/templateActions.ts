@@ -5,6 +5,7 @@ import { requireUser } from '../../lib/requireUser'
 
 import { plainTextToLexical } from '../../lib/lexicalHtml'
 import { type CompanyMentions, companyMentionsOf } from '../../lib/tenant/companyMentions'
+import { attempt, type ActionResult } from './actionResult'
 import { type TemplateConfigDTO, toTemplateDTO } from './templateTypes'
 
 export type TemplateConfigInput = {
@@ -31,48 +32,50 @@ export type TemplateConfigInput = {
 export async function saveTemplateConfigAction(
   templateId: number,
   input: TemplateConfigInput,
-): Promise<{ dropped: number; updatedAt: string; template: TemplateConfigDTO }> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const lines = [...input.dos, ...input.donts, ...input.requiredSections]
-  const dropped = lines.filter((line) => !line.trim()).length
-  const data: Record<string, unknown> = {
-    // Through the reader, so a stray value from the client saves as the default.
-    companyMentions: companyMentionsOf(input),
-    dos: input.dos.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
-    donts: input.donts.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
-    requiredSections: input.requiredSections
-      .filter((h) => h.trim())
-      .map((heading) => ({ heading: heading.trim() })),
-    seoSpec: {
-      titleTagMaxLength: input.seoSpec.titleTagMaxLength,
-      metaDescriptionMaxLength: input.seoSpec.metaDescriptionMaxLength,
-      headingStructureRules: input.seoSpec.headingStructureRules || null,
-      faqRequired: input.seoSpec.faqRequired,
-      faqMinQuestions: input.seoSpec.faqMinQuestions,
-      faqMaxQuestions: input.seoSpec.faqMaxQuestions,
-      ogTagsRequired: input.seoSpec.ogTagsRequired,
-    },
-  }
+): Promise<ActionResult<{ dropped: number; updatedAt: string; template: TemplateConfigDTO }>> {
+  return attempt('Could not save the template.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const lines = [...input.dos, ...input.donts, ...input.requiredSections]
+    const dropped = lines.filter((line) => !line.trim()).length
+    const data: Record<string, unknown> = {
+      // Through the reader, so a stray value from the client saves as the default.
+      companyMentions: companyMentionsOf(input),
+      dos: input.dos.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
+      donts: input.donts.filter((t) => t.trim()).map((text) => ({ text: text.trim() })),
+      requiredSections: input.requiredSections
+        .filter((h) => h.trim())
+        .map((heading) => ({ heading: heading.trim() })),
+      seoSpec: {
+        titleTagMaxLength: input.seoSpec.titleTagMaxLength,
+        metaDescriptionMaxLength: input.seoSpec.metaDescriptionMaxLength,
+        headingStructureRules: input.seoSpec.headingStructureRules || null,
+        faqRequired: input.seoSpec.faqRequired,
+        faqMinQuestions: input.seoSpec.faqMinQuestions,
+        faqMaxQuestions: input.seoSpec.faqMaxQuestions,
+        ogTagsRequired: input.seoSpec.ogTagsRequired,
+      },
+    }
 
-  // Lossy plain↔Lexical conversion only runs when the operator edited those tabs.
-  if (typeof input.outline === 'string') {
-    data.outline = plainTextToLexical(input.outline)
-  }
-  if (typeof input.example === 'string') {
-    data.example = plainTextToLexical(input.example)
-  }
+    // Lossy plain↔Lexical conversion only runs when the operator edited those tabs.
+    if (typeof input.outline === 'string') {
+      data.outline = plainTextToLexical(input.outline)
+    }
+    if (typeof input.example === 'string') {
+      data.example = plainTextToLexical(input.example)
+    }
 
-  const updated = await payload.update({
-    collection: 'templates',
-    id: templateId,
-    data,
-    user,
-    overrideAccess: false,
+    const updated = await payload.update({
+      collection: 'templates',
+      id: templateId,
+      data,
+      user,
+      overrideAccess: false,
   })
   revalidatePath('/admin/ops/templates')
   // As stored: the outline and example come back from Lexical trimmed, and the
   // lists without their blank lines, which the editor must show.
   return { dropped, updatedAt: updated.updatedAt, template: toTemplateDTO(updated) }
+  })
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 } from '../../lib/brandVoiceExtract'
 import { detectKind, extractText, UnsupportedUploadError } from '../../lib/extractText'
 import type { LlmSettingsDoc } from '../../lib/llmSettings'
+import { attempt, type ActionResult } from './actionResult'
 import type { BrandVoiceInput } from './brandVoiceTypes'
 
 const VIEW_PATH = '/admin/ops/setup/brand-voice'
@@ -32,54 +33,63 @@ function toData(input: BrandVoiceInput) {
   }
 }
 
+/**
+ * Create, save, archive and delete answer `{ ok: true, ... } | { ok: false,
+ * error }` (see `actionResult.ts`): a thrown server-action error is redacted
+ * in a production build, and the editor has to show why a write was refused.
+ */
 export async function createBrandVoiceDraftAction(
   input: BrandVoiceInput,
-): Promise<{ id: number; updatedAt: string; saved: BrandVoiceContent }> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const doc = await payload.create({
-    collection: 'brand-voices',
-    data: { ...toData(input), status: 'draft', source: 'onboarding' },
-    context: governanceAuditContext(user, 'brand_voice_created', 'Onboarding started', {
-      step: input.onboardingStep ?? 0,
-    }),
-    user,
-    overrideAccess: false,
+): Promise<ActionResult<{ id: number; updatedAt: string; saved: BrandVoiceContent }>> {
+  return attempt('Could not start the brand voice.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const doc = await payload.create({
+      collection: 'brand-voices',
+      data: { ...toData(input), status: 'draft', source: 'onboarding' },
+      context: governanceAuditContext(user, 'brand_voice_created', 'Onboarding started', {
+        step: input.onboardingStep ?? 0,
+      }),
+      user,
+      overrideAccess: false,
+    })
+    revalidatePath(VIEW_PATH)
+    return { id: doc.id, updatedAt: doc.updatedAt, saved: brandVoiceContentOf(doc) }
   })
-  revalidatePath(VIEW_PATH)
-  return { id: doc.id, updatedAt: doc.updatedAt, saved: brandVoiceContentOf(doc) }
 }
 
 export async function saveBrandVoiceDraftAction(
   id: number,
   input: BrandVoiceInput,
   suggestionId?: number,
-): Promise<{ updatedAt: string; saved: BrandVoiceContent }> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const doc = await payload.update({
-    collection: 'brand-voices',
-    id,
-    data: toData(input),
-    context: governanceAuditContext(user, 'brand_voice_updated', 'Brand voice saved', {
-      step: input.onboardingStep ?? null,
-    }),
-    user,
-    overrideAccess: false,
+): Promise<ActionResult<{ updatedAt: string; saved: BrandVoiceContent }>> {
+  return attempt('Could not save the brand voice.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const doc = await payload.update({
+      collection: 'brand-voices',
+      id,
+      data: toData(input),
+      context: governanceAuditContext(user, 'brand_voice_updated', 'Brand voice saved', {
+        step: input.onboardingStep ?? null,
+      }),
+      user,
+      overrideAccess: false,
+    })
+    await completeSuggestionAfterEdit(payload, user, suggestionId, 'brand-voice')
+    revalidatePath(VIEW_PATH)
+    revalidatePath('/admin/ops/setup')
+    // The editor tags its local copy with this, so an edit made after this
+    // save is not mistaken for one made before someone else's. `saved` is the
+    // content as stored (a blank name is "Untitled brand voice"), the same
+    // reading the page takes of it.
+    return { updatedAt: doc.updatedAt, saved: brandVoiceContentOf(doc) }
   })
-  await completeSuggestionAfterEdit(payload, user, suggestionId, 'brand-voice')
-  revalidatePath(VIEW_PATH)
-  revalidatePath('/admin/ops/setup')
-  // The editor tags its local copy with this, so an edit made after this
-  // save is not mistaken for one made before someone else's. `saved` is the
-  // content as stored (a blank name is "Untitled brand voice"), the same
-  // reading the page takes of it.
-  return { updatedAt: doc.updatedAt, saved: brandVoiceContentOf(doc) }
 }
 
 export async function activateBrandVoiceAction(
   id: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { payload, user } = await requireUser('Unauthorized')
   try {
+    const { payload, user } = await requireUser('Unauthorized')
     await payload.update({
       collection: 'brand-voices',
       id,
@@ -95,17 +105,20 @@ export async function activateBrandVoiceAction(
   return { ok: true }
 }
 
-export async function archiveBrandVoiceAction(id: number): Promise<void> {
-  const { payload, user } = await requireUser('Unauthorized')
-  await payload.update({
-    collection: 'brand-voices',
-    id,
-    data: { status: 'archived' },
-    context: governanceAuditContext(user, 'brand_voice_archived', 'Brand voice archived'),
-    user,
-    overrideAccess: false,
+export async function archiveBrandVoiceAction(id: number): Promise<ActionResult> {
+  return attempt('Could not archive the brand voice.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    await payload.update({
+      collection: 'brand-voices',
+      id,
+      data: { status: 'archived' },
+      context: governanceAuditContext(user, 'brand_voice_archived', 'Brand voice archived'),
+      user,
+      overrideAccess: false,
+    })
+    revalidatePath(VIEW_PATH)
+    return {}
   })
-  revalidatePath(VIEW_PATH)
 }
 
 /** Canonical mimetypes accepted by the `brand-voice-files` upload collection. */
@@ -126,6 +139,14 @@ export type UploadExtractResult =
 export async function extractBrandVoiceFromUploadAction(
   formData: FormData,
 ): Promise<UploadExtractResult> {
+  try {
+    return await extractFromUpload(formData)
+  } catch (e) {
+    return { ok: false, error: errorMessage(e, 'Brand voice extraction failed') }
+  }
+}
+
+async function extractFromUpload(formData: FormData): Promise<UploadExtractResult> {
   const { payload, user } = await requireUser('Unauthorized')
   const file = formData.get('file')
   if (!(file instanceof File) || file.size === 0) {
@@ -214,18 +235,22 @@ export async function extractBrandVoiceFromUploadAction(
   return { ok: true, id: doc.id, warnings }
 }
 
-export async function deleteDraftAction(id: number): Promise<void> {
-  const { payload, user } = await requireUser('Unauthorized')
-  const doc = await payload.findByID({
-    collection: 'brand-voices',
-    id,
-    depth: 0,
-    user,
-    overrideAccess: false,
+export async function deleteDraftAction(id: number): Promise<ActionResult> {
+  return attempt('Could not delete the draft.', async () => {
+    const { payload, user } = await requireUser('Unauthorized')
+    const doc = await payload.findByID({
+      collection: 'brand-voices',
+      id,
+      depth: 0,
+      select: { status: true },
+      user,
+      overrideAccess: false,
+    })
+    if (doc.status !== 'draft') {
+      throw new Error('Only drafts can be deleted. Archive an active brand voice instead.')
+    }
+    await payload.delete({ collection: 'brand-voices', id, user, overrideAccess: false })
+    revalidatePath(VIEW_PATH)
+    return {}
   })
-  if (doc.status !== 'draft') {
-    throw new Error('Only drafts can be deleted. Archive an active brand voice instead.')
-  }
-  await payload.delete({ collection: 'brand-voices', id, user, overrideAccess: false })
-  revalidatePath(VIEW_PATH)
 }
