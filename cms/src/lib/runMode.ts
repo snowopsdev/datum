@@ -42,5 +42,5 @@ export function runModeProblem(env: Env): string | undefined {
   const raw = unrecognisedValue(env)
   return raw === undefined
     ? undefined
-    : `MOCK_MODE has an unrecognised value: "${raw}". Running in mock mode; set it to true or false`
+    : `MOCK_MODE has an unrecognised value: "${raw}". Treated as mock mode until it is set to true or false`
 }

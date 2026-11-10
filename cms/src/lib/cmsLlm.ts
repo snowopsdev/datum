@@ -150,7 +150,8 @@ export async function completeJsonCms(
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
       .at(-1)?.text
     stopReason = response.stop_reason ?? 'unknown'
-    cutOff = response.stop_reason === 'max_tokens'
+    // Anything but a normal finish (a token cap, a refusal) is named in the error.
+    cutOff = response.stop_reason !== 'end_turn' && response.stop_reason != null
     usage = {
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
@@ -167,7 +168,7 @@ export async function completeJsonCms(
   } catch {
     // A reply cut off at the token cap is not malformed, it is unfinished:
     // name the cap so nobody goes looking for a prompt bug.
-    const why = cutOff ? ` (cut off before it finished; stop_reason: ${stopReason})` : ''
+    const why = cutOff ? ` (did not finish normally; stop_reason: ${stopReason})` : ''
     throw new CmsLlmError(
       `${label} reply was not valid JSON${why}: ${text.trim().slice(0, 200)}`,
       billed,

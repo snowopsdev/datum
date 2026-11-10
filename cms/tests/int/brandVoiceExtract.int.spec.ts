@@ -64,18 +64,18 @@ describe('brand voice extraction', () => {
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k' })).toBe(false)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', MOCK_MODE: 'true' })).toBe(true)
     expect(extractionMockMode({ MOCK_MODE: 'false' })).toBe(false)
-    expect(extractionModel({})).toBe('claude-haiku-4-5')
+    expect(extractionModel({})).toBe('claude-opus-5')
     expect(extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' })).toBe('claude-sonnet-5')
     expect(
       extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' }, { brandVoiceExtractModel: 'gpt-5.6-terra' }),
     ).toBe('gpt-5.6-terra')
   })
 
-  it('defaults to the generate model\'s provider, so an OpenAI-only workspace is not refused', () => {
+  it('defaults to the generate model, so an OpenAI-only workspace is not refused', () => {
     const env = { OPENAI_API_KEY: 'k', PIPELINE_MODEL_GENERATE: 'gpt-5.6-terra' }
-    expect(extractionModel(env)).toBe('gpt-5.4-mini')
+    expect(extractionModel(env)).toBe('gpt-5.6-terra')
     expect(extractionMockMode(env)).toBe(false)
-    expect(extractionModel({ OPENAI_API_KEY: 'k' }, { generateModel: 'gpt-5' })).toBe('gpt-5.4-mini')
+    expect(extractionModel({ OPENAI_API_KEY: 'k' }, { generateModel: 'gpt-5' })).toBe('gpt-5')
   })
 
   it('does not go live without a key, whatever else the environment carries', () => {

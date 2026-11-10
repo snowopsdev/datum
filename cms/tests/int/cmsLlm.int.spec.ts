@@ -142,8 +142,19 @@ describe('completeJsonCms', () => {
       (error: unknown) => error,
     )
     expect(failure).toBeInstanceOf(CmsLlmError)
-    expect((failure as CmsLlmError).message).toMatch(/not valid JSON \(cut off before it finished; stop_reason: max_tokens\)/)
+    expect((failure as CmsLlmError).message).toMatch(/not valid JSON \(did not finish normally; stop_reason: max_tokens\)/)
     expect((failure as CmsLlmError).billed.usage).toEqual({ inputTokens: 5, outputTokens: 8000 })
+  })
+
+  it('names a refusal instead of calling it malformed JSON', async () => {
+    anthropicCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'I cannot help with that.' }],
+      stop_reason: 'refusal',
+      usage: { input_tokens: 5, output_tokens: 9 },
+    })
+    await expect(
+      completeJsonCms({ system: 's', user: 'u', model: ANTHROPIC_MODEL }, { env: { ANTHROPIC_API_KEY: 'k' } }),
+    ).rejects.toThrow(/stop_reason: refusal/)
   })
 
   it('refuses a model id neither provider serves instead of guessing one', async () => {

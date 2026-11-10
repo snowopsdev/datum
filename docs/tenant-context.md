@@ -458,7 +458,7 @@ fixtures are all derived from it.
 
 The model resolves through `resolveSetupAssistModel`: the Models global's
 "Setup assistant" field, then `SETUP_ASSIST_MODEL`, then the brand-voice
-extraction model, then the platform default. In mock mode the demo workspace's
+extraction model, then the generate model. In mock mode the demo workspace's
 own section comes back instead, put through the same parser, with the warning
 `Mock mode: returned the demo section instead of calling the model`.
 

@@ -34,7 +34,7 @@ export function extractionModel(
   return resolveExtractionModel(settings, env).model
 }
 
-/** The shared CMS rule (`cmsMockMode`), defaulted to the extraction model. */
+/** The shared CMS rule (`cmsMockMode`): the workspace's mode; `model` is accepted for compatibility and ignored. */
 export function extractionMockMode(
   env: Record<string, string | undefined> = process.env,
   model: string = extractionModel(env),
