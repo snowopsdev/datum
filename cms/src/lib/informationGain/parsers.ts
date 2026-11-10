@@ -376,11 +376,15 @@ export function parseJudgeReply(
     // Novelty is `1 - duplicateProbability`, so reading a missing or quoted
     // value as 0 would call the claim maximally novel and send it to the paid
     // verifier. Refuse the reply instead; the stage retries on the next run.
-    if (
-      typeof record.duplicateProbability !== 'number' ||
-      !Number.isFinite(record.duplicateProbability)
-    ) {
-      throw new Error(`judge reply for claim ${claimId} has no numeric duplicateProbability`)
+    // The internal score is asked for in every judge call, internal corpus or
+    // not, and a missing one read as 0 would hide a duplicate of our own
+    // published article from `INTERNAL_DUPLICATION_REQUIRES_REVIEW`, so it is
+    // refused the same way.
+    for (const field of ['duplicateProbability', 'internalDuplicateProbability'] as const) {
+      const value = record[field]
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new Error(`judge reply for claim ${claimId} has no numeric ${field}`)
+      }
     }
     const utility = asRecord(record.utility) ?? {}
     signals.set(claimId, {
