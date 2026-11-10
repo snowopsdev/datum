@@ -163,4 +163,33 @@ describe('article_slug_unique migration', () => {
     )
     expect(String(index[0]?.indexdef)).toContain('UNIQUE')
   })
+
+  it('suffixes again when `-<id>` is itself taken', async () => {
+    const shared = `guide-${token()}`
+    const a = await article(`seed-a-${token()}`)
+    const b = await article(`seed-b-${token()}`)
+    const c = await article(`seed-c-${token()}`)
+    // `b` would become `<shared>-<b.id>`, which `c` already holds, and
+    // `<shared>-<b.id>-2` is taken too.
+    const taken = `${shared}-${b.id}`
+    const d = await article(`${taken}-2`)
+    const args = { db: db(), payload, req: {} } as never
+
+    await slugMigration.down(args)
+    try {
+      await db().execute(sql`UPDATE articles SET slug = ${shared} WHERE id IN (${a.id}, ${b.id})`)
+      await db().execute(sql`UPDATE articles SET slug = ${taken} WHERE id = ${c.id}`)
+    } finally {
+      await slugMigration.up(args)
+    }
+
+    const { rows } = await db().execute(
+      sql`SELECT id, slug FROM articles WHERE id IN (${a.id}, ${b.id}, ${c.id}, ${d.id}) ORDER BY id`,
+    )
+    const slugs = Object.fromEntries(rows.map((row) => [row.id, row.slug]))
+    expect(slugs[a.id]).toBe(shared)
+    expect(slugs[b.id]).toBe(`${taken}-3`)
+    expect(slugs[c.id]).toBe(taken)
+    expect(slugs[d.id]).toBe(`${taken}-2`)
+  })
 })
