@@ -259,6 +259,66 @@ export async function getOrBuildSnapshot(
   // A skipped page (a PDF, say) is as unusable as a failed one for the baseline.
   const unusablePages = crawled.length - okPages.length
 
+  const unverifiedByPosition = new Map<number, number>()
+  const pageRowsFor = (claimCountFor: (docId: string) => number): PageRow[] =>
+    crawled.map(({ page, fetched }) => ({
+      position: page.position,
+      url: page.url,
+      title: fetched.title ?? page.title,
+      domain: hostnameOf(page.url),
+      domainRating: page.domainRating,
+      fetchStatus: fetched.status,
+      failureReason: fetched.reason,
+      chars: fetched.chars,
+      textHash: fetched.status === 'ok' ? textHash(fetched.text) : null,
+      text: fetched.status === 'ok' ? fetched.text : null,
+      claimCount: claimCountFor(`serp:${page.position}`),
+      unverifiedExcerptCount: unverifiedByPosition.get(page.position) ?? null,
+    }))
+
+  // Nothing readable on the SERP: the snapshot is `empty` whatever else we
+  // could add, so record the failed crawl and stop before paying for internal
+  // corpus extraction and clustering that cannot rescue it.
+  if (okPages.length === 0) {
+    const created = await ctx.payload.create({
+      collection: 'corpus-snapshots',
+      overrideAccess: true,
+      data: {
+        keyword: article.keyword,
+        keywordKey: key,
+        country,
+        capturedAt: now.toISOString(),
+        status: 'empty',
+        pipelineRunId: ctx.runId,
+        snapshotHash: snapshotHash([]),
+        models: { claimExtraction: ctx.models.claimExtraction },
+        queryCluster,
+        pages: pageRowsFor(() => 0),
+        internalCorpus: [],
+        baselineClaims: [],
+        facets: [],
+        gaps: [],
+        baselineDocCount: 0,
+        failedPageCount: unusablePages,
+      },
+    })
+    console.log(
+      `[research] built corpus snapshot ${created.id} for "${article.keyword}": ` +
+        `0/${crawled.length} pages read; skipped internal corpus and clustering`,
+    )
+    throw new Error(
+      emptySnapshotMessage({
+        snapshotId: created.id,
+        keyword: article.keyword,
+        okPages: 0,
+        crawledPages: crawled.length,
+        unusablePages,
+        internalDocs: 0,
+        claims: 0,
+      }),
+    )
+  }
+
   const serpClaims = await mapWithConcurrency(okPages, CONCURRENCY, async ({ page, fetched }) => {
     const { json } = await completeJSONLogged(ctx, 'claimExtraction', article.id, {
       system: PAGE_CLAIM_EXTRACTION_SYSTEM,
@@ -331,9 +391,6 @@ export async function getOrBuildSnapshot(
     ...serpClaims.flatMap((entry) => entry.claims),
     ...internalEntries.flatMap((entry) => entry.claims),
   ]
-  const unverifiedByPosition = new Map(
-    serpClaims.map((entry) => [entry.position, entry.unverified]),
-  )
   const baselineDocCount = okPages.length + internalEntries.length
 
   // Cluster the pooled claims into consensus facets and the gaps they leave.
@@ -364,20 +421,8 @@ export async function getOrBuildSnapshot(
   const claimCountFor = (docId: string): number =>
     claims.filter((claim) => claim.source.docId === docId).length
 
-  const pageRows: PageRow[] = crawled.map(({ page, fetched }) => ({
-    position: page.position,
-    url: page.url,
-    title: fetched.title ?? page.title,
-    domain: hostnameOf(page.url),
-    domainRating: page.domainRating,
-    fetchStatus: fetched.status,
-    failureReason: fetched.reason,
-    chars: fetched.chars,
-    textHash: fetched.status === 'ok' ? textHash(fetched.text) : null,
-    text: fetched.status === 'ok' ? fetched.text : null,
-    claimCount: claimCountFor(`serp:${page.position}`),
-    unverifiedExcerptCount: unverifiedByPosition.get(page.position) ?? null,
-  }))
+  for (const entry of serpClaims) unverifiedByPosition.set(entry.position, entry.unverified)
+  const pageRows = pageRowsFor(claimCountFor)
 
   const status = snapshotStatus(okPages.length, unusablePages, claims.length)
 
