@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.10.0](https://github.com/snowopsdev/datum/compare/v0.9.0...v0.10.0) (2026-11-10)
+
+
+### Features
+
+* **cms:** archived pieces leave the public site; publish and revisit ask first ([86bfeec](https://github.com/snowopsdev/datum/commit/86bfeec012bf6d6cc1c5d525cc4b70cf983e7149))
+* **cms:** render and convert lists, emphasis, quotes and links in article bodies ([39583fd](https://github.com/snowopsdev/datum/commit/39583fd41d7514b3083fdc322e6045d1adf97669))
+* **cms:** style lists, links, quotes and code in the reader page ([3400947](https://github.com/snowopsdev/datum/commit/34009473f484fc5f3273d07658cc902332e26aae))
+* **pipeline:** gate `pipeline run` on setup and register it as a locked run ([0b8473f](https://github.com/snowopsdev/datum/commit/0b8473f5d3c6f10fe31be3a035fe66e9df91f28c))
+
+
+### Bug Fixes
+
+* **ci:** seed without dev push, guard every E2E run, wait for hydration ([6be4b8a](https://github.com/snowopsdev/datum/commit/6be4b8aa24b11ad4c2b07133ec07a07fe73421ca))
+* **cms:** accept a banned-word suggestion only when the voice save lands ([fc13264](https://github.com/snowopsdev/datum/commit/fc1326422d85a2a1c58d3b51c486962fa10af9c2))
+* **cms:** accept raster images only in the media collection ([842dc48](https://github.com/snowopsdev/datum/commit/842dc48d5092436d7fe88c778b632a5cc6260dd7))
+* **cms:** bound the emphasis scan and keep plain text free of markdown ([8e01185](https://github.com/snowopsdev/datum/commit/8e011850b7b2f5fd84aacf6f114d78a60d2edebf))
+* **cms:** cap positioning core claims at three in the schema ([1441692](https://github.com/snowopsdev/datum/commit/144169255851d51ac45ba2af89c89c174470fa50))
+* **cms:** clear stale publishAt on already-published articles ([ade854a](https://github.com/snowopsdev/datum/commit/ade854ae742581bc52a5545dd1dcacf6684a64b8))
+* **cms:** correct the Claude Sonnet 5 catalog price to $2/$10 ([4d1d17a](https://github.com/snowopsdev/datum/commit/4d1d17add6a6d18915864b33d979bbaa0ff048e2))
+* **cms:** default extraction and setup assist to the generate model ([b784068](https://github.com/snowopsdev/datum/commit/b784068c463b0e5929b508ebbc7fb419d9114e6e))
+* **cms:** drop the retired board wording from topic discovery ([1420b6c](https://github.com/snowopsdev/datum/commit/1420b6c448aa2f41295b3f9012a80d6300fb681d))
+* **cms:** fail a content run that errors before its worker claims it ([07f0bec](https://github.com/snowopsdev/datum/commit/07f0bec99439f85845854bce32336f5672707dca))
+* **cms:** keep adjacent bold and italic readable when a template is saved again ([37099c7](https://github.com/snowopsdev/datum/commit/37099c7c0d3f7ced97be9f9c80904518b00af06e))
+* **cms:** keep de-duplicated article slugs clear of existing ones ([966042c](https://github.com/snowopsdev/datum/commit/966042c5315a0f4047821003d8a6c57fe753b289))
+* **cms:** keep the editor's version after a refused activation ([4d31dde](https://github.com/snowopsdev/datum/commit/4d31dde2aa97c5d1245434c1701e0b53c7444699))
+* **cms:** keep the running run on the bar when another queues behind it ([4d04482](https://github.com/snowopsdev/datum/commit/4d044828b5852f79a672ad4051e0bf8c64248c90))
+* **cms:** log unexpected action failures and compare brief versions exactly ([69606c4](https://github.com/snowopsdev/datum/commit/69606c408abc9179bbe239dc7aaf89df4d9d3aa4))
+* **cms:** normalise article slugs and make them unique ([0c0459b](https://github.com/snowopsdev/datum/commit/0c0459b9e3b34912d8e78dec769c73048ce8123e))
+* **cms:** recover content runs whose worker died ([2c55d30](https://github.com/snowopsdev/datum/commit/2c55d3005f142ad0f24235641687e5714d5c530c))
+* **cms:** release a stuck job only when recovery's own run transition won ([49ee574](https://github.com/snowopsdev/datum/commit/49ee574a099f0d0d805d0044962f54f7823ab9a6))
+* **cms:** reports show the evidence check and label checks and stages readably ([432f4ce](https://github.com/snowopsdev/datum/commit/432f4cea2b055a0db8bbc2a95d814960de73ebed))
+* **cms:** return reviewer-action refusals as values so production shows them ([89646b4](https://github.com/snowopsdev/datum/commit/89646b4eed79c4879c8569e75de1fd2ecb3ed81f))
+* **cms:** run bar follows the executing run, totals from SQL, banner waits for sign-in ([481cf80](https://github.com/snowopsdev/datum/commit/481cf80085960a65e5eb02f7da309a20deec3911))
+* **cms:** say why a run lost its lease ([80bcec0](https://github.com/snowopsdev/datum/commit/80bcec0de1df1c78e41fcea7ff7de9fd884e5424))
+* **cms:** setup editors surface save failures, refuse stale saves and page the source queue ([ef98d2e](https://github.com/snowopsdev/datum/commit/ef98d2e5fec00caa1d56c9733ce7c6b88cc0a885))
+* **ig:** clamp suggestClass to secondary at most ([8957f8b](https://github.com/snowopsdev/datum/commit/8957f8b9dd631c93943b6d5f7adcca83e2cd3a5f))
+* **ig:** exempt evidence-bank-backed first-party claims from the block ([bfd2078](https://github.com/snowopsdev/datum/commit/bfd2078e7a3881124af1f0e7fb244d0e8cf1828f))
+* **ig:** read range bounds with the range kind and compound word numbers as one amount ([17a5fc9](https://github.com/snowopsdev/datum/commit/17a5fc99b775789a33683e1dfe5d751ca615830e))
+* **ig:** refuse a judge entry with no numeric internalDuplicateProbability ([e0bca8a](https://github.com/snowopsdev/datum/commit/e0bca8a3b8d8e65c9983d84ee7e31de875883a2c))
+* one tolerant mock/live rule that never throws at import ([842191b](https://github.com/snowopsdev/datum/commit/842191b23941e1c217aebb57ebe11bbb5e93c6cd))
+* **pipeline:** commit article writes only while the run owns its row ([8fef0e8](https://github.com/snowopsdev/datum/commit/8fef0e8669efdee8fe10ee17f390052d6e62c0c1))
+* **pipeline:** create discovered topics under the run fence ([bf41bd0](https://github.com/snowopsdev/datum/commit/bf41bd04097da0c8c3e573768082b2fb23306590))
+* **pipeline:** leave a cost row for billed failures and name truncation and refusal ([ab50dfa](https://github.com/snowopsdev/datum/commit/ab50dfa354a6778b7dec31c168ae341799e22ae3))
+* **pipeline:** name an OpenAI refusal instead of reporting no text ([cde431f](https://github.com/snowopsdev/datum/commit/cde431f886c4d35dcff6daaa79878b49db18c7ae))
+* **pipeline:** pass the evidence bank when reading citation markers ([95e302f](https://github.com/snowopsdev/datum/commit/95e302f2e8def50798cfca9f7d2e053a40336bce))
+* **pipeline:** report counts the evidence check and applies QA's qualitative rule ([17e2e98](https://github.com/snowopsdev/datum/commit/17e2e989cea7d1c7c9e55bc62065219257e6e77b))
+* **pipeline:** stop an unreadable SERP before paying for corpus extraction ([8ca5d8a](https://github.com/snowopsdev/datum/commit/8ca5d8a9e03a5a9311e575c42f514b1cee45e1c4))
+* **pipeline:** store citation excerpts as plain text ([2e8d3c0](https://github.com/snowopsdev/datum/commit/2e8d3c0e4fbf75324bc1a9918ef7c8c2c2c79185))
+* project audit fixes for crawling, review gates, workers and scoring ([4175f09](https://github.com/snowopsdev/datum/commit/4175f0997ab7226a13bfbc7701d1fd527c472b19))
+* recover runs from a dead worker, fence every run write, and keep a cost row for every paid call ([#165](https://github.com/snowopsdev/datum/issues/165)) ([6fa3330](https://github.com/snowopsdev/datum/commit/6fa333077a8f81cdc608aae7b22d9084b6736b8e))
+* render lists, bold and links in articles, and stop blocking bank-verified claims ([#163](https://github.com/snowopsdev/datum/issues/163)) ([9885af7](https://github.com/snowopsdev/datum/commit/9885af7e6efd6b1b5b500f7470b5793a8ac12946))
+* repair Node 22 crawling, close the unreviewed-publish path, stop workers pushing schema ([#160](https://github.com/snowopsdev/datum/issues/160)) ([6c89501](https://github.com/snowopsdev/datum/commit/6c895012bde3574bed8bc477b5f32f2090008c34))
+* show reviewers why an action was refused and stop setup editors overwriting each other ([#164](https://github.com/snowopsdev/datum/issues/164)) ([cdfac3e](https://github.com/snowopsdev/datum/commit/cdfac3e3c5042f07ee841866a344837a9b8678ab))
+* **tenant:** read [F&lt;n&gt;]/[R&lt;n&gt;] as evidence refs only when the bank has them ([e5bc5af](https://github.com/snowopsdev/datum/commit/e5bc5af06568ef25f9a68e3ad8c8c159dab4a59f))
+* workspace saves check the loaded version; leave dialog waits for save-and-activate; report skips archived ([c34e6ec](https://github.com/snowopsdev/datum/commit/c34e6ec8db5d932141b1bcd34142b55bc6ca2604))
+
+
+### Performance Improvements
+
+* **cms:** count site pages in SQL for the setup hub ([a5ef934](https://github.com/snowopsdev/datum/commit/a5ef93417b04e66b476bfee38625a73a1233534a))
+* **cms:** keep only the status of the newest run in the setup data ([a41817e](https://github.com/snowopsdev/datum/commit/a41817e98798fc633bc07613f279730376a792af))
+* **cms:** select only the compared fields when scanning published articles ([621b922](https://github.com/snowopsdev/datum/commit/621b922243e6c3bdabcdad8c32f4927f70a25485))
+
 ## [0.9.0](https://github.com/snowopsdev/datum/compare/v0.8.0...v0.9.0) (2026-11-10)
 
 
