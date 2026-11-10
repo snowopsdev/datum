@@ -11,9 +11,10 @@ import { assertTestDatabase } from './tests/helpers/testDatabaseGuard'
 const testPort = process.env.TEST_PORT || '3101'
 const testBaseURL = process.env.TEST_BASE_URL || `http://127.0.0.1:${testPort}`
 
-// Playwright's own server runs the app, and the specs seed and archive rows,
-// against `DATABASE_URL`. With `TEST_BASE_URL` the server is yours to point.
-if (!process.env.TEST_BASE_URL) assertTestDatabase()
+// The specs seed users, create and archive articles and rewrite globals through
+// Payload against `DATABASE_URL`, whether Playwright starts the server or
+// `TEST_BASE_URL` points at one you started, so the guard always applies.
+assertTestDatabase()
 
 /**
  * See https://playwright.dev/docs/test-configuration.

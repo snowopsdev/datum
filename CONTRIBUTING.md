@@ -98,11 +98,11 @@ export DATABASE_URL=postgresql://datum:datum@127.0.0.1:5432/datum_test
 npm run payload --workspace cms -- migrate
 ```
 
-`cms/.env` is loaded too, so a plain `npm run test:int` otherwise uses your working database and stops with an error. To run against a database whose name has no `test` in it anyway, set `DATUM_TEST_DATABASE_OK=true`; that database will be modified. Playwright applies the same rule when it starts its own server (with `TEST_BASE_URL` the server is yours to point).
+`cms/.env` is loaded too, so a plain `npm run test:int` otherwise uses your working database and stops with an error. To run against a database whose name has no `test` in it anyway, set `DATUM_TEST_DATABASE_OK=true`; that database will be modified. Playwright applies the same rule, also with `TEST_BASE_URL`: the specs write to `DATABASE_URL` through Payload whichever server they drive.
 
 Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites. Playwright starts its own dev server on `TEST_PORT` (default 3101), so do not start `npm run dev` in `cms/` first: Next refuses a second dev server in the same directory. To drive a server you already have running, pass its address: `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`; start that server with `SITE_URL` set to its own address, `DISABLE_DEV_PUSH=true` and the same `DATABASE_URL` as the tests.
 
-The Playwright suite needs a migrated **and seeded** test database (`npm run seed --workspace cms` installs the templates, demo workspace and admin user the specs use) and a browser: `npx playwright install chromium` once. CI runs it as the `e2e` job on the same steps.
+The Playwright suite needs a migrated **and seeded** test database (`DISABLE_DEV_PUSH=true npm run seed --workspace cms` installs the templates, demo workspace and admin user the specs use) and a browser: `npx playwright install chromium` once. CI runs it as the `e2e` job on the same steps.
 
 ## Schema / types
 

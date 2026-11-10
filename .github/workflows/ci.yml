@@ -104,6 +104,9 @@ jobs:
       PAYLOAD_SECRET: ci-payload-secret-not-for-production
       MOCK_MODE: 'true'
       NODE_OPTIONS: --no-deprecation
+      # The seed boots Payload too; on a migration-built database it must not
+      # run the dev schema push (which can also stop at a prompt and exit 0).
+      DISABLE_DEV_PUSH: 'true'
 
     steps:
       - name: Checkout
@@ -127,7 +130,7 @@ jobs:
         run: npm run test:e2e --workspace cms
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |

@@ -22,8 +22,8 @@ export function databaseNameFromUrl(connectionString: string): string | null {
 
 /**
  * Throws unless the suite may use `env.DATABASE_URL`. Without a `DATABASE_URL`
- * there is nothing to protect here, so it passes; Payload reports the missing
- * variable itself.
+ * it passes: the guard judges only a database it can name. (Payload then
+ * connects with libpq's defaults, so set `DATABASE_URL` for any database run.)
  */
 export function assertTestDatabase(env: Record<string, string | undefined> = process.env): void {
   const url = env.DATABASE_URL
