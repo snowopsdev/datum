@@ -42,8 +42,17 @@ export type DirtyGuardOptions<T> = {
   countChanges?: CountChanges<T>
   /** Human names for top-level keys, for the leave dialog. */
   labels?: Record<string, string>
-  /** Save; null means it failed and has already said why. Needed for "Save and leave". */
-  save?: (baseline: T) => Promise<SavedResult<T> | null>
+  /**
+   * Save; null means it failed and has already said why. Needed for "Save and leave".
+   * `version` is the record's `updatedAt` this form is based on, for a save that
+   * refuses to overwrite a newer one.
+   */
+  save?: (baseline: T, version: string | null) => Promise<SavedResult<T> | null>
+  /**
+   * `save` threw instead of answering: offline, a 5xx, an action id gone stale
+   * after a deploy. Without this the failure would show nothing at all.
+   */
+  onError?: (message: string) => void
 }
 
 export type RestoreState<T> =
@@ -59,6 +68,8 @@ export type DirtyGuard<T> = {
   dirty: boolean
   /** The form as last saved. */
   saved: T
+  /** The record's `updatedAt` this form is based on. */
+  version: string | null
   changeCount: number
   /** Top-level fields that differ from what is saved. */
   changed: string[]
@@ -68,6 +79,8 @@ export type DirtyGuard<T> = {
   /** Run the editor's save and take its result as the new baseline. */
   submit: () => Promise<boolean>
   markSaved: (next: T, extra?: { version?: string | null; key?: string }) => void
+  /** Take a new `updatedAt` for the same saved form (the record changed without its content changing). */
+  adoptVersion: (version: string | null) => void
   discard: () => void
   restore: RestoreState<T> | null
   /** Keep the older local edit over the newer saved record. */
@@ -249,20 +262,40 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
     setRestore(null)
   }
 
-  const submit = async () => {
+  const adoptVersion: DirtyGuard<T>['adoptVersion'] = (next) => {
+    versionRef.current = next
+    setCore((current) => ({ ...current, version: next }))
+  }
+
+  // A save already running is the save: a second click, or "Save and leave"
+  // pressed during it, waits for it instead of submitting again (which would
+  // create a second draft for a new record).
+  const inFlight = useRef<Promise<boolean> | null>(null)
+  const submit = (): Promise<boolean> => {
+    if (inFlight.current) return inFlight.current
     const run = optionsRef.current.save
-    if (!run) return false
+    if (!run) return Promise.resolve(false)
     setSaving(true)
-    try {
-      const result = await run(savedRef.current)
-      if (!result) return false
-      markSaved(result.saved, { version: result.version, key: result.key })
-      return true
-    } catch {
-      return false
-    } finally {
-      setSaving(false)
-    }
+    const attempt = (async () => {
+      try {
+        const result = await run(savedRef.current, versionRef.current)
+        if (!result) return false
+        markSaved(result.saved, { version: result.version, key: result.key })
+        return true
+      } catch (e) {
+        optionsRef.current.onError?.(
+          e instanceof Error && e.message
+            ? `Could not save: ${e.message}`
+            : 'Could not save. Check your connection and try again.',
+        )
+        return false
+      } finally {
+        inFlight.current = null
+        setSaving(false)
+      }
+    })()
+    inFlight.current = attempt
+    return attempt
   }
 
   const discard = () => {
@@ -364,6 +397,7 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
   return {
     dirty,
     saved: live.saved,
+    version: live.version,
     changeCount,
     changed,
     labels: options.labels ?? {},
@@ -371,6 +405,7 @@ export function useDirtyGuard<T>(options: DirtyGuardOptions<T>): DirtyGuard<T> {
     saving,
     submit,
     markSaved,
+    adoptVersion,
     discard,
     restore,
     keepMine: () => {

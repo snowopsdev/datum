@@ -7,6 +7,7 @@ import {
   dismissSuggestionAction,
   scanSuggestionsAction,
 } from './suggestionActions'
+import { settle } from './settle'
 import type { SetupSuggestionDTO } from './suggestionTypes'
 export function suggestionLabel(row: SetupSuggestionDTO): string {
   const p = row.proposal
@@ -21,17 +22,19 @@ function SuggestionRow({ row }: { row: SetupSuggestionDTO }) {
   const [error, setError] = useState('')
   const [reason, setReason] = useState('')
   const act = (dismiss = false, evidenceAs: 'verified' | 'rejected' = 'verified') =>
-    startTransition(async () => {
-      const result = dismiss
-        ? await dismissSuggestionAction(row.id, reason)
-        : await acceptSuggestionAction(row.id, { evidenceAs, reason })
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      if (result.editorHref) router.push(result.editorHref)
-      else router.refresh()
-    })
+    startTransition(() =>
+      settle(async () => {
+        const result = dismiss
+          ? await dismissSuggestionAction(row.id, reason)
+          : await acceptSuggestionAction(row.id, { evidenceAs, reason })
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        if (result.editorHref) router.push(result.editorHref)
+        else router.refresh()
+      }, setError),
+    )
   return (
     <li>
       <strong>{suggestionLabel(row)}</strong>{' '}
@@ -121,11 +124,13 @@ export function SetupSuggestions({
         className="datum-ops__btn"
         disabled={pending}
         onClick={() =>
-          startTransition(async () => {
-            const result = await scanSuggestionsAction()
-            if (!result.ok) setError(result.error)
-            else router.refresh()
-          })
+          startTransition(() =>
+            settle(async () => {
+              const result = await scanSuggestionsAction()
+              if (!result.ok) setError(result.error)
+              else router.refresh()
+            }, setError),
+          )
         }
       >
         {pending ? 'Scanning…' : 'Scan now'}

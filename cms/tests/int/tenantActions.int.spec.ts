@@ -266,7 +266,7 @@ describe('audience lifecycle', () => {
     expect(first.primary).toBe(false)
 
     const archived = await archiveIcpAction(second.id)
-    expect(archived).toEqual({ ok: true })
+    expect(archived).toMatchObject({ ok: true })
     const afterArchive = await payload.findByID({
       collection: 'icps',
       id: second.id,

@@ -28,6 +28,7 @@ import { type EvidenceBankDraft, emptyEvidenceBankDraft, type NewRow } from './s
 import { saveEvidenceBankAction } from './tenantActions'
 import { SuggestionEditorContext } from './SetupSuggestions'
 import type { SetupSuggestionDTO } from './suggestionTypes'
+import { settle } from './settle'
 import { useDirtyGuard } from './useDirtyGuard'
 import './ops.css'
 
@@ -131,10 +132,11 @@ export function EvidenceBankEditor({
       facts: 'the facts',
       rejectedClaims: 'the rejected claims',
     },
-    save: async () => {
+    onError: setError,
+    save: async (_baseline, version) => {
       setError(null)
       setMessage(null)
-      const result = await saveEvidenceBankAction(draft, suggestion?.id)
+      const result = await saveEvidenceBankAction(draft, suggestion?.id, version)
       if (!result.ok) {
         setError(result.error)
         return null
@@ -166,90 +168,92 @@ export function EvidenceBankEditor({
     // Claims come from the operator's notes; with none, there is nothing to
     // turn into a claim and the model would only echo the site back.
     if (section === 'verifiedClaims' && needsNotes) return
-    startTransition(async () => {
-      setError(null)
-      setMessage(null)
-      setWarnings([])
-      const result = await assistAction({
-        asset: 'evidence',
-        section,
-        mode: 'draft',
-        notes,
-        current: null,
-      })
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      const value = (result.value ?? {}) as Record<string, unknown>
-      const proposed = Array.isArray(value[section]) ? (value[section] as unknown[]) : []
-      if (proposed.length === 0) {
-        setError('Datum found nothing to propose. Try adding more notes.')
-        return
-      }
-      setMock(result.mock)
-      setWarnings(result.warnings)
-      if (section === 'facts') {
-        setDraft((prev) => ({
-          ...prev,
-          facts: [
-            ...prev.facts,
-            ...proposed.map((row) => {
-              const r = (row ?? {}) as Record<string, unknown>
-              return {
-                fact: typeof r.fact === 'string' ? r.fact : '',
-                source: typeof r.source === 'string' ? r.source : '',
-                owner: typeof r.owner === 'string' ? r.owner : '',
-                lastConfirmedAt: '',
-              }
-            }),
-          ],
-        }))
-        setMessage(
-          'Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.',
-        )
-        return
-      }
-      // A claim the bank already holds, or one proposed twice in this batch,
-      // is dropped: it would only be a second row to reconcile by hand.
-      const seen = new Set(draft.verifiedClaims.map((row) => normaliseClaimKey(row.claim)))
-      let alreadyHere = 0
-      const fresh = proposed.flatMap((row) => {
-        const r = (row ?? {}) as Record<string, unknown>
-        const claim = typeof r.claim === 'string' ? r.claim : ''
-        const key = normaliseClaimKey(claim)
-        if (seen.has(key)) {
-          alreadyHere += 1
-          return []
+    startTransition(() =>
+      settle(async () => {
+        setError(null)
+        setMessage(null)
+        setWarnings([])
+        const result = await assistAction({
+          asset: 'evidence',
+          section,
+          mode: 'draft',
+          notes,
+          current: null,
+        })
+        if (!result.ok) {
+          setError(result.error)
+          return
         }
-        seen.add(key)
-        return [
-          {
-            claim,
-            primarySource: typeof r.primarySource === 'string' ? r.primarySource : '',
-            sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl : '',
-            sourceDate: '',
-            sampleOrMethod: typeof r.sampleOrMethod === 'string' ? r.sampleOrMethod : '',
-            // Never anything stronger: a model reading your own site back
-            // to you has checked nothing. A person raises this after they
-            // put a source next to it.
-            verificationDepth: 'self_reported' as const,
-            limits: typeof r.limits === 'string' ? r.limits : '',
-            clearedSurfaces: [] as ClearedSurface[],
-            recheckAt: '',
-          },
-        ]
-      })
-      const note = alreadyHere > 0 ? ` ${alreadyHere} already in your bank, left out.` : ''
-      if (fresh.length === 0) {
-        setMessage(`Nothing new to add: ${alreadyHere} already in your bank.`)
-        return
-      }
-      setDraft((prev) => ({ ...prev, verifiedClaims: [...prev.verifiedClaims, ...fresh] }))
-      setMessage(
-        `Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.${note}`,
-      )
-    })
+        const value = (result.value ?? {}) as Record<string, unknown>
+        const proposed = Array.isArray(value[section]) ? (value[section] as unknown[]) : []
+        if (proposed.length === 0) {
+          setError('Datum found nothing to propose. Try adding more notes.')
+          return
+        }
+        setMock(result.mock)
+        setWarnings(result.warnings)
+        if (section === 'facts') {
+          setDraft((prev) => ({
+            ...prev,
+            facts: [
+              ...prev.facts,
+              ...proposed.map((row) => {
+                const r = (row ?? {}) as Record<string, unknown>
+                return {
+                  fact: typeof r.fact === 'string' ? r.fact : '',
+                  source: typeof r.source === 'string' ? r.source : '',
+                  owner: typeof r.owner === 'string' ? r.owner : '',
+                  lastConfirmedAt: '',
+                }
+              }),
+            ],
+          }))
+          setMessage(
+            'Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.',
+          )
+          return
+        }
+        // A claim the bank already holds, or one proposed twice in this batch,
+        // is dropped: it would only be a second row to reconcile by hand.
+        const seen = new Set(draft.verifiedClaims.map((row) => normaliseClaimKey(row.claim)))
+        let alreadyHere = 0
+        const fresh = proposed.flatMap((row) => {
+          const r = (row ?? {}) as Record<string, unknown>
+          const claim = typeof r.claim === 'string' ? r.claim : ''
+          const key = normaliseClaimKey(claim)
+          if (seen.has(key)) {
+            alreadyHere += 1
+            return []
+          }
+          seen.add(key)
+          return [
+            {
+              claim,
+              primarySource: typeof r.primarySource === 'string' ? r.primarySource : '',
+              sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl : '',
+              sourceDate: '',
+              sampleOrMethod: typeof r.sampleOrMethod === 'string' ? r.sampleOrMethod : '',
+              // Never anything stronger: a model reading your own site back
+              // to you has checked nothing. A person raises this after they
+              // put a source next to it.
+              verificationDepth: 'self_reported' as const,
+              limits: typeof r.limits === 'string' ? r.limits : '',
+              clearedSurfaces: [] as ClearedSurface[],
+              recheckAt: '',
+            },
+          ]
+        })
+        const note = alreadyHere > 0 ? ` ${alreadyHere} already in your bank, left out.` : ''
+        if (fresh.length === 0) {
+          setMessage(`Nothing new to add: ${alreadyHere} already in your bank.`)
+          return
+        }
+        setDraft((prev) => ({ ...prev, verifiedClaims: [...prev.verifiedClaims, ...fresh] }))
+        setMessage(
+          `Proposed rows added above. They are not saved yet. Add a source to each one, then press Save.${note}`,
+        )
+      }, setError),
+    )
   }
 
   const isExpired = (row: (typeof draft.verifiedClaims)[number]) =>
@@ -276,11 +280,12 @@ export function EvidenceBankEditor({
         if it is listed here, and it must cite the row. Put the proof next to every claim.
       </p>
 
-      <div className="datum-ops__tabs">
+      <div className="datum-ops__tabs" role="group" aria-label="Evidence bank sections">
         {TABS.map(([id, label]) => (
           <button
             key={id}
             type="button"
+            aria-pressed={tab === id}
             className={tab === id ? 'is-active' : undefined}
             onClick={() => setTab(id)}
           >
@@ -438,8 +443,19 @@ export function EvidenceBankEditor({
                     hint="QA rejects a draft that stretches the claim past this."
                   />
                   <div className="datum-ops__field">
-                    <label htmlFor={`${rowId}-surfaces`}>Where it can be used</label>
-                    <div className="datum-ops__checks" id={`${rowId}-surfaces`}>
+                    <fieldset style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+                    <legend
+                      style={{
+                        padding: 0,
+                        marginBottom: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--ops-ink-muted)',
+                      }}
+                    >
+                      Where it can be used
+                    </legend>
+                    <div className="datum-ops__checks">
                       {CLEARED_SURFACES.map((surface) => (
                         <label className="datum-ops__hint" key={surface}>
                           <input
@@ -463,6 +479,7 @@ export function EvidenceBankEditor({
                     <p className="datum-ops__hint">
                       Leave all unchecked if it can be used anywhere.
                     </p>
+                    </fieldset>
                   </div>
                   <Field
                     id={`${rowId}-recheckAt`}

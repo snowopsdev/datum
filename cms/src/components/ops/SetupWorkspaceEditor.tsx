@@ -9,6 +9,7 @@ import type { SitePage } from '../../lib/tenant/workspaceProfile'
 import { AssetStepper, hasSectionContent, type AssetStep } from './AssetStepper'
 import { SaveButton } from './DirtyGuardUi'
 import { workspaceSaveMessage } from './saveMessages'
+import { settle } from './settle'
 import { Field, RowsEditor } from './setupFields'
 import { refreshSitePagesAction } from './setupActions'
 import { saveWorkspaceProfileAction } from './tenantActions'
@@ -96,6 +97,7 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
       siteNotes: 'the site notes',
       competitors: 'the competitors',
     },
+    onError: setError,
     save: async () => {
       setError(null)
       setMessage(null)
@@ -123,21 +125,25 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
     })
 
   const fetchPages = () =>
-    startTransition(async () => {
-      setError(null)
-      setMessage(null)
-      setWarnings([])
-      const result = await refreshSitePagesAction()
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      setWarnings(result.warnings)
-      setMessage(`Fetched ${result.pages} page${result.pages === 1 ? '' : 's'}.`)
-      // The action writes the pages to the global; the list below is rendered
-      // straight from the server's copy, so a refresh is what redraws it.
-      router.refresh()
-    })
+    startTransition(() =>
+      settle(async () => {
+        setError(null)
+        setMessage(null)
+        setWarnings([])
+        const result = await refreshSitePagesAction()
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        setWarnings(result.warnings)
+        setMessage(
+          `Fetched ${result.pages} page${result.pages === 1 ? '' : 's'} from ${result.domain}.`,
+        )
+        // The action writes the pages to the global; the list below is rendered
+        // straight from the server's copy, so a refresh is what redraws it.
+        router.refresh()
+      }, setError),
+    )
 
   const applyAssist = (_step: StepId, value: Record<string, unknown>) => {
     if (typeof value.companyName === 'string') setCompanyName(value.companyName)
@@ -270,10 +276,18 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
               type="button"
               className="datum-ops__btn"
               onClick={fetchPages}
-              disabled={pending}
+              disabled={pending || guard.dirty}
+              aria-describedby={guard.dirty ? 'ws-fetch-hint' : undefined}
             >
               {pending ? 'Fetching…' : 'Fetch site pages'}
             </button>
+            {guard.dirty ? (
+              <span className="datum-ops__hint" id="ws-fetch-hint">
+                Save first: the pages are fetched from the saved domain
+                {guard.saved.targetDomain ? `, ${guard.saved.targetDomain}` : ''}, not the one in
+                the form.
+              </span>
+            ) : null}
             <span className="datum-ops__hint">
               {props.sitePagesFetchedLabel
                 ? `Last fetched ${props.sitePagesFetchedLabel}`

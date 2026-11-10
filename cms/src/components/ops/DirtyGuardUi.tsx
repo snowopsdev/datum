@@ -141,6 +141,9 @@ const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tab
  */
 export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSave?: boolean }) {
   const request = guard.leave
+  // A save started from the footer or the bar counts too: leaving mid-save would
+  // either lose it or submit it twice.
+  const busy = guard.leaveSaving || guard.saving
   const stayRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -155,7 +158,7 @@ export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSav
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      if (!guard.leaveSaving) guard.stay()
+      if (!busy) guard.stay()
       return
     }
     if (event.key !== 'Tab') return
@@ -191,16 +194,16 @@ export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSav
           {canSave ? (
             <button
               className="datum-ops__btn datum-ops__btn--primary"
-              disabled={guard.leaveSaving}
+              disabled={busy}
               onClick={() => void guard.saveAndLeave()}
               type="button"
             >
-              {guard.leaveSaving ? 'Saving…' : 'Save and leave'}
+              {busy ? 'Saving…' : 'Save and leave'}
             </button>
           ) : null}
           <button
             className="datum-ops__btn"
-            disabled={guard.leaveSaving}
+            disabled={busy}
             onClick={guard.confirmLeave}
             type="button"
           >
@@ -208,7 +211,7 @@ export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSav
           </button>
           <button
             className="datum-ops__btn"
-            disabled={guard.leaveSaving}
+            disabled={busy}
             onClick={guard.stay}
             ref={stayRef}
             type="button"

@@ -108,6 +108,7 @@ export function RowsEditor<T>({
               className="datum-ops__link-btn"
               onClick={() => remove(index)}
               disabled={disabled}
+              aria-label={`Remove row ${index + 1}`}
             >
               Remove
             </button>
@@ -153,14 +154,27 @@ export function TextRows({
   hint?: string
 }) {
   return (
-    <div className="datum-ops__field">
-      <label htmlFor={`${id}-0`}>{label}</label>
+    <div className="datum-ops__field" role="group" aria-labelledby={`${id}-label`}>
+      {/* A group name, not a <label>: there is no one control it labels. */}
+      <span
+        id={`${id}-label`}
+        style={{
+          display: 'block',
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--ops-ink-muted)',
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </span>
       {hint ? <p className="datum-ops__hint">{hint}</p> : null}
       <div className="datum-ops__textrows">
         {rows.map((row, index) => (
           <div className="datum-ops__textrow" key={`${id}-${index}`}>
             <input
               id={`${id}-${index}`}
+              aria-label={`${label} ${index + 1}`}
               type="text"
               value={row}
               onChange={(e) => onChange(rows.map((r, i) => (i === index ? e.target.value : r)))}
@@ -172,6 +186,7 @@ export function TextRows({
               className="datum-ops__link-btn"
               onClick={() => onChange(rows.filter((_, i) => i !== index))}
               disabled={disabled}
+              aria-label={`Remove ${label} ${index + 1}`}
             >
               Remove
             </button>

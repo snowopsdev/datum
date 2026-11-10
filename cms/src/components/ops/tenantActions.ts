@@ -5,7 +5,7 @@ import { completeSuggestionAfterEdit } from '../../lib/setupSuggestions/decision
 import { governanceAuditContext } from '../../lib/governanceAudit'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
 
 import { BRAND_VOICE_FIXTURE } from '../../lib/brandVoiceFixture'
 import {
@@ -49,6 +49,80 @@ const versionOf = (doc: unknown): string | null =>
   doc && typeof (doc as { updatedAt?: unknown }).updatedAt === 'string'
     ? (doc as { updatedAt: string }).updatedAt
     : null
+
+const STALE_MESSAGE = 'Someone else saved this since you opened it. Reload to see their changes.'
+
+/**
+ * Whether the stored record moved on after the version a form was opened on.
+ * No version on either side means the caller does not know, and then there is
+ * nothing to compare: the save goes ahead.
+ */
+const movedOn = (stored: unknown, opened: string | null | undefined): boolean => {
+  const current = versionOf(stored)
+  if (!opened || !current) return false
+  const a = Date.parse(current)
+  const b = Date.parse(opened)
+  return Number.isFinite(a) && Number.isFinite(b) && a > b
+}
+
+/**
+ * Update one `icps` row only if it has not been saved since `opened`.
+ *
+ * The check is part of the update's `where`, so a save landing between a read
+ * and this write cannot be overwritten. A bulk update reports failures in
+ * `errors` rather than throwing; they are thrown here so a caller sees the same
+ * rejection (the activation gate's, a validation error) a single update gives.
+ */
+async function updateIcpUnlessStale(
+  payload: Payload,
+  user: Parameters<Payload['update']>[0]['user'],
+  args: { id: number; data: Record<string, unknown>; context: Record<string, unknown> },
+  opened: string | null | undefined,
+) {
+  if (!opened) {
+    return payload.update({
+      collection: 'icps',
+      id: args.id,
+      data: args.data,
+      context: args.context,
+      user,
+      overrideAccess: false,
+    })
+  }
+  const where: Where = {
+    and: [{ id: { equals: args.id } }, { updatedAt: { less_than_equal: opened } }],
+  }
+  const result = await payload.update({
+    collection: 'icps',
+    where,
+    data: args.data,
+    context: args.context,
+    user,
+    overrideAccess: false,
+  })
+  if (result.errors.length > 0) throw new Error(result.errors[0].message)
+  const doc = result.docs[0]
+  if (doc) return doc
+  // Nothing matched: gone, or saved by someone else since.
+  await payload.findByID({ collection: 'icps', id: args.id, depth: 0, user, overrideAccess: false })
+  throw new Error(STALE_MESSAGE)
+}
+
+/** Refuse a whole-document global save over a newer one. */
+async function globalMovedOn(
+  payload: Payload,
+  slug: 'positioning' | 'evidence-bank',
+  opened: string | null | undefined,
+): Promise<boolean> {
+  if (!opened) return false
+  const stored = await payload.findGlobal({
+    slug,
+    select: { updatedAt: true },
+    depth: 0,
+    overrideAccess: true,
+  })
+  return movedOn(stored, opened)
+}
 
 /** The workspace save also says how many competitors it kept and why it dropped the rest. */
 export type WorkspaceSaveResult =
@@ -212,21 +286,28 @@ export async function createIcpAction(
   }
 }
 
+/**
+ * `openedAt` is the `updatedAt` the form was loaded or last saved at; when the
+ * stored audience is newer the save is refused rather than overwriting it.
+ */
 export async function saveIcpAction(
   id: number,
   input: IcpContent,
+  openedAt?: string | null,
 ): Promise<ParsedSaveResult<IcpContent>> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
-    const doc = await payload.update({
-      collection: 'icps',
-      id,
-      data: { ...icpFields(content), name: content.name || 'Untitled audience' },
-      context: governanceAuditContext(user, 'icp_updated', `Audience "${content.name}" saved`),
+    const doc = await updateIcpUnlessStale(
+      payload,
       user,
-      overrideAccess: false,
-    })
+      {
+        id,
+        data: { ...icpFields(content), name: content.name || 'Untitled audience' },
+        context: governanceAuditContext(user, 'icp_updated', `Audience "${content.name}" saved`),
+      },
+      openedAt,
+    )
     revalidateIcps(id)
     return {
       ok: true,
@@ -269,7 +350,7 @@ export async function saveIcpAction(
 export async function saveAndActivateIcpAction(
   id: number | null,
   input: IcpContent,
-  options: { makePrimary: boolean },
+  options: { makePrimary: boolean; openedAt?: string | null },
 ): Promise<
   | {
       ok: true
@@ -300,18 +381,20 @@ export async function saveAndActivateIcpAction(
             user,
             overrideAccess: false,
           })
-        : await payload.update({
-            collection: 'icps',
-            id,
-            data: { ...icpFields(content), name: content.name || 'Untitled audience' },
-            context: governanceAuditContext(
-              user,
-              'icp_updated',
-              `Audience "${content.name}" saved`,
-            ),
+        : await updateIcpUnlessStale(
+            payload,
             user,
-            overrideAccess: false,
-          })
+            {
+              id,
+              data: { ...icpFields(content), name: content.name || 'Untitled audience' },
+              context: governanceAuditContext(
+                user,
+                'icp_updated',
+                `Audience "${content.name}" saved`,
+              ),
+            },
+            options.openedAt,
+          )
     savedId = doc.id
 
     if (doc.status !== 'active') {
@@ -361,10 +444,12 @@ export async function saveAndActivateIcpAction(
   }
 }
 
-export async function archiveIcpAction(id: number): Promise<TenantActionResult> {
+export async function archiveIcpAction(
+  id: number,
+): Promise<{ ok: true; updatedAt: string | null } | { ok: false; error: string }> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
-    await payload.update({
+    const doc = await payload.update({
       collection: 'icps',
       id,
       // Cleared with the same write: an archived record must never stay the
@@ -375,7 +460,7 @@ export async function archiveIcpAction(id: number): Promise<TenantActionResult> 
       overrideAccess: false,
     })
     revalidateIcps(id)
-    return { ok: true }
+    return { ok: true, updatedAt: versionOf(doc) }
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Could not archive the audience.') }
   }
@@ -396,11 +481,16 @@ export async function deleteIcpDraftAction(id: number): Promise<TenantActionResu
 // Positioning
 // ---------------------------------------------------------------------------
 
+/** `openedAt`: the `updatedAt` the form was opened on; a newer stored one refuses the save. */
 export async function savePositioningAction(
   input: PositioningContent,
+  openedAt?: string | null,
 ): Promise<ParsedSaveResult<PositioningContent>> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
+    if (await globalMovedOn(payload, 'positioning', openedAt)) {
+      return { ok: false, error: STALE_MESSAGE }
+    }
     const content = positioningContentOf(input)
     const doc = await payload.updateGlobal({
       slug: 'positioning',
@@ -450,12 +540,16 @@ export async function savePositioningAction(
 export async function saveEvidenceBankAction(
   input: EvidenceBankInput,
   suggestionId?: number,
+  openedAt?: string | null,
 ): Promise<
   | { ok: true; saved: EvidenceBankContent; counts: EvidenceSaveCounts; updatedAt: string | null }
   | { ok: false; error: string }
 > {
   try {
     const { payload, user } = await requireUser('Sign in first.')
+    if (await globalMovedOn(payload, 'evidence-bank', openedAt)) {
+      return { ok: false, error: STALE_MESSAGE }
+    }
     const ref = (value: string | undefined) =>
       typeof value === 'string' && value.trim() ? { ref: value.trim() } : {}
     const data = {
@@ -536,7 +630,7 @@ export async function saveEvidenceBankAction(
  * then clicks "start with the demo workspace" for the audiences must not have
  * it overwritten.
  */
-async function upsertWorkspaceProfile(payload: Payload): Promise<void> {
+async function upsertWorkspaceProfile(payload: Payload, operator: Operator): Promise<void> {
   const current = (await payload.findGlobal({
     slug: 'workspace-profile',
     depth: 0,
@@ -551,8 +645,23 @@ async function upsertWorkspaceProfile(payload: Payload): Promise<void> {
     data.competitors = WORKSPACE_PROFILE_FIXTURE.competitors
   }
   if (Object.keys(data).length === 0) return
-  await payload.updateGlobal({ slug: 'workspace-profile', data, overrideAccess: true })
+  await payload.updateGlobal({
+    slug: 'workspace-profile',
+    data,
+    overrideAccess: true,
+    context: demoAudit(operator, 'Demo workspace profile applied'),
+  })
 }
+
+/** The signed-in operator, as `requireUser` returns them. */
+type Operator = Awaited<ReturnType<typeof requireUser>>['user']
+
+/**
+ * Governance audit context for one write of the demo workspace, so its rows
+ * name the operator who pressed the button rather than `system`.
+ */
+const demoAudit = (operator: Operator, summary: string) =>
+  governanceAuditContext(operator, 'demo_workspace_applied', summary)
 
 /** The fixture as the `icps` collection stores it: arrays of rows, not bare strings. */
 const icpDocData = (icp: IcpContent, opts: { active: boolean; primary: boolean }) => ({
@@ -573,6 +682,7 @@ const icpDocData = (icp: IcpContent, opts: { active: boolean; primary: boolean }
  */
 async function createIcpIfMissing(
   payload: Payload,
+  operator: Operator,
   icp: IcpContent,
   opts: { active: boolean; primary: boolean },
 ): Promise<boolean> {
@@ -584,7 +694,13 @@ async function createIcpIfMissing(
     overrideAccess: true,
   })
   if (existing.docs[0]) return false
-  await payload.create({ collection: 'icps', data: icpDocData(icp, opts), overrideAccess: true })
+  await payload.create({
+    collection: 'icps',
+    data: icpDocData(icp, opts),
+    context: demoAudit(operator, `Demo audience "${icp.name}" added`),
+    user: operator,
+    overrideAccess: true,
+  })
   return true
 }
 
@@ -597,7 +713,7 @@ async function createIcpIfMissing(
  * demo rows only claim `active` and `primary` when nothing is active — that is,
  * when there is nothing of the operator's to move the flag away from.
  */
-async function fillDemoIcps(payload: Payload): Promise<void> {
+async function fillDemoIcps(payload: Payload, operator: Operator): Promise<void> {
   const active = await payload.find({
     collection: 'icps',
     where: { status: { equals: 'active' } },
@@ -608,11 +724,11 @@ async function fillDemoIcps(payload: Payload): Promise<void> {
   const nothingActive = active.docs.length === 0
   // Primary first: the single-primary cascade clears the others, so the
   // secondary must not be able to claim the flag on the way past.
-  const createdPrimary = await createIcpIfMissing(payload, ICP_FIXTURE, {
+  const createdPrimary = await createIcpIfMissing(payload, operator, ICP_FIXTURE, {
     active: nothingActive,
     primary: nothingActive,
   })
-  await createIcpIfMissing(payload, ICP_FIXTURE_SECONDARY, {
+  await createIcpIfMissing(payload, operator, ICP_FIXTURE_SECONDARY, {
     active: nothingActive,
     primary: false,
   })
@@ -640,6 +756,8 @@ async function fillDemoIcps(payload: Payload): Promise<void> {
     collection: 'icps',
     id,
     data: { status: 'active', primary: true },
+    context: demoAudit(operator, `Demo audience "${ICP_FIXTURE.name}" activated`),
+    user: operator,
     overrideAccess: true,
   })
 }
@@ -652,7 +770,7 @@ async function fillDemoIcps(payload: Payload): Promise<void> {
  * a position nobody holds. An operator who has started writing their own keeps
  * every word of it.
  */
-async function upsertPositioning(payload: Payload): Promise<void> {
+async function upsertPositioning(payload: Payload, operator: Operator): Promise<void> {
   const current = await payload.findGlobal({
     slug: 'positioning',
     depth: 0,
@@ -663,6 +781,7 @@ async function upsertPositioning(payload: Payload): Promise<void> {
     slug: 'positioning',
     data: positioningFixtureDoc(),
     overrideAccess: true,
+    context: demoAudit(operator, 'Demo positioning applied'),
   })
 }
 
@@ -674,7 +793,7 @@ async function upsertPositioning(payload: Payload): Promise<void> {
  * operator who has entered one real claim must not find two invented ones
  * filed beside it.
  */
-async function upsertEvidenceBank(payload: Payload): Promise<void> {
+async function upsertEvidenceBank(payload: Payload, operator: Operator): Promise<void> {
   const current = await payload.findGlobal({
     slug: 'evidence-bank',
     depth: 0,
@@ -685,6 +804,7 @@ async function upsertEvidenceBank(payload: Payload): Promise<void> {
     slug: 'evidence-bank',
     data: evidenceBankFixtureDoc(),
     overrideAccess: true,
+    context: demoAudit(operator, 'Demo evidence bank applied'),
   })
 }
 
@@ -701,9 +821,11 @@ async function upsertEvidenceBank(payload: Payload): Promise<void> {
  * mid-pipeline. With a voice already governing runs, the demo goes in as a
  * draft the operator can promote from the Brand voice page.
  */
-async function activateDefaultBrandVoiceAction(): Promise<TenantActionResult> {
+async function activateDefaultBrandVoice(
+  payload: Payload,
+  operator: Operator,
+): Promise<TenantActionResult> {
   try {
-    const { payload } = await requireUser('Sign in first.')
     const existing = await payload.find({
       collection: 'brand-voices',
       where: { name: { equals: BRAND_VOICE_FIXTURE.name } },
@@ -727,6 +849,8 @@ async function activateDefaultBrandVoiceAction(): Promise<TenantActionResult> {
           source: 'onboarding' as const,
           onboardingStep: 9,
         },
+        context: demoAudit(operator, 'Demo brand voice added'),
+        user: operator,
       })
     }
     revalidatePath('/admin')
@@ -788,14 +912,14 @@ export async function runtimeStatusAction(): Promise<{
  */
 export async function activateDefaultTenantAction(): Promise<TenantActionResult> {
   try {
-    const { payload } = await requireUser('Sign in first.')
-    await upsertWorkspaceProfile(payload)
-    await fillDemoIcps(payload)
-    await upsertPositioning(payload)
-    await upsertEvidenceBank(payload)
+    const { payload, user } = await requireUser('Sign in first.')
+    await upsertWorkspaceProfile(payload, user)
+    await fillDemoIcps(payload, user)
+    await upsertPositioning(payload, user)
+    await upsertEvidenceBank(payload, user)
     // Reused rather than copied: the single-active cascade means two upserts
     // that disagreed about the fixture would keep archiving each other.
-    const voice = await activateDefaultBrandVoiceAction()
+    const voice = await activateDefaultBrandVoice(payload, user)
     if (!voice.ok) return voice
     revalidatePath('/admin')
     revalidatePath(HUB_PATH)

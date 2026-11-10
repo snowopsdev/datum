@@ -3,7 +3,7 @@
 import { toast } from '@payloadcms/ui'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import React, { useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import {
   emptyIcpContent,
@@ -16,6 +16,7 @@ import { SaveButton } from './DirtyGuardUi'
 import { ICP_SECTION_COMPONENTS } from './icpSections'
 import { ICP_STEPS, type IcpDTO, type IcpStepId } from './icpTypes'
 import { parsedSaveMessage } from './saveMessages'
+import { settle } from './settle'
 import {
   archiveIcpAction,
   createIcpAction,
@@ -67,6 +68,8 @@ export function IcpEditor({
   record,
   sitePagesFetchedAt,
   hasOtherActiveAudience,
+  initialStep = 0,
+  initialError = null,
 }: {
   record: IcpDTO | null
   /** From the workspace profile: null warns that the assistant has nothing to read. */
@@ -78,6 +81,14 @@ export function IcpEditor({
    * "Save and activate" makes it primary automatically rather than asking.
    */
   hasOtherActiveAudience: boolean
+  /**
+   * The step to open on. The first save of a new audience moves to the
+   * audience's own URL, which remounts this editor, so the step travels in
+   * `?step=`.
+   */
+  initialStep?: number
+  /** An activation error carried across that same move (`?activateError=`). */
+  initialError?: string | null
 }) {
   const router = useRouter()
   const [content, setContent] = useState<IcpContent>(() =>
@@ -86,12 +97,35 @@ export function IcpEditor({
   const [id, setId] = useState<number | null>(record?.id ?? null)
   const [status, setStatus] = useState(record?.status ?? 'draft')
   const [primary, setPrimary] = useState(record?.primary ?? false)
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(initialStep)
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [makePrimary, setMakePrimary] = useState(record?.primary ?? false)
   const [pending, startTransition] = useTransition()
+  const keepItRef = useRef<HTMLButtonElement>(null)
+  const deleteRef = useRef<HTMLButtonElement>(null)
+  const confirmSeen = useRef(false)
+
+  // The delete confirmation swaps one button for two: focus follows it in, and
+  // back to "Delete draft" on the way out, instead of falling to the page.
+  useEffect(() => {
+    if (confirmDelete) {
+      confirmSeen.current = true
+      keepItRef.current?.focus()
+    } else if (confirmSeen.current) {
+      confirmSeen.current = false
+      deleteRef.current?.focus()
+    }
+  }, [confirmDelete])
+
+  // The error that came in the URL is shown once; take it out so a reload
+  // does not show a stale one.
+  useEffect(() => {
+    if (!initialError || id == null) return
+    router.replace(`${LIST_PATH}/${id}?step=${step}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, [])
 
   // Forced rather than merely defaulted: if nothing else is active, the
   // activation gate is going to make this one primary regardless of what the
@@ -120,10 +154,10 @@ export function IcpEditor({
         return null
       }
       setId(created.id)
-      router.replace(`${LIST_PATH}/${created.id}`)
+      router.replace(`${LIST_PATH}/${created.id}?step=${step}`)
       return created
     }
-    const saved = await saveIcpAction(id, content)
+    const saved = await saveIcpAction(id, content, guard.version)
     if (!saved.ok) {
       setError(saved.error)
       return null
@@ -138,6 +172,7 @@ export function IcpEditor({
     version: record?.updatedAt ?? null,
     onReset: setContent,
     labels: ICP_FIELD_LABELS,
+    onError: setError,
     save: async () => {
       setError(null)
       setMessage(null)
@@ -151,10 +186,11 @@ export function IcpEditor({
     },
   })
 
+  /** A transition that rejects would reach the error boundary; show it instead. */
   const run = (fn: () => Promise<void>) => {
     setError(null)
     setMessage(null)
-    startTransition(fn)
+    startTransition(() => settle(fn, setError))
   }
 
   const save = () =>
@@ -166,29 +202,40 @@ export function IcpEditor({
     run(async () => {
       const result = await saveAndActivateIcpAction(id, content, {
         makePrimary: effectiveMakePrimary,
+        openedAt: guard.version,
       })
       // Adopt the id whether or not activation itself succeeded: the gate can
       // still reject an incomplete audience after the create/update already
       // landed, and that saved draft must not be orphaned — the next Save has
       // to update it, not create a duplicate.
-      if (id == null && result.id != null) {
-        setId(result.id)
-        router.replace(`${LIST_PATH}/${result.id}`)
+      const created = id == null && result.id != null
+      if (created) {
+        setId(result.id!)
         guard.markSaved(content, { key: `icp:${result.id}` })
       }
       if (!result.ok) {
-        setError(result.error)
+        if (created) {
+          // The move to the new URL remounts the editor, so the error would be
+          // gone with it: it goes along in the URL and is shown on arrival.
+          router.replace(
+            `${LIST_PATH}/${result.id}?step=${step}&activateError=${encodeURIComponent(result.error.slice(0, 500))}`,
+          )
+        } else {
+          setError(result.error)
+        }
         return
       }
       setContent(result.saved)
       guard.markSaved(result.saved, { version: result.updatedAt, key: `icp:${result.id}` })
       setStatus('active')
       setPrimary(result.primary)
-      setMessage(
-        result.primary
-          ? 'Active and primary. New pieces are written for this audience.'
-          : 'Active. New pieces can be written for this audience.',
-      )
+      const done = result.primary
+        ? 'Active and primary. New pieces are written for this audience.'
+        : 'Active. New pieces can be written for this audience.'
+      setMessage(done)
+      // A toast outlives the remount a first save causes; the message does not.
+      toast.success(result.dropped > 0 ? `${done} ${parsedSaveMessage('', result.dropped)}.` : done)
+      if (created) router.replace(`${LIST_PATH}/${result.id}?step=${step}`)
       router.refresh()
     })
 
@@ -200,6 +247,7 @@ export function IcpEditor({
         setError(result.error)
         return
       }
+      guard.adoptVersion(result.updatedAt)
       setStatus('archived')
       setPrimary(false)
       setMessage('Archived. Pieces already written for it keep pointing at it.')
@@ -313,6 +361,7 @@ export function IcpEditor({
                   className="datum-ops__link-btn"
                   onClick={() => setConfirmDelete(false)}
                   disabled={pending}
+                  ref={keepItRef}
                 >
                   Keep it
                 </button>
@@ -323,6 +372,7 @@ export function IcpEditor({
                 className="datum-ops__link-btn"
                 onClick={() => setConfirmDelete(true)}
                 disabled={pending}
+                ref={deleteRef}
               >
                 Delete draft
               </button>

@@ -138,7 +138,7 @@ describe('refreshSitePagesAction', () => {
     const startedAt = new Date().toISOString()
     const result = await refreshSitePagesAction()
 
-    expect(result).toEqual({ ok: true, pages: 4, warnings: [] })
+    expect(result).toEqual({ ok: true, pages: 4, warnings: [], domain: DOMAIN })
 
     const doc = (await readGlobal()) as WorkspaceProfileDoc
     const pages = doc.sitePages as SitePage[]
@@ -178,7 +178,7 @@ describe('refreshSitePagesAction', () => {
     )
 
     const result = await refreshSitePagesAction()
-    expect(result).toEqual({ ok: true, pages: MAX_SITE_PAGES, warnings: [] })
+    expect(result).toEqual({ ok: true, pages: MAX_SITE_PAGES, warnings: [], domain: DOMAIN })
 
     const pages = ((await readGlobal()) as WorkspaceProfileDoc).sitePages as SitePage[]
     expect(pages).toHaveLength(MAX_SITE_PAGES)
