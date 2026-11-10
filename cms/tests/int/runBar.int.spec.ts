@@ -31,6 +31,7 @@ const run = (status: RunStatusDTO['status']): RunStatusDTO => ({
   articleCount: 1,
   articles: [{ id: 1, keyword: 'test article', status: 'drafted' }],
   activity: null,
+  activeRunIds: status === 'queued' || status === 'running' ? ['test-run'] : [],
   finalStatuses: {},
   failures: [],
   errorSummary: null,
@@ -113,6 +114,48 @@ it('refreshes once when a run completed before the first poll', async () => {
   expect(mocks.refresh).toHaveBeenCalledTimes(1)
   await act(() => vi.advanceTimersByTimeAsync(30000))
   expect(mocks.refresh).toHaveBeenCalledTimes(1)
+})
+
+describe('runs queued behind the one executing', () => {
+  const running = (extra: Partial<RunStatusDTO> = {}): RunStatusDTO => ({
+    ...run('running'),
+    runId: 'run-a',
+    activeRunIds: ['run-a', 'run-b', 'run-c'],
+    ...extra,
+  })
+
+  it('says how many more are queued', async () => {
+    mocks.poll.mockResolvedValue(running())
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).toMatch(
+      /and 2 more queued/,
+    )
+  })
+
+  it('stays silent about the queue when nothing is waiting', async () => {
+    mocks.poll.mockResolvedValue(run('running'))
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).not.toMatch(/more queued/)
+  })
+
+  it('refreshes when a tracked run settles even though the bar moved on to the next one', async () => {
+    mocks.poll
+      .mockResolvedValueOnce(running())
+      .mockResolvedValue(
+        running({ runId: 'run-b', activeRunIds: ['run-b', 'run-c'], createdAtIso: '2026-01-01T00:00:00Z' }),
+      )
+    render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    // run-a settled and run-b took over: the bar still reads "running", but
+    // run-a's articles have moved and the page behind the bar is out of date.
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    await act(() => vi.advanceTimersByTimeAsync(9000))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  })
 })
 
 const failedRun = (): RunStatusDTO => ({

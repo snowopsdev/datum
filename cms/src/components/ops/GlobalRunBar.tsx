@@ -8,7 +8,13 @@ import { CONTENT_STAGES, stageOf } from './articleStatus'
 import { latestRunAction } from './boardActions'
 import { startRunPolling } from './runPolling'
 import { isStaleRun, RUN_QUEUED_EVENT, type RunQueuedDetail } from './runQueued'
-import { callLabel, runProgress, STAGE_PROGRESS, type RunStatusDTO } from './boardTypes'
+import {
+  callLabel,
+  otherActiveRuns,
+  runProgress,
+  STAGE_PROGRESS,
+  type RunStatusDTO,
+} from './boardTypes'
 import './ops.css'
 
 /**
@@ -94,6 +100,9 @@ export function GlobalRunBar() {
   const [announced, setAnnounced] = useState<RunQueuedDetail | null>(null)
   const announcedRef = useRef<RunQueuedDetail | null>(null)
   const seen = useRef<{ runId: string; status: string } | null>(null)
+  // Every run seen queued or running, so a run that settles while the bar has
+  // moved on to the next one in the queue still refreshes the page.
+  const trackedRuns = useRef<Set<string>>(new Set())
 
   // Whatever the poll last returned, minus a run that finished before the
   // action: showing its "Run finished" as the result of the new one is a lie.
@@ -139,9 +148,16 @@ export function GlobalRunBar() {
         seen.current = next ? { runId: next.runId, status: next.status } : null
         const wasActive = prev?.status === 'queued' || prev?.status === 'running'
         const nextActive = next?.status === 'queued' || next?.status === 'running'
+        // The bar follows one run, but selected runs queue behind each other: any
+        // run it was tracking that is no longer active has settled, whether or
+        // not it was the one on screen.
+        const activeIds = polled?.activeRunIds ?? []
+        const trackedSettled = [...trackedRuns.current].some((id) => !activeIds.includes(id))
+        trackedRuns.current = new Set(activeIds)
         // A short run can finish between idle polls (or before the first poll).
         // Refresh each newly observed completion even if we never saw it active.
-        if (next && !nextActive && (wasActive || prev?.runId !== next.runId)) router.refresh()
+        const newlySettled = next && !nextActive && (wasActive || prev?.runId !== next.runId)
+        if (newlySettled || trackedSettled) router.refresh()
         setRun(next)
         setNow(Date.now())
         // Keep polling briskly until the announced run appears.
@@ -265,9 +281,11 @@ export function GlobalRunBar() {
   // so beats a frozen-looking line.
   const waiting = sinceCall !== null && sinceCall > 12
 
+  const queuedBehind = otherActiveRuns(run)
   const verbose = active
     ? [
         doing ?? stageLabel,
+        queuedBehind > 0 ? `and ${queuedBehind} more queued` : null,
         waiting ? `waiting on the model (${sinceCall}s)` : null,
         activity && activity.totalCalls > 0
           ? `${activity.totalCalls} model call${activity.totalCalls === 1 ? '' : 's'} · $${activity.totalCostUsd.toFixed(2)}`

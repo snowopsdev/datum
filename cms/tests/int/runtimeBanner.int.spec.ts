@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   >(),
 }))
 vi.mock('@/components/ops/tenantActions', () => ({ runtimeStatusAction: mocks.status }))
+// The provider is mounted on the login page too, where there is no user.
+const auth = vi.hoisted(() => ({ user: null as { id: number } | null }))
+vi.mock('@payloadcms/ui', () => ({ useAuth: () => ({ user: auth.user }) }))
 
 const { RuntimeBanner } = await import('@/components/ops/RuntimeBanner')
 
@@ -32,7 +35,10 @@ const show = async () => {
   vi.useRealTimers()
 }
 
-beforeEach(() => mocks.status.mockReset())
+beforeEach(() => {
+  mocks.status.mockReset()
+  auth.user = { id: 1 }
+})
 afterEach(cleanup)
 
 it('names the variables, points at cms/.env, and cannot be dismissed', async () => {
@@ -99,5 +105,59 @@ it('says nothing in mock mode, or when a live workspace is ready', async () => {
   cleanup()
   mocks.status.mockResolvedValue({ mode: 'live', ready: true, missing: [], problems: [] })
   await show()
+  expect(screen.queryByRole('status')).toBeNull()
+})
+
+const liveBroken = {
+  mode: 'live' as const,
+  ready: false,
+  missing: ['AHREFS_API_KEY'],
+  problems: [],
+}
+
+it('does not ask while nobody is signed in, and asks once they are', async () => {
+  mocks.status.mockResolvedValue(liveBroken)
+  auth.user = null
+  vi.useFakeTimers()
+  const view = render(React.createElement(RuntimeBanner))
+  await act(async () => {
+    vi.runAllTimers()
+    await Promise.resolve()
+  })
+  expect(mocks.status).not.toHaveBeenCalled()
+  expect(screen.queryByRole('status')).toBeNull()
+
+  // Payload's login navigates client-side: the same mounted banner now has a user.
+  auth.user = { id: 1 }
+  view.rerender(React.createElement(RuntimeBanner))
+  await act(async () => {
+    vi.runAllTimers()
+    await Promise.resolve()
+  })
+  vi.useRealTimers()
+  expect(mocks.status).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('status').textContent).toContain('AHREFS_API_KEY')
+})
+
+it('asks again for a different user and hides the banner after sign-out', async () => {
+  mocks.status.mockResolvedValue(liveBroken)
+  vi.useFakeTimers()
+  const view = render(React.createElement(RuntimeBanner))
+  const flush = () =>
+    act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+  await flush()
+  auth.user = { id: 2 }
+  view.rerender(React.createElement(RuntimeBanner))
+  await flush()
+  expect(mocks.status).toHaveBeenCalledTimes(2)
+
+  auth.user = null
+  view.rerender(React.createElement(RuntimeBanner))
+  await flush()
+  vi.useRealTimers()
+  expect(mocks.status).toHaveBeenCalledTimes(2)
   expect(screen.queryByRole('status')).toBeNull()
 })

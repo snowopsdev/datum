@@ -14,9 +14,10 @@ const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.co
 const findMock = vi.fn(async (_args: { collection?: string }) => ({ docs: [] }) as never)
 const updateMock = vi.fn(async (_args: { id?: number; data?: Record<string, unknown> }) => ({}) as never)
 
-const { createPipelineRunMock, loadWorkspaceSetupMock } = vi.hoisted(() => ({
+const { createPipelineRunMock, loadWorkspaceSetupMock, loadReportCostsMock } = vi.hoisted(() => ({
   createPipelineRunMock: vi.fn(),
   loadWorkspaceSetupMock: vi.fn(),
+  loadReportCostsMock: vi.fn(),
 }))
 
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
@@ -25,6 +26,9 @@ vi.mock('@/lib/loadWorkspaceReadiness', () => ({
   loadWorkspaceSetup: loadWorkspaceSetupMock,
   loadActiveAudienceOptions: vi.fn(async () => []),
 }))
+// The run bar's totals are one SQL aggregate (covered against a database in
+// `adminPerformance.int.spec.ts`); here it only has to be asked, and trusted.
+vi.mock('@/lib/reportQueries', () => ({ loadReportCosts: loadReportCostsMock }))
 vi.mock('@/lib/createPipelineRun', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/createPipelineRun')>()
   return { ...actual, createPipelineRun: createPipelineRunMock }
@@ -33,6 +37,7 @@ vi.mock('payload', async (importOriginal) => {
   const actual = await importOriginal<typeof import('payload')>()
   return {
     ...actual,
+    createLocalReq: vi.fn(async () => ({ stand: 'in' })),
     getPayload: vi.fn(async () => ({ auth: authMock, find: findMock, update: updateMock })),
   }
 })
@@ -103,6 +108,24 @@ describe('runSelectedArticlesAction', () => {
     )
   })
 
+  it('reads only the article fields the queue helper checks', async () => {
+    await runSelectedArticlesAction({ articleIds: [1] })
+    expect(findMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'articles',
+        select: { status: true, archived: true, template: true },
+      }),
+    )
+  })
+
+  it('tells a signed-out caller to sign in, in the content list’s words', async () => {
+    authMock.mockResolvedValueOnce({ user: null } as never)
+    expect(await runSelectedArticlesAction({ articleIds: [1] })).toEqual({
+      ok: false,
+      error: 'Sign in to manage the content list.',
+    })
+  })
+
   it('passes a refusal from the queue helper through its own generic catch', async () => {
     // The helper throws; the action's `errorMessage(error, 'Could not start
     // that run.')` branch is what turns that into the sentence the board shows,
@@ -134,6 +157,112 @@ describe('latestRunAction', () => {
     authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
   })
 
+  /** A run row as the action selects it. */
+  const row = (runId: string, status: string, createdAt: string, extra = {}) => ({
+    runId,
+    status,
+    mode: 'mock',
+    source: 'selected',
+    createdAt,
+    startedAt: status === 'queued' ? null : createdAt,
+    completedAt: null,
+    articles: [],
+    ...extra,
+  })
+
+  /** Answers the run reads: the active query and the newest-settled query differ by `where`. */
+  const withRuns = (active: unknown[], settled: unknown[] = []) =>
+    findMock.mockImplementation(async (args: { collection?: string; where?: unknown }) => {
+      if (args.collection === 'pipeline-runs') {
+        return { docs: args.where ? active : settled } as never
+      }
+      return { docs: [] } as never
+    })
+
+  it('follows the running run, not the newest queued one behind it', async () => {
+    withRuns([
+      row('run-a', 'running', '2026-01-01T00:00:00Z'),
+      row('run-b', 'queued', '2026-01-01T00:01:00Z'),
+      row('run-c', 'queued', '2026-01-01T00:02:00Z'),
+    ])
+    const result = await latestRunAction()
+    expect(result).toMatchObject({
+      runId: 'run-a',
+      status: 'running',
+      activeRunIds: ['run-a', 'run-b', 'run-c'],
+    })
+  })
+
+  it('follows the oldest queued run when none is running yet', async () => {
+    withRuns([
+      row('run-b', 'queued', '2026-01-01T00:01:00Z'),
+      row('run-c', 'queued', '2026-01-01T00:02:00Z'),
+    ])
+    expect(await latestRunAction()).toMatchObject({
+      runId: 'run-b',
+      activeRunIds: ['run-b', 'run-c'],
+    })
+    // Oldest first is the database's job; the action has to ask for it.
+    const activeQuery = findMock.mock.calls.find(
+      ([args]) => (args as { where?: unknown }).where,
+    )?.[0] as { sort?: string; limit?: number }
+    expect(activeQuery.sort).toBe('createdAt')
+  })
+
+  it('falls back to the newest settled run when nothing is active', async () => {
+    withRuns([], [row('run-z', 'failed', '2026-01-01T00:00:00Z', { warnings: [] })])
+    expect(await latestRunAction()).toMatchObject({
+      runId: 'run-z',
+      status: 'failed',
+      activity: null,
+      activeRunIds: [],
+    })
+    expect(loadReportCostsMock).not.toHaveBeenCalled()
+  })
+
+  it('answers null when there has never been a run', async () => {
+    withRuns([], [])
+    expect(await latestRunAction()).toBeNull()
+  })
+
+  // Totals used to be summed from the newest 500 cost-log rows, so a long run's
+  // call count and cost stopped rising at 500.
+  it('takes totals from the aggregate and reads one cost row for the last call', async () => {
+    withRuns([row('run-a', 'running', '2026-01-01T00:00:00Z')])
+    loadReportCostsMock.mockResolvedValue({
+      aggregate: { rowCount: 1200, totalUsd: 12.5, byStage: [], byModel: [] },
+      stages: [
+        { stage: 'generate', calls: 1000, costUsd: 10, inputTokens: 0, outputTokens: 0 },
+        { stage: 'factCheck', calls: 200, costUsd: 2.5, inputTokens: 0, outputTokens: 0 },
+      ],
+    })
+    const costFind = vi.fn()
+    findMock.mockImplementation(async (args: { collection?: string; where?: unknown }) => {
+      if (args.collection === 'pipeline-runs') {
+        return { docs: [row('run-a', 'running', '2026-01-01T00:00:00Z')] } as never
+      }
+      if (args.collection === 'cost-log') {
+        costFind(args)
+        return { docs: [{ stage: 'factCheck', createdAt: '2026-01-01T00:05:00Z' }] } as never
+      }
+      return { docs: [] } as never
+    })
+    const result = await latestRunAction()
+    expect(loadReportCostsMock).toHaveBeenCalledWith(expect.anything(), { pipelineRunId: 'run-a' })
+    expect(result?.activity).toEqual({
+      totalCalls: 1200,
+      totalCostUsd: 12.5,
+      byStage: [
+        { stage: 'generate', calls: 1000, costUsd: 10 },
+        { stage: 'factCheck', calls: 200, costUsd: 2.5 },
+      ],
+      lastCallStage: 'factCheck',
+      lastCallAtIso: '2026-01-01T00:05:00.000Z',
+    })
+    expect(costFind).toHaveBeenCalledTimes(1)
+    expect(costFind.mock.calls[0][0]).toMatchObject({ limit: 1, sort: '-createdAt' })
+  })
+
   it('says what actually went wrong instead of a fixed sentence', async () => {
     findMock.mockRejectedValueOnce(new Error('connection terminated unexpectedly'))
     await expect(latestRunAction()).rejects.toThrow(
@@ -158,6 +287,14 @@ describe('removeTopicsAction', () => {
   })
 
   it('archives a topic no run is carrying', async () => {
+    withActiveRuns([])
+    const message = await removeTopicsAction([1])
+    expect(message).toMatchObject({ ok: true, message: expect.stringContaining('from the content list.') })
+    expect(findMock).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'articles', select: { status: true, keyword: true } }),
+    )
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
     withActiveRuns([])
     expect(await removeTopicsAction([1])).toMatchObject({ ok: true })
     expect(updateMock).toHaveBeenCalledWith(

@@ -75,6 +75,11 @@ export type RunActivityDTO = {
   lastCallAtIso: string | null
 }
 
+/** Runs queued or running besides the one the bar is showing. */
+export function otherActiveRuns(run: Pick<RunStatusDTO, 'runId' | 'activeRunIds'>): number {
+  return run.activeRunIds.filter((id) => id !== run.runId).length
+}
+
 /** Mean completion across a run's articles, 0–1. Settled articles count as done. */
 export function runProgress(articles: RunArticleDTO[]): number {
   if (articles.length === 0) return 0
@@ -102,6 +107,12 @@ export type RunStatusDTO = {
   completedAtIso: string | null
   /** Populated while in flight, so the bar can say what the model is doing. */
   activity: RunActivityDTO | null
+  /**
+   * Every queued or running run, oldest first. This run is one of them while it
+   * is active; the rest are waiting behind it, and the bar says so and refreshes
+   * the page when any of them settles.
+   */
+  activeRunIds: string[]
   /** `{ verified: 2, needs_revision: 1 }` — what the run actually achieved. */
   finalStatuses: Record<string, number>
   failures: RunFailureDTO[]

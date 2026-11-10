@@ -76,7 +76,7 @@ export function RunStatusPanel({ initial }: Props) {
             ))}
           </ul>
           <p className="datum-ops__hint">
-            These kept their place on the board, so starting another run retries them. A research
+            These kept their place on the content list, so starting another run retries them. A research
             failure usually means the keyword has no search results to compare against — try a
             broader one.
           </p>

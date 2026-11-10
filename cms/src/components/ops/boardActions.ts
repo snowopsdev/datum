@@ -1,15 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { createLocalReq } from 'payload'
 import { optionalUser, requireUser } from '../../lib/requireUser'
 
-import { activeRunIdForArticles } from '../../lib/activeRuns'
+import { ACTIVE_RUN_STATUSES, activeRunIdForArticles } from '../../lib/activeRuns'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
-import { stageKpis } from '../../lib/opsKpis'
+import { loadReportCosts } from '../../lib/reportQueries'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
 
+import type { Article } from '../../payload-types'
 import { type RunActivityDTO, type RunStatusDTO, toRunFailures } from './boardTypes'
 
 const BOARD_PATH = '/admin/ops/content'
@@ -34,7 +36,7 @@ export async function runSelectedArticlesAction(input: {
   confirmLiveCost?: boolean
 }): Promise<BoardActionResult> {
   try {
-    const { payload, user } = await requireUser('Sign in to manage the board.')
+    const { payload, user } = await requireUser('Sign in to manage the content list.')
     const ids = [...new Set(input.articleIds)].filter((id) => Number.isFinite(id) && id > 0)
     if (ids.length === 0) return { ok: false, error: 'Pick at least one article to run.' }
 
@@ -49,8 +51,11 @@ export async function runSelectedArticlesAction(input: {
       pagination: false,
       limit: ids.length,
       depth: 0,
+      // Exactly what `queueRunForArticles` reads from each article; keep the two
+      // in step. The rest of an article (research, draft, scorecards) is large.
+      select: { status: true, archived: true, template: true },
     })
-    const { runId } = await queueRunForArticles(payload, user, docs, readiness)
+    const { runId } = await queueRunForArticles(payload, user, docs as Article[], readiness)
     return {
       ok: true,
       message: `Started a run for ${plural(docs.length, 'article')}. Progress shows in the run bar.`,
@@ -81,7 +86,7 @@ export async function runSelectedArticlesAction(input: {
  */
 export async function removeTopicsAction(articleIds: number[]): Promise<BoardActionResult> {
   try {
-    const { payload, user } = await requireUser('Sign in to manage the board.')
+    const { payload, user } = await requireUser('Sign in to manage the content list.')
     const ids = [...new Set(articleIds)].filter((id) => Number.isFinite(id) && id > 0)
     if (ids.length === 0) return { ok: false, error: 'Pick at least one topic to remove.' }
 
@@ -91,6 +96,7 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
       pagination: false,
       limit: ids.length,
       depth: 0,
+      select: { status: true, keyword: true },
     })
     const started = docs.filter((doc) => doc.status !== 'topic_selected')
     if (started.length > 0) {
@@ -141,15 +147,38 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
     revalidatePath('/admin/ops/new')
     return {
       ok: true,
-      message: `Removed ${plural(docs.length, 'topic')} from the board. ${docs.length === 1 ? 'It is' : 'They are'} archived, not deleted — still in Article records if you want ${docs.length === 1 ? 'it' : 'them'} back.`,
+      message: `Removed ${plural(docs.length, 'topic')} from the content list. ${docs.length === 1 ? 'It is' : 'They are'} archived, not deleted — still in Article records if you want ${docs.length === 1 ? 'it' : 'them'} back.`,
     }
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Could not remove those topics.') }
   }
 }
 
+const RUN_SELECT = {
+  runId: true,
+  status: true,
+  mode: true,
+  source: true,
+  startedAt: true,
+  createdAt: true,
+  completedAt: true,
+  articles: true,
+  finalStatuses: true,
+  warnings: true,
+  errorSummary: true,
+} as const
+
+/** Far more than can queue behind one another; bounds the read, not the count shown. */
+const ACTIVE_RUNS_READ = 50
+
 /**
- * The most recent run, for the board's status panel.
+ * The run the status bar should follow, for the content list's status panel.
+ *
+ * `selected` runs queue behind an active one, so the newest run is usually the
+ * one that has not started. The bar follows the one that is executing: the
+ * `running` run, else the oldest `queued` one (the next to start), else the
+ * newest settled run. `activeRunIds` lists every active run so the bar can say
+ * how many are waiting and notice when any of them settles.
  *
  * Polled from the client while a run is in flight, so it stays deliberately
  * small: no article bodies, no scorecards, just what a person needs to answer
@@ -161,38 +190,41 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
     // and polls this. Signed out there is simply no run to show.
     const { payload, user } = await optionalUser()
     if (!user) return null
-    const { docs } = await payload.find({
+    const { docs: activeRuns } = await payload.find({
       collection: 'pipeline-runs',
+      where: { status: { in: [...ACTIVE_RUN_STATUSES] } },
       user,
       overrideAccess: false,
-      select: {
-        runId: true,
-        status: true,
-        mode: true,
-        source: true,
-        startedAt: true,
-        createdAt: true,
-        completedAt: true,
-        articles: true,
-        finalStatuses: true,
-        warnings: true,
-        errorSummary: true,
-      },
-      sort: '-createdAt',
-      limit: 1,
+      select: RUN_SELECT,
+      sort: 'createdAt',
+      limit: ACTIVE_RUNS_READ,
+      pagination: false,
       depth: 0,
     })
-    const run = docs[0]
+    const run =
+      activeRuns.find((r) => r.status === 'running') ??
+      activeRuns[0] ??
+      (
+        await payload.find({
+          collection: 'pipeline-runs',
+          user,
+          overrideAccess: false,
+          select: RUN_SELECT,
+          sort: '-createdAt',
+          limit: 1,
+          depth: 0,
+        })
+      ).docs[0]
     if (!run) return null
     const started = run.startedAt ?? run.createdAt
 
-    // Only while it matters: a settled run's articles are already on the board,
-    // and this action is polled from every admin page.
+    // Only while it matters: a settled run's articles are already on the
+    // content list, and this action is polled from every admin page.
     const active = run.status === 'queued' || run.status === 'running'
     const ids = Array.isArray(run.articles)
       ? run.articles.flatMap((a) => (typeof a === 'number' ? [a] : a?.id ? [a.id] : []))
       : []
-    const [found, calls] = await Promise.all([
+    const [found, totals, latest] = await Promise.all([
       active && ids.length > 0
         ? payload.find({
             collection: 'articles',
@@ -205,15 +237,19 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
             overrideAccess: false,
           })
         : null,
+      // Totals come from SQL: a long run writes more cost rows than any read
+      // limit, and a capped sum quietly stops rising.
+      active
+        ? loadReportCosts(await createLocalReq({ user }, payload), { pipelineRunId: run.runId })
+        : null,
       active
         ? payload.find({
             collection: 'cost-log',
             where: { pipelineRunId: { equals: run.runId } },
             sort: '-createdAt',
-            pagination: false,
-            limit: 500,
+            limit: 1,
             depth: 0,
-            select: { stage: true, costUsd: true, createdAt: true },
+            select: { stage: true, createdAt: true },
             user,
             overrideAccess: false,
           })
@@ -223,16 +259,14 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       found?.docs.map((d) => ({ id: d.id, keyword: d.keyword, status: d.status })) ?? []
 
     let activity: RunActivityDTO | null = null
-    if (calls) {
-      const perStage = stageKpis(calls.docs)
-      const totalCostUsd = perStage.reduce((sum, s) => sum + s.costUsd, 0)
-      const latest = calls.docs[0]
+    if (totals) {
+      const last = latest?.docs[0]
       activity = {
-        totalCalls: calls.docs.length,
-        totalCostUsd,
-        byStage: perStage.map(({ stage, calls: n, costUsd }) => ({ stage, calls: n, costUsd })),
-        lastCallStage: latest?.stage ?? null,
-        lastCallAtIso: latest?.createdAt ? new Date(latest.createdAt).toISOString() : null,
+        totalCalls: totals.aggregate.rowCount,
+        totalCostUsd: totals.aggregate.totalUsd,
+        byStage: totals.stages.map(({ stage, calls, costUsd }) => ({ stage, calls, costUsd })),
+        lastCallStage: last?.stage ?? null,
+        lastCallAtIso: last?.createdAt ? new Date(last.createdAt).toISOString() : null,
       }
     }
     return {
@@ -247,6 +281,7 @@ export async function latestRunAction(): Promise<RunStatusDTO | null> {
       articles,
       completedAtIso: run.completedAt ? new Date(run.completedAt).toISOString() : null,
       activity,
+      activeRunIds: activeRuns.map((r) => r.runId),
       finalStatuses:
         run.finalStatuses &&
         typeof run.finalStatuses === 'object' &&
