@@ -60,7 +60,6 @@ export const FORMAT_CODE = 16
 export function safeLinkUrl(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   const url = raw.trim()
-  // eslint-disable-next-line no-control-regex
   if (!url || /[\u0000- \u007f-\u009f\\]/.test(url)) return null
   if (url.startsWith('/')) return url.startsWith('//') ? null : url
   if (!/^https?:\/\/[^/?#]/i.test(url)) return null

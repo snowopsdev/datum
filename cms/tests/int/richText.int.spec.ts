@@ -206,7 +206,7 @@ describe('payload round trip', () => {
     )
     const article = await payload.create({
       collection: 'articles',
-      data: { keyword: `rich text ${randomUUID()}`, title: 'Rich text' },
+      data: { keyword: `rich text ${randomUUID()}`, title: 'Rich text', status: 'published' },
     })
     // Articles are not deleted: their audit rows are append-only.
     {
