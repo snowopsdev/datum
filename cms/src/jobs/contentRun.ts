@@ -61,7 +61,12 @@ export async function executeContentRun(
         'Finish setup: brand voice, target domain, and at least one active audience (ICP) are required.',
       )
     }
-    const stageContext = buildStageContext(payload, run.runId, run.mode, inputs)
+    // The signal reaches discovery and every model call, so a recovered run
+    // stops between steps rather than at its next article write.
+    const stageContext = {
+      ...buildStageContext(payload, run.runId, run.mode, inputs),
+      signal: heartbeat.signal,
+    }
 
     if (run.source === 'selected') {
       // The articles were chosen by a person and attached when the run was
@@ -89,7 +94,11 @@ export async function executeContentRun(
 
     await writeRunning({ articles: articleIds })
 
-    const result = await runPipeline(stageContext, { articleIds, signal: heartbeat.signal })
+    const result = await runPipeline(stageContext, {
+      articleIds,
+      signal: heartbeat.signal,
+      commitArticle: heartbeat.commit,
+    })
     await writeRunning({ ...settledRunData(result), articles: articleIds })
     return result
   } catch (error) {

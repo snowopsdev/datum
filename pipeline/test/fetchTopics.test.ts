@@ -61,3 +61,32 @@ it('skips excluded keywords without spending a model call or exhausting the crea
   await fetchTopics(ctx,{count:1,templateId:1})
   assert.deepEqual(created,['espresso grinder'])
 })
+
+it('creates no topic once the run signal is aborted', async () => {
+  const created: string[] = []
+  let asked = false
+  const controller = new AbortController()
+  controller.abort(new Error('lease lost'))
+  const ctx = {
+    tenant: emptyTenantContext(),
+    runId: 'aborted',
+    mode: 'mock' as const,
+    signal: controller.signal,
+    payload: {
+      find: async () => ({ docs: [] }),
+      create: async ({ data }: { data: { keyword: string } }) => {
+        created.push(data.keyword)
+        return { id: created.length }
+      },
+    } as unknown as Payload,
+    ahrefs: {
+      contentGapKeywords: async () => {
+        asked = true
+        return [{ keyword: 'espresso grinder', volume: 10, difficulty: 1 }]
+      },
+    } as unknown as AhrefsClient,
+  }
+  await assert.rejects(fetchTopics(ctx, { count: 1, templateId: 1 }), /lease lost/)
+  assert.equal(asked, false)
+  assert.deepEqual(created, [])
+})

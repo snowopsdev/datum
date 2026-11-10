@@ -3,7 +3,10 @@ import { opportunityScore } from './ahrefs'
 import type { StageContext } from './stages'
 
 /** fetch is Ahrefs-only — no LLM call — so it needs none of StageContext's model/voice/style-guide fields. */
-export type FetchContext = Pick<StageContext, 'ahrefs' | 'payload' | 'runId' | 'mode' | 'tenant'>
+export type FetchContext = Pick<
+  StageContext,
+  'ahrefs' | 'payload' | 'runId' | 'mode' | 'tenant' | 'signal'
+>
 
 export interface FetchTopicsOptions {
   count: number
@@ -28,6 +31,7 @@ export async function fetchTopics(
   options: FetchTopicsOptions,
 ): Promise<FetchTopicsResult> {
   const count = Math.max(1, Math.min(5, Math.round(options.count)))
+  ctx.signal?.throwIfAborted()
   const gaps = await ctx.ahrefs.contentGapKeywords()
   const ranked = [...gaps].sort(
     (a, b) => opportunityScore(b.volume, b.difficulty) - opportunityScore(a.volume, a.difficulty),
@@ -59,6 +63,8 @@ export async function fetchTopics(
       skippedIds.push(existingId)
       continue
     }
+    // A run that lost its lease creates no further topics.
+    ctx.signal?.throwIfAborted()
     const article = await ctx.payload.create({
       collection: 'articles',
       data: {

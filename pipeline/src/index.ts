@@ -180,7 +180,11 @@ async function runCommand(
     const summary: RunPipelineResult =
       articleIds.length === 0
         ? { articleIds: [], finalStatuses: {}, stages: [], failed: 0, failures: [] }
-        : await runPipeline(ctx, { articleIds, signal: heartbeat.signal })
+        : await runPipeline(ctx, {
+            articleIds,
+            signal: heartbeat.signal,
+            commitArticle: heartbeat.commit,
+          })
     if (!(await updateRunIfStatus(payload, runRow.id, 'running', settledRunData(summary)))) {
       throw new RunLeaseLostError(runId)
     }

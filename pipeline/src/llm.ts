@@ -252,6 +252,8 @@ export interface CostContext {
   /** The run's mode. Decides the fallback client when `llm` is not supplied. */
   mode?: 'mock' | 'live'
   llm?: LlmClient
+  /** The run's lease signal; an aborted run makes no further model calls. */
+  signal?: AbortSignal
 }
 
 function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
@@ -283,6 +285,7 @@ export async function completeJSONLogged(
   articleId: number,
   request: LlmRequest,
 ): Promise<LlmResult> {
+  ctx.signal?.throwIfAborted()
   const mode = ctx.mode ?? (config.mockMode ? 'mock' : 'live')
   const result = await (ctx.llm ?? createLlmClient(mode)).completeJSON(
     stage,

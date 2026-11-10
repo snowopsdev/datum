@@ -72,6 +72,7 @@ type SqlExecutor = {
 }
 
 interface LockedRunRow {
+  runId: string | null
   status: RunStatus | null
   heartbeatAt: Date | null
   startedAt: Date | null
@@ -100,10 +101,11 @@ async function withRunRowLock<T>(
     ).sessions[String(transactionID)]?.db
     if (!session) throw new Error('The run transaction session is unavailable.')
     const { rows } = await session.execute(
-      sql`SELECT status, heartbeat_at, started_at, created_at FROM pipeline_runs WHERE id = ${id} FOR UPDATE`,
+      sql`SELECT run_id, status, heartbeat_at, started_at, created_at FROM pipeline_runs WHERE id = ${id} FOR UPDATE`,
     )
     const raw = rows[0]
     const row: LockedRunRow = {
+      runId: (raw?.run_id as string | undefined) ?? null,
       status: (raw?.status as RunStatus | undefined) ?? null,
       heartbeatAt: asDate(raw?.heartbeat_at),
       startedAt: asDate(raw?.started_at),
@@ -159,6 +161,14 @@ export async function touchRunHeartbeat(payload: Payload, id: number): Promise<b
 export interface RunHeartbeat {
   /** Aborted once the row is found no longer `running`. */
   signal: AbortSignal
+  /**
+   * Run `write` with a request inside a transaction that holds the run row
+   * lock, only if the row is still this run's and still `running`. Otherwise
+   * aborts `signal` and resolves false without calling `write`. The timer alone
+   * leaves up to a minute in which a recovered run could still write; this
+   * closes it for every article write the stage loop commits.
+   */
+  commit(write: (req: PayloadRequest) => Promise<void>): Promise<boolean>
   stop(): void
 }
 
@@ -199,6 +209,19 @@ export function startRunHeartbeat(
   timer.unref?.()
   return {
     signal: controller.signal,
+    commit: async (write) => {
+      if (controller.signal.aborted) return false
+      const owned = await withRunRowLock(payload, run.id, async (row, req) => {
+        if (row.status !== 'running' || row.runId !== run.runId) return false
+        await write(req)
+        return true
+      })
+      if (!owned) {
+        clearInterval(timer)
+        controller.abort(new RunLeaseLostError(run.runId))
+      }
+      return owned
+    },
     stop: () => clearInterval(timer),
   }
 }
