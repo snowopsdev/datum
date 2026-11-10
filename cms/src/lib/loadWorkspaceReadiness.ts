@@ -15,18 +15,9 @@ import {
   type WorkspaceReadiness,
 } from './workspaceReadiness'
 
+/** What the setup data keeps of the newest run: whether one is still active. */
 export interface PipelineRunSummary {
-  id: number | string
-  runId: string
-  source: 'admin' | 'cli' | 'selected'
   status: 'queued' | 'running' | 'succeeded' | 'failed'
-  mode: 'mock' | 'live'
-  configFingerprint: string
-  articles: number[]
-  finalStatuses: Record<string, number> | null
-  errorSummary: string | null
-  createdAt: string
-  completedAt: string | null
 }
 
 export interface IcpOption {
@@ -49,18 +40,6 @@ export interface WorkspaceSetupData {
   /** Active audiences, primary first. Empty when setup is not finished. */
   icps: IcpOption[]
   latestRun: PipelineRunSummary | null
-}
-
-function relationshipIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) => {
-    if (typeof item === 'number') return [item]
-    if (item && typeof item === 'object' && 'id' in item) {
-      const id = item.id
-      return typeof id === 'number' ? [id] : []
-    }
-    return []
-  })
 }
 
 export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSetupData> {
@@ -112,18 +91,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     payload.findGlobal({ slug: 'evidence-bank', depth: 0, overrideAccess: true }),
     payload.find({
       collection: 'pipeline-runs',
-      select: {
-        runId: true,
-        source: true,
-        status: true,
-        mode: true,
-        configFingerprint: true,
-        articles: true,
-        finalStatuses: true,
-        errorSummary: true,
-        createdAt: true,
-        completedAt: true,
-      },
+      select: { status: true },
       limit: 1,
       depth: 0,
       sort: '-createdAt',
@@ -152,23 +120,7 @@ export async function loadWorkspaceSetup(payload: Payload): Promise<WorkspaceSet
     primary: icp.primary,
     audienceLine: icpAudienceLine(icp),
   }))
-  const rawRun = runs.docs[0] as (typeof runs.docs)[number] | undefined
-  const articleIds = relationshipIds(rawRun?.articles)
-  const latestRun = rawRun
-    ? ({
-        id: rawRun.id,
-        runId: rawRun.runId,
-        source: rawRun.source,
-        status: rawRun.status,
-        mode: rawRun.mode,
-        configFingerprint: rawRun.configFingerprint,
-        articles: articleIds,
-        finalStatuses: (rawRun.finalStatuses as Record<string, number> | null | undefined) ?? null,
-        errorSummary: rawRun.errorSummary ?? null,
-        createdAt: rawRun.createdAt,
-        completedAt: rawRun.completedAt ?? null,
-      } satisfies PipelineRunSummary)
-    : null
+  const latestRun: PipelineRunSummary | null = runs.docs[0] ? { status: runs.docs[0].status } : null
 
   const readiness = evaluateWorkspaceReadiness({
     env: process.env,

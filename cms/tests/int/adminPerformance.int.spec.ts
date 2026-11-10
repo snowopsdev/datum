@@ -135,6 +135,42 @@ describe('admin queries against Postgres', () => {
     }
   })
 
+  it('reads only the status of the newest run for the setup data', async () => {
+    const template = await payload.create({
+      collection: 'templates',
+      overrideAccess: true,
+      data: { name: `${prefix} run template` },
+    })
+    const run = await payload.create({
+      collection: 'pipeline-runs',
+      overrideAccess: true,
+      data: {
+        runId: `${prefix}-run`,
+        source: 'cli',
+        status: 'succeeded',
+        mode: 'mock',
+        template: template.id,
+        requestedCount: 1,
+        configFingerprint: 'UNUSED_RUN_MARKER',
+        configSnapshot: { marker: 'UNUSED_RUN_MARKER' },
+        requestedBy: 'perf-test',
+      },
+    })
+    const find = vi.spyOn(payload, 'find')
+    try {
+      const setup = await loadWorkspaceSetup(payload)
+      const index = find.mock.calls.findIndex(([options]) => options.collection === 'pipeline-runs')
+      expect(index).toBeGreaterThanOrEqual(0)
+      const loaded = await find.mock.results[index].value
+      expect(loaded.docs.map((doc: object) => Object.keys(doc).sort())).toEqual([['id', 'status']])
+      expect(setup.latestRun).toEqual({ status: 'succeeded' })
+    } finally {
+      find.mockRestore()
+      await payload.delete({ collection: 'pipeline-runs', id: run.id, overrideAccess: true })
+      await payload.delete({ collection: 'templates', id: template.id, overrideAccess: true })
+    }
+  })
+
   it('never loads article research for the source-review lookup', async () => {
     const find = vi.spyOn(payload, 'find')
     try {
