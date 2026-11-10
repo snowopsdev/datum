@@ -1,5 +1,7 @@
 # UI and workflow audit — 2026-09-11
 
+> The screenshots (`docs/audits/screens/`) and the capture log and script this audit cites were removed from the tree. They are in git history at commit `7bb204f`.
+
 Scope: the Payload admin under `/admin`, the operator journey from first login to a published article, the public reader, and the docs and env files that support them. Method: every screen was driven live on `localhost:3000` (per-worktree database `datum_local_env_keys`, seeded, demo workspace applied, one Listicle and one How-To piece run through the mock pipeline, the remaining statuses cloned by SQL), captured at 1600px and 390px, then cross-checked against the code path behind it. Screenshots live in `docs/audits/screens/` and are named `<step>-<screen>--<desktop|mobile>.png`.
 
 Baseline: `5205dd6` (release 0.6.4).
