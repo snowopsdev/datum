@@ -40,13 +40,16 @@ vi.mock('payload', async (importOriginal) => {
   }
 })
 
-const { revisitBriefAction } = await import('@/components/ops/briefActions')
+const { revisitBriefAction, saveBriefAction } = await import('@/components/ops/briefActions')
 const {
   archiveArticleAction,
   approveArticleAction,
   overrideReviewAction,
+  regenerateArticleAction,
   resetToDraftedAction,
+  scheduleArticleAction,
   unarchiveArticleAction,
+  unscheduleArticleAction,
 } = await import('@/components/ops/actions')
 const { findPublishedArticle } = await import('@/lib/findPublishedArticle')
 const { default: HomePage } = await import('@/app/(frontend)/page')
@@ -210,5 +213,66 @@ describe('a real gate refusal arrives as a value', () => {
     expect(result.ok).toBe(false)
     expect(result.ok === false && result.error).toMatch(/cannot move from drafted to approved/)
     expect((await reload(article.id)).status).toBe('drafted')
+  })
+})
+
+// The actions read only the article fields they use (`select`); these run the
+// real queries, which a mocked `findByID` cannot check.
+describe('the narrowed article reads still see what the actions need', () => {
+  it('saveBriefAction saves a fresh brief and refuses one opened before another save', async () => {
+    const article = await makeArticle({
+      status: 'brief_review',
+      brief: { angle: 'First', sections: [{ heading: 'A', source: 'template' }] },
+    })
+    const edits = { angle: 'Second', audience: '', sections: [], notes: '', icpId: null }
+    const opened = (await reload(article.id)).updatedAt
+
+    const first = await saveBriefAction(article.id, edits, opened)
+    expect(first.ok).toBe(true)
+    expect((await reload(article.id)).brief?.angle).toBe('Second')
+
+    // Someone else's save moved `updatedAt` on; this editor still holds `opened`.
+    const stale = await saveBriefAction(article.id, { ...edits, angle: 'Third' }, opened)
+    expect(stale).toEqual({
+      ok: false,
+      error: 'Someone else saved this brief since you opened it. Reload to see their changes.',
+    })
+    expect((await reload(article.id)).brief?.angle).toBe('Second')
+
+    // Holding the version the first save returned, the next save goes through.
+    const stored = first.ok ? first.updatedAt : undefined
+    expect((await saveBriefAction(article.id, { ...edits, angle: 'Third' }, stored ?? null)).ok).toBe(true)
+  })
+
+  it('regenerate builds its notes from the stored QA failure and counts the revision', async () => {
+    const article = await makeArticle({
+      status: 'needs_revision',
+      revisionCount: 1,
+      qaResults: {
+        structural: { passed: true, violations: [] },
+        factCheck: { passed: false, notes: 'unsupported stat' },
+      },
+    })
+    const result = await regenerateArticleAction(article.id, 'tighten it', { queueRun: false })
+    expect(result).toEqual({ ok: true, queued: false })
+    const after = await reload(article.id)
+    expect(after.status).toBe('researched')
+    expect(after.revisionCount).toBe(2)
+    expect(after.revisionNotes).toContain('unsupported stat')
+    expect(after.revisionNotes).toContain('Reviewer note: tighten it')
+  })
+
+  it('schedule and unschedule hand back the date they took off', async () => {
+    const article = await makeArticle({ status: 'approved' })
+    const at = new Date(Date.now() + 86_400_000).toISOString()
+    expect(await scheduleArticleAction(article.id, at)).toEqual({ ok: true, publishAt: at })
+    expect(await unscheduleArticleAction(article.id)).toEqual({ ok: true, previousPublishAt: at })
+    expect((await reload(article.id)).publishAt).toBeNull()
+
+    const draft = await makeArticle({ status: 'drafted' })
+    expect(await scheduleArticleAction(draft.id, at)).toEqual({
+      ok: false,
+      error: 'Only an approved article can be scheduled. Approve it first.',
+    })
   })
 })
