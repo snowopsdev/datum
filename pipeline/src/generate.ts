@@ -2,7 +2,7 @@ import type { Article } from '../../cms/src/payload-types'
 
 import { buildPrompt, buildSystemPrompt } from './generatePrompt'
 import { completeJSONLogged } from './llm'
-import { markdownToLexical } from './richtext'
+import { lexicalToPlainText, markdownToLexical, type RichText } from './richtext'
 import { resolveTemplate, type Stage } from './stages'
 import { evidenceRefsIn, selectIcp, stripEvidenceRefs, type EvidenceRefOptions } from './tenant'
 
@@ -100,7 +100,12 @@ export function extractEvidenceCitations(
     for (const sentence of sentencesOf(field)) {
       const refs = evidenceRefsIn(sentence, opts)
       if (refs.length === 0) continue
-      const excerpt = stripEvidenceRefs(sentence, opts).replace(MARKUP_PREFIX, '').trim().slice(0, MAX_EXCERPT)
+      // As plain text, the way the stored body is read back for scoring: a
+      // linked or bolded sentence must still match it word for word.
+      const plain = lexicalToPlainText(
+        markdownToLexical(stripEvidenceRefs(sentence, opts)) as RichText,
+      )
+      const excerpt = plain.replace(MARKUP_PREFIX, '').trim().slice(0, MAX_EXCERPT)
       for (const ref of refs) {
         const key = `${ref}\u0000${excerpt}`
         if (seen.has(key)) continue
