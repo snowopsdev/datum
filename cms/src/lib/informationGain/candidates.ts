@@ -92,12 +92,12 @@ const CANDIDATE_RANK: Record<CandidateClass, number> = {
  * able to produce a class that clears a novel-claim floor by itself:
  *
  * - **Cited somewhere** — the verifier's own rubric class, taken modally across
- *   sightings. That guess is exactly the class the pipeline would have used had
- *   the unknown-domain cap not applied, so it is the most informative default
- *   available. `unknown` is ignored, `blocked` is read as `unverified` (a
- *   suggestion must not default to shutting a domain out), ties resolve to the
- *   weaker class, and nothing usable falls back to `secondary` — where the cap
- *   already lands the domain today.
+ *   sightings, then clamped to `secondary` at most. The rubric is a model's
+ *   guess, and `primary` or `official_docs` would clear a floor on one click, so
+ *   the guess can only lower the default. `unknown` is ignored, `blocked` is
+ *   read as `unverified` (a suggestion must not default to shutting a domain
+ *   out), ties resolve to the weaker class, and nothing usable falls back to
+ *   `secondary` — where the cap already lands the domain today.
  * - **SERP only** — `secondary` when the domain rating clears
  *   `SERP_SECONDARY_MIN_DR`, else `unverified`. A page that ranks is by
  *   definition a secondary treatment of the topic, and domain rating measures
@@ -117,7 +117,10 @@ export function suggestClass(sightings: CandidateSighting[]): CandidateClass {
     })
     .filter((kind): kind is CandidateClass => kind !== null)
 
-  if (rubric.length > 0) return modalBy(rubric, (value) => CANDIDATE_RANK[value]) ?? 'secondary'
+  if (rubric.length > 0) {
+    const modal = modalBy(rubric, (value) => CANDIDATE_RANK[value]) ?? 'secondary'
+    return CANDIDATE_RANK[modal] > CANDIDATE_RANK.secondary ? 'secondary' : modal
+  }
   if (sightings.some((sighting) => sighting.kind === 'cited')) return 'secondary'
 
   const rating = sightings.reduce<number | null>(

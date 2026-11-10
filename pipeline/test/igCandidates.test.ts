@@ -162,7 +162,22 @@ describe('collectCandidateSightings', () => {
 
 describe('suggestClass', () => {
   it('uses the verifier rubric a cited domain was given', () => {
-    assert.equal(suggestClass([sighting({ sourceKind: 'official_docs' })]), 'official_docs')
+    assert.equal(suggestClass([sighting({ sourceKind: 'unverified' })]), 'unverified')
+    assert.equal(suggestClass([sighting({ sourceKind: 'secondary' })]), 'secondary')
+  })
+
+  // A model's guess must never clear a floor on one click.
+  it('clamps a floor-clearing rubric guess to secondary', () => {
+    assert.equal(suggestClass([sighting({ sourceKind: 'official_docs' })]), 'secondary')
+    assert.equal(suggestClass([sighting({ sourceKind: 'primary' })]), 'secondary')
+    assert.equal(
+      suggestClass([
+        sighting({ sourceKind: 'primary', runId: 1 }),
+        sighting({ sourceKind: 'primary', runId: 2 }),
+        sighting({ sourceKind: 'unverified', runId: 3 }),
+      ]),
+      'secondary',
+    )
   })
 
   it('takes the most common rubric across sightings', () => {
@@ -205,8 +220,8 @@ describe('suggestClass', () => {
   // Being cited says more than ranking does, so a rubric guess wins outright.
   it('prefers a citation rubric over the SERP rating', () => {
     assert.equal(
-      suggestClass([sighting({ sourceKind: 'primary' }), sighting({ kind: 'serp', domainRating: 78 })]),
-      'primary',
+      suggestClass([sighting({ sourceKind: 'unverified' }), sighting({ kind: 'serp', domainRating: 78 })]),
+      'unverified',
     )
   })
 })
