@@ -11,6 +11,7 @@ import { lexicalToMarkdown, type RichText } from '../src/richtext'
 import type { StageContext } from '../src/stages'
 import { stages } from '../src/stages'
 import { extractEvidenceCitations } from '../src/generate'
+import { firstPartyMatches } from '../src/informationGain/passes'
 
 const generateStage = stages.find((stage) => stage.name === 'generate')!
 import { loadStyleGuide } from '../src/styleGuide'
@@ -174,6 +175,34 @@ test('the generate prompt carries the bank the citations are checked against', a
   assert.match(requests.generate.system, /# Workspace/)
 })
 
+// `[F<n>]` and `[R<n>]` read naturally as prose (a keyboard key, a figure), so
+// they are markers only when the bank has that ref; `[E<n>]` always is.
+test('bracketed prose that names no bank entry is left in the text and not cited', async () => {
+  const { ctx } = ctxWith({
+    llm: {
+      async completeJSON() {
+        return {
+          json: {
+            ...JSON.parse(JSON.stringify(GENERATED)),
+            bodyMarkdown: 'Press [F12] to open the developer tools, then cite the catalogue [F5].',
+          },
+          provider: 'mock',
+          model: 'mock-generate',
+          usage: { inputTokens: 0, outputTokens: 0, webSearchRequests: 0 },
+        }
+      },
+    } as unknown as LlmClient,
+  })
+  const outcome = await generateStage.run(article, ctx)
+  const data = outcome.data as Record<string, unknown>
+  const body = lexicalToMarkdown(data.body as RichText)
+  assert.match(body, /Press \[F12\] to open the developer tools/)
+  assert.ok(!body.includes('[F5]'), `a real bank ref survived: ${body}`)
+  const refs = (data.evidenceCitations as { ref: string }[]).map((c) => c.ref)
+  assert.ok(refs.includes('F5'))
+  assert.ok(!refs.includes('F12'))
+})
+
 test('a workspace with no bank records no citations and stores the draft unchanged', async () => {
   const { ctx } = ctxWith({ tenant: emptyTenantContext('2026-09-02') })
   const outcome = await generateStage.run(article, ctx)
@@ -213,6 +242,24 @@ test('a lower-cased marker is stripped and recorded as the entry it names', asyn
   const citations = data.evidenceCitations as { ref: string; excerpt: string }[]
   assert.deepEqual([...new Set(citations.map((c) => c.ref))].sort(), ['E1', 'E2', 'F4'])
   assert.ok(citations.some((c) => c.ref === 'F4' && c.excerpt === 'It holds.'))
+})
+
+// Scoring reads the stored body back as plain text and matches the citation's
+// excerpt against it, so markdown left in the excerpt (a link, bold) would stop
+// a bank-backed claim from ever matching.
+test('a citation excerpt is plain text, without the markdown around it', () => {
+  const [citation] = extractEvidenceCitations([
+    'Our [customer study](/research) found **median** onboarding time was 11 days across 120 customers [E1].',
+  ])
+  assert.equal(
+    citation?.excerpt,
+    'Our customer study found median onboarding time was 11 days across 120 customers.',
+  )  // And so a claim extracted from the plain body matches it.
+  const claim = {
+    id: 'c001',
+    text: 'Our customer study found median onboarding time was 11 days across 120 customers',
+  }
+  assert.equal(firstPartyMatches([claim as never], [citation!]).get('c001'), 'E1')
 })
 
 test('extractEvidenceCitations caps an excerpt and de-duplicates identical rows', () => {

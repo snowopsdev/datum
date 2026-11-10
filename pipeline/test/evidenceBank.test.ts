@@ -297,6 +297,39 @@ test('stripEvidenceRefs removes the marker and its leading space, and nothing el
   assert.equal(stripEvidenceRefs('## Speed [E1]'), '## Speed')
 })
 
+test('with a bank, [F<n>] and [R<n>] are markers only when the bank has that ref', () => {
+  const withRefs = {
+    bank: bank({
+      verifiedClaims: [claim({ ref: 'E1' })],
+      facts: [{ ref: 'F2', fact: 'Founded in 2021', source: '', owner: '', lastConfirmedAt: '' }],
+      rejectedClaims: [
+        { ref: 'R3', claim: 'The fastest', status: 'rejected', reason: '', replacement: '' },
+      ],
+    }),
+  }
+  const prose = 'Press [F5] to reload, see figure [F12] and region [R9]; we hold [E1] [F2] [r3].'
+  assert.deepEqual(evidenceRefsIn(prose, withRefs), ['E1', 'F2', 'R3'])
+  assert.equal(
+    stripEvidenceRefs(prose, withRefs),
+    'Press [F5] to reload, see figure [F12] and region [R9]; we hold.',
+  )
+  // No bank at all: no F or R ref can exist, so none is a marker.
+  assert.deepEqual(evidenceRefsIn('Press [F5] and [R1].', { bank: null }), [])
+  assert.equal(stripEvidenceRefs('Press [F5] and [R1].', { bank: null }), 'Press [F5] and [R1].')
+})
+
+test('with a bank, [E<n>] is always a marker, so a hallucinated one still reaches QA', () => {
+  const opts = { bank: bank({ verifiedClaims: [claim({ ref: 'E1' })] }) }
+  const refs = evidenceRefsIn('It holds [E1] and [e9].', opts)
+  assert.deepEqual(refs, ['E1', 'E9'])
+  assert.equal(stripEvidenceRefs('It holds [E1] and [e9].', opts), 'It holds and.')
+  assert.deepEqual(
+    checkEvidenceRefs(refs, opts.bank, { asOf: '2026-09-02', surface: 'web' }).unknown,
+    ['E9'],
+  )
+  assert.deepEqual(evidenceRefsIn('It holds [E9].', { bank: null }), ['E9'])
+})
+
 test('checkEvidenceRefs separates usable, unknown, and unusable refs', () => {
   const checked = bank({
     verifiedClaims: [

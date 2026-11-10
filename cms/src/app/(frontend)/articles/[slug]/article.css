@@ -86,11 +86,59 @@
   color: var(--ink-secondary);
 }
 
+.datum-public__body h4,
+.datum-public__body h5,
+.datum-public__body h6 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 20px 0 6px;
+}
+
 .datum-public__body ul,
 .datum-public__body ol {
   margin: 0 0 12px;
   padding-left: 22px;
   color: var(--ink-secondary);
+}
+
+.datum-public__body li {
+  margin: 0 0 4px;
+}
+
+.datum-public__body li > ul,
+.datum-public__body li > ol {
+  margin: 4px 0 0;
+}
+
+.datum-public__body strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.datum-public__body a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.datum-public__body a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.datum-public__body blockquote {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--hairline);
+  color: var(--ink-muted);
+}
+
+.datum-public__body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
 }
 
 .datum-public__faq {

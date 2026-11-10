@@ -169,7 +169,9 @@ export function firstPartyOutcome(ref: string, excerpt: string): VerificationOut
         sourceKind: 'first_party_dataset',
         domain: '',
         qualityScore: SOURCE_QUALITY_SCORE.first_party_dataset,
-        qualitySource: 'rubric',
+        // What exempts the claim from `blockFirstPartyMeasurements`: the bank,
+        // not a model, is the source of the measurement.
+        qualitySource: 'evidence-bank',
       },
     ],
     exactnessMismatches: [],

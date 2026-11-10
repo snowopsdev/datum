@@ -488,6 +488,7 @@ describe('parseJudgeReply', () => {
           {
             claimId: 'c001',
             duplicateProbability: 0,
+            internalDuplicateProbability: 0,
             closestBaselineClaimId: 'not-a-known-claim',
             closestInternalClaimId: 42,
             containsNumericOrTemporalClaim: 'true',
@@ -522,7 +523,7 @@ describe('parseJudgeReply', () => {
     assert.throws(
       () =>
         parseJudgeReply(
-          { claims: [{ claimId: 'c001', duplicateProbability: 0.2 }] },
+          { claims: [{ claimId: 'c001', duplicateProbability: 0.2, internalDuplicateProbability: 0 }] },
           ['c001', 'c002'],
           queryIds,
           baselineIds,
@@ -531,7 +532,12 @@ describe('parseJudgeReply', () => {
     )
 
     const signals = parseJudgeReply(
-      { claims: [{ claimId: 'c001', duplicateProbability: 0.2 }, { claimId: 'c999' }] },
+      {
+        claims: [
+          { claimId: 'c001', duplicateProbability: 0.2, internalDuplicateProbability: 0 },
+          { claimId: 'c999' },
+        ],
+      },
       ['c001'],
       queryIds,
       baselineIds,
@@ -546,12 +552,30 @@ describe('parseJudgeReply', () => {
       assert.throws(
         () =>
           parseJudgeReply(
-            { claims: [{ claimId: 'c001', duplicateProbability }] },
+            { claims: [{ claimId: 'c001', duplicateProbability, internalDuplicateProbability: 0 }] },
             ['c001'],
             queryIds,
             baselineIds,
           ),
         { message: 'judge reply for claim c001 has no numeric duplicateProbability' },
+      )
+    }
+  })
+
+  // The judge prompt asks for it in every call. Read as 0, a missing value
+  // would hide a duplicate of our own published article from the
+  // internal-duplication review.
+  it('refuses an entry whose internalDuplicateProbability is missing or not a number', () => {
+    for (const internalDuplicateProbability of [undefined, '0.9', null, Number.NaN]) {
+      assert.throws(
+        () =>
+          parseJudgeReply(
+            { claims: [{ claimId: 'c001', duplicateProbability: 0.2, internalDuplicateProbability }] },
+            ['c001'],
+            queryIds,
+            baselineIds,
+          ),
+        { message: 'judge reply for claim c001 has no numeric internalDuplicateProbability' },
       )
     }
   })

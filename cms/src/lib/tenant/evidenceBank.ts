@@ -422,13 +422,48 @@ export function evidenceBankSummary(
  */
 const REF_PATTERN = /\[([EFR]\d+)\]/gi
 
+/** A marker with the spaces or tabs that carry it, for stripping. */
+const REF_WITH_SPACE_PATTERN = /[ \t]*\[([EFR]\d+)\]/gi
+
+/**
+ * Which bank the markers in a piece of text are read against. Omitted, every
+ * `[E<n>]`, `[F<n>]` and `[R<n>]` is a marker, as before the bank was taken
+ * into account; callers that have the stage's bank should pass it.
+ */
+export interface EvidenceRefOptions {
+  bank: EvidenceBankContent | null | undefined
+}
+
+/**
+ * Whether one bracketed ref is a citation marker rather than prose.
+ *
+ * `[E<n>]` always is, so a hallucinated `[E9]` still reaches QA as an unknown
+ * ref. `[F<n>]` and `[R<n>]` also read naturally as ordinary text (a figure, a
+ * function key, a footnote), so with a bank given they are markers only when
+ * that ref exists in it; otherwise they are left in the text untouched.
+ */
+function isEvidenceMarker(ref: string, opts: EvidenceRefOptions | undefined): boolean {
+  if (opts === undefined || ref.startsWith('E')) return true
+  const bank = opts.bank
+  if (!bank) return false
+  return (
+    bank.verifiedClaims.some((row) => row.ref === ref) ||
+    bank.facts.some((row) => row.ref === ref) ||
+    bank.rejectedClaims.some((row) => row.ref === ref)
+  )
+}
+
 /** Every evidence ref cited in a piece of generated text, de-duplicated in order. */
-export function evidenceRefsIn(text: string | null | undefined): string[] {
+export function evidenceRefsIn(
+  text: string | null | undefined,
+  opts?: EvidenceRefOptions,
+): string[] {
   if (!text) return []
   const seen = new Set<string>()
   const refs: string[] = []
   for (const match of text.matchAll(REF_PATTERN)) {
     const ref = normaliseEvidenceRef(match[1])
+    if (!isEvidenceMarker(ref, opts)) continue
     if (seen.has(ref)) continue
     seen.add(ref)
     refs.push(ref)
@@ -446,10 +481,14 @@ export function evidenceRefsIn(text: string | null | undefined): string[] {
  * protocol between the prompt and QA, and no reader should ever see one, so
  * this runs on every generated string field before anything is stored — in
  * either case, since a model that types `[e3]` must not leave the marker in the
- * published text just because it shouted less than the prompt did.
+ * published text just because it shouted less than the prompt did. With a bank
+ * given, an `[F<n>]` or `[R<n>]` the bank does not have is prose and stays (see
+ * `isEvidenceMarker`).
  */
-export function stripEvidenceRefs(text: string): string {
-  return text.replace(/[ \t]*\[([EFR]\d+)\]/gi, '')
+export function stripEvidenceRefs(text: string, opts?: EvidenceRefOptions): string {
+  return text.replace(REF_WITH_SPACE_PATTERN, (marker, raw: string) =>
+    isEvidenceMarker(normaliseEvidenceRef(raw), opts) ? '' : marker,
+  )
 }
 
 /** What the deterministic half of the evidence check found about one ref. */

@@ -38,16 +38,15 @@ Claims and clustering results are pooled up to `FACET_CLAIM_CAP` (400) claims pe
 
 ## Gap-fed generation
 
-The research stage discovers what the baseline already covers and leaves open *before* generation, not only after scoring a draft. `gapsBlock` (`pipeline/src/generatePrompt.ts`) turns an article's `research.facets` and `research.gaps` into up to four prompt sections, inserted into `buildPrompt` right before the `# Output` instructions:
+The research stage discovers what the baseline already covers and leaves open *before* generation, not only after scoring a draft. `gapsBlock` (`pipeline/src/generatePrompt.ts`) turns an article's `research.facets` and `research.gaps`, the workspace's evidence bank and any revision notes into up to five prompt sections, inserted into `buildPrompt` right before the `# Output` instructions:
 
 1. **`# Consensus facets (must cover)`** — every facet the baseline agrees on, each annotated either `(required by template)` or `(covered by N baseline sources)` — "sources", not "ranking pages", because `docCount` counts every baseline document, our own published articles included.
 2. **`# Information gaps (opportunities)`** — facets or angles the baseline leaves unanswered, each with the kind of evidence that would settle it.
-3. **`# Evidence rules`** — the `EVIDENCE_RULES` constant, verbatim, whenever either of the above sections is present.
-4. **`# Revision notes (previous attempt)`** — a re-run's `article.revisionNotes`, when present, ending with "Fix these before anything else."
+3. **`# Evidence rules`** — `evidenceRules(companyName, hasBank)` from `cms/src/lib/tenant/evidenceBank.ts`, whenever there are facets or gaps, a company name or target domain, or a usable evidence bank.
+4. **`# Evidence bank`** — the workspace's usable verified claims, facts and "never state these" entries, directly after the rules that point at it (see [tenant-context.md](tenant-context.md)).
+5. **`# Revision notes (previous attempt)`** — a re-run's `article.revisionNotes`, when present, ending with "Fix these before anything else."
 
-The evidence rules exist because "add more unique insights" without a boundary reads as an invitation to fabricate — Datum has no first-party data, so an instruction to be original has to be paired with a rule against synthetic novelty:
-
-> Do not invent unique insights. Add a novel factual claim only when you can name the public source (organisation and document) a fact-checker could find; otherwise state it as an explicitly labelled inference (for example, 'In our reading of the guidance…'). Never present first-party measurements, tests, surveys, or datasets — Datum has none. Prefer covering every consensus facet over adding novelty. Every number, date, and percentage must be one you can attribute.
+The evidence rules exist because "add more unique insights" without a boundary reads as an invitation to fabricate. A novel factual claim needs a public source a fact-checker could find, or must be stated as a labelled inference. First-party facts (anything about the company, its product, customers, results, pricing or measurements) depend on the bank: with one, they may be stated only from its entries, each cited with its ref (`… [E3].`) and within its limits; without one, they may not be stated at all. Those cited claims are what the first-party exemption under [The policy gates](#the-policy-gates) lets through scoring.
 
 An article generated before this feature has no `facets`/`gaps` and so gets none of these sections — generation behaves exactly as it did before corpus snapshots existed. A *new* article can no longer reach generation that way: a build that yields zero claims throws in the research stage, so the article never leaves `topic_selected`.
 
@@ -130,13 +129,15 @@ The rules that surprise people, all deliberate:
 - **`more than` / `less than` are thresholds**: a bare `10%` does not support "more than 10%". `equal` is what a bare figure already asserts, so an excerpt with no comparative of its own supports it.
 - A claim with values and no anchoring excerpt scores 0 — which is why an empty evidence list scores 0 for any claim carrying a number.
 - Sign handling: `-`, `−` and `+` count as signs only at the start of a token, so `5-10 seconds` is two positive bounds and `top-10 list` is 10, not −10. `+10` parses as 10.
+- **A bare range bound takes the range's kind.** `5-10%` reads as two percents and `$5-10` as two dollar amounts, so they match `5% to 10%` and `$5 to $10`. Only two shapes qualify, joined by `-` or `–` (spaces allowed) or an unspaced `—`: an unsigned bare number before an unsigned percent, and an unsigned bare number after a `$`/`€`/`£` or `USD`/`EUR`/`GBP`-prefixed amount. Years (`In 2023 - 15%`), signed numbers (`+2024-25%`), figures glued to a letter (`Q3-5%`, `FY24-25%`, `$5-10x`), amounts with their own suffix (`$5-10 EUR`, `$5-10k`), `to`-ranges, and a spaced em dash (`$10 — 20 seats`) read as they always did. A re-kinded bound is flagged `alsoBareNumber` and still matches whatever the bare number matched (`5-10%` against `between 5 and 10%`, `$10-20 seats` against `$10 for 20 seats`), and anchors are chosen with the bare reading, so the change can only add matches.
+- **Word numbers** count only next to a unit, percent, currency or range. A round ten joined to a unit, `twenty-five` or `twenty five`, is one amount (25), never a range of 20 to 5 or just its last word.
 - Dates compare at month resolution: `2026-01-05` and `Jan 2026` are both 202601.
 
 One contradicting excerpt therefore costs a claim twice, the value point and the qualifier point. That is intentional: the gate only asks whether exactness is `< 1`, and the score itself is an uncalibrated signal, not a calibrated probability.
 
 ## Source quality, and why classifying domains is real work
 
-`resolveSourceQuality` (`sourceQuality.ts`) scores one cited URL two ways, and only two. Either the domain matches an **active row in the `evidence-sources` collection** — an explicit human decision — or it falls back to the judge's rubric guess, which is **capped at `UNKNOWN_DOMAIN_CAP` (0.75)**. Longest domain match wins, so a specific subdomain rule beats its parent. A URL that will not parse scores 0: an unusable citation is not evidence. `first_party_dataset` can never come from the rubric at all; only the table can certify a source as our own.
+`resolveSourceQuality` (`sourceQuality.ts`) scores one cited URL two ways, and only two. Either the domain matches an **active row in the `evidence-sources` collection** — an explicit human decision — or it falls back to the judge's rubric guess, which is **capped at `UNKNOWN_DOMAIN_CAP` (0.75)**. Longest domain match wins, so a specific subdomain rule beats its parent. A URL that will not parse scores 0: an unusable citation is not evidence. `first_party_dataset` can never come from the rubric at all; only the table can certify a source as our own. The one other way a claim gets that class is the evidence bank: a claim that restates a bank entry the draft cited is settled by `firstPartyOutcome` without a web search, and its single `Evidence` row carries `qualitySource: 'evidence-bank'`.
 
 The class scores (`SOURCE_QUALITY_SCORE`, uncalibrated policy dials):
 
@@ -174,7 +175,7 @@ Two things become candidates, both filtered through `matchEvidenceRule` so a rat
 
 `collectCandidateSightings` (`cms/src/lib/informationGain/candidates.ts`) builds one sighting per domain per kind, `recordCandidateSightings` (`pipeline/src/informationGain/candidates.ts`) upserts one row per domain, and both run after the run row is created so each sighting carries a real `runId`. The write cannot change a decision — it happens after `decidePolicy` — and it cannot cost one either: a failure is caught and reported through `StageOutcome.warnings`, which `runPipeline` logs, counts as `warned` beside `failed`, and stores on the article's audit row. Throwing instead would strand the article at `qa_passed` and re-buy all three LLM passes on the next run over a queue row.
 
-**The suggestion is a default, not a verdict.** `suggestClass` uses the verifier's own rubric class where there is one — modally across sightings, `unknown` ignored, `blocked` read as `unverified`, ties resolving to the weaker class — and falls back to `secondary` above `SERP_SECONDARY_MIN_DR` (40) or `unverified` below it for a domain only ever seen ranking. It can never return `first_party_dataset` (only a human certifies a source as ours) or `blocked`, and both classes it can return sit at or below `UNKNOWN_DOMAIN_CAP` — so accepting a suggestion unchanged records a judgement without clearing any floor. Only a deliberate choice of `primary`, `official_docs` or `first_party_dataset` does that.
+**The suggestion is a default, not a verdict.** `suggestClass` uses the verifier's own rubric class where there is one — modally across sightings, `unknown` ignored, `blocked` read as `unverified`, ties resolving to the weaker class, then clamped to `secondary` at most, so a rubric guess of `primary` or `official_docs` is suggested as `secondary` — and falls back to `secondary` above `SERP_SECONDARY_MIN_DR` (40) or `unverified` below it for a domain only ever seen ranking. It can never return `first_party_dataset` (only a human certifies a source as ours) or `blocked`, and both classes it can return sit at or below `UNKNOWN_DOMAIN_CAP` — so accepting a suggestion unchanged records a judgement without clearing any floor. Only a deliberate choice of `primary`, `official_docs` or `first_party_dataset` does that.
 
 **`evidence-sources` stays the authority on what is rated.** A candidate's `status` is never consulted for that: the page re-checks every pending row against the live rules on each render, so a rule added by hand takes its domain off the queue and deactivating one puts it back, with no write on either side. The pipeline applies the same rule from the other end — a sighting on an `approved` row means its rule is no longer active, so the row returns to `pending`. A dismissal is a standing answer and is never reopened automatically, though counts and `lastSeenAt` keep moving so a domain that keeps recurring stays visible.
 
@@ -194,7 +195,7 @@ The eleven thresholds (`POLICY_FIELDS` — the single source of truth from which
 | `minNumericTemporalIntegrity` | 0.95 | BLOCK | Integrity floor for a materially novel claim containing numbers, dates or units. |
 | `requireExactValueMatch` | true | BLOCK | A materially novel claim's values must match the evidence exactly (`exactness == 1`). |
 | `requireEvidenceLineage` | true | BLOCK | A materially novel verifiable claim must cite at least one excerpt. |
-| `blockFirstPartyMeasurements` | true | BLOCK | Drafts are model-generated, so a claimed first-party test, survey or dataset is fabricated. |
+| `blockFirstPartyMeasurements` | true | BLOCK | Drafts are model-generated, so a claimed first-party test, survey or dataset is fabricated unless the workspace's evidence bank backs it. |
 | `maxContradictionProbability` | 0.25 | HUMAN_REVIEW | A claim contradicting reliable evidence at or above this needs a human — it may be legitimately new. |
 | `materialNoveltyThreshold` | 0.55 | HUMAN_REVIEW | Novelty at or above this makes a claim "materially novel". A materially novel *inference* needs review. |
 | `maxInternalDuplicationRate` | 0.35 | HUMAN_REVIEW | Share of draft claims already published on this site; at or above this, a consolidation review. |
@@ -212,7 +213,7 @@ And the eleven codes they produce (`POLICY_CODES`):
 | `NOVEL_FACTUAL_CLAIM_REQUIRES_SUPPORT` | BLOCK | claim | A verified, materially novel, non-numeric verifiable claim below its integrity floor. |
 | `NUMERIC_CLAIM_REQUIRES_EXACT_SUPPORT` | BLOCK | claim | Same, for a claim carrying numbers/dates/units — below the numeric floor, or `exactness < 1` under `requireExactValueMatch`. |
 | `EVIDENCE_LINEAGE_MISSING` | BLOCK | claim | A verified, materially novel verifiable claim with an empty evidence list. |
-| `FIRST_PARTY_MEASUREMENT_PRESENT` | BLOCK | claim | The claim's type is `first_party_measurement`. |
+| `FIRST_PARTY_MEASUREMENT_PRESENT` | BLOCK | claim | The claim's type is `first_party_measurement` and it is not a `verified` claim with `evidence-bank` evidence. |
 | `CONTRADICTION_REQUIRES_REVIEW` | HUMAN_REVIEW | claim | `contradictionProbability ≥ maxContradictionProbability`. |
 | `NOVEL_INFERENCE_REQUIRES_REVIEW` | HUMAN_REVIEW | claim | A materially novel claim of type `inference`. |
 
@@ -329,7 +330,7 @@ Named here so nothing below reads as an oversight:
 - **Calibration.** Every 0–1 signal is an uncalibrated model estimate and every stored run says so (`calibrated: false`). The thresholds in `POLICY_FIELDS` are defensible starting points, not measurements. Until a labelled set exists, "novelty 0.6" means "this model said 0.6", not "60% of such claims are novel".
 - **SERP percentiles.** There is no comparison of a draft's scores against the distribution of the pages actually ranking for its keyword. Coverage and gain are absolute numbers against one snapshot, so "good" is a threshold someone chose rather than a position in a field.
 - **Embeddings.** Duplicate detection is the judge's estimate plus a lexical Jaccard near-duplicate check (`NEAR_DUPLICATE_THRESHOLD` 0.8) inside one draft. Nothing is embedded, so a claim reworded past the lexical threshold relies entirely on the judge noticing.
-- **First-party lineage.** `first_party_dataset` is a class the `evidence-sources` table can assign and `blockFirstPartyMeasurements` blocks every claimed first-party measurement outright, because a model-generated draft cannot have run a test. There is no mechanism for a tenant that *does* have first-party data to register a dataset and let a claim cite it. Until there is, the honest answer is the block.
+- **First-party lineage.** `first_party_dataset` is a class the `evidence-sources` table can assign, and `blockFirstPartyMeasurements` blocks a claimed first-party measurement because a model-generated draft cannot have run a test. The exception is the evidence bank: a claim that restates a bank entry the draft cited (`firstPartyMatches`, then `firstPartyOutcome`) is verified with `evidence-bank` evidence and is exempt, because the measurement is the workspace's, not the model's. Every other first-party claim is still blocked.
 - **Excerpt verification for baseline claims.** A baseline claim's `excerpt` is counted, not enforced: unverifiable excerpts are recorded on the snapshot as `pages[].unverifiedExcerptCount` and kept, because dropping them shrinks the baseline and a smaller baseline makes every draft look *more* novel.
 - **Cross-article verifier caching**, per the Cost section above.
 - **`robots.txt`, per-host throttling and 429 backoff** in the crawler, per the Fetch limits section above.

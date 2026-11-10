@@ -3077,7 +3077,7 @@ export interface InformationGainPolicy {
    */
   requireEvidenceLineage?: ('enabled' | 'disabled') | null;
   /**
-   * Drafts are written by a model, so any claim that we ran our own test, survey, or study is fabricated. Block it. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS environment variable, or the built-in default of true.
+   * Drafts are written by a model, so a claim that we ran our own test, survey, or study is fabricated unless it restates an entry in the workspace's evidence bank. Block every other one. If a draft fails this check, it gets blocked from publishing. Leave this blank to fall back to the INFORMATION_GAIN_BLOCK_FIRST_PARTY_MEASUREMENTS environment variable, or the built-in default of true.
    */
   blockFirstPartyMeasurements?: ('enabled' | 'disabled') | null;
   /**

@@ -88,7 +88,7 @@ export const POLICY_FIELDS = [
     kind: 'boolean',
     outcome: 'BLOCK',
     description:
-      'Drafts are written by a model, so any claim that we ran our own test, survey, or study is fabricated. Block it.',
+      "Drafts are written by a model, so a claim that we ran our own test, survey, or study is fabricated unless it restates an entry in the workspace's evidence bank. Block every other one.",
   },
   {
     key: 'maxContradictionProbability',
@@ -291,6 +291,15 @@ function dedupe(reasons: PolicyReason[]): PolicyReason[] {
 }
 
 /**
+ * A claim the workspace's evidence bank verified (`firstPartyOutcome` in the
+ * pipeline). The bank is the one place a draft may get a first-party
+ * measurement from, so `blockFirstPartyMeasurements` does not apply to it.
+ */
+const bankBacked = (claim: ClaimRecord): boolean =>
+  claim.verificationMode === 'verified' &&
+  claim.evidence.some((evidence) => evidence.qualitySource === 'evidence-bank')
+
+/**
  * The gate itself: pure, deterministic, and the only place a decision is made.
  * Every triggered rule is reported; the decision is the most severe of them.
  */
@@ -352,7 +361,11 @@ export function decidePolicy(
       })
     }
 
-    if (policy.blockFirstPartyMeasurements && claim.kind === 'first_party_measurement') {
+    if (
+      policy.blockFirstPartyMeasurements &&
+      claim.kind === 'first_party_measurement' &&
+      !bankBacked(claim)
+    ) {
       reasons.push({
         policy: 'FIRST_PARTY_MEASUREMENT_PRESENT',
         claimId: claim.id,

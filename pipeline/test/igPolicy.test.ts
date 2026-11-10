@@ -498,6 +498,46 @@ describe('decidePolicy', () => {
     assert.deepEqual([...gates.map((g) => g.code)].sort(), [...POLICY_CODES].sort())
   })
 
+  // A first-party claim the evidence bank verified is the bank's measurement,
+  // not the model's, so the block does not apply; every other one still blocks.
+  describe('first-party measurements and the evidence bank', () => {
+    const bankEvidence = (): Evidence => ({
+      ...evidence(),
+      url: '',
+      domain: '',
+      sourceKind: 'first_party_dataset',
+      qualityScore: 1,
+      qualitySource: 'evidence-bank',
+    })
+    const firstParty = (overrides: Partial<ClaimRecord> = {}) =>
+      decidePolicy(
+        makeScorecard(),
+        [makeClaim({ id: 'c005', kind: 'first_party_measurement', ...overrides })],
+        DEFAULT_POLICY,
+      )
+
+    it('does not block a claim the evidence bank verified', () => {
+      const result = firstParty({ evidence: [bankEvidence()] })
+      assert.deepEqual(result.reasons, [])
+      assert.equal(result.decision, 'PASS')
+    })
+
+    it('still blocks one backed only by web evidence', () => {
+      assert.deepEqual(
+        firstParty().reasons.map((r) => r.policy),
+        ['FIRST_PARTY_MEASUREMENT_PRESENT'],
+      )
+    })
+
+    it('still blocks bank evidence on a claim that was not verified', () => {
+      assert.ok(
+        firstParty({ evidence: [bankEvidence()], verificationMode: 'not_applicable' }).reasons.some(
+          (r) => r.policy === 'FIRST_PARTY_MEASUREMENT_PRESENT',
+        ),
+      )
+    })
+  })
+
   it('stops at BASELINE_UNAVAILABLE even when other gates would fire', () => {
     const result = decidePolicy(
       makeScorecard(

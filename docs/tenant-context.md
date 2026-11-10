@@ -304,7 +304,10 @@ stating a first-party fact. `generateStage` finds those markers in every
 generated string field — title, slug, meta and OG fields, FAQ questions and
 answers, and the body — records `{ref, excerpt}` on `article.evidenceCitations`
 where the excerpt is the sentence that carried the marker, and then strips every
-marker before anything is stored. No reader ever sees one.
+marker before anything is stored. No reader ever sees one. `[E<n>]` is always a
+marker, so an invented `[E9]` still reaches QA as an unknown ref; `[F<n>]` and
+`[R<n>]` count only when the bank has that ref, so "press [F5]" in ordinary
+prose is left as it is.
 
 ### Expiry
 

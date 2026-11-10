@@ -2,9 +2,9 @@ import type { Article } from '../../cms/src/payload-types'
 
 import { buildPrompt, buildSystemPrompt } from './generatePrompt'
 import { completeJSONLogged } from './llm'
-import { markdownToLexical } from './richtext'
+import { lexicalToPlainText, markdownToLexical, type RichText } from './richtext'
 import { resolveTemplate, type Stage } from './stages'
-import { evidenceRefsIn, selectIcp, stripEvidenceRefs } from './tenant'
+import { evidenceRefsIn, selectIcp, stripEvidenceRefs, type EvidenceRefOptions } from './tenant'
 
 interface GeneratedArticle {
   title: string
@@ -89,15 +89,23 @@ function sentencesOf(text: string): string[] {
  * the bank, and the review view shows the reviewer the sentence each one is
  * carrying — a bare list of refs would make them hunt for it.
  */
-export function extractEvidenceCitations(fields: (string | null | undefined)[]): EvidenceCitation[] {
+export function extractEvidenceCitations(
+  fields: (string | null | undefined)[],
+  opts?: EvidenceRefOptions,
+): EvidenceCitation[] {
   const seen = new Set<string>()
   const citations: EvidenceCitation[] = []
   for (const field of fields) {
     if (!field) continue
     for (const sentence of sentencesOf(field)) {
-      const refs = evidenceRefsIn(sentence)
+      const refs = evidenceRefsIn(sentence, opts)
       if (refs.length === 0) continue
-      const excerpt = stripEvidenceRefs(sentence).replace(MARKUP_PREFIX, '').trim().slice(0, MAX_EXCERPT)
+      // As plain text, the way the stored body is read back for scoring: a
+      // linked or bolded sentence must still match it word for word.
+      const plain = lexicalToPlainText(
+        markdownToLexical(stripEvidenceRefs(sentence, opts)) as RichText,
+      )
+      const excerpt = plain.replace(MARKUP_PREFIX, '').trim().slice(0, MAX_EXCERPT)
       for (const ref of refs) {
         const key = `${ref}\u0000${excerpt}`
         if (seen.has(key)) continue
@@ -128,6 +136,10 @@ export const generateStage: Stage = {
     // and a marker that survives into the stored article is a leak a reader
     // sees. Collect first, then strip: after stripping there is nothing left to
     // record. `markdownToLexical` runs on the stripped body for the same reason.
+    // `[E<n>]` is always a marker; `[F<n>]` and `[R<n>]` only when this
+    // workspace's bank has that ref, so "press [F5]" in prose is left alone.
+    const refOptions: EvidenceRefOptions = { bank: ctx.tenant.evidenceBank }
+    const strip = (text: string) => stripEvidenceRefs(text, refOptions)
     const citations = extractEvidenceCitations([
       generated.title,
       generated.slug,
@@ -137,22 +149,22 @@ export const generateStage: Stage = {
       generated.ogDescription,
       generated.bodyMarkdown,
       ...generated.faqItems.flatMap((item) => [item.question, item.answer]),
-    ])
+    ], refOptions)
     return {
       status: 'drafted',
       data: {
-        title: stripEvidenceRefs(generated.title),
-        slug: stripEvidenceRefs(generated.slug),
-        titleTag: stripEvidenceRefs(generated.titleTag),
-        metaDescription: stripEvidenceRefs(generated.metaDescription),
-        ogTitle: stripEvidenceRefs(generated.ogTitle),
-        ogDescription: stripEvidenceRefs(generated.ogDescription),
+        title: strip(generated.title),
+        slug: strip(generated.slug),
+        titleTag: strip(generated.titleTag),
+        metaDescription: strip(generated.metaDescription),
+        ogTitle: strip(generated.ogTitle),
+        ogDescription: strip(generated.ogDescription),
         ogImage: generated.ogImage,
         faqItems: generated.faqItems.map((item) => ({
-          question: stripEvidenceRefs(item.question),
-          answer: stripEvidenceRefs(item.answer),
+          question: strip(item.question),
+          answer: strip(item.answer),
         })),
-        body: markdownToLexical(stripEvidenceRefs(generated.bodyMarkdown)) as Article['body'],
+        body: markdownToLexical(strip(generated.bodyMarkdown)) as Article['body'],
         evidenceCitations: citations,
         generationModel: result.model,
       },

@@ -7,6 +7,7 @@ import type { InformationGainRunView, ScorecardClaim } from '../articleStatus'
 /** How a source's quality score was arrived at — see `Evidence.qualitySource`. */
 const QUALITY_SOURCE_LABEL: Record<string, string> = {
   'evidence-sources': 'evidence-sources table',
+  'evidence-bank': 'evidence bank',
   rubric: 'rubric',
   rubric_capped: 'rubric (capped)',
 }

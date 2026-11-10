@@ -245,6 +245,21 @@ describe('toRunView — missing and malformed input', () => {
     expect(view.scores.verifiedGainUnits).toBeNull()
   })
 
+  // A first-party claim verified against the workspace's evidence bank carries
+  // its own quality source; the review page must show it, not "source unknown".
+  it('keeps the evidence-bank quality source', () => {
+    const view = toRunView(
+      run({
+        claims: [
+          claim('c1', {
+            evidence: [{ domain: 'evidence bank', excerpt: 'E3', qualitySource: 'evidence-bank' }],
+          }),
+        ],
+      } as never),
+    )
+    expect(view.claims[0]?.evidence[0]?.qualitySource).toBe('evidence-bank')
+  })
+
   it('falls back to a review decision when the stored decision is not one of the four', () => {
     expect(toRunView(run({ decision: 'MAYBE' } as never)).decision).toBe('HUMAN_REVIEW')
   })
