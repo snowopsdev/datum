@@ -117,8 +117,11 @@ export const SOURCE_QUALITY_CLASSES = [
 
 export type SourceQualityClass = (typeof SOURCE_QUALITY_CLASSES)[number]
 
-/** Where a source's quality score came from: the admin table, the rubric, or a capped rubric score. */
-export type QualitySource = 'evidence-sources' | 'rubric' | 'rubric_capped'
+/**
+ * Where a source's quality score came from: the admin table, the rubric, a
+ * capped rubric score, or the workspace's own evidence bank (`firstPartyOutcome`).
+ */
+export type QualitySource = 'evidence-sources' | 'rubric' | 'rubric_capped' | 'evidence-bank'
 
 export interface Evidence {
   url: string

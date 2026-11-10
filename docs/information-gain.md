@@ -136,7 +136,7 @@ One contradicting excerpt therefore costs a claim twice, the value point and the
 
 ## Source quality, and why classifying domains is real work
 
-`resolveSourceQuality` (`sourceQuality.ts`) scores one cited URL two ways, and only two. Either the domain matches an **active row in the `evidence-sources` collection** — an explicit human decision — or it falls back to the judge's rubric guess, which is **capped at `UNKNOWN_DOMAIN_CAP` (0.75)**. Longest domain match wins, so a specific subdomain rule beats its parent. A URL that will not parse scores 0: an unusable citation is not evidence. `first_party_dataset` can never come from the rubric at all; only the table can certify a source as our own.
+`resolveSourceQuality` (`sourceQuality.ts`) scores one cited URL two ways, and only two. Either the domain matches an **active row in the `evidence-sources` collection** — an explicit human decision — or it falls back to the judge's rubric guess, which is **capped at `UNKNOWN_DOMAIN_CAP` (0.75)**. Longest domain match wins, so a specific subdomain rule beats its parent. A URL that will not parse scores 0: an unusable citation is not evidence. `first_party_dataset` can never come from the rubric at all; only the table can certify a source as our own. The one other way a claim gets that class is the evidence bank: a claim that restates a bank entry the draft cited is settled by `firstPartyOutcome` without a web search, and its single `Evidence` row carries `qualitySource: 'evidence-bank'`.
 
 The class scores (`SOURCE_QUALITY_SCORE`, uncalibrated policy dials):
 
@@ -194,7 +194,7 @@ The eleven thresholds (`POLICY_FIELDS` — the single source of truth from which
 | `minNumericTemporalIntegrity` | 0.95 | BLOCK | Integrity floor for a materially novel claim containing numbers, dates or units. |
 | `requireExactValueMatch` | true | BLOCK | A materially novel claim's values must match the evidence exactly (`exactness == 1`). |
 | `requireEvidenceLineage` | true | BLOCK | A materially novel verifiable claim must cite at least one excerpt. |
-| `blockFirstPartyMeasurements` | true | BLOCK | Drafts are model-generated, so a claimed first-party test, survey or dataset is fabricated. |
+| `blockFirstPartyMeasurements` | true | BLOCK | Drafts are model-generated, so a claimed first-party test, survey or dataset is fabricated unless the workspace's evidence bank backs it. |
 | `maxContradictionProbability` | 0.25 | HUMAN_REVIEW | A claim contradicting reliable evidence at or above this needs a human — it may be legitimately new. |
 | `materialNoveltyThreshold` | 0.55 | HUMAN_REVIEW | Novelty at or above this makes a claim "materially novel". A materially novel *inference* needs review. |
 | `maxInternalDuplicationRate` | 0.35 | HUMAN_REVIEW | Share of draft claims already published on this site; at or above this, a consolidation review. |
@@ -212,7 +212,7 @@ And the eleven codes they produce (`POLICY_CODES`):
 | `NOVEL_FACTUAL_CLAIM_REQUIRES_SUPPORT` | BLOCK | claim | A verified, materially novel, non-numeric verifiable claim below its integrity floor. |
 | `NUMERIC_CLAIM_REQUIRES_EXACT_SUPPORT` | BLOCK | claim | Same, for a claim carrying numbers/dates/units — below the numeric floor, or `exactness < 1` under `requireExactValueMatch`. |
 | `EVIDENCE_LINEAGE_MISSING` | BLOCK | claim | A verified, materially novel verifiable claim with an empty evidence list. |
-| `FIRST_PARTY_MEASUREMENT_PRESENT` | BLOCK | claim | The claim's type is `first_party_measurement`. |
+| `FIRST_PARTY_MEASUREMENT_PRESENT` | BLOCK | claim | The claim's type is `first_party_measurement` and it is not a `verified` claim with `evidence-bank` evidence. |
 | `CONTRADICTION_REQUIRES_REVIEW` | HUMAN_REVIEW | claim | `contradictionProbability ≥ maxContradictionProbability`. |
 | `NOVEL_INFERENCE_REQUIRES_REVIEW` | HUMAN_REVIEW | claim | A materially novel claim of type `inference`. |
 
@@ -329,7 +329,7 @@ Named here so nothing below reads as an oversight:
 - **Calibration.** Every 0–1 signal is an uncalibrated model estimate and every stored run says so (`calibrated: false`). The thresholds in `POLICY_FIELDS` are defensible starting points, not measurements. Until a labelled set exists, "novelty 0.6" means "this model said 0.6", not "60% of such claims are novel".
 - **SERP percentiles.** There is no comparison of a draft's scores against the distribution of the pages actually ranking for its keyword. Coverage and gain are absolute numbers against one snapshot, so "good" is a threshold someone chose rather than a position in a field.
 - **Embeddings.** Duplicate detection is the judge's estimate plus a lexical Jaccard near-duplicate check (`NEAR_DUPLICATE_THRESHOLD` 0.8) inside one draft. Nothing is embedded, so a claim reworded past the lexical threshold relies entirely on the judge noticing.
-- **First-party lineage.** `first_party_dataset` is a class the `evidence-sources` table can assign and `blockFirstPartyMeasurements` blocks every claimed first-party measurement outright, because a model-generated draft cannot have run a test. There is no mechanism for a tenant that *does* have first-party data to register a dataset and let a claim cite it. Until there is, the honest answer is the block.
+- **First-party lineage.** `first_party_dataset` is a class the `evidence-sources` table can assign, and `blockFirstPartyMeasurements` blocks a claimed first-party measurement because a model-generated draft cannot have run a test. The exception is the evidence bank: a claim that restates a bank entry the draft cited (`firstPartyMatches`, then `firstPartyOutcome`) is verified with `evidence-bank` evidence and is exempt, because the measurement is the workspace's, not the model's. Every other first-party claim is still blocked.
 - **Excerpt verification for baseline claims.** A baseline claim's `excerpt` is counted, not enforced: unverifiable excerpts are recorded on the snapshot as `pages[].unverifiedExcerptCount` and kept, because dropping them shrinks the baseline and a smaller baseline makes every draft look *more* novel.
 - **Cross-article verifier caching**, per the Cost section above.
 - **`robots.txt`, per-host throttling and 429 backoff** in the crawler, per the Fetch limits section above.

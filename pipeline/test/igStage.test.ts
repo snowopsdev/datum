@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  decidePolicy,
   DEFAULT_POLICY,
   type ClaimRecord,
   type DocumentScore,
@@ -427,4 +428,30 @@ test('a first-party outcome is verified, first-party sourced, and says it skippe
   assert.equal(outcome.contradictionProbability, 0)
   assert.equal(outcome.evidence[0].sourceKind, 'first_party_dataset')
   assert.match(String(outcome.verifierNotes), /evidence-bank entry E1; not sent to the web verifier/)
+})
+
+test('a first-party claim the evidence bank backs clears the first-party gate', () => {
+  const claim = draftClaim({
+    id: 'c004',
+    type: 'first_party_measurement',
+    text: 'Our median onboarding time across 120 customers is 11 days.',
+  })
+  const recordWith = (verification: ReturnType<typeof unverifiedOutcome>) =>
+    buildClaimRecord(
+      { claim, judge: deriveJudgeSignals(judgeReply(), cluster), intraDocumentNovelty: 1, verification },
+      DEFAULT_POLICY,
+    )
+  const banked = recordWith(firstPartyOutcome('E1', claim.text))
+  assert.equal(banked.evidence[0]?.qualitySource, 'evidence-bank')
+  assert.deepEqual(
+    decidePolicy(scorecardFor(), [banked], DEFAULT_POLICY).reasons.map((r) => r.policy),
+    [],
+  )
+  // The same claim without the bank behind it is still a fabricated measurement.
+  const unbacked = recordWith(unverifiedOutcome('first_party_measurement'))
+  assert.ok(
+    decidePolicy(scorecardFor(), [unbacked], DEFAULT_POLICY).reasons.some(
+      (r) => r.policy === 'FIRST_PARTY_MEASUREMENT_PRESENT',
+    ),
+  )
 })
