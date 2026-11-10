@@ -107,7 +107,7 @@ describe('lexicalToHtml', () => {
     const out = html(
       '## <script>alert(1)</script>\n<img src=x onerror=alert(1)> **<b>x</b>**\n- <script>y</script>\n> "q" & <i>',
     )
-    expect(out).not.toMatch(/<script|<img|<b>|<i>/)
+    expect(out).not.toMatch(/<script|<img|<b>|<i>/i)
     expect(out).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(out).toContain('<strong>&lt;b&gt;x&lt;/b&gt;</strong>')
     expect(out).toContain('<blockquote>&quot;q&quot; &amp; &lt;i&gt;</blockquote>')
