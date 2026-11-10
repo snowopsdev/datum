@@ -29,7 +29,7 @@ type RunStatus = PipelineRun['status']
 export class RunLeaseLostError extends Error {
   constructor(readonly runId: string) {
     super(
-      `Run ${runId} is no longer running: it was marked failed while this process was working on it. Nothing further was written.`,
+      `Run ${runId} is no longer running: it was marked failed (by recover-stale-runs, once its heartbeat lapsed), so this process stopped without writing to it.`,
     )
     this.name = 'RunLeaseLostError'
   }
