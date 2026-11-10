@@ -59,35 +59,40 @@ describe('extractText', () => {
 })
 
 describe('brand voice extraction', () => {
-  it('follows the pipeline mock rule: MOCK_MODE wins, else mock without the model provider key', () => {
+  it('follows the shared mock rule: MOCK_MODE wins, else live only with a provider key', () => {
     expect(extractionMockMode({})).toBe(true)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k' })).toBe(false)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', MOCK_MODE: 'true' })).toBe(true)
     expect(extractionMockMode({ MOCK_MODE: 'false' })).toBe(false)
-    expect(extractionModel({})).toBe('claude-opus-5')
+    expect(extractionModel({})).toBe('claude-haiku-4-5')
     expect(extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' })).toBe('claude-sonnet-5')
     expect(
       extractionModel({ BRAND_VOICE_EXTRACT_MODEL: 'claude-sonnet-5' }, { brandVoiceExtractModel: 'gpt-5.6-terra' }),
     ).toBe('gpt-5.6-terra')
   })
 
-  it('mocks or not based on the model actually passed in, not just the env default', () => {
-    expect(extractionMockMode({ OPENAI_API_KEY: 'k' }, 'gpt-5.6-sol')).toBe(false)
-    expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k' }, 'gpt-5.6-sol')).toBe(true)
+  it('defaults to the generate model\'s provider, so an OpenAI-only workspace is not refused', () => {
+    const env = { OPENAI_API_KEY: 'k', PIPELINE_MODEL_GENERATE: 'gpt-5.6-terra' }
+    expect(extractionModel(env)).toBe('gpt-5.4-mini')
+    expect(extractionMockMode(env)).toBe(false)
+    expect(extractionModel({ OPENAI_API_KEY: 'k' }, { generateModel: 'gpt-5' })).toBe('gpt-5.4-mini')
   })
 
-  it('needs the OpenAI key, not the Anthropic one, when the extraction model is a gpt-* id', () => {
-    expect(extractionMockMode({ OPENAI_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(false)
-    expect(extractionMockMode({ ANTHROPIC_API_KEY: 'k', BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' })).toBe(true)
-    expect(extractionMockMode({ OPENAI_API_KEY: 'k' })).toBe(true)
-  })
-
-  it('never leaves mock mode without the model key, whatever else the environment carries', () => {
-    // Only the selected model's own key is consent to spend. Nothing else a
-    // dev machine happens to hold may flip an upload into a live, billed call.
+  it('does not go live without a key, whatever else the environment carries', () => {
     expect(extractionMockMode({ SOME_OTHER_CREDENTIAL: 'present' })).toBe(true)
     expect(extractionMockMode({ ANTHROPIC_API_KEY: '' })).toBe(true)
-    expect(extractionMockMode({ MOCK_MODE: 'false' })).toBe(false)
+  })
+
+  it('in live mode with the model key missing, errors naming the key instead of returning the demo', async () => {
+    vi.stubEnv('MOCK_MODE', 'false')
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    try {
+      await expect(
+        extractBrandVoiceFromText({ text: 'x', filename: 'guide.md', model: 'claude-opus-5' }),
+      ).rejects.toThrow(/Brand voice extraction cannot run.*needs ANTHROPIC_API_KEY/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('refuses a model id neither provider serves rather than guessing one', async () => {

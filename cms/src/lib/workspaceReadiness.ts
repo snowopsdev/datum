@@ -12,6 +12,7 @@ import {
   type PipelineStage,
   resolveStageModels,
 } from './llmSettings'
+import { runModeFromEnv, runModeProblem } from './runMode'
 import {
   COMPETITOR_DOMAINS_ENV_VAR,
   type EvidenceBankContent,
@@ -175,13 +176,10 @@ function configured(value: string | undefined): boolean {
   return Boolean(value?.trim())
 }
 
-// Only an API key flips a workspace live on its own, matching
-// `pipeline/src/config.ts`: nothing else a dev machine happens to carry counts.
+// The rule lives in `runMode.ts`, shared with the pipeline config and the
+// CMS-side model calls so they cannot disagree about mock versus live.
 export function modeFromEnv(env: Record<string, string | undefined>): PipelineMode {
-  const value = env.MOCK_MODE?.trim().toLowerCase()
-  if (value === 'false' || value === '0' || value === 'no') return 'live'
-  if (value === 'true' || value === '1' || value === 'yes') return 'mock'
-  return configured(env.ANTHROPIC_API_KEY) || configured(env.OPENAI_API_KEY) ? 'live' : 'mock'
+  return runModeFromEnv(env)
 }
 
 function fingerprint(value: unknown): string {
@@ -240,7 +238,9 @@ export function evaluateRuntimeReadiness(
   }
 
   const sortedMissing = [...missing].sort()
+  const modeProblem = runModeProblem(input.env)
   const problems = [
+    ...(modeProblem ? [modeProblem] : []),
     ...(placeholderVars.length > 0
       ? [
           `Replace the .env.example placeholders in ${placeholderVars.join(', ')}, or fill in the Workspace step (what is saved there is used instead)`,

@@ -3000,7 +3000,7 @@ export interface LlmSetting {
       )
     | null;
   /**
-   * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the platform default (Claude Opus 5).
+   * Turns an uploaded brand guide into a brand voice draft. Leave blank to use BRAND_VOICE_EXTRACT_MODEL from the environment, or the small model of the generate model's provider (Claude Haiku 4.5, or GPT-5.4 mini for a GPT writer).
    */
   brandVoiceExtractModel?:
     | (

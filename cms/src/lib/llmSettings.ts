@@ -148,7 +148,15 @@ export function resolveExtractionModel(
   settings: LlmSettingsDoc | null | undefined,
   env: Record<string, string | undefined>,
 ): ResolvedModel {
-  return resolveModel(settings?.brandVoiceExtractModel, env[EXTRACTION_ENV_VAR])
+  // Unset follows the generate model's provider (the small model of it, like
+  // topic relevance), so a workspace holding only an OpenAI key is not refused
+  // for an Anthropic model it never chose.
+  const generate = resolveStageModels(settings, env).generate.model
+  return resolveModel(
+    settings?.brandVoiceExtractModel,
+    env[EXTRACTION_ENV_VAR],
+    smallModelLike(generate),
+  )
 }
 
 /**

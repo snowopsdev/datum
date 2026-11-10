@@ -104,6 +104,7 @@ export const LlmSettings: GlobalConfig = {
       'Brand voice extraction',
       EXTRACTION_ENV_VAR,
       'Turns an uploaded brand guide into a brand voice draft.',
+      SMALL_DEFAULT,
     ),
     modelField(
       'setupAssistModel',
