@@ -6,7 +6,7 @@ import type { Stage } from '../../../pipeline/src/stages'
 
 // The real stage loop with one fake stage, so these tests exercise the actual
 // article write the loop commits; only the workspace inputs are faked.
-const fake = vi.hoisted(() => ({ stages: [] as Stage[] }))
+const fake = vi.hoisted(() => ({ stages: [] as Stage[], ahrefs: {} as unknown }))
 
 vi.mock('../../../pipeline/src/runContext', () => ({
   loadStageInputs: vi.fn().mockResolvedValue({
@@ -17,6 +17,8 @@ vi.mock('../../../pipeline/src/runContext', () => ({
     payload,
     runId,
     mode,
+    tenant: { icps: [] },
+    ahrefs: fake.ahrefs,
   })),
 }))
 vi.mock('../../../pipeline/src/stages', async (importOriginal) => {
@@ -159,5 +161,51 @@ describe('the article write a content run commits', () => {
     const after = await readRun(run.id)
     expect(after.status).toBe('failed')
     expect(after.errorSummary).toBe('recovered under the worker')
+  })
+})
+
+describe('the topics a discovery run creates', () => {
+  it('are refused once the run was recovered, before the heartbeat notices', async () => {
+    const keyword = `fence discovery ${randomUUID()}`
+    const run = await payload.create({
+      collection: 'pipeline-runs',
+      overrideAccess: true,
+      data: {
+        runId: randomUUID(),
+        source: 'admin',
+        status: 'queued',
+        mode: 'mock',
+        template: templateId,
+        requestedCount: 1,
+        requestedBy: 'test',
+        configFingerprint: 'test',
+        configSnapshot: {},
+      },
+    })
+    runIds.push(run.id)
+    fake.ahrefs = {
+      contentGapKeywords: async () => {
+        // Recovery fails the run while discovery is asking for topics.
+        await payload.update({
+          collection: 'pipeline-runs',
+          id: run.id,
+          data: { status: 'failed', errorSummary: 'recovered under the worker' },
+          overrideAccess: true,
+        })
+        return [{ keyword, volume: 10, difficulty: 1, bestCompetitorPosition: 1 }]
+      },
+    }
+
+    await expect(
+      quietly(() => executeContentRun(payload, run, { heartbeatIntervalMs: 60 * 60_000 })),
+    ).rejects.toThrow('no longer running')
+
+    const { totalDocs } = await payload.count({
+      collection: 'articles',
+      where: { keyword: { equals: keyword } },
+      overrideAccess: true,
+    })
+    expect(totalDocs).toBe(0)
+    expect((await readRun(run.id)).errorSummary).toBe('recovered under the worker')
   })
 })

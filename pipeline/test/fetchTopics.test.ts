@@ -90,3 +90,41 @@ it('creates no topic once the run signal is aborted', async () => {
   assert.equal(asked, false)
   assert.deepEqual(created, [])
 })
+
+it('creates each topic through the run fence, and stops when it refuses', async () => {
+  const created: string[] = []
+  const requests: unknown[] = []
+  const fence = { req: { transactionID: 'lock' }, owns: true }
+  const ctx = {
+    tenant: emptyTenantContext(),
+    runId: 'fenced',
+    mode: 'mock' as const,
+    payload: {
+      find: async () => ({ docs: [] }),
+      create: async ({ data, req }: { data: { keyword: string }; req?: unknown }) => {
+        created.push(data.keyword)
+        requests.push(req)
+        // Recovery takes the row after the first topic lands.
+        fence.owns = false
+        return { id: created.length }
+      },
+    } as unknown as Payload,
+    ahrefs: {
+      contentGapKeywords: async () => [
+        { keyword: 'first topic', volume: 20, difficulty: 1, bestCompetitorPosition: 1 },
+        { keyword: 'second topic', volume: 10, difficulty: 1, bestCompetitorPosition: 2 },
+      ],
+    } as unknown as AhrefsClient,
+  }
+  const commitArticle = async (write: (req?: never) => Promise<void>) => {
+    if (!fence.owns) return false
+    await write(fence.req as never)
+    return true
+  }
+  await assert.rejects(
+    fetchTopics(ctx, { count: 2, templateId: 1, commitArticle }),
+    /no longer owns its row/,
+  )
+  assert.deepEqual(created, ['first topic'])
+  assert.deepEqual(requests, [fence.req])
+})

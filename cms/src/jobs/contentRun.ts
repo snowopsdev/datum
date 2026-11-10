@@ -90,6 +90,7 @@ export async function executeContentRun(
         count: run.requestedCount,
         templateId,
         icpId: (tenant.icps.find((icp) => icp.primary)?.id as number | undefined) ?? null,
+        commitArticle: heartbeat.commit,
       })
       articleIds = fetched.createdIds
       if (articleIds.length === 0) {
