@@ -7,20 +7,6 @@ import { formatAuditTimestamp } from './articleStatus'
 import type { SetupChecklistData } from './SetupChecklist'
 
 /**
- * Everything the setup hub renders, gathered once.
- *
- * `/admin` and `/admin/ops/setup` show the same rows, so they load them
- * the same way rather than each deciding what a row says. Readiness supplies
- * the states; the two extra reads are for the two names a person recognises —
- * the active voice and the primary audience — which readiness only tracks by
- * id, and for the site-page crawl, which lives on the profile global (its
- * count is read in SQL so the crawled text never loads).
- *
- * The fetched-at stamp is formatted here, on the server, in UTC. A relative
- * "2 h ago" computed in the browser would disagree with the server's own
- * render and hydrate badly, and this page is opened, read, and left.
- */
-/**
  * How many pages the last site fetch stored. The pages are crawled text and can
  * be large, so the length is taken in SQL instead of loading the JSON to count it.
  */
@@ -34,6 +20,20 @@ async function countSitePages(payload: Payload): Promise<number> {
   return Number(result.rows[0]?.count ?? 0)
 }
 
+/**
+ * Everything the setup hub renders, gathered once.
+ *
+ * `/admin` and `/admin/ops/setup` show the same rows, so they load them
+ * the same way rather than each deciding what a row says. Readiness supplies
+ * the states; the two extra reads are for the two names a person recognises —
+ * the active voice and the primary audience — which readiness only tracks by
+ * id, and for the site-page crawl, which lives on the profile global (its
+ * count is read in SQL so the crawled text never loads).
+ *
+ * The fetched-at stamp is formatted here, on the server, in UTC. A relative
+ * "2 h ago" computed in the browser would disagree with the server's own
+ * render and hydrate badly, and this page is opened, read, and left.
+ */
 export async function loadSetupChecklistData(
   payload: Payload,
   loadedSetup?: WorkspaceSetupData,

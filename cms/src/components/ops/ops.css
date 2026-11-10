@@ -2095,7 +2095,7 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 
 /* ── Global run bar ─────────────────────────────────────────────────────
    Mounted from a Payload provider, so it is outside `.datum-ops`. It only uses
-   the colour tokens (`--ops-*`, `--ds-*`), which live on :root. */
+   the `--ops-*` and `--ds-*` tokens (colour and motion), which live on :root. */
 
 .datum-runbar {
   position: fixed;

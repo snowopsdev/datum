@@ -23,9 +23,10 @@ graphify update .   # local AST pass, no API cost
 ```
 
 If `graphify` is not found, run `uv tool update-shell` and open a new terminal.
-Re-run `graphify update .` after code changes, a `git pull`, or a merge. Optional:
-`graphify hook install` rebuilds the graph in the background after commits and
-branch switches; re-run it after upgrading the CLI to refresh its interpreter path.
+Re-run `graphify update .` after code changes, a `git pull`, or a merge. Do not
+run `graphify hook install` in this repository: it also registers a git merge
+driver and writes a `.gitattributes` line for `graphify-out/graph.json`, which
+only made sense while the graph was tracked.
 
 The checked-in `.codex/skills/graphify/SKILL.md` bootstrap only detects an
 existing installation; it never installs or upgrades packages automatically.
