@@ -18,6 +18,8 @@ let voiceId: number
 let bankOriginal: unknown
 // Runs right after the assets are read, i.e. inside the window.
 const between = vi.hoisted(() => ({ run: null as null | (() => Promise<void>) }))
+// Lets one test make the brand-voice save refuse, the way a gate would.
+const voiceSave = vi.hoisted(() => ({ refuse: null as null | string }))
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/requireUser', () => ({ requireUser: async () => ({ payload, user }) }))
@@ -30,6 +32,17 @@ vi.mock('@/lib/setupSuggestions/collect', async (importOriginal) => {
       await between.run?.()
       return assets
     },
+  }
+})
+
+vi.mock('@/components/ops/brandVoiceActions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ops/brandVoiceActions')>()
+  return {
+    ...actual,
+    saveBrandVoiceDraftAction: (async (...args: Parameters<typeof actual.saveBrandVoiceDraftAction>) =>
+      voiceSave.refuse
+        ? { ok: false, error: voiceSave.refuse }
+        : actual.saveBrandVoiceDraftAction(...args)) as typeof actual.saveBrandVoiceDraftAction,
   }
 })
 
@@ -61,6 +74,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   between.run = null
+  voiceSave.refuse = null
 })
 
 afterAll(async () => {
@@ -171,4 +185,24 @@ it('does not overwrite a brand voice saved between the read and the write', asyn
   })
   expect(voice.name).toContain('Renamed by a colleague')
   expect(JSON.stringify(voice.bannedWords ?? [])).not.toContain(phrase)
+})
+
+// The brand-voice save answers a refusal as a value, not a throw. Accepting must
+// pass it on and leave the suggestion open, not mark it accepted with the word
+// never written.
+it('leaves a banned-word suggestion open when the brand voice save is refused', async () => {
+  const phrase = `phrase ${randomUUID().replaceAll('-', '')}`
+  const row = await suggest('banned_word', { phrase })
+  voiceSave.refuse = 'An active brand voice must stay complete.'
+
+  const result = await acceptSuggestionAction(row.id)
+
+  expect(result).toEqual({ ok: false, error: 'An active brand voice must stay complete.' })
+  const after = await payload.findByID({
+    collection: 'setup-suggestions',
+    id: row.id,
+    depth: 0,
+    overrideAccess: true,
+  })
+  expect(after.status).toBe('open')
 })

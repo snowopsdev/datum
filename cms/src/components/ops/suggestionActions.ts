@@ -7,6 +7,7 @@ import { decideSuggestion, requireSuggestionAdmin } from '../../lib/setupSuggest
 import { saveBrandVoiceDraftAction } from './brandVoiceActions'
 import { saveEvidenceBankAction } from './tenantActions'
 import type { SuggestionActionResult } from './suggestionTypes'
+const NEVER_SAVED = new Date(0).toISOString()
 const CHANGED_MESSAGE =
   'Someone else saved this since you opened it. Reload to see their changes, then accept again.'
 const refresh = () => {
@@ -66,13 +67,16 @@ export async function acceptSuggestionAction(
         overrideAccess: true,
       })
       if (latest.updatedAt !== assets.voice.updatedAt) return { ok: false, error: CHANGED_MESSAGE }
-      await saveBrandVoiceDraftAction(assets.voice.id, {
+      // The save answers a refusal as a value now; without this check the
+      // suggestion would be marked accepted with the word never written.
+      const saved = await saveBrandVoiceDraftAction(assets.voice.id, {
         ...assets.voiceContent,
         onboardingStep: assets.voice.onboardingStep ?? 0,
         bannedWords: banned.some((w) => w.word.toLowerCase() === phrase.toLowerCase())
           ? banned
           : [...banned, { word: phrase, note: 'Removed repeatedly by reviewers' }],
       })
+      if (!saved.ok) return { ok: false, error: saved.error }
     } else if (row.kind === 'unbacked_claim') {
       const claim = typeof p.claim === 'string' ? p.claim.trim() : ''
       if (!claim) throw new Error('The suggestion has no claim.')
@@ -121,7 +125,9 @@ export async function acceptSuggestionAction(
                 : bank.rejectedClaims,
           },
           undefined,
-          assets.bankDoc.updatedAt,
+          // A bank never saved has no `updatedAt`; the epoch stands for "never
+          // saved" so a first save landing in the window still counts as a change.
+          assets.bankDoc.updatedAt ?? NEVER_SAVED,
         )
         if (!saved.ok) throw new Error(saved.error)
       }
