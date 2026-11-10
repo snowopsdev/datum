@@ -457,7 +457,8 @@ describe('useDirtyGuard', () => {
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     const prevented = !screen.getByRole('link', { name: 'Elsewhere' }).dispatchEvent(click)
     // jsdom's own "navigation not implemented" is the default action; nothing stopped it.
-    expect(click.defaultPrevented).toBe(prevented)
+    expect(prevented).toBe(false)
+    expect(click.defaultPrevented).toBe(false)
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 

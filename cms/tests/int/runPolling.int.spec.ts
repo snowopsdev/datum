@@ -140,7 +140,17 @@ describe('run polling wake', () => {
     changeVisibility(false)
     await vi.advanceTimersByTimeAsync(0)
     expect(poll).toHaveBeenCalledTimes(2)
+    // A `stopped` flag alone would also make the later wake a no-op, so check
+    // that the listeners themselves are taken off, with the same functions
+    // that were put on.
+    const added = vi.spyOn(wakeTarget, 'addEventListener')
+    const removed = vi.spyOn(wakeTarget, 'removeEventListener')
+    expect(listeners.size).toBe(1)
     stop()
+    expect(listeners.size).toBe(0)
+    expect(removed).toHaveBeenCalledTimes(1)
+    expect(removed).toHaveBeenCalledWith('datum:run-queued', expect.any(Function))
+    expect(added).not.toHaveBeenCalled()
     announce()
     await vi.advanceTimersByTimeAsync(30000)
     expect(poll).toHaveBeenCalledTimes(2)
