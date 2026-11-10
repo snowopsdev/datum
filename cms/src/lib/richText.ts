@@ -99,8 +99,24 @@ const LINK_AT_START = /^\[([^[\]]+)\]\(([^()\s]+)\)/
 const isSpace = (ch: string | undefined) => ch === undefined || /\s/.test(ch)
 const isWordChar = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}]/u.test(ch)
 
-/** Index of the closing run of `n` `marker` characters at or after `from`, or -1. */
-function findCloser(src: string, marker: string, n: number, from: number): number {
+/**
+ * Index of the closing run of `n` `marker` characters at or after `from`, or -1.
+ *
+ * `misses` remembers, per marker and run length, the lowest `from` that found
+ * nothing. Whether a position is a valid closer does not depend on `from`, so
+ * a later search that starts at or after it cannot succeed either. Without it,
+ * a line of n unclosed openers rescans the rest of the line n times.
+ */
+function findCloser(
+  src: string,
+  marker: string,
+  n: number,
+  from: number,
+  misses: Map<string, number>,
+): number {
+  const key = marker + n
+  const missedFrom = misses.get(key)
+  if (missedFrom !== undefined && from >= missedFrom) return -1
   const needle = marker.repeat(n)
   for (let j = src.indexOf(needle, from); j !== -1; j = src.indexOf(needle, j + 1)) {
     if (isSpace(src[j - 1])) continue
@@ -109,11 +125,13 @@ function findCloser(src: string, marker: string, n: number, from: number): numbe
     if (marker === '_' && isWordChar(src[j + n])) continue
     return j
   }
+  misses.set(key, Math.min(from, missedFrom ?? from))
   return -1
 }
 
 function parseInline(src: string, format = 0, inLink = false): LexicalNode[] {
   const out: LexicalNode[] = []
+  const misses = new Map<string, number>()
   let buf = ''
   const flush = () => {
     if (buf) out.push(textNode(buf, format))
@@ -153,7 +171,7 @@ function parseInline(src: string, format = 0, inLink = false): LexicalNode[] {
       while (src[i + run] === ch) run++
       const n = Math.min(run, 3)
       const opens = !isSpace(src[i + n]) && (ch === '*' || !isWordChar(src[i - 1]))
-      const close = opens ? findCloser(src, ch, n, i + n) : -1
+      const close = opens ? findCloser(src, ch, n, i + n, misses) : -1
       if (close > i + n) {
         flush()
         const bits = n === 1 ? FORMAT_ITALIC : n === 2 ? FORMAT_BOLD : FORMAT_BOLD | FORMAT_ITALIC

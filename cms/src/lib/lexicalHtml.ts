@@ -3,6 +3,7 @@ import {
   extractHeadings,
   lexicalToHtml,
   lexicalToMarkdown,
+  lexicalToText,
   markdownToLexical,
 } from './richText'
 
@@ -26,10 +27,20 @@ export function lastH2HeadingText(body: Article['body']): string | null {
 }
 
 /**
- * Lexical → markdown lines for config textareas and prompts (headings, list
- * items, quotes and inline marks are kept), one block per line.
+ * Lexical → plain text, one line per block and per list item, no markers. For
+ * anything that reads the words (reading time, phrase matching); the template
+ * textareas use `lexicalToMarkdownText`.
  */
 export function lexicalToPlainText(body: RichText | null | undefined): string {
+  return lexicalToText(body)
+}
+
+/**
+ * Lexical → markdown lines for config textareas (headings, list items, quotes
+ * and inline marks are kept), one block per line, so `plainTextToLexical` reads
+ * the same content back.
+ */
+export function lexicalToMarkdownText(body: RichText | null | undefined): string {
   return lexicalToMarkdown(body, '\n')
 }
 

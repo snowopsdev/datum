@@ -3,7 +3,12 @@ import { getPayload } from 'payload'
 import { describe, expect, it } from 'vitest'
 
 import config from '@/payload.config'
-import { lexicalBodyToHtml, lexicalToPlainText, plainTextToLexical } from '@/lib/lexicalHtml'
+import {
+  lexicalBodyToHtml,
+  lexicalToMarkdownText,
+  lexicalToPlainText,
+  plainTextToLexical,
+} from '@/lib/lexicalHtml'
 import { lexicalToHtml, lexicalToMarkdown, markdownToLexical, safeLinkUrl } from '@/lib/richText'
 
 const html = (md: string) => lexicalToHtml(markdownToLexical(md))
@@ -182,9 +187,29 @@ describe('template textarea round trip', () => {
   it('keeps lists, marks and links when a template outline is read and saved again', () => {
     const text = '## Intro\n- one\n- **two**\n1. a\n2. [b](/x)\nAfter.'
     const body = plainTextToLexical(text)
-    expect(lexicalToPlainText(body)).toBe(text)
-    expect(plainTextToLexical(lexicalToPlainText(body))).toEqual(body)
+    expect(lexicalToMarkdownText(body)).toBe(text)
+    expect(plainTextToLexical(lexicalToMarkdownText(body))).toEqual(body)
     expect(lexicalToMarkdown(body, '\n')).toBe(text)
+  })
+
+  // Readers of the words (reading time, banned-phrase matching) get no markers:
+  // a bolded half of a phrase must still match the phrase.
+  it('gives plain text with no markdown to the readers that want words', () => {
+    const body = plainTextToLexical('- a game **changer** for [you](/x)')
+    expect(lexicalToPlainText(body)).toBe('a game changer for you')
+  })
+})
+
+describe('inline parsing cost', () => {
+  // Every unclosed opener used to rescan the rest of the line: quadratic in
+  // the line's length, reachable from a template save or the writer's output.
+  it('converts a long line of unclosed emphasis openers in linear time', () => {
+    for (const unit of ['*a ', '_a ', '**a ', '*a **b ***c ']) {
+      const line = unit.repeat(Math.ceil(100_000 / unit.length))
+      const started = performance.now()
+      lexicalBodyToHtml(plainTextToLexical(line) as never)
+      expect(performance.now() - started).toBeLessThan(1000)
+    }
   })
 })
 

@@ -1,4 +1,4 @@
-import { lexicalToPlainText } from '../../lib/lexicalHtml'
+import { lexicalToMarkdownText } from '../../lib/lexicalHtml'
 import { type CompanyMentions, companyMentionsOf } from '../../lib/tenant/companyMentions'
 import type { Template } from '../../payload-types'
 
@@ -31,8 +31,8 @@ export function toTemplateDTO(doc: Template): TemplateConfigDTO {
     name: doc.name,
     updatedAt: doc.updatedAt,
     companyMentions: companyMentionsOf(doc),
-    outline: lexicalToPlainText(doc.outline),
-    example: lexicalToPlainText(doc.example),
+    outline: lexicalToMarkdownText(doc.outline),
+    example: lexicalToMarkdownText(doc.example),
     dos: (doc.dos ?? []).map((d) => d.text),
     donts: (doc.donts ?? []).map((d) => d.text),
     requiredSections: (doc.requiredSections ?? []).map((s) => s.heading),
