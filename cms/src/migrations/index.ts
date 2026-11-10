@@ -21,6 +21,7 @@ import * as migration_20261007_133223_brief_angles from './20261007_133223_brief
 import * as migration_20261007_133736_topic_relevance from './20261007_133736_topic_relevance';
 import * as migration_20261007_134746_setup_suggestions from './20261007_134746_setup_suggestions';
 import * as migration_20261021_145609_article_content_updated_at from './20261021_145609_article_content_updated_at';
+import * as migration_20261109_221312_payload_3_91_auth_fields from './20261109_221312_payload_3_91_auth_fields';
 
 export const migrations = [
   {
@@ -136,6 +137,11 @@ export const migrations = [
   {
     up: migration_20261021_145609_article_content_updated_at.up,
     down: migration_20261021_145609_article_content_updated_at.down,
-    name: '20261021_145609_article_content_updated_at'
+    name: '20261021_145609_article_content_updated_at',
+  },
+  {
+    up: migration_20261109_221312_payload_3_91_auth_fields.up,
+    down: migration_20261109_221312_payload_3_91_auth_fields.down,
+    name: '20261109_221312_payload_3_91_auth_fields'
   },
 ];
