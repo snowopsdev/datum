@@ -103,19 +103,31 @@ test('content pagination, search, selection, and browser history', async ({ page
 test('review loads model evidence once on expansion', async ({ page }) => {
   const response = await page.goto(`/admin/ops/articles/${ids[0]}`)
   expect(await response?.text()).not.toContain('DEFERRED_EVIDENCE_SENTINEL')
+  // `onToggle` is attached by React, so a click before hydration opens the
+  // <details> natively and never asks for the evidence.
+  await expect(page.locator('aside.nav')).toHaveClass(/nav--nav-hydrated/)
+  // Only the evidence action's own requests count. The run bar also polls by
+  // POST (a server action) every 15 s, and any POST counted here would make
+  // the test fail whenever a poll lands inside it. That action's arguments
+  // carry the article id; the poll's do not.
+  const evidenceRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && (request.postData() ?? '').includes('"articleId"')) {
+      evidenceRequests.push(request.postData() ?? '')
+    }
+  })
   const entry = page
     .locator('.datum-ops__timeline-item')
     .filter({ hasText: 'generate call completed' })
   await entry.getByText('Evidence', { exact: true }).click()
   await expect(entry.locator('pre')).toContainText('DEFERRED_EVIDENCE_SENTINEL')
-  let requests = 0
-  page.on('request', (request) => {
-    if (request.method() === 'POST') requests++
-  })
+  // The filter above does match the evidence request: without this, a filter
+  // that matched nothing would make the zero below prove nothing.
+  expect(evidenceRequests).toHaveLength(1)
   await entry.getByText('Evidence', { exact: true }).click()
   await entry.getByText('Evidence', { exact: true }).click()
   await expect(entry.locator('pre')).toContainText('Full model response')
-  expect(requests).toBe(0)
+  expect(evidenceRequests).toHaveLength(1)
 })
 
 test('reports render summaries and switch period', async ({ page }) => {
