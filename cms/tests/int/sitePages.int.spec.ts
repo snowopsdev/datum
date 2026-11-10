@@ -158,6 +158,19 @@ describe('refreshSitePagesAction', () => {
     expect((row?.details as { urls: string[] }).urls).toHaveLength(4)
   })
 
+  it('answers instead of throwing when the caller is signed out or the crawl faults', async () => {
+    authMock.mockResolvedValueOnce({ user: null } as never)
+    expect(await refreshSitePagesAction()).toEqual({
+      ok: false,
+      error: 'Sign in to fetch the site pages.',
+    })
+
+    fetchPageMock.mockImplementation(async () => {
+      throw new Error('socket hang up')
+    })
+    expect(await refreshSitePagesAction()).toEqual({ ok: false, error: 'socket hang up' })
+  })
+
   it('caps the stored set at eight pages and each body at the text ceiling', async () => {
     const paths = [
       '/about',
