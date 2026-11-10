@@ -248,6 +248,11 @@ components:
 
 ---
 
+> **Scope.** This is the visual reference for the public reader pages
+> (`cms/src/app/(frontend)`), which still follow it. It was written as an analysis
+> of Notion's design language and does not describe the admin. The admin's tokens
+> live in `cms/src/components/ops/ops.css` and are checked by
+> `cms/tests/int/dsContrast.int.spec.ts`.
 
 ## Overview
 
