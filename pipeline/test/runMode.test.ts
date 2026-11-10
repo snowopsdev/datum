@@ -50,7 +50,7 @@ describe('runModeFromEnv', () => {
     }
     assert.equal(
       runModeProblem({ MOCK_MODE: ' tru ' }),
-      'MOCK_MODE has an unrecognised value: "tru". Running in mock mode; set it to true or false',
+      'MOCK_MODE has an unrecognised value: "tru". Treated as mock mode until it is set to true or false',
     )
   })
 })
