@@ -1,4 +1,4 @@
-import type { Payload, Where } from 'payload'
+import type { Payload, PayloadRequest, Where } from 'payload'
 
 import type { Article, Template } from '../../cms/src/payload-types'
 
@@ -42,11 +42,11 @@ export interface StageContext {
   /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
   llm?: LlmClient
   /**
-   * Stop at `brief_review` after research so a person approves the brief
-   * before writing is paid for. Defaults to on; only the onboarding smoke test
-   * turns it off, because nobody is there to approve.
+   * Aborted when the run loses its lease. Discovery checks it before each
+   * write and `completeJSONLogged` before each model call, so a long stage
+   * stops between steps instead of finishing work a recovered run gave up.
    */
-  pauseForBrief?: boolean
+  signal?: AbortSignal
 }
 
 export interface StageOutcome {
@@ -73,6 +73,20 @@ export interface RunPipelineOptions {
   articleIds?: number[]
   /** Stages to walk; defaults to the real pipeline. Tests pass their own. */
   stages?: Stage[]
+  /**
+   * Aborted when the run's lease is lost (`cms/src/lib/pipelineRunLease.ts`):
+   * the run row was recovered under it. The run then throws the abort reason
+   * before it reads another batch or writes another article, rather than
+   * advancing work a newer run may now hold.
+   */
+  signal?: AbortSignal
+  /**
+   * Commits one article write, given the request to write with, only while
+   * the run still owns its row; resolves false without calling `write` once it
+   * does not, and the run then stops. The CMS passes the run row lock here, so
+   * the ownership check and the write share one transaction.
+   */
+  commitArticle?: (write: (req?: PayloadRequest) => Promise<void>) => Promise<boolean>
 }
 
 /** What one stage did to its batch in a single run. */
@@ -133,7 +147,18 @@ export async function runPipeline(
   const stageSummaries: StageRunSummary[] = []
   const failures: StageFailure[] = []
   let totalFailed = 0
+  const signal = options.signal ?? ctx.signal
+  const stageCtx: StageContext = signal ? { ...ctx, signal } : ctx
+  const commit =
+    options.commitArticle ??
+    (async (write: (req?: PayloadRequest) => Promise<void>) => {
+      await write()
+      return true
+    })
+  // Set when `commit` refuses a write: the run no longer owns its row.
+  let leaseLost: unknown = null
   for (const stage of options.stages ?? stages) {
+    signal?.throwIfAborted()
     // `archived` is deliberately part of the entry query rather than a board-only
     // filter: an archived topic still holds a pipeline status, so leaving it out
     // here would let a run pick up work somebody explicitly took off the board.
@@ -160,31 +185,40 @@ export async function runPipeline(
       // which is the same convergent-rerun property the whole loop relies on.
       // The counts still come back in the result, so `index.ts` exits non-zero
       // and a scheduled run's alerting sees stuck articles.
+      signal?.throwIfAborted()
       try {
-        const outcome = await stage.run(article, ctx)
+        const outcome = await stage.run(article, stageCtx)
         const warnings = outcome.warnings ?? []
-        await ctx.payload.update({
-          collection: 'articles',
-          depth: 0,
-          id: article.id,
-          data: { ...outcome.data, status: outcome.status },
-          context: {
-            articleAudit: {
-              actor: 'pipeline',
-              actorType: 'pipeline',
-              event: `${stage.name}_completed`,
-              pipelineRunId: ctx.runId,
-              stage: stage.name,
-              summary: `${stage.name} completed in ${ctx.mode} mode`,
-              details: {
-                mode: ctx.mode,
-                keyword: article.keyword,
-                output: outcome.data,
-                ...(warnings.length > 0 ? { warnings } : {}),
+        signal?.throwIfAborted()
+        const write = async (req?: PayloadRequest) => {
+          await ctx.payload.update({
+            collection: 'articles',
+            depth: 0,
+            id: article.id,
+            ...(req ? { req } : {}),
+            data: { ...outcome.data, status: outcome.status },
+            context: {
+              articleAudit: {
+                actor: 'pipeline',
+                actorType: 'pipeline',
+                event: `${stage.name}_completed`,
+                pipelineRunId: ctx.runId,
+                stage: stage.name,
+                summary: `${stage.name} completed in ${ctx.mode} mode`,
+                details: {
+                  mode: ctx.mode,
+                  keyword: article.keyword,
+                  output: outcome.data,
+                  ...(warnings.length > 0 ? { warnings } : {}),
+                },
               },
             },
-          },
-        })
+          })
+        }
+        if (!(await commit(write))) {
+          leaseLost = signal?.reason ?? new Error(`Run ${ctx.runId} no longer owns its row.`)
+          throw leaseLost
+        }
         // A stage outcome is only progress once the article write succeeds.
         // Keep the last persisted status when a later stage fails to save.
         processed.add(article.id)
@@ -199,6 +233,9 @@ export async function runPipeline(
           `[${stage.name}] article ${article.id} "${article.keyword}" -> ${outcome.status}`,
         )
       } catch (error) {
+        // A lost lease ends the whole run, not this one article.
+        if (signal?.aborted) throw signal.reason
+        if (leaseLost) throw leaseLost
         failed += 1
         const message = error instanceof Error ? error.message : String(error)
         failures.push({

@@ -262,3 +262,115 @@ describe('the brief checkpoint', () => {
     assert.deepEqual(summary.finalStatuses, {})
   })
 })
+
+describe('runPipeline with a lost lease', () => {
+  it('stops before the next write once its signal aborts, and rethrows the reason', async () => {
+    const { ctx, updates } = fakeCtx([
+      articleAt(1, 'topic_selected'),
+      articleAt(2, 'topic_selected'),
+    ])
+    const controller = new AbortController()
+    const lost = new Error('lease lost')
+    let ran = 0
+    const stage: Stage = {
+      name: 'research',
+      entryStatus: 'topic_selected',
+      exitStatus: 'brief_review',
+      run: async () => {
+        ran += 1
+        // The heartbeat finds the run recovered while this article's paid work
+        // is in flight.
+        controller.abort(lost)
+        return { data: {}, status: 'brief_review' }
+      },
+    }
+    await quietly(async () => {
+      await assert.rejects(
+        runPipeline(ctx, {
+          stages: [stage, stubStage('generate', 'researched', 'drafted')],
+          signal: controller.signal,
+        }),
+        (error) => error === lost,
+      )
+    })
+    assert.equal(ran, 1, 'the second article must not be started')
+    assert.deepEqual(updates, [], 'nothing may be written after the lease is lost')
+  })
+
+  it('does not start at all with an already-aborted signal', async () => {
+    const { ctx, updates } = fakeCtx([articleAt(1, 'topic_selected')])
+    const controller = new AbortController()
+    controller.abort(new Error('lease lost'))
+    await quietly(async () => {
+      await assert.rejects(
+        runPipeline(ctx, {
+          stages: [stubStage('research', 'topic_selected', 'brief_review')],
+          signal: controller.signal,
+        }),
+        /lease lost/,
+      )
+    })
+    assert.deepEqual(updates, [])
+  })
+})
+
+describe('runPipeline with a fenced commit', () => {
+  it('writes through commitArticle with the request it is given', async () => {
+    const { ctx } = fakeCtx([articleAt(1, 'topic_selected')])
+    const reqs: unknown[] = []
+    ctx.payload.update = (async ({ req }: { req?: unknown }) => {
+      reqs.push(req)
+      return { id: 1 }
+    }) as unknown as StageContext['payload']['update']
+    const lockedReq = { transactionID: 'tx' }
+    await quietly(() =>
+      runPipeline(ctx, {
+        stages: [stubStage('research', 'topic_selected', 'brief_review')],
+        commitArticle: async (write) => {
+          await write(lockedReq as never)
+          return true
+        },
+      }),
+    )
+    assert.deepEqual(reqs, [lockedReq], 'the write must run inside the fence transaction')
+  })
+
+  it('writes nothing and stops the whole run once the run no longer owns its row', async () => {
+    const { ctx, updates } = fakeCtx([
+      articleAt(1, 'topic_selected'),
+      articleAt(2, 'topic_selected'),
+    ])
+    let ran = 0
+    const stage: Stage = {
+      ...stubStage('research', 'topic_selected', 'brief_review'),
+      run: async () => {
+        ran += 1
+        return { data: {}, status: 'brief_review' }
+      },
+    }
+    await quietly(async () => {
+      await assert.rejects(
+        // No signal: the heartbeat has not noticed yet, only the fence has.
+        runPipeline(ctx, { stages: [stage], commitArticle: async () => false }),
+        /no longer owns its row/,
+      )
+    })
+    assert.equal(ran, 1, 'a refused write ends the run, not just that article')
+    assert.deepEqual(updates, [])
+  })
+
+  it('hands the run signal to every stage', async () => {
+    const { ctx } = fakeCtx([articleAt(1, 'topic_selected')])
+    const controller = new AbortController()
+    let seen: AbortSignal | undefined
+    const stage: Stage = {
+      ...stubStage('research', 'topic_selected', 'brief_review'),
+      run: async (_article, stageCtx) => {
+        seen = stageCtx.signal
+        return { data: {}, status: 'brief_review' }
+      },
+    }
+    await quietly(() => runPipeline(ctx, { stages: [stage], signal: controller.signal }))
+    assert.equal(seen, controller.signal)
+  })
+})

@@ -148,7 +148,18 @@ export function resolveExtractionModel(
   settings: LlmSettingsDoc | null | undefined,
   env: Record<string, string | undefined>,
 ): ResolvedModel {
-  return resolveModel(settings?.brandVoiceExtractModel, env[EXTRACTION_ENV_VAR])
+  // Unset follows the generate model, provider and tier: a workspace that
+  // writes with an OpenAI model is not refused for an Anthropic model it never
+  // chose, and one that writes with Claude Opus keeps Opus for this drafting
+  // task rather than dropping to a small model. A generate id neither
+  // provider serves (a stale `codex/*` override) falls back to the platform
+  // default instead of being inherited.
+  const generate = resolveStageModels(settings, env).generate.model
+  return resolveModel(
+    settings?.brandVoiceExtractModel,
+    env[EXTRACTION_ENV_VAR],
+    providerForModel(generate) === 'unknown' ? DEFAULT_MODEL : generate,
+  )
 }
 
 /**

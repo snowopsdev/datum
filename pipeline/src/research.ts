@@ -80,7 +80,7 @@ export const researchStage: Stage = {
       icp,
     })
     return {
-      status: ctx.pauseForBrief === false ? 'researched' : 'brief_review',
+      status: 'brief_review',
       warnings: angles.warning ? [angles.warning] : [],
       data: {
         brief,

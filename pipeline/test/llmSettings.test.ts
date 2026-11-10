@@ -72,7 +72,14 @@ describe('resolveModel precedence', () => {
   it('resolves the brand-voice extraction model the same way', () => {
     assert.equal(resolveExtractionModel({ brandVoiceExtractModel: 'gpt-5.6-luna' }, {}).model, 'gpt-5.6-luna')
     assert.equal(resolveExtractionModel(null, { BRAND_VOICE_EXTRACT_MODEL: 'gpt-5' }).model, 'gpt-5')
-    assert.equal(resolveExtractionModel(null, {}).model, 'claude-opus-5')
+    // Unset: the generate model itself, so an OpenAI-only workspace is not asked
+    // for an Anthropic key, and an Opus workspace keeps Opus for this drafting.
+    assert.deepEqual(resolveExtractionModel(null, {}), { model: 'claude-opus-5', source: 'default' })
+    assert.equal(resolveExtractionModel({ generateModel: 'gpt-5.6-terra' }, {}).model, 'gpt-5.6-terra')
+    assert.equal(resolveExtractionModel(null, { PIPELINE_MODEL_GENERATE: 'o3' }).model, 'o3')
+    assert.equal(resolveExtractionModel({ generateModel: 'claude-sonnet-5' }, {}).model, 'claude-sonnet-5')
+    // A generate id no provider serves is not inherited.
+    assert.equal(resolveExtractionModel(null, { PIPELINE_MODEL_GENERATE: 'codex/x' }).model, 'claude-opus-5')
   })
 
   /**
@@ -102,6 +109,8 @@ describe('resolveModel precedence', () => {
       model: 'claude-opus-5',
       source: 'default',
     })
+    // An OpenAI-only workspace's assistant follows its writer too.
+    assert.equal(resolveSetupAssistModel({ generateModel: 'gpt-5.6-terra' }, {}).model, 'gpt-5.6-terra')
     // Its own env var beats the extractor's admin choice: the more specific
     // answer wins wherever both are given.
     assert.equal(

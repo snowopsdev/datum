@@ -43,7 +43,8 @@ the second article was written against.
 
 ## Gating
 
-A content run needs three things, and refuses to start without any of them:
+A content run needs three things, and refuses to start without any of them —
+whether it is started in the admin or with `npm run pipeline:run`:
 
 - an active brand voice
 - a target domain, from the global or the environment
@@ -57,8 +58,13 @@ competitors and does not ask.
 and `governance.problems` is the list of what is missing, in the words an
 operator acts on — every caller interpolates that list rather than writing its
 own copy, so the setup screen, the content-run action, and the brief all say
-the same thing. `cms/src/jobs/contentRun.ts` re-checks the same three before it
-spends anything, for a job that was queued before an audience was archived.
+the same thing. `runReadinessRefusal` turns it into the one refusal sentence:
+the admin's run actions add a live-cost confirmation on top of it, and
+`pipeline run` prints it and exits 1 before it registers a run or touches an
+article. `cms/src/jobs/contentRun.ts` re-checks the same three before it spends
+anything, for a job that was queued before an audience was archived.
+`pipeline fetch` and `pipeline report` are not gated: one only buys topics, the
+other only reads.
 
 An existing workspace is blocked by this until it has all three. "Start with
 the demo workspace" on `/admin` fills them in for Kettle & Burr, the home-espresso publisher, from the fixtures in
@@ -452,7 +458,7 @@ fixtures are all derived from it.
 
 The model resolves through `resolveSetupAssistModel`: the Models global's
 "Setup assistant" field, then `SETUP_ASSIST_MODEL`, then the brand-voice
-extraction model, then the platform default. In mock mode the demo workspace's
+extraction model, then the generate model. In mock mode the demo workspace's
 own section comes back instead, put through the same parser, with the warning
 `Mock mode: returned the demo section instead of calling the model`.
 

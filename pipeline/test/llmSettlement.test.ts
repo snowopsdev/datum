@@ -56,6 +56,17 @@ function harness(internal = false) {
   let costWrites = 0
   const llm: LlmClient = {
     async completeJSON(stage, request, model) {
+      // The internal-corpus variant needs one readable SERP page (an unreadable
+      // SERP stops the build before any internal extraction); answer that
+      // page's extraction at once so only the internal calls are held.
+      if (internal && /\nPage #\d+:/.test(request.user)) {
+        return {
+          model,
+          provider: 'mock',
+          usage: { inputTokens: 1, outputTokens: 1, webSearchRequests: 0 },
+          json: mockFixture(stage, request.fixtureKey),
+        }
+      }
       const index = started.length
       started.push(stage)
       if (index === 1) throw failure
@@ -82,8 +93,15 @@ function harness(internal = false) {
     async find({ collection }: { collection: string }) {
       return { docs: internal && collection === 'articles' ? docs : [] }
     },
-    async create({ collection, data }: { collection: string; data: { stage: string } }) {
+    async create({
+      collection,
+      data,
+    }: {
+      collection: string
+      data: { stage: string; request?: { user?: string } }
+    }) {
       assert.equal(collection, 'cost-log', 'failed snapshot must not be persisted')
+      if (internal && /\nPage #\d+:/.test(data.request?.user ?? '')) return { id: 0 }
       costWrites++
       await writes.promise
       costs.push(data.stage)
@@ -175,13 +193,11 @@ for (const internal of [false, true]) {
   test(`${internal ? 'internal' : 'SERP'} corpus extraction drains LLM calls and cost writes`, async () => {
     assert.equal(config.mockMode, true, 'corpus test must never crawl live pages')
     const serp = {
-      pages: internal
-        ? []
-        : Array.from({ length: 5 }, (_, index) => ({
-            position: index + 1,
-            url: `https://example.com/page-${index + 1}`,
-            title: 'Stream games',
-          })),
+      pages: Array.from({ length: internal ? 1 : 5 }, (_, index) => ({
+        position: index + 1,
+        url: `https://example.com/page-${index + 1}`,
+        title: 'Stream games',
+      })),
     } as SerpResearch
     await assertDrains(
       (ctx) => getOrBuildSnapshot(ctx, article, article.template as Template, serp, []),

@@ -11,8 +11,14 @@ import OpenAI from 'openai'
 import type { Payload } from 'payload'
 
 import type { CostLog } from '../payload-types'
-import { apiKeyForModel, type LlmProvider, providerForModel } from './llmProvider'
+import {
+  apiKeyForModel,
+  type LlmProvider,
+  PROVIDER_ENV_VAR_NAME,
+  providerForModel,
+} from './llmProvider'
 import { costUsd } from './pricing'
+import { runModeFromEnv } from './runMode'
 
 export interface CmsLlmRequest {
   system: string
@@ -54,29 +60,18 @@ export class CmsLlmError extends Error {
 
 const DEFAULT_MAX_TOKENS = 8000
 
-function parseBool(value: string | undefined): boolean | undefined {
-  if (value === undefined || value === '') return undefined
-  if (['true', '1', 'yes'].includes(value.toLowerCase())) return true
-  if (['false', '0', 'no'].includes(value.toLowerCase())) return false
-  return undefined
-}
-
 /**
- * Same rule as `pipeline/src/config.ts`: `MOCK_MODE` wins when set, otherwise
- * mock whenever the model's API key is absent. Never throws — the admin flow
- * must work in a keyless dev environment.
+ * The workspace's mock/live mode (`runMode.ts`, the rule the pipeline and
+ * readiness use). It is the workspace's, not the model's: in live mode a model
+ * whose provider key is missing fails in `completeJsonCms` naming the key,
+ * instead of quietly returning a fixture while the rest of the workspace is
+ * live. `_model` is kept so existing call sites keep compiling.
  */
 export function cmsMockMode(
   env: Record<string, string | undefined> = process.env,
-  model: string,
+  _model?: string,
 ): boolean {
-  const explicit = parseBool(env.MOCK_MODE)
-  if (explicit !== undefined) return explicit
-  // Only the model's own key flips this workspace live, and only for the model
-  // that carries it. `pipeline/src/config.ts` and `modeFromEnv` make the same
-  // call; if this one differed, an upload would bill a provider while the rest
-  // of the workspace still reported mock.
-  return apiKeyForModel(model, env) === undefined
+  return runModeFromEnv(env) === 'mock'
 }
 
 function parseJsonReply(text: string): unknown {
@@ -107,7 +102,7 @@ export async function completeJsonCms(
   const { model, system, user } = request
   const label = request.label ?? 'Model call'
   const maxTokens = request.maxTokens ?? DEFAULT_MAX_TOKENS
-  if (cmsMockMode(env, model)) {
+  if (cmsMockMode(env)) {
     throw new Error(`${label} was attempted in mock mode; callers must supply their own fixture`)
   }
 
@@ -115,9 +110,17 @@ export async function completeJsonCms(
   if (provider === 'unknown') {
     throw new Error(`${label} cannot run: "${model}" is not an Anthropic or OpenAI model id`)
   }
+  // Live mode, but this model's provider has no key: say which one rather than
+  // letting the SDK fail on an undefined credential.
+  if (apiKeyForModel(model, env) === undefined) {
+    throw new Error(
+      `${label} cannot run: "${model}" needs ${PROVIDER_ENV_VAR_NAME[provider]} set (the workspace is in live mode; set MOCK_MODE=true for demo data)`,
+    )
+  }
 
   let text: string | undefined
   let stopReason: string
+  let cutOff = false
   let usage: { inputTokens: number; outputTokens: number }
   if (provider === 'openai') {
     const client = new OpenAI({ apiKey: env.OPENAI_API_KEY })
@@ -130,6 +133,7 @@ export async function completeJsonCms(
     })
     text = response.output_text || undefined
     stopReason = response.incomplete_details?.reason ?? response.status ?? 'unknown'
+    cutOff = response.status === 'incomplete'
     usage = {
       inputTokens: response.usage?.input_tokens ?? 0,
       outputTokens: response.usage?.output_tokens ?? 0,
@@ -146,6 +150,8 @@ export async function completeJsonCms(
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
       .at(-1)?.text
     stopReason = response.stop_reason ?? 'unknown'
+    // Anything but a normal finish (a token cap, a refusal) is named in the error.
+    cutOff = response.stop_reason !== 'end_turn' && response.stop_reason != null
     usage = {
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
@@ -160,7 +166,13 @@ export async function completeJsonCms(
   try {
     json = parseJsonReply(text)
   } catch {
-    throw new CmsLlmError(`${label} reply was not valid JSON: ${text.trim().slice(0, 200)}`, billed)
+    // A reply cut off at the token cap is not malformed, it is unfinished:
+    // name the cap so nobody goes looking for a prompt bug.
+    const why = cutOff ? ` (did not finish normally; stop_reason: ${stopReason})` : ''
+    throw new CmsLlmError(
+      `${label} reply was not valid JSON${why}: ${text.trim().slice(0, 200)}`,
+      billed,
+    )
   }
   return { json, text, ...billed }
 }

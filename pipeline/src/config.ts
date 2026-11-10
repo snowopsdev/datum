@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url'
 
 import dotenv from 'dotenv'
 
+import { runModeFromEnv } from '../../cms/src/lib/runMode'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const repoRoot = path.resolve(here, '..', '..')
 
@@ -30,26 +32,15 @@ export interface PipelineConfig {
   ahrefsCountry: string
 }
 
-function parseBool(value: string | undefined): boolean | undefined {
-  if (value === undefined || value === '') return undefined
-  if (['true', '1', 'yes'].includes(value.toLowerCase())) return true
-  if (['false', '0', 'no'].includes(value.toLowerCase())) return false
-  throw new Error(`Cannot parse boolean env value: ${value}`)
-}
-
 function buildConfig(): PipelineConfig {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY || undefined
   const openaiApiKey = process.env.OPENAI_API_KEY || undefined
 
   // Per-stage model choice lives in the admin's Models global (see models.ts),
   // so the per-model key check happens there once the run knows its models.
-  // Mock is the local default, and only a provider key can lift it: nothing
-  // else a dev machine happens to carry may flip it into live runs.
-  const mockMode =
-    parseBool(process.env.MOCK_MODE) ?? (anthropicApiKey === undefined && openaiApiKey === undefined)
-  if (!mockMode && anthropicApiKey === undefined && openaiApiKey === undefined) {
-    throw new Error('MOCK_MODE=false requires ANTHROPIC_API_KEY or OPENAI_API_KEY to be set')
-  }
+  // The mock/live rule is shared with the CMS (`runMode.ts`) and never throws:
+  // this module loads inside the admin, which must stay up on a bad env.
+  const mockMode = runModeFromEnv(process.env) === 'mock'
 
   const ahrefsApiKey = process.env.AHREFS_API_KEY || undefined
   // Domain and competitors are workspace facts, not deployment facts: the

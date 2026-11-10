@@ -2,10 +2,12 @@
 #
 # The information-gain walkthrough, end to end, in mock mode.
 #
-# Seeds the templates and the evidence-source rules, creates a topic, assigns a
-# template, runs all four stages, and asserts on what the scoring stage left
-# behind: the article's status, its information-gain summary, the immutable run
-# row, and the cost-log rows for the three information-gain LLM passes. Then it
+# Seeds the templates, the evidence-source rules and the demo workspace (brand
+# voice, target domain, audiences — what `pipeline:run`'s setup gate requires),
+# creates a topic, assigns a template, runs all four stages, and asserts on what
+# the scoring stage left behind: the article's status, its information-gain
+# summary, the immutable run row, and the cost-log rows for the three
+# information-gain LLM passes. Then it
 # runs the pipeline a second time and asserts that nothing moved — the stages
 # are convergent, so a re-run over a settled article must be a no-op.
 #
@@ -94,12 +96,15 @@ export MOCK_MODE=true
 info "MOCK_MODE=true (pinned for this run)"
 
 # ---------------------------------------------------------------------------
-step=$((step + 1)); log "$step. Seed templates, admin user, and evidence sources"
+step=$((step + 1)); log "$step. Seed templates, admin user, evidence sources, and the demo workspace"
 # The evidence-source rules matter as much as the templates here: integrity is
 # support x sourceQuality x exactness and an unclassified domain is capped at
 # 0.75, so without the seeded `primary` rows every novel number in the demo
 # draft is blocked and the walkthrough ends at `blocked` rather than `verified`.
-npm run seed
+# `--with-brand-voice` adds the demo brand voice, workspace profile and
+# audiences: `pipeline:run` refuses to start without them, like a run started
+# from the admin.
+npm run seed -- --with-brand-voice
 
 # ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Fetch content-gap topics"

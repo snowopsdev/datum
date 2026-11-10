@@ -3,6 +3,15 @@ import type { Payload, TaskConfig } from 'payload'
 import { fetchTopics } from '../../../pipeline/src/fetchTopics'
 import { buildStageContext, loadStageInputs } from '../../../pipeline/src/runContext'
 import { runPipeline } from '../../../pipeline/src/stages'
+import {
+  RUN_HEARTBEAT_INTERVAL_MS,
+  type RunHeartbeat,
+  RunLeaseLostError,
+  safeRunError,
+  settledRunData,
+  startRunHeartbeat,
+  updateRunIfStatus,
+} from '../lib/pipelineRunLease'
 import type { PipelineRun } from '../payload-types'
 
 type ContentRunTask = {
@@ -10,26 +19,44 @@ type ContentRunTask = {
   output: { articleIds: number[]; finalStatuses: Record<string, number> }
 }
 
-function safeError(error: unknown): string {
-  let message = error instanceof Error ? error.message : 'Content run failed'
-  for (const name of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'AHREFS_API_KEY', 'PAYLOAD_SECRET']) {
-    const secret = process.env[name]
-    if (secret) message = message.replaceAll(secret, '[redacted]')
-  }
-  return message.replace(/(sk-|api[_-]?key[=: ]+)[^\s,;]+/gi, '$1[redacted]').slice(0, 500)
+export interface ExecuteContentRunOptions {
+  /** How often the lease is refreshed; tests shorten it. */
+  heartbeatIntervalMs?: number
 }
 
-async function executeContentRun(payload: Payload, run: PipelineRun) {
-  const startedAt = new Date().toISOString()
-  await payload.update({
-    collection: 'pipeline-runs',
-    id: run.id,
-    overrideAccess: true,
-    data: { status: 'running', startedAt, errorSummary: null },
-  })
+export async function executeContentRun(
+  payload: Payload,
+  run: PipelineRun,
+  { heartbeatIntervalMs = RUN_HEARTBEAT_INTERVAL_MS }: ExecuteContentRunOptions = {},
+) {
+  let heartbeat: RunHeartbeat | null = null
+  // Whether this handler moved the row to `running`. Before that the row is
+  // still `queued` (or someone else's), and the catch below must settle it as
+  // such: the job has no retries, so a queued row left behind blocks every
+  // later run until someone deletes it.
+  let claimed = false
+  // Every write below is fenced on the status the run expects to find, so a
+  // run that recovery failed under this worker is never written back over.
+  const writeRunning = async (data: Partial<PipelineRun>) => {
+    if (!(await updateRunIfStatus(payload, run.id, 'running', data))) {
+      throw new RunLeaseLostError(run.runId)
+    }
+  }
 
   try {
-    const templateId = typeof run.template === 'object' ? run.template.id : run.template
+    const startedAt = new Date().toISOString()
+    // The claim: only a queued row becomes running. A row recovery already
+    // failed stays failed, and the job ends without touching it.
+    claimed = await updateRunIfStatus(payload, run.id, 'queued', {
+      status: 'running',
+      startedAt,
+      heartbeatAt: startedAt,
+      errorSummary: null,
+    })
+    if (!claimed) throw new RunLeaseLostError(run.runId)
+    heartbeat = startRunHeartbeat(payload, run, heartbeatIntervalMs)
+
+    const templateId = typeof run.template === 'object' ? run.template?.id : run.template
     let articleIds: number[]
     const inputs = await loadStageInputs(payload, run.mode)
     const { tenant, brandVoice } = inputs
@@ -39,7 +66,12 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
         'Finish setup: brand voice, target domain, and at least one active audience (ICP) are required.',
       )
     }
-    const stageContext = buildStageContext(payload, run.runId, run.mode, inputs)
+    // The signal reaches discovery and every model call, so a recovered run
+    // stops between steps rather than at its next article write.
+    const stageContext = {
+      ...buildStageContext(payload, run.runId, run.mode, inputs),
+      signal: heartbeat.signal,
+    }
 
     if (run.source === 'selected') {
       // The articles were chosen by a person and attached when the run was
@@ -52,10 +84,13 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
         throw new Error('This run has no articles attached.')
       }
     } else {
+      if (templateId == null) throw new Error('This run has no template to discover topics for.')
+      heartbeat.signal.throwIfAborted()
       const fetched = await fetchTopics(stageContext, {
         count: run.requestedCount,
         templateId,
         icpId: (tenant.icps.find((icp) => icp.primary)?.id as number | undefined) ?? null,
+        commitArticle: heartbeat.commit,
       })
       articleIds = fetched.createdIds
       if (articleIds.length === 0) {
@@ -63,54 +98,32 @@ async function executeContentRun(payload: Payload, run: PipelineRun) {
       }
     }
 
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: { articles: articleIds },
-    })
+    await writeRunning({ articles: articleIds })
 
-    const result = await runPipeline(stageContext, { articleIds })
-    const completedAt = new Date().toISOString()
-    // A run that advanced nothing is not a success, whatever the job queue
-    // thinks. `runPipeline` deliberately swallows a single article's failure so
-    // the rest of the batch survives, which means the only signal that anything
-    // went wrong is `result.failed` — and reporting `succeeded` regardless left
-    // an operator staring at a card that had not moved with nowhere to look.
-    const advanced = Object.values(result.finalStatuses).reduce((sum, n) => sum + n, 0)
-    const status = advanced === 0 && result.failed > 0 ? 'failed' : 'succeeded'
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: {
-        status,
-        articles: articleIds,
-        finalStatuses: result.finalStatuses,
-        warnings: result.failures.length > 0 ? result.failures : null,
-        errorSummary:
-          result.failures.length > 0
-            ? result.failures
-                .map((f) => `${f.stage}: "${f.keyword}" — ${safeError(new Error(f.message))}`)
-                .join('\n\n')
-            : null,
-        completedAt,
-      },
+    const result = await runPipeline(stageContext, {
+      articleIds,
+      signal: heartbeat.signal,
+      commitArticle: heartbeat.commit,
     })
+    await writeRunning({ ...settledRunData(result), articles: articleIds })
     return result
   } catch (error) {
-    const errorSummary = safeError(error)
-    await payload.update({
-      collection: 'pipeline-runs',
-      id: run.id,
-      overrideAccess: true,
-      data: {
+    const errorSummary = safeRunError(error)
+    // Fenced too: a lost lease means the row already says what happened, and
+    // before the claim only a row still `queued` is ours to fail — never a
+    // row another handler is running.
+    if (!(error instanceof RunLeaseLostError)) {
+      await updateRunIfStatus(payload, run.id, claimed ? 'running' : 'queued', {
         status: 'failed',
         errorSummary,
         completedAt: new Date().toISOString(),
-      },
-    })
+      }).catch((settleError) => {
+        payload.logger.error(`could not mark run ${run.runId} failed: ${safeRunError(settleError)}`)
+      })
+    }
     throw new Error(errorSummary)
+  } finally {
+    heartbeat?.stop()
   }
 }
 

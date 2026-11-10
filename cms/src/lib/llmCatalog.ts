@@ -22,7 +22,7 @@ export const LLM_CATALOG: readonly LlmModel[] = [
   // Anthropic — Claude 5 family
   { id: 'claude-fable-5', label: 'Claude Fable 5', provider: 'anthropic', input: 10, output: 50, note: 'Most capable' },
   { id: 'claude-opus-5', label: 'Claude Opus 5', provider: 'anthropic', input: 5, output: 25, note: 'Default; strong long-form writing' },
-  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'anthropic', input: 3, output: 15, note: 'Balanced' },
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'anthropic', input: 2, output: 10, note: 'Balanced' },
   { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', input: 1, output: 5, note: 'Fast and cheap' },
   // OpenAI — flagship models
   { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', provider: 'openai', input: 4, output: 20, note: 'Frontier model for complex work' },

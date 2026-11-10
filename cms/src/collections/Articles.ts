@@ -13,6 +13,7 @@ import {
   invalidateStaleInformationGain,
 } from '../lib/articleReviewGate'
 import { stampPublication } from '../lib/articlePublication'
+import { uniqueArticleSlug } from '../lib/articleSlug'
 
 /**
  * Shown on every field in `SCORED_CONTENT_FIELDS` that an editor can reach in
@@ -27,6 +28,9 @@ const SCORED_FIELD_DESCRIPTION =
 export const Articles: CollectionConfig = {
   slug: 'articles',
   hooks: {
+    // Before validation, so the unique index only ever sees a normalised slug
+    // that is already free.
+    beforeValidate: [uniqueArticleSlug],
     // `gateArchivedStatus` runs first: an archived piece refuses every move,
     // so nothing below needs to reason about one. Then
     // `invalidateStaleInformationGain`, because it is a *dependency*:
@@ -84,8 +88,10 @@ export const Articles: CollectionConfig = {
       admin: { description: SCORED_FIELD_DESCRIPTION },
     },
     {
+      // Normalised and de-duplicated by `uniqueArticleSlug`; the index makes a
+      // duplicate that slips past it (two concurrent writes) an error.
       name: 'slug',
-      index: true,
+      unique: true,
       type: 'text',
     },
     {

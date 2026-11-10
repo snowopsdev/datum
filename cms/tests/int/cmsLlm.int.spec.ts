@@ -38,33 +38,30 @@ beforeEach(() => {
 })
 
 describe('cmsMockMode', () => {
-  it('lets MOCK_MODE win, and otherwise mocks when the model credential is absent', () => {
-    const cases: [Record<string, string | undefined>, string, boolean][] = [
-      [{}, ANTHROPIC_MODEL, true],
-      [{ ANTHROPIC_API_KEY: 'k' }, ANTHROPIC_MODEL, false],
-      [{ ANTHROPIC_API_KEY: 'k', MOCK_MODE: 'true' }, ANTHROPIC_MODEL, true],
-      [{ MOCK_MODE: 'false' }, ANTHROPIC_MODEL, false],
-      [{ MOCK_MODE: '' }, ANTHROPIC_MODEL, true],
-      // The credential is picked per model, not per workspace: an Anthropic key
-      // does nothing for a gpt-* id and vice versa.
-      [{ OPENAI_API_KEY: 'k' }, OPENAI_MODEL, false],
-      [{ ANTHROPIC_API_KEY: 'k' }, OPENAI_MODEL, true],
-      [{ OPENAI_API_KEY: 'k' }, ANTHROPIC_MODEL, true],
+  it('is the workspace rule: MOCK_MODE wins, else live only when any provider key is set', () => {
+    const cases: [Record<string, string | undefined>, boolean][] = [
+      [{}, true],
+      [{ ANTHROPIC_API_KEY: 'k' }, false],
+      [{ OPENAI_API_KEY: 'k' }, false],
+      [{ ANTHROPIC_API_KEY: 'k', MOCK_MODE: 'true' }, true],
+      [{ ANTHROPIC_API_KEY: 'k', MOCK_MODE: '1' }, true],
+      [{ MOCK_MODE: 'false' }, false],
+      [{ MOCK_MODE: 'NO' }, false],
+      [{ MOCK_MODE: '' }, true],
+      [{ MOCK_MODE: '  ', OPENAI_API_KEY: 'k' }, false],
+      // Unparseable: mock, even with a key. The readiness check reports it.
+      [{ MOCK_MODE: 'maybe', ANTHROPIC_API_KEY: 'k' }, true],
     ]
-    for (const [env, model, expected] of cases) {
-      expect(cmsMockMode(env, model), `${model} with ${JSON.stringify(env)}`).toBe(expected)
+    for (const [env, expected] of cases) {
+      expect(cmsMockMode(env, ANTHROPIC_MODEL), JSON.stringify(env)).toBe(expected)
+      // The mode belongs to the workspace, not to the model asked about.
+      expect(cmsMockMode(env, OPENAI_MODEL), JSON.stringify(env)).toBe(expected)
     }
   })
 
-  it('never goes live without the model key, whatever else the environment carries', () => {
-    // Only ANTHROPIC_API_KEY can lift mock mode for a claude-* model; nothing
-    // else a dev machine happens to hold is consent to spend.
+  it('never goes live on anything but a provider key or an explicit false', () => {
     expect(cmsMockMode({ SOME_OTHER_CREDENTIAL: 'present' }, ANTHROPIC_MODEL)).toBe(true)
-    expect(cmsMockMode({ OPENAI_API_KEY: 'k' }, ANTHROPIC_MODEL)).toBe(true)
     expect(cmsMockMode({ ANTHROPIC_API_KEY: '' }, ANTHROPIC_MODEL)).toBe(true)
-    // Only an explicit MOCK_MODE=false, or the model's own key, goes live.
-    expect(cmsMockMode({ MOCK_MODE: 'false' }, ANTHROPIC_MODEL)).toBe(false)
-    expect(cmsMockMode({ ANTHROPIC_API_KEY: 'k' }, ANTHROPIC_MODEL)).toBe(false)
   })
 })
 
@@ -81,7 +78,7 @@ describe('completeJsonCms', () => {
     anthropicCreate.mockResolvedValue(anthropicReply('```json\n{"ok":true}\n```'))
     const result = await completeJsonCms(
       { system: 'sys', user: 'usr', model: ANTHROPIC_MODEL, maxTokens: 1234 },
-      { env: { MOCK_MODE: 'false' } },
+      { env: { MOCK_MODE: 'false', ANTHROPIC_API_KEY: 'k' } },
     )
     expect(result.json).toEqual({ ok: true })
     expect(result.provider).toBe('anthropic')
@@ -99,7 +96,7 @@ describe('completeJsonCms', () => {
     openaiCreate.mockResolvedValue(openaiReply('{"ok":1}'))
     const result = await completeJsonCms(
       { system: 'sys', user: 'usr', model: OPENAI_MODEL },
-      { env: { MOCK_MODE: 'false' } },
+      { env: { MOCK_MODE: 'false', OPENAI_API_KEY: 'k' } },
     )
     expect(result.json).toEqual({ ok: 1 })
     expect(result.provider).toBe('openai')
@@ -111,6 +108,53 @@ describe('completeJsonCms', () => {
       max_output_tokens: 8000,
       text: { format: { type: 'json_object' } },
     })
+  })
+
+  it('in live mode without that model\'s key, fails naming the key and never calls out', async () => {
+    // Live because the other provider's key is set; this model's key is not.
+    await expect(
+      completeJsonCms(
+        { system: 's', user: 'u', model: OPENAI_MODEL, label: 'Setup assistant' },
+        { env: { ANTHROPIC_API_KEY: 'k' } },
+      ),
+    ).rejects.toThrow(/Setup assistant cannot run: "gpt-5\.6-terra" needs OPENAI_API_KEY set/)
+    await expect(
+      completeJsonCms(
+        { system: 's', user: 'u', model: ANTHROPIC_MODEL },
+        { env: { MOCK_MODE: 'false' } },
+      ),
+    ).rejects.toThrow(/needs ANTHROPIC_API_KEY set/)
+    expect(anthropicCreate).not.toHaveBeenCalled()
+    expect(openaiCreate).not.toHaveBeenCalled()
+  })
+
+  it('names the token cap when a cut-off reply is not valid JSON', async () => {
+    anthropicCreate.mockResolvedValue({
+      content: [{ type: 'text', text: '{"a": [1, 2' }],
+      stop_reason: 'max_tokens',
+      usage: { input_tokens: 5, output_tokens: 8000 },
+    })
+    const failure = await completeJsonCms(
+      { system: 's', user: 'u', model: ANTHROPIC_MODEL },
+      { env: { ANTHROPIC_API_KEY: 'k' } },
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(CmsLlmError)
+    expect((failure as CmsLlmError).message).toMatch(/not valid JSON \(did not finish normally; stop_reason: max_tokens\)/)
+    expect((failure as CmsLlmError).billed.usage).toEqual({ inputTokens: 5, outputTokens: 8000 })
+  })
+
+  it('names a refusal instead of calling it malformed JSON', async () => {
+    anthropicCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'I cannot help with that.' }],
+      stop_reason: 'refusal',
+      usage: { input_tokens: 5, output_tokens: 9 },
+    })
+    await expect(
+      completeJsonCms({ system: 's', user: 'u', model: ANTHROPIC_MODEL }, { env: { ANTHROPIC_API_KEY: 'k' } }),
+    ).rejects.toThrow(/stop_reason: refusal/)
   })
 
   it('refuses a model id neither provider serves instead of guessing one', async () => {
@@ -132,7 +176,7 @@ describe('completeJsonCms', () => {
     })
     const failure = await completeJsonCms(
       { system: 'sys', user: 'usr', model: ANTHROPIC_MODEL, label: 'Draft step' },
-      { env: { MOCK_MODE: 'false' } },
+      { env: { MOCK_MODE: 'false', ANTHROPIC_API_KEY: 'k' } },
     ).then(
       () => null,
       (error: unknown) => error,
@@ -150,7 +194,7 @@ describe('completeJsonCms', () => {
     openaiCreate.mockResolvedValue(openaiReply('Sorry, I cannot help with that.'))
     const failure = await completeJsonCms(
       { system: 'sys', user: 'usr', model: OPENAI_MODEL },
-      { env: { MOCK_MODE: 'false' } },
+      { env: { MOCK_MODE: 'false', OPENAI_API_KEY: 'k' } },
     ).then(
       () => null,
       (error: unknown) => error,

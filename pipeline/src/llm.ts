@@ -32,6 +32,37 @@ export interface LlmClient {
   completeJSON(stage: LlmStage, request: LlmRequest, model: string): Promise<LlmResult>
 }
 
+export interface LlmBilled {
+  provider: LlmProvider
+  model: string
+  usage: LlmResult['usage']
+}
+
+export type LlmReplyErrorCode =
+  | 'max_tokens'
+  | 'refusal'
+  | 'pause_turn'
+  | 'incomplete'
+  | 'no_text'
+  | 'invalid_json'
+
+/**
+ * The provider answered (and billed) but the reply is unusable: cut off at the
+ * token cap, refused, paused, empty, or not JSON. Carries what was billed so
+ * `completeJSONLogged` can still write the cost row; without it a retry buys
+ * the same call again and nothing records the first.
+ */
+export class LlmReplyError extends Error {
+  constructor(
+    message: string,
+    public readonly code: LlmReplyErrorCode,
+    public readonly billed: LlmBilled,
+  ) {
+    super(message)
+    this.name = 'LlmReplyError'
+  }
+}
+
 const JSON_ONLY = 'Reply with only a single JSON object. No prose, no code fences.'
 
 let anthropicClient: Anthropic | undefined
@@ -74,42 +105,116 @@ function parseJsonReply(text: string, stage: LlmStage): unknown {
   }
 }
 
+/**
+ * `web_search_20260209` (dynamic filtering) is served by the Fable/Mythos
+ * models, Opus 4.6 and later, Sonnet 4.6 and later. Older models, Haiku
+ * included, only know the basic `web_search_20250305`.
+ */
+const DYNAMIC_WEB_SEARCH_MODEL =
+  /^claude-(?:(?:fable|mythos)-|opus-(?:5|4-[6-9])|sonnet-(?:5|4-[6-9]))/
+
+export function webSearchToolFor(model: string) {
+  const type = DYNAMIC_WEB_SEARCH_MODEL.test(model.trim())
+    ? ('web_search_20260209' as const)
+    : ('web_search_20250305' as const)
+  return { type, name: 'web_search' as const, max_uses: 5 }
+}
+
+/**
+ * The reply text: the text blocks after the last non-text block, joined. A
+ * search reply interleaves narration, tool calls and results, and the answer
+ * is whatever follows the last of them; cited text is split across several
+ * blocks (one per citation), so taking only the final block would keep a
+ * fragment of the JSON.
+ */
+export function anthropicReplyText(content: readonly { type: string; text?: string }[]): string {
+  let start = 0
+  content.forEach((block, index) => {
+    if (block.type !== 'text' && block.type !== 'thinking' && block.type !== 'redacted_thinking') {
+      start = index + 1
+    }
+  })
+  return content
+    .slice(start)
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text ?? '')
+    .join('')
+}
+
+function parseOrThrow(text: string, stage: LlmStage, billed: LlmBilled): unknown {
+  try {
+    return parseJsonReply(text, stage)
+  } catch (error) {
+    throw new LlmReplyError(
+      error instanceof Error ? error.message : String(error),
+      'invalid_json',
+      billed,
+    )
+  }
+}
+
+/** Provider SDK clients, injectable so tests can supply fakes. */
+export interface LlmSdkClients {
+  anthropic?: Pick<Anthropic, 'messages'>
+  openai?: Pick<OpenAI, 'responses'>
+}
+
 async function completeJSONAnthropic(
   stage: LlmStage,
   request: LlmRequest,
   model: string,
+  sdk: LlmSdkClients,
 ): Promise<LlmResult> {
   try {
-    const response = await getClient().messages.create({
+    const response = await (sdk.anthropic ?? getClient()).messages.create({
       model,
       max_tokens: 16000,
       system: `${request.system}\n\n${JSON_ONLY}`,
       messages: [{ role: 'user', content: request.user }],
-      ...(request.needWebSearch
-        ? {
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
-          }
-        : {}),
+      ...(request.needWebSearch ? { tools: [webSearchToolFor(model)] } : {}),
     })
-    const textBlocks = response.content.filter(
-      (block): block is Anthropic.TextBlock => block.type === 'text',
-    )
-    const finalText = textBlocks.at(-1)?.text
-    if (!finalText) {
-      throw new Error(
-        `[llm:${stage}] response contained no text block (stop_reason: ${response.stop_reason})`,
-      )
-    }
-    return {
-      json: parseJsonReply(finalText, stage),
+    const billed: LlmBilled = {
+      provider: 'anthropic',
+      model,
       usage: {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         webSearchRequests: response.usage.server_tool_use?.web_search_requests ?? 0,
       },
-      provider: 'anthropic',
-      model,
     }
+    if (response.stop_reason === 'max_tokens') {
+      throw new LlmReplyError(
+        `[llm:${stage}] reply truncated at max_tokens (16000) before it was complete`,
+        'max_tokens',
+        billed,
+      )
+    }
+    if (response.stop_reason === 'refusal') {
+      const details = response.stop_details
+      throw new LlmReplyError(
+        `[llm:${stage}] the model refused this request (stop_reason: refusal` +
+          `${details?.category ? `, category: ${details.category}` : ''}` +
+          `${details?.explanation ? `, ${details.explanation}` : ''})`,
+        'refusal',
+        billed,
+      )
+    }
+    if (response.stop_reason === 'pause_turn') {
+      throw new LlmReplyError(
+        `[llm:${stage}] the model paused its turn (stop_reason: pause_turn) before answering; resuming a paused turn is not supported`,
+        'pause_turn',
+        billed,
+      )
+    }
+    const finalText = anthropicReplyText(response.content)
+    if (!finalText) {
+      throw new LlmReplyError(
+        `[llm:${stage}] response contained no text block (stop_reason: ${response.stop_reason})`,
+        'no_text',
+        billed,
+      )
+    }
+    return { json: parseOrThrow(finalText, stage, billed), usage: billed.usage, provider: 'anthropic', model }
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
       throw new Error(`[llm:${stage}] invalid ANTHROPIC_API_KEY: ${error.message}`)
@@ -133,9 +238,10 @@ async function completeJSONOpenAI(
   stage: LlmStage,
   request: LlmRequest,
   model: string,
+  sdk: LlmSdkClients,
 ): Promise<LlmResult> {
   try {
-    const response = await getOpenAI().responses.create({
+    const response = await (sdk.openai ?? getOpenAI()).responses.create({
       model,
       instructions: `${request.system}\n\n${JSON_ONLY}`,
       // `JSON_ONLY` is repeated on the input, not just the instructions:
@@ -158,29 +264,49 @@ async function completeJSONOpenAI(
         : { text: { format: { type: 'json_object' as const } } }),
     })
     const finalText = response.output_text
-    // A reply cut off at the token cap is still *text*, and valid JSON right up
-    // to the point it stops — so it slips past the empty check below and dies in
-    // the parser as "not valid JSON", which sends whoever reads the log hunting
-    // for a prompt bug that isn't there. Name the real cause.
-    if (response.status === 'incomplete') {
-      throw new Error(
-        `[llm:${stage}] reply truncated before it was complete ` +
-          `(reason: ${response.incomplete_details?.reason ?? 'unknown'}, ` +
-          `max_output_tokens: ${response.max_output_tokens ?? 'n/a'})`,
-      )
-    }
-    if (!finalText) {
-      throw new Error(
-        `[llm:${stage}] response contained no text (status: ${response.status}, reason: ${response.incomplete_details?.reason ?? 'n/a'})`,
-      )
-    }
-    return {
-      json: parseJsonReply(finalText, stage),
+    const billed: LlmBilled = {
+      provider: 'openai',
+      model,
       usage: {
         inputTokens: response.usage?.input_tokens ?? 0,
         outputTokens: response.usage?.output_tokens ?? 0,
         webSearchRequests: response.output.filter((item) => item.type === 'web_search_call').length,
       },
+    }
+    // A reply cut off at the token cap is still *text*, and valid JSON right up
+    // to the point it stops — so it slips past the empty check below and dies in
+    // the parser as "not valid JSON", which sends whoever reads the log hunting
+    // for a prompt bug that isn't there. Name the real cause.
+    if (response.status === 'incomplete') {
+      throw new LlmReplyError(
+        `[llm:${stage}] reply truncated before it was complete ` +
+          `(reason: ${response.incomplete_details?.reason ?? 'unknown'}, ` +
+          `max_output_tokens: ${response.max_output_tokens ?? 'n/a'})`,
+        'incomplete',
+        billed,
+      )
+    }
+    // A refusal arrives as a `refusal` part on the message, with no output text.
+    const refusal = response.output
+      .flatMap((item) => (item.type === 'message' ? item.content : []))
+      .find((part) => part.type === 'refusal')
+    if (!finalText && refusal) {
+      throw new LlmReplyError(
+        `[llm:${stage}] the model refused this request: ${refusal.refusal.slice(0, 300)}`,
+        'refusal',
+        billed,
+      )
+    }
+    if (!finalText) {
+      throw new LlmReplyError(
+        `[llm:${stage}] response contained no text (status: ${response.status}, reason: ${response.incomplete_details?.reason ?? 'n/a'})`,
+        'no_text',
+        billed,
+      )
+    }
+    return {
+      json: parseOrThrow(finalText, stage, billed),
+      usage: billed.usage,
       provider: 'openai',
       model,
     }
@@ -216,12 +342,17 @@ async function completeJSONMock(
   }
 }
 
-function completeJSONLive(stage: LlmStage, request: LlmRequest, model: string): Promise<LlmResult> {
+function completeJSONLive(
+  stage: LlmStage,
+  request: LlmRequest,
+  model: string,
+  sdk: LlmSdkClients,
+): Promise<LlmResult> {
   switch (providerForModel(model)) {
     case 'openai':
-      return completeJSONOpenAI(stage, request, model)
+      return completeJSONOpenAI(stage, request, model, sdk)
     case 'anthropic':
-      return completeJSONAnthropic(stage, request, model)
+      return completeJSONAnthropic(stage, request, model, sdk)
     // `loadStageModels` rejects these before a run starts; this is the second
     // line of the same fence, for any caller that did not go through it.
     case 'unknown':
@@ -232,14 +363,14 @@ function completeJSONLive(stage: LlmStage, request: LlmRequest, model: string): 
 }
 
 /** Build a run-scoped adapter so queued runs do not depend on mutable module state. */
-export function createLlmClient(mode: 'mock' | 'live'): LlmClient {
+export function createLlmClient(mode: 'mock' | 'live', sdk: LlmSdkClients = {}): LlmClient {
   return {
     completeJSON(stage, request, model) {
       // `fixtureKey` must survive: a `claimExtraction` request without it gets
       // the whole `{ page, facets }` fixture object instead of the one it asked
       // for, and the parsers reject that.
       if (mode === 'mock') return completeJSONMock(stage, model, request.fixtureKey)
-      return completeJSONLive(stage, request, model)
+      return completeJSONLive(stage, request, model, sdk)
     },
   }
 }
@@ -252,6 +383,8 @@ export interface CostContext {
   /** The run's mode. Decides the fallback client when `llm` is not supplied. */
   mode?: 'mock' | 'live'
   llm?: LlmClient
+  /** The run's lease signal; an aborted run makes no further model calls. */
+  signal?: AbortSignal
 }
 
 function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
@@ -266,9 +399,14 @@ function jsonSnapshot(value: unknown): NonNullable<CostLog['request']> {
  * with no cost row, or a missing migration behind it, must stop the stage.
  */
 export class CostLogWriteError extends Error {
-  constructor(stage: LlmStage, cause: unknown) {
+  /** `afterFailure`: the unusable-reply error this row was being written for, if any. */
+  constructor(stage: LlmStage, cause: unknown, afterFailure?: Error) {
     const reason = cause instanceof Error ? cause.message : String(cause)
-    super(`cost-log write failed for ${stage}: ${reason}`, { cause })
+    super(
+      `cost-log write failed for ${stage}: ${reason}` +
+        (afterFailure ? ` (the model call had also failed: ${afterFailure.message})` : ''),
+      { cause },
+    )
     this.name = 'CostLogWriteError'
   }
 }
@@ -283,12 +421,34 @@ export async function completeJSONLogged(
   articleId: number,
   request: LlmRequest,
 ): Promise<LlmResult> {
+  ctx.signal?.throwIfAborted()
   const mode = ctx.mode ?? (config.mockMode ? 'mock' : 'live')
-  const result = await (ctx.llm ?? createLlmClient(mode)).completeJSON(
-    stage,
-    request,
-    ctx.models[stage],
-  )
+  let result: LlmResult
+  try {
+    result = await (ctx.llm ?? createLlmClient(mode)).completeJSON(stage, request, ctx.models[stage])
+  } catch (error) {
+    // The provider answered and billed, but the reply was unusable. The row
+    // goes in before the error is rethrown so the spend is on record and the
+    // retry does not look free; a row that cannot be written stops the stage
+    // the same way it does after a good reply.
+    if (error instanceof LlmReplyError) {
+      await writeCostRow(ctx, stage, articleId, request, error.billed, { error: error.message }, error)
+    }
+    throw error
+  }
+  await writeCostRow(ctx, stage, articleId, request, result, result.json)
+  return result
+}
+
+async function writeCostRow(
+  ctx: CostContext,
+  stage: LlmStage,
+  articleId: number,
+  request: LlmRequest,
+  billed: LlmBilled | LlmResult,
+  response: unknown,
+  afterFailure?: Error,
+): Promise<void> {
   try {
     await ctx.payload.create({
       collection: 'cost-log',
@@ -297,23 +457,22 @@ export async function completeJSONLogged(
         pipelineRunId: ctx.runId,
         article: articleId,
         stage,
-        provider: result.provider,
-        model: result.model,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        webSearchRequests: result.usage.webSearchRequests,
+        provider: billed.provider,
+        model: billed.model,
+        inputTokens: billed.usage.inputTokens,
+        outputTokens: billed.usage.outputTokens,
+        webSearchRequests: billed.usage.webSearchRequests,
         costUsd: costUsd(
-          result.model,
-          result.usage.inputTokens,
-          result.usage.outputTokens,
-          result.usage.webSearchRequests,
+          billed.model,
+          billed.usage.inputTokens,
+          billed.usage.outputTokens,
+          billed.usage.webSearchRequests,
         ),
         request: jsonSnapshot(request),
-        response: jsonSnapshot(result.json),
+        response: jsonSnapshot(response),
       },
     })
   } catch (error) {
-    throw new CostLogWriteError(stage, error)
+    throw new CostLogWriteError(stage, error, afterFailure)
   }
-  return result
 }

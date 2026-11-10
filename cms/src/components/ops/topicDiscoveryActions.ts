@@ -3,13 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
+import { runModeFromEnv } from '../../lib/runMode'
 import { loadTenantContextCms } from '../../lib/loadTenantContextCms'
 import { resolveTopicRelevanceModel } from '../../lib/llmSettings'
 import { scoreTopicRelevance } from '../../lib/scoreTopicRelevance'
 import { cachedTopicRelevance, rankByFit, relevanceFingerprint } from '../../lib/tenant/topicRelevance'
 
 import { createAhrefsClient, type DiscoveredKeyword } from '../../../../pipeline/src/ahrefs'
-import { config as pipelineConfig } from '../../../../pipeline/src/config'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
@@ -80,9 +80,9 @@ export async function discoverTopicsAction(
         ? cachedCandidates(cachedRow.candidates)
         : null
 
-    // Discovery has no pipeline-runs row to carry a mode, so the ambient config
-    // decides — the same signal the run bar shows the operator.
-    const mode = pipelineConfig.mockMode ? 'mock' : 'live'
+    // Discovery has no pipeline-runs row to carry a mode, so the environment
+    // decides, by the one shared rule — the same signal the run bar shows.
+    const mode = runModeFromEnv(process.env)
     const tenant = await loadTenantContextCms(payload, mode)
     const candidates =
       usableCache ??

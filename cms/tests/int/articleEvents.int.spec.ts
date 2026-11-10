@@ -57,10 +57,13 @@ describe('article status events', () => {
     let events = await queuedEvents(article.id)
     expect(events).toHaveLength(1)
     expect(events[0].event).toBe(ARTICLE_STATUS_EVENT)
+    expect(article.slug).toMatch(/^event-test-article(-\d+)?$/)
     expect(events[0].body).toMatchObject({
       event: ARTICLE_STATUS_EVENT,
       articleId: article.id,
-      slug: 'event-test-article',
+      // Slugs are unique and articles are never deleted, so a re-run of this
+      // suite gets `event-test-article-2` and so on.
+      slug: article.slug,
       from: null,
       to: 'topic_selected',
       actorType: 'system',
