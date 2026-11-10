@@ -48,7 +48,12 @@ export default defineConfig({
     ? undefined
     : {
         command: `npm run dev -- --hostname 127.0.0.1 --port ${testPort}`,
+        // Structured data only carries absolute URLs when SITE_URL is set
+        // (see `getConfiguredSiteUrl`), and frontend.e2e.spec.ts reads them.
+        env: { SITE_URL: testBaseURL },
         reuseExistingServer: false,
+        // A cold dev server compiles the first page on request; CI is slower than a laptop.
+        timeout: 180_000,
         url: testBaseURL,
       },
 })
