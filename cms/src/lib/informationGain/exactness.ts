@@ -21,6 +21,13 @@ export interface ExtractedValue {
   unit: string | null
   /** The text the value was read from, quoted back in mismatch messages. */
   raw: string
+  /**
+   * Set on a range bound that used to be read as a bare number (`5` in
+   * `5-10%`, `10` in `$5-10`) and now carries the range's kind. It still
+   * matches whatever that bare number matched, so the new kind only adds
+   * matches (see `rangeBoundKinds` and `sameValue`).
+   */
+  alsoBareNumber?: true
 }
 
 export interface TextValues {
@@ -30,7 +37,11 @@ export interface TextValues {
   comparative: 'more' | 'less' | 'equal' | null
 }
 
-/** Word numbers we accept. Deliberately small: one…twenty plus the round tens. */
+/**
+ * Word numbers we accept. Deliberately small: one…twenty plus the round tens,
+ * and a round ten joined to a unit (`twenty-five`, `twenty five`), which reads
+ * as one amount rather than as its last word.
+ */
 const WORD_NUMBERS: Record<string, number> = {
   one: 1,
   two: 2,
@@ -157,7 +168,19 @@ const byLengthDesc = (tokens: string[]): string =>
 
 const MONTH_SRC = byLengthDesc(Object.keys(MONTHS))
 const UNIT_SRC = byLengthDesc(Object.keys(UNIT_CANONICAL))
-const WORD_NUMBER_SRC = byLengthDesc(Object.keys(WORD_NUMBERS))
+const TENS = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+const TENS_SRC = TENS.join('|')
+const UNITS_SRC = 'one|two|three|four|five|six|seven|eight|nine'
+/** Every other word number. The round tens are left out: they take the guarded form below. */
+const WORD_NUMBER_SRC = byLengthDesc(Object.keys(WORD_NUMBERS).filter((word) => !TENS.includes(word)))
+const COMPOUND_JOIN = String.raw`(?:-|\s)`
+/**
+ * `twenty-five` or `twenty five`. A bare round ten may not be followed by a
+ * unit word: without that lookahead the regex backtracks to `twenty` alone and
+ * reads `twenty-five minutes` as the range 20 to 5 minutes.
+ */
+const WORD_AMOUNT_SRC = String.raw`(?:(?:${TENS_SRC})${COMPOUND_JOIN}(?:${UNITS_SRC})|(?:${TENS_SRC})(?!${COMPOUND_JOIN}(?:${UNITS_SRC})\b)|${WORD_NUMBER_SRC})`
+const COMPOUND_PATTERN = new RegExp(String.raw`^(${TENS_SRC})${COMPOUND_JOIN}(${UNITS_SRC})$`)
 
 /** `1.5`, `20,000`, `20K`, `1.5 million`. A bare `k`/`m`/`bn` must touch the digits. */
 const DIGIT_AMOUNT = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`
@@ -190,7 +213,7 @@ const NUMERIC_AMOUNT = String.raw`(?:${SIGN})?(?:${DIGIT_AMOUNT})(?:${MULTIPLIER
  * token as a measurement. A bare "one of the best ways" is prose, and reading a
  * value out of it would manufacture exactness mismatches from ordinary text.
  */
-const AMOUNT = String.raw`(?:${NUMERIC_AMOUNT}|\b(?:${WORD_NUMBER_SRC})\b)`
+const AMOUNT = String.raw`(?:${NUMERIC_AMOUNT}|\b${WORD_AMOUNT_SRC}\b)`
 
 /**
  * One left-to-right scan; alternatives are tried in order at each position, so
@@ -245,6 +268,8 @@ function parseAmount(raw: string | undefined): number | null {
     // `+` is emphasis; only a minus (ASCII or U+2212) flips the value.
     return digits[1] === '-' || digits[1] === '−' ? -scaled : scaled
   }
+  const compound = COMPOUND_PATTERN.exec(text)
+  if (compound) return WORD_NUMBERS[compound[1]] + WORD_NUMBERS[compound[2]]
   return WORD_NUMBERS[text] ?? null
 }
 
@@ -342,27 +367,114 @@ function comparativeOf(text: string): TextValues['comparative'] {
   return match[2] !== undefined ? 'less' : 'equal'
 }
 
+/** One scanned match: what it produced, which rule produced it, and where. */
+interface Token {
+  values: ExtractedValue[]
+  rule: 'bare' | 'pct' | 'currencyPrefix' | 'other'
+  start: number
+  end: number
+}
+
+function ruleOf(match: RegExpExecArray): Token['rule'] {
+  const g = match.groups ?? {}
+  if (g.bare !== undefined) return 'bare'
+  if (g.pct !== undefined) return 'pct'
+  if (g.symbol !== undefined || g.codePre !== undefined) return 'currencyPrefix'
+  return 'other'
+}
+
+/** What joins the two bounds of `5-10%` or `$5-10`. A spaced em dash is prose, not a range. */
+const RANGE_JOIN = /^(?:\s*[-–]\s*|—)$/
+
+/** An unsigned figure in digits, the only shape a re-kinded bound may have. */
+const UNSIGNED_DIGITS = /^\d/
+
+/** A bare number, as the scan reads one: no unit, not a year. */
+const isBareNumber = (token: Token): boolean =>
+  token.rule === 'bare' &&
+  token.values.length === 1 &&
+  token.values[0].kind === 'number' &&
+  UNSIGNED_DIGITS.test(token.values[0].raw)
+
+/**
+ * Gives the bare bound of a two-sided range the kind its other bound states.
+ *
+ * The scan reads `5-10%` as the number 5 and the percent 10, and `$5-10` as $5
+ * and the number 10, so `5-10%` only half matches `5% to 10%`. Re-kinding the
+ * bare bound outright broke pairings that match today (`5-10%` against
+ * `between 5 and 10%`, `$10-20 seats` against `$10 for 20 seats`), so the bound
+ * keeps its bare reading as well: `alsoBareNumber` makes `sameValue` accept
+ * whatever the bare number accepted. Matching only ever gains.
+ *
+ * Tokenisation is untouched; this only relabels a value the scan already
+ * produced, and only in two shapes, joined by `-` or `–` (spaces allowed) or an
+ * unspaced `—`:
+ *
+ * - **`5-10%`** — a bare unsigned number directly before an unsigned percent.
+ *   Not after a letter, digit, `.`, `,`, sign or dash (`Q3-5%`, `FY24-25%`,
+ *   `v2-3%`), and never a year (`In 2023 - 15%`, `2024-25%` stay as they were),
+ *   which the scan already reads as a year rather than a bare number.
+ * - **`$5-10`** — a bare unsigned number directly after a symbol- or
+ *   code-prefixed amount (`$5`, `USD 5`). A bound the scan read with a suffix
+ *   (`$5-10 EUR`, `$5-10k`, `$5-10%`, `$5-10 kg`) or as a year (`$5-2024`) is
+ *   not bare and is left alone, and so is one glued to a letter (`$5-10x`) or
+ *   after a scaled amount (`$5bn-10`, where the 10 is probably billions too).
+ */
+function rangeBoundKinds(tokens: Token[], text: string): void {
+  for (let i = 0; i + 1 < tokens.length; i += 1) {
+    const lo = tokens[i]
+    const hi = tokens[i + 1]
+    if (!RANGE_JOIN.test(text.slice(lo.end, hi.start))) continue
+
+    if (
+      isBareNumber(lo) &&
+      hi.rule === 'pct' &&
+      UNSIGNED_DIGITS.test(hi.values[0]?.raw ?? '') &&
+      !/[\w.,+\-−–—]/.test(text.slice(lo.start - 1, lo.start))
+    ) {
+      lo.values[0] = { ...lo.values[0], kind: 'percent', unit: '%', alsoBareNumber: true }
+    } else if (
+      lo.rule === 'currencyPrefix' &&
+      lo.values.length === 1 &&
+      isBareNumber(hi) &&
+      !/(?:k|m|bn|thousand|million|billion)$/i.test(lo.values[0].raw) &&
+      !/^[a-z]/i.test(text.slice(hi.end))
+    ) {
+      const unit = lo.values[0].unit
+      hi.values[0] = { ...hi.values[0], kind: 'currency', unit, alsoBareNumber: true }
+    }
+  }
+}
+
 /** Pulls every comparable signal out of one excerpt. Pure and deterministic. */
 export function extractValues(text: string): TextValues {
   const source = typeof text === 'string' ? text : ''
   // Curly apostrophes would otherwise hide "can’t" from the negation scan.
   const normalised = source.replace(/[‘’]/g, "'")
 
-  const values: ExtractedValue[] = []
+  const tokens: Token[] = []
   VALUE_PATTERN.lastIndex = 0
   let match = VALUE_PATTERN.exec(normalised)
   while (match !== null) {
     const produced = valueFromMatch(match)
-    if (Array.isArray(produced)) values.push(...produced)
-    else if (produced !== null) values.push(produced)
+    const values = Array.isArray(produced) ? produced : produced === null ? [] : [produced]
+    if (values.length > 0) {
+      tokens.push({
+        values,
+        rule: ruleOf(match),
+        start: match.index,
+        end: match.index + match[0].length,
+      })
+    }
     // Zero-length matches cannot happen with these alternatives, but a stuck
     // lastIndex would loop forever, so step past it defensively.
     if (match[0].length === 0) VALUE_PATTERN.lastIndex += 1
     match = VALUE_PATTERN.exec(normalised)
   }
+  rangeBoundKinds(tokens, normalised)
 
   return {
-    values,
+    values: tokens.flatMap((token) => token.values),
     negated: NEGATION_PATTERN.test(normalised),
     direction: directionOf(normalised),
     comparative: comparativeOf(normalised),
@@ -375,6 +487,24 @@ export function extractValues(text: string): TextValues {
  * so evidence reading `growth was 10%` cannot support `growth was -10%`.
  */
 function sameValue(a: ExtractedValue, b: ExtractedValue): boolean {
+  if (sameReading(a, b)) return true
+  // A re-kinded range bound also matches as the bare number it used to be read
+  // as, so the range kind can only add matches (see `rangeBoundKinds`).
+  const a2 = a.alsoBareNumber ? asBareNumber(a) : a
+  const b2 = b.alsoBareNumber ? asBareNumber(b) : b
+  if (a2 === a && b2 === b) return false
+  return sameReading(a2, b) || sameReading(a, b2) || sameReading(a2, b2)
+}
+
+/** The value a re-kinded range bound was read as before it took the range's kind. */
+const asBareNumber = (v: ExtractedValue): ExtractedValue => ({
+  kind: 'number',
+  value: v.value,
+  unit: null,
+  raw: v.raw,
+})
+
+function sameReading(a: ExtractedValue, b: ExtractedValue): boolean {
   // `2000 participants` is classified as a year and `2,000 participants` as a
   // number; they are the same figure, so the two kinds compare by value. Every
   // other pair of kinds stays distinct.
@@ -449,6 +579,18 @@ function qualifiersCompatible(claim: TextValues, e: TextValues): boolean {
 const attests = (e: TextValues, value: ExtractedValue): boolean =>
   e.values.some((candidate) => sameValue(value, candidate))
 
+/**
+ * `attests` with every re-kinded range bound read as the bare number it used to
+ * be. Anchors are chosen this way, so a range kind only ever adds value matches
+ * and never changes which excerpts answer the qualifier checks: an excerpt that
+ * carries `$10` does not start contradicting the direction of `fell $5-10`
+ * just because the bound now reads as currency.
+ */
+const attestsAsBare = (e: TextValues, value: ExtractedValue): boolean =>
+  e.values.some((candidate) => sameReading(bareReading(value), bareReading(candidate)))
+
+const bareReading = (v: ExtractedValue): ExtractedValue => (v.alsoBareNumber ? asBareNumber(v) : v)
+
 /** Said in place of a qualifier verdict when no excerpt carries the claim's values. */
 const UNANCHORED = "no evidence excerpt carries the claim's values"
 
@@ -470,9 +612,11 @@ const UNANCHORED = "no evidence excerpt carries the claim's values"
  *   compatible with every qualifier the claim states. An excerpt that quotes the
  *   figure while contradicting a qualifier does not support it, and gets its own
  *   mismatch message saying which of the two it failed on.
- * - **anchors** — the excerpts that carry at least one of the claim's values.
- *   The three qualifier checks are answered only by anchors, so an excerpt that
- *   never mentions the figure can no longer vouch for its polarity.
+ * - **anchors** — the excerpts that carry at least one of the claim's values,
+ *   reading a re-kinded range bound as the bare number it used to be
+ *   (`attestsAsBare`). The three qualifier checks are answered only by anchors,
+ *   so an excerpt that never mentions the figure can no longer vouch for its
+ *   polarity.
  * - **direction** — one comparable when the claim states one; matched unless the
  *   anchors state the opposite direction and never the claim's.
  * - **negation** — compared *symmetrically*: the check runs whenever the claim
@@ -505,7 +649,7 @@ export function compareValues(
   const anchors =
     claim.values.length === 0
       ? evidence
-      : evidence.filter((e) => claim.values.some((value) => attests(e, value)))
+      : evidence.filter((e) => claim.values.some((value) => attestsAsBare(e, value)))
   const anchored = claim.values.length === 0 || anchors.length > 0
 
   for (const value of claim.values) {

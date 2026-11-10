@@ -535,3 +535,110 @@ describe('compareValues — one excerpt must carry both value and polarity', () 
     assert.equal(exactness('this is not recommended', ['this is not recommended']), 1)
   })
 })
+
+describe('extractValues — compound word numbers', () => {
+  it('reads a round ten joined to a unit as one amount', () => {
+    assert.deepEqual(shape('twenty-five percent'), ['percent:25 %'])
+    assert.deepEqual(shape('twenty five percent'), ['percent:25 %'])
+    assert.deepEqual(shape('ninety-nine percent'), ['percent:99 %'])
+    assert.deepEqual(shape('$twenty-five'), ['currency:25 USD'])
+    assert.deepEqual(shape('fifty-five percent'), ['percent:55 %'])
+  })
+
+  // Without the guard the regex backtracks to `twenty` and reads a range.
+  it('does not split a compound into a range', () => {
+    assert.deepEqual(shape('twenty-five minutes'), ['number:25 min'])
+    assert.deepEqual(shape('sixty-one kg'), ['number:61 kg'])
+    assert.deepEqual(shape('thirty-five to forty minutes'), ['number:35 min', 'number:40 min'])
+  })
+
+  it('still needs a measurement around it, and adds no value the scan did not read before', () => {
+    assert.deepEqual(shape('twenty-five'), [])
+    assert.deepEqual(shape('ninety-nine'), [])
+    assert.deepEqual(shape('thirty-five to forty percent'), ['percent:40 %'])
+    assert.deepEqual(shape('thirty—five to forty percent'), ['percent:40 %'])
+    assert.deepEqual(shape('thirty−five to forty percent'), ['percent:40 %'])
+  })
+
+  it('compares as the amount it states', () => {
+    assert.equal(exactness('twenty-five percent', ['25% of users']), 1)
+    assert.equal(exactness('twenty-five percent', ['20% of users']), 0)
+    assert.equal(exactness('fifty-five percent', ['50%']), 0)
+    assert.equal(exactness('$thirty-five to $forty', ['$35 and $40']), 1)
+  })
+})
+
+describe('extractValues — range bounds take the range kind', () => {
+  it('gives the bare lower bound of a percent range the percent kind', () => {
+    for (const text of ['5-10%', '5 - 10%', '5–10%', '5—10%', 'up 5-10 per cent', '2024.5-2025.5%']) {
+      assert.equal(shape(text)[0]?.startsWith('percent:'), true, text)
+    }
+    const [lo] = extractValues('costs fell 5-10%').values
+    assert.equal(lo?.alsoBareNumber, true)
+  })
+
+  it('gives the bare upper bound of a currency range the currency kind', () => {
+    assert.deepEqual(shape('$5-10'), ['currency:5 USD', 'currency:10 USD'])
+    assert.deepEqual(shape('Bags cost $5-10.'), ['currency:5 USD', 'currency:10 USD'])
+    assert.deepEqual(shape('costs $5-10, depending on size'), ['currency:5 USD', 'currency:10 USD'])
+    assert.deepEqual(shape('$5-10.50'), ['currency:5 USD', 'currency:10.5 USD'])
+    assert.deepEqual(shape('$5-10,000'), ['currency:5 USD', 'currency:10000 USD'])
+    assert.deepEqual(shape('USD 5-10'), ['currency:5 USD', 'currency:10 USD'])
+  })
+
+  // Each of these was broken by an earlier attempt; each still reads exactly
+  // as it did before the range kind existed.
+  it('leaves every shape that is not a two-sided bare range alone', () => {
+    const unchanged: [string, string[]][] = [
+      ['By 2030 — 40% of companies', ['year:2030', 'percent:40 %']],
+      ['In 2023 - 15% of firms', ['year:2023', 'percent:15 %']],
+      ['revenue in 2024-25% growth', ['year:2024', 'percent:25 %']],
+      ['Q3 2024-25% growth', ['number:3', 'year:2024', 'percent:25 %']],
+      ['+2024-25%', ['number:2024', 'percent:25 %']],
+      ['-2024-25%', ['number:-2024', 'percent:25 %']],
+      ['+2024 to 25%', ['number:2024', 'percent:25 %']],
+      ['Prices start at $10 — 20 seats included', ['currency:10 USD', 'number:20']],
+      ['$5-10k seconds', ['currency:5 USD', 'number:10000']],
+      ['$5-10 EUR', ['currency:5 USD', 'currency:10 EUR']],
+      ['$5 to 10 people', ['currency:5 USD', 'number:10']],
+      ['grew from 5 million to 10% share', ['number:5000000', 'percent:10 %']],
+      ['grew from one to 15% of revenue', ['percent:15 %']],
+      ['COVID-19 to 20% of', ['number:19', 'percent:20 %']],
+      ['Q3-5%', ['number:3', 'percent:5 %']],
+      ['FY24-25% growth', ['number:24', 'percent:25 %']],
+      ['v2-3%', ['number:2', 'percent:3 %']],
+      ['from 5 to 10 to 15%', ['number:5', 'number:10', 'percent:15 %']],
+      ['between 5 and 10%', ['number:5', 'percent:10 %']],
+      ['20%-30%', ['percent:20 %', 'percent:-30 %']],
+      ['$5-2024', ['currency:5 USD', 'year:2024']],
+      ['$1500-2000', ['currency:1500 USD', 'year:2000']],
+      ['5 -10%', ['number:5', 'percent:-10 %']],
+      ['5 — 10%', ['number:5', 'percent:10 %']],
+      ['$5bn-10', ['currency:5000000000 USD', 'number:10']],
+      ['costs $5-10x more', ['currency:5 USD', 'number:10']],
+    ]
+    for (const [text, expected] of unchanged) assert.deepEqual(shape(text), expected, text)
+  })
+
+  it('matches the same-kind form and everything the bare number matched', () => {
+    assert.equal(exactness('costs fell 5-10%', ['costs fell 5% to 10%']), 1)
+    assert.equal(exactness('costs fell 5-10%', ['costs fell between 5 and 10%']), 1)
+    assert.equal(exactness('costs fell 5-10%', ['costs fell 5 - 10%']), 1)
+    assert.equal(exactness('costs fell between 5 and 10%', ['costs fell 5-10%']), 1)
+    assert.equal(exactness('Bags cost $5-10', ['bags cost $5 to $10']), 1)
+    assert.equal(exactness('Bags cost $5-10', ['Bags cost $5 to 10']), 1)
+    assert.equal(exactness('Bags cost $5-10', ['$5 - 10']), 1)
+    assert.equal(exactness('$10-20 seats', ['$10 for 20 seats']), 1)
+    assert.equal(exactness('Bags cost $5-10.', ['costs $5 and there are 10 left']), 1)
+    assert.equal(exactness('2024.5-2025.5%', ['2024.5% to 2025.5%']), 1)
+    assert.equal(exactness('2024.5-2025.5%', ['2024.5 units and 2025.5%']), 1)
+    assert.equal(exactness('$5-10k seconds', ['$10']), 0)
+    assert.equal(exactness('$5-10 EUR', ['$5 to $10']), 0.5)
+  })
+
+  // Anchors still read the bound as a bare number, so an excerpt that carries
+  // the figure only in its range kind cannot start contradicting a qualifier.
+  it('does not change which excerpts answer the qualifier checks', () => {
+    assert.equal(exactness('fell $5—10', ['rose $10 for 20 seats', 'costs $5 and there are 10 left']), 1)
+  })
+})
