@@ -394,3 +394,29 @@ it('QA signals accumulate across scans and repeated passes do not increase the a
     ),
   ).toBe(true)
 })
+it('reads only the published-article fields the comparison uses', async () => {
+  const article = await signalArticle()
+  await payload.update({
+    collection: 'articles',
+    id: article.id,
+    overrideAccess: true,
+    data: {
+      reviewNotes: 'UNUSED_ARTICLE_MARKER',
+      research: { rankingPagesSummary: 'UNUSED_ARTICLE_MARKER' },
+    },
+  })
+  const spy = vi.spyOn(payload, 'find')
+  try {
+    await collectSetupSuggestions(payload)
+    const call = spy.mock.calls.findIndex(
+      ([options]) =>
+        options.collection === 'articles' && JSON.stringify(options.where).includes('published'),
+    )
+    expect(call).toBeGreaterThanOrEqual(0)
+    const loaded = await spy.mock.results[call].value
+    expect(loaded.docs.length).toBeGreaterThan(0)
+    expect(JSON.stringify(loaded)).not.toContain('UNUSED_ARTICLE_MARKER')
+  } finally {
+    spy.mockRestore()
+  }
+})

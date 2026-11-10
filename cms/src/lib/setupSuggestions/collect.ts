@@ -103,6 +103,16 @@ export async function collectSetupSuggestions(
       payload.find({
         collection: 'articles',
         where: { status: { equals: 'published' } },
+        // The comparison reads the keyword and the published text fields only.
+        select: {
+          keyword: true,
+          title: true,
+          body: true,
+          titleTag: true,
+          metaDescription: true,
+          ogTitle: true,
+          ogDescription: true,
+        },
         pagination: false,
         depth: 0,
         overrideAccess: true,
