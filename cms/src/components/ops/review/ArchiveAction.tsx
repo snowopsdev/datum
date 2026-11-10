@@ -2,6 +2,7 @@
 
 import React from 'react'
 
+import { unwrap } from '../actionResult'
 import { archiveArticleAction, unarchiveArticleAction } from '../actions'
 import type { ReviewAction } from './useReviewAction'
 
@@ -17,20 +18,26 @@ import type { ReviewAction } from './useReviewAction'
  * the notice (inline chip and toast) carries an Undo that unarchives, and the
  * archived panel keeps Unarchive after that. Pressing it also backs out of any
  * confirm armed elsewhere on the page.
+ *
+ * A published piece is the exception to "nothing changes": archiving it takes
+ * it off the public site too, so `published` makes the title and notice say
+ * so. Undo still puts it back, on the site as well.
  */
 export function ArchiveAction({
   action,
   archived,
   articleId,
+  published = false,
 }: {
   action: ReviewAction
   archived: boolean
   articleId: number
+  published?: boolean
 }) {
   const { armed, disarm, pending, runAction, setNotice } = action
 
   if (archived) {
-    return <span className="datum-ops__hint">Archived — hidden from the content board.</span>
+    return <span className="datum-ops__hint">Archived — hidden from the content list.</span>
   }
   return (
     <button
@@ -40,16 +47,29 @@ export function ArchiveAction({
       onClick={() => {
         if (armed) disarm()
         runAction(async () => {
-          await archiveArticleAction(articleId)
-          setNotice('Archived — it is off the content board.', {
-            label: 'Undo',
-            toast: 'Archived',
-            run: () => unarchiveArticleAction(articleId),
-            done: 'Unarchived — it is back on the content board.',
-          })
+          unwrap(await archiveArticleAction(articleId))
+          setNotice(
+            published
+              ? 'Archived — it is off the site and the content list.'
+              : 'Archived — it is off the content list.',
+            {
+              label: 'Undo',
+              toast: 'Archived',
+              run: async () => {
+                unwrap(await unarchiveArticleAction(articleId))
+              },
+              done: published
+                ? 'Unarchived — it is back on the site and the content list.'
+                : 'Unarchived — it is back on the content list.',
+            },
+          )
         })
       }}
-      title="Take this piece off the content board. Nothing is deleted, the audit trail is kept, and Undo puts it back."
+      title={
+        published
+          ? 'Take this piece off the public site and the content list. Nothing is deleted, the audit trail is kept, and Undo puts it back.'
+          : 'Take this piece off the content list. Nothing is deleted, the audit trail is kept, and Undo puts it back.'
+      }
     >
       Archive
     </button>

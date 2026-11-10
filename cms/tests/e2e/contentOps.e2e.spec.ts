@@ -191,7 +191,9 @@ test.describe('Content ops', () => {
     seededIds.push(article.id)
 
     await page.goto(`/admin/ops/articles/${article.id}`)
+    // Publishing goes live at once, so the first click only asks.
     await page.getByRole('button', { name: 'Publish now' }).click()
+    await page.getByRole('button', { name: 'Confirm: publish now' }).click()
     // Publishing keeps the reviewer on the article: the page re-renders in
     // place and the panel for the new status replaces the one just used.
     await expect(page.getByText(/^Published ·/)).toBeVisible()
@@ -258,7 +260,7 @@ test.describe('Content ops', () => {
 
     await page.goto(`/admin/ops/articles/${article.id}`)
     await page.getByRole('button', { name: 'Archive' }).click()
-    await expect(page.getByText('Archived — it is off the content board.')).toBeVisible()
+    await expect(page.getByText('Archived — it is off the content list.')).toBeVisible()
 
     const search = `?q=${encodeURIComponent(keyword)}&page=1`
     await page.goto(`/admin/ops/content${search}&filter=all`)

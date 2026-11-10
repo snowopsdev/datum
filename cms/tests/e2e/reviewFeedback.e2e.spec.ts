@@ -95,7 +95,7 @@ test.describe('Review feedback model', () => {
     ).toBeVisible()
 
     await page.keyboard.press('Enter')
-    await expect(page.getByText('Unarchived — it is back on the content board.')).toBeVisible()
+    await expect(page.getByText('Unarchived — it is back on the content list.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Archive' })).toBeVisible()
 
     const doc = await payload.findByID({

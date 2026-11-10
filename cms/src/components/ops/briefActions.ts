@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { errorMessage } from '../../lib/errorMessage'
 import { requireUser } from '../../lib/requireUser'
 
+import { activeRunIdForArticles } from '../../lib/activeRuns'
+import { CLEARED_INFORMATION_GAIN } from '../../lib/articleReviewGate'
 import { ActivePipelineRunError, ArticleInActiveRunError } from '../../lib/createPipelineRun'
 import {
   type IcpOption,
@@ -11,6 +13,7 @@ import {
   loadWorkspaceSetup,
 } from '../../lib/loadWorkspaceReadiness'
 import { gateRunReadiness, queueRunForArticles } from '../../lib/queueRunForArticles'
+import { CLEARED_SCHEDULE, NULL_QA_RESULTS } from './articleReset'
 
 export type BriefActionResult =
   | {
@@ -89,16 +92,35 @@ function resolveAudience(
   return untouched && nextLine ? nextLine : edits.audience
 }
 
-/** Save edits to a brief that is waiting for approval. */
+const BRIEF_CHANGED_ELSEWHERE =
+  'Someone else saved this brief since you opened it. Reload to see their changes.'
+
+/**
+ * Save edits to a brief that is waiting for approval.
+ *
+ * `loadedUpdatedAt` is the article's `updatedAt` as the editor last saw it.
+ * The save replaces the whole brief, so without this check a colleague's
+ * edit (or an accepted suggestion) made after the page loaded is silently
+ * overwritten. `null` means the caller has no version to compare.
+ */
 export async function saveBriefAction(
   articleId: number,
   edits: BriefEdits,
+  loadedUpdatedAt: string | null,
 ): Promise<BriefActionResult> {
   try {
     const { payload, user } = await requireUser('Sign in to work on a brief.')
-    const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { status: true, brief: true, icp: true, updatedAt: true },
+    })
     if (article.status !== 'brief_review') {
       return { ok: false, error: 'This brief has already been approved; the piece has moved on.' }
+    }
+    if (loadedUpdatedAt && new Date(article.updatedAt).getTime() > new Date(loadedUpdatedAt).getTime()) {
+      return { ok: false, error: BRIEF_CHANGED_ELSEWHERE }
     }
     const next = cleanEdits(edits)
     const icps = await loadActiveAudienceOptions(payload, user)
@@ -165,7 +187,12 @@ export async function approveBriefAction(
 ): Promise<BriefActionResult> {
   try {
     const { payload, user } = await requireUser('Sign in to work on a brief.')
-    const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { status: true, template: true, brief: true, icp: true },
+    })
     if (article.status !== 'brief_review') {
       return { ok: false, error: 'This brief has already been approved.' }
     }
@@ -246,14 +273,30 @@ export async function approveBriefAction(
   }
 }
 
+/** Where a draft can be sent back to its brief from: a reviewer is already the one acting. */
+const REVISITABLE_STATUSES = ['needs_revision', 'needs_review', 'blocked'] as const
+
 /**
  * Send a piece back to its brief. For when the draft is wrong because the
  * *angle* was wrong — rewriting against the same brief would repeat it.
+ *
+ * Only from the three statuses that wait on a reviewer, and never while a run
+ * is carrying the piece (it would write over the reopened brief). The draft is
+ * going to be rewritten after the brief is approved, so everything that
+ * described it goes too: the schedule, the regeneration notes, the QA
+ * verdicts and the information-gain decision. `informationGain` is an
+ * access-guarded group, hence `overrideAccess: true` — the same fixed all-null
+ * payload `actions.ts` writes, and the status gates still run.
  */
 export async function revisitBriefAction(articleId: number): Promise<BriefActionResult> {
   try {
     const { payload, user } = await requireUser('Sign in to work on a brief.')
-    const article = await payload.findByID({ collection: 'articles', id: articleId, depth: 0 })
+    const article = await payload.findByID({
+      collection: 'articles',
+      id: articleId,
+      depth: 0,
+      select: { status: true, brief: true },
+    })
     if (article.status === 'brief_review') return { ok: true, message: 'Already at the brief.' }
     if (article.status === 'topic_selected') {
       return { ok: false, error: 'Research has not run yet, so there is no brief to revisit.' }
@@ -261,15 +304,31 @@ export async function revisitBriefAction(articleId: number): Promise<BriefAction
     if (article.status === 'published') {
       return { ok: false, error: 'A published piece cannot go back to its brief.' }
     }
+    if (!(REVISITABLE_STATUSES as readonly string[]).includes(article.status)) {
+      return {
+        ok: false,
+        error: 'Only a draft that is waiting for a reviewer can go back to its brief.',
+      }
+    }
+    if (await activeRunIdForArticles(payload, user, [articleId])) {
+      return {
+        ok: false,
+        error: 'This article is in an active run. Wait for the run to finish before revisiting its brief.',
+      }
+    }
     await payload.update({
       collection: 'articles',
       id: articleId,
       data: {
         status: 'brief_review',
         brief: { ...(article.brief ?? {}), approvedAt: null, approvedBy: null },
+        revisionNotes: null,
+        qaResults: NULL_QA_RESULTS,
+        informationGain: CLEARED_INFORMATION_GAIN,
+        ...CLEARED_SCHEDULE,
       },
       user,
-      overrideAccess: false,
+      overrideAccess: true,
       context: {
         articleAudit: {
           actor: actorOf(user),

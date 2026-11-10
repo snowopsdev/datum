@@ -26,7 +26,12 @@ export function PublishedPanel({ action, article, editHref }: PanelProps) {
         >
           /articles/{article.slug || article.id}
         </a>
-        <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
+        <ArchiveAction
+          action={action}
+          archived={article.archived}
+          articleId={article.id}
+          published
+        />
         <OpenInAdmin editHref={editHref} />
       </div>
     </div>

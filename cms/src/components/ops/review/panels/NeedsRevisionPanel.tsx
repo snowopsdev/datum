@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 
+import { unwrap } from '../../actionResult'
 import { regenerateArticleAction, resetToDraftedAction } from '../../actions'
 import { announceRunQueued } from '../../runQueued'
 import { revisitBriefAction } from '../../briefActions'
@@ -79,9 +80,11 @@ export function NeedsRevisionPanel({
     runAction(async () => {
       const options = { confirmLiveCost }
       reportQueued(
-        which === 'reset'
-          ? await resetToDraftedAction(article.id, notes, options)
-          : await regenerateArticleAction(article.id, notes, options),
+        unwrap(
+          which === 'reset'
+            ? await resetToDraftedAction(article.id, notes, options)
+            : await regenerateArticleAction(article.id, notes, options),
+        ),
       )
     })
   }
@@ -91,11 +94,14 @@ export function NeedsRevisionPanel({
     else runReviewAction(which, false)
   }
 
-  const revisitBrief = () =>
+  const confirmRevisit = armed === 'revisit'
+  const revisitBrief = () => {
+    disarm()
     runAction(async () => {
       const result = await revisitBriefAction(article.id)
       if (!result.ok) throw new Error(result.error)
     })
+  }
 
   return (
     <>
@@ -160,15 +166,38 @@ export function NeedsRevisionPanel({
             >
               Reset to drafted
             </button>
-            <button
-              className="datum-ops__btn"
-              disabled={pending}
-              onClick={revisitBrief}
-              title="Go back to the brief and change the angle or sections before rewriting"
-              type="button"
-            >
-              Revisit brief
-            </button>
+            {confirmRevisit ? (
+              <>
+                <button
+                  type="button"
+                  className="datum-ops__btn datum-ops__btn--danger"
+                  data-confirm-go="revisit"
+                  disabled={pending}
+                  onClick={revisitBrief}
+                >
+                  Confirm: revisit brief
+                </button>
+                <button
+                  type="button"
+                  className="datum-ops__btn"
+                  disabled={pending}
+                  onClick={disarm}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                className="datum-ops__btn"
+                data-confirm-trigger="revisit"
+                disabled={pending}
+                onClick={() => arm('revisit')}
+                title="Go back to the brief and change the angle or sections before rewriting"
+                type="button"
+              >
+                Revisit brief
+              </button>
+            )}
             {confirmRegenerate ? (
               <>
                 <button
@@ -204,6 +233,12 @@ export function NeedsRevisionPanel({
             <OpenInAdmin editHref={editHref} />
           </div>
         )}
+        {confirmRevisit ? (
+          <p className="datum-ops__warn" style={{ marginTop: 10 }}>
+            This sends the article back to the brief. The current draft, its QA results and its
+            schedule are cleared, and a new draft is written once you approve the brief.
+          </p>
+        ) : null}
         {confirmRegenerate && !pendingReviewAction ? (
           <p className="datum-ops__warn" style={{ marginTop: 10 }}>
             This throws away the current body and sends the article back to <code>researched</code>,

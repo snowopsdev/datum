@@ -35,6 +35,15 @@ const publicFields = {
   contentUpdatedAt: true,
 } as const
 
+/**
+ * What makes a piece public: published and not archived. Archiving a published
+ * article withdraws it from the site (`archiveArticleAction` purges the cache).
+ * `not_equals: true` rather than `equals: false` so a row with no value counts.
+ */
+export const PUBLIC: Where = {
+  and: [{ status: { equals: 'published' } }, { archived: { not_equals: true } }],
+}
+
 /** Resolve a published article by slug, or by numeric id when the path is an ID fallback. */
 export const findPublishedArticle = cache(async function findPublishedArticle(
   payload: Payload,
@@ -44,7 +53,7 @@ export const findPublishedArticle = cache(async function findPublishedArticle(
     collection: 'articles',
     select: publicFields,
     where: {
-      and: [{ slug: { equals: slugOrId } }, { status: { equals: 'published' } }],
+      and: [PUBLIC, { slug: { equals: slugOrId } }],
     },
     limit: 1,
     depth: 0,
@@ -54,9 +63,7 @@ export const findPublishedArticle = cache(async function findPublishedArticle(
 
   if (/^\d+$/.test(slugOrId)) {
     const id = Number(slugOrId)
-    const where: Where = {
-      and: [{ id: { equals: id } }, { status: { equals: 'published' } }],
-    }
+    const where: Where = { and: [PUBLIC, { id: { equals: id } }] }
     const byId = await payload.find({
       collection: 'articles',
       select: publicFields,

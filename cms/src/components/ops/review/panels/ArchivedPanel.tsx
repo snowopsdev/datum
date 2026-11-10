@@ -3,6 +3,7 @@
 import React from 'react'
 
 import { STATUS_META } from '../../../../lib/articleStatusMeta'
+import { unwrap } from '../../actionResult'
 import { unarchiveArticleAction } from '../../actions'
 import { OpenInAdmin } from '../ArchiveAction'
 import type { PanelProps } from '../types'
@@ -10,7 +11,7 @@ import type { PanelProps } from '../types'
 /**
  * The read-only panel every archived article gets, whatever its status.
  *
- * Archived means off limits, not just off the board: `gateArchivedStatus`
+ * Archived means off limits, not just off the content list: `gateArchivedStatus`
  * refuses status changes and schedules, and `queueRunForArticles` refuses to
  * queue one, so the controls the status panel would offer are exactly the
  * ones the server would refuse. The only thing a person can do here is bring
@@ -23,7 +24,7 @@ export function ArchivedPanel({ action, article, editHref }: PanelProps) {
     <div className="datum-ops__block">
       <h3>Archived</h3>
       <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-        Off the content board and skipped by every run. It was {meta.label} (
+        Off the content list and skipped by every run. It was {meta.label} (
         <code>{article.status}</code>) when it was archived, and it goes back to that step if you
         unarchive it.
       </p>
@@ -34,8 +35,8 @@ export function ArchivedPanel({ action, article, editHref }: PanelProps) {
           disabled={pending}
           onClick={() =>
             runAction(async () => {
-              await unarchiveArticleAction(article.id)
-              setNotice('Unarchived — it is back on the content board.')
+              unwrap(await unarchiveArticleAction(article.id))
+              setNotice('Unarchived — it is back on the content list.')
             })
           }
         >
