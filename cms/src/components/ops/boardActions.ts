@@ -168,7 +168,10 @@ const RUN_SELECT = {
   errorSummary: true,
 } as const
 
-/** Far more than can queue behind one another; bounds the read, not the count shown. */
+/**
+ * Far more than can queue behind one another in practice. It bounds the read,
+ * so "and N more queued" stops counting at this many active runs.
+ */
 const ACTIVE_RUNS_READ = 50
 
 /**

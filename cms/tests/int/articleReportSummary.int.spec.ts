@@ -59,6 +59,32 @@ it('counts the evidence check as a fourth pass rate and names it when it alone f
   expect(summary.failures[0].details).toEqual(['Remove or replace: "the fastest grinder".'])
 })
 
+// QA fails a draft on a quoted "what we are NOT" breach even when the model's
+// own verdict was `passed: true`; the report must count it the same way.
+it('counts a not-trait breach as a qualitative failure, as QA does', () => {
+  const summary = summarizeReportArticles([
+    article({
+      id: 1,
+      qaResults: {
+        structural: passing,
+        factCheck: passing,
+        qualitativeReview: {
+          passed: true,
+          notTraitViolations: [{ trait: 'Not salesy', excerpt: 'Buy now!', explanation: 'Hard sell' }],
+        },
+        evidenceCheck: passing,
+      },
+    }),
+    article({
+      id: 2,
+      status: 'qa_passed',
+      qaResults: { structural: passing, factCheck: passing, qualitativeReview: passing, evidenceCheck: passing },
+    }),
+  ])
+  expect(summary.qu).toEqual({ t: 2, p: 1 })
+  expect(summary.failures[0].fails).toContain('Qualitative review')
+})
+
 it('describes violations and names checks in review-page words, not codes', () => {
   const summary = summarizeReportArticles([
     article({

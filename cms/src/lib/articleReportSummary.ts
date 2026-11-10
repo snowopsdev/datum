@@ -38,6 +38,18 @@ const CHECK_ORDER: (keyof typeof CHECK_LABEL)[] = ['structural', 'factCheck', 'q
  * model marked failed without writing anything down has no `qaFailures` entry
  * but is still named, so the card never says "no check named" for a failure.
  */
+/**
+ * QA's own rule for the qualitative check (`decideQualitative` in the pipeline):
+ * the model's `passed`, and no quoted breach of a "what we are NOT" trait. A
+ * draft can carry `passed: true` and still have failed on a breach.
+ */
+function qualitativePassed(qa: ReportArticle['qaResults']): boolean | null {
+  const review = qa?.qualitativeReview
+  if (review?.passed == null) return null
+  const breaches = review.notTraitViolations
+  return review.passed === true && !(Array.isArray(breaches) && breaches.length > 0)
+}
+
 function failureDetails(a: ReportArticle): { fails: string[]; details: string[] } {
   const qa = a.qaResults
   const described = qaFailures(a)
@@ -45,7 +57,7 @@ function failureDetails(a: ReportArticle): { fails: string[]; details: string[] 
   for (const f of described) failed.add(CHECK_OF[f.check])
   if (qa?.structural?.passed === false) failed.add('structural')
   if (qa?.factCheck?.passed === false) failed.add('factCheck')
-  if (qa?.qualitativeReview?.passed === false) failed.add('qualitative')
+  if (qualitativePassed(qa) === false) failed.add('qualitative')
   if (qa?.evidenceCheck?.passed === false) failed.add('evidence')
   return {
     fails: CHECK_ORDER.filter((check) => failed.has(check)).map((check) => CHECK_LABEL[check]),
@@ -96,7 +108,11 @@ export function summarizeReportArticles(articles: ReportArticle[]) {
       const block = a.qaResults?.[key]
       return block && typeof block === 'object' && 'passed' in block && block.passed != null
     })
-    const passed = rows.filter((a) => a.qaResults?.[key]?.passed === true).length
+    const passed = rows.filter((a) =>
+      key === 'qualitativeReview'
+        ? qualitativePassed(a.qaResults) === true
+        : a.qaResults?.[key]?.passed === true,
+    ).length
     return { t: rows.length, p: passed }
   }
   const st = rate('structural')

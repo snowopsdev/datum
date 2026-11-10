@@ -46,7 +46,7 @@ export async function ReportsView(props: AdminViewServerProps) {
         qaResults: {
           structural: { passed: true, violations: true },
           factCheck: { passed: true, notes: true },
-          qualitativeReview: { passed: true, notes: true },
+          qualitativeReview: { passed: true, notes: true, notTraitViolations: true },
           evidenceCheck: { passed: true, notes: true },
         },
         informationGain: { decision: true },

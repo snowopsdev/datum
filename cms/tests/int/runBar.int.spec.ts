@@ -206,6 +206,26 @@ describe('queue announcements', () => {
     expect(screen.queryByText('Queued — waiting to start')).toBeNull()
   })
 
+  // The bar follows the executing run. Queuing another behind it must not hide
+  // the one running while the announcement waits for its own run to start.
+  it('keeps showing the running run when the one just queued is behind it', async () => {
+    mocks.poll.mockResolvedValue({ ...run('running'), runId: 'run-a', activeRunIds: ['run-a', 'run-b'] })
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    await act(async () => announceRunQueued({ runId: 'run-b' }))
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.queryByText('Queued — waiting to start')).toBeNull()
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).toMatch(
+      /and 1 more queued/,
+    )
+    expect(
+      isStaleRun(
+        { runId: 'run-a', createdAtIso: '2026-01-01T00:00:00Z', activeRunIds: ['run-a', 'run-b'] },
+        { runId: 'run-b', queuedAt: Date.parse('2026-01-01T00:00:10Z') },
+      ),
+    ).toBe(false)
+  })
+
   it('tells runs apart by creation time when the action carried no id', () => {
     const at = Date.parse('2026-01-01T00:00:10Z')
     const detail = { queuedAt: at }
