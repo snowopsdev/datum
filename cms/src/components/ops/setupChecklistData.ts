@@ -1,4 +1,5 @@
 import { suggestionDTO } from '../../lib/setupSuggestions/presentation'
+import { sql } from '@payloadcms/db-postgres'
 import type { Payload } from 'payload'
 
 import { loadWorkspaceSetup, type WorkspaceSetupData } from '../../lib/loadWorkspaceReadiness'
@@ -12,24 +13,40 @@ import type { SetupChecklistData } from './SetupChecklist'
  * the same way rather than each deciding what a row says. Readiness supplies
  * the states; the two extra reads are for the two names a person recognises —
  * the active voice and the primary audience — which readiness only tracks by
- * id, and for the site-page crawl, which lives on the profile global.
+ * id, and for the site-page crawl, which lives on the profile global (its
+ * count is read in SQL so the crawled text never loads).
  *
  * The fetched-at stamp is formatted here, on the server, in UTC. A relative
  * "2 h ago" computed in the browser would disagree with the server's own
  * render and hydrate badly, and this page is opened, read, and left.
  */
+/**
+ * How many pages the last site fetch stored. The pages are crawled text and can
+ * be large, so the length is taken in SQL instead of loading the JSON to count it.
+ */
+async function countSitePages(payload: Payload): Promise<number> {
+  const result = await payload.db.drizzle.execute<{ count: number | null }>(sql`
+    SELECT CASE WHEN jsonb_typeof(site_pages) = 'array'
+                THEN jsonb_array_length(site_pages) ELSE 0 END AS count
+    FROM ${payload.db.tables.workspace_profile}
+    LIMIT 1
+  `)
+  return Number(result.rows[0]?.count ?? 0)
+}
+
 export async function loadSetupChecklistData(
   payload: Payload,
   loadedSetup?: WorkspaceSetupData,
 ): Promise<SetupChecklistData> {
-  const [setup, profileDoc, suggestions] = await Promise.all([
+  const [setup, profileDoc, sitePages, suggestions] = await Promise.all([
     loadedSetup ?? loadWorkspaceSetup(payload),
     payload.findGlobal({
       slug: 'workspace-profile',
-      select: { sitePages: true, sitePagesFetchedAt: true },
+      select: { sitePagesFetchedAt: true },
       depth: 0,
       overrideAccess: true,
     }),
+    countSitePages(payload),
     payload.find({
       collection: 'setup-suggestions',
       where: { status: { equals: 'open' } },
@@ -58,9 +75,6 @@ export async function loadSetupChecklistData(
     }
   }
 
-  const sitePages = Array.isArray((profileDoc as { sitePages?: unknown }).sitePages)
-    ? ((profileDoc as { sitePages: unknown[] }).sitePages.length as number)
-    : 0
   const fetchedAt =
     (profileDoc as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
 

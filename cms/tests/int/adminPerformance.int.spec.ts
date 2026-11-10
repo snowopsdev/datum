@@ -1,4 +1,5 @@
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
+import { loadSetupChecklistData } from '@/components/ops/setupChecklistData'
 import { loadSourceReviewArticles } from '@/components/ops/sourceReviewData'
 import { randomUUID } from 'node:crypto'
 import {
@@ -96,6 +97,34 @@ describe('admin queries against Postgres', () => {
       )
       expect(index).toBeGreaterThanOrEqual(0)
       const loaded = await findGlobal.mock.results[index].value
+      expect(JSON.stringify(loaded)).not.toContain('UNUSED_SITEPAGE_MARKER')
+    } finally {
+      findGlobal.mockRestore()
+      await payload.updateGlobal({
+        slug: 'workspace-profile',
+        data: { sitePages: previous.sitePages },
+      })
+    }
+  })
+
+  it('counts site pages for the setup hub without loading their text', async () => {
+    const previous = await payload.findGlobal({ slug: 'workspace-profile', depth: 0 })
+    await payload.updateGlobal({
+      slug: 'workspace-profile',
+      overrideAccess: true,
+      data: {
+        sitePages: [
+          { url: 'https://local.test/a', text: 'UNUSED_SITEPAGE_MARKER' },
+          { url: 'https://local.test/b', text: 'UNUSED_SITEPAGE_MARKER' },
+          { url: 'https://local.test/c', text: 'UNUSED_SITEPAGE_MARKER' },
+        ],
+      },
+    })
+    const findGlobal = vi.spyOn(payload, 'findGlobal')
+    try {
+      const data = await loadSetupChecklistData(payload)
+      expect(data.workspace.sitePages).toBe(3)
+      const loaded = await Promise.all(findGlobal.mock.results.map((result) => result.value))
       expect(JSON.stringify(loaded)).not.toContain('UNUSED_SITEPAGE_MARKER')
     } finally {
       findGlobal.mockRestore()
