@@ -89,8 +89,8 @@ audience, a position, and an evidence bank are drafted from, and half a
 stranger's site is worse than no site. A **sub-page** that redirects off-site is
 dropped with a warning; one marketing path pointing at a partner is ordinary.
 
-Editing an audience moves `configFingerprint`, so it stales a verification run
-the way editing the brand voice does.
+Editing an audience changes `configFingerprint`. That value is a provenance
+stamp recorded on each run; nothing reads it back to stale a run.
 
 ## How prompts use them
 
@@ -214,8 +214,8 @@ The difference is only what the setup screen says. Outstanding work appears in
 `tenant.recommendations` (`Add positioning`, or `Finish positioning: …`), which
 is kept apart from `governance.problems` so nothing can turn a recommendation
 into a blocker by rendering the two lists together. Saving or editing the
-global moves `configFingerprint`, so it stales a verification run the way an
-edited audience does.
+global changes `configFingerprint`, the provenance stamp recorded on each run;
+nothing reads it back to stale a run.
 
 Two rules the block enforces on the writer's behalf:
 
@@ -386,7 +386,8 @@ because the writer is offered none of them. It **never gates a run** — an empt
 bank simply means the writer may state nothing about the workspace. `Add an
 evidence bank`, `Re-check N expired claims`, and `Complete N unverified claims`
 appear in `tenant.recommendations`. Saving the
-global moves `configFingerprint`, so it stales a verification run.
+global changes `configFingerprint`, the provenance stamp recorded on each run;
+nothing reads it back to stale a run.
 
 ## AI assist
 

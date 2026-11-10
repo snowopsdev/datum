@@ -1,7 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { test, expect } from '@playwright/test'
 import type { Payload } from 'payload'
+import type { Page } from '@playwright/test'
 import { opsPayload, retireArticles, seedArticle } from '../helpers/seedContentOps'
+
+/**
+ * Navigate and wait for the admin to hydrate before interacting. Input before
+ * hydration is lost on a cold dev server: a controlled checkbox is reset, a
+ * search field has no change handler yet, a button has no click handler.
+ */
+async function gotoHydrated(page: Page, url: string) {
+  const response = await page.goto(url)
+  await expect(page.locator('aside.nav')).toHaveClass(/nav--nav-hydrated/)
+  return response
+}
 
 const marker = `pagination-${randomUUID()}`
 // Deliberately does not contain `marker`: the pagination test searches
@@ -75,7 +87,7 @@ test.beforeEach(async ({ page }) => {
 test('content pagination, search, selection, and browser history', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
-  await page.goto(`/admin/ops/content?filter=all&q=${marker}&page=1`)
+  await gotoHydrated(page, `/admin/ops/content?filter=all&q=${marker}&page=1`)
   await expect(page.locator('.datum-content__row')).toHaveCount(50)
   const checkbox = page.getByRole('checkbox').first()
   await checkbox.check()
@@ -101,25 +113,38 @@ test('content pagination, search, selection, and browser history', async ({ page
 })
 
 test('review loads model evidence once on expansion', async ({ page }) => {
-  const response = await page.goto(`/admin/ops/articles/${ids[0]}`)
+  const response = await gotoHydrated(page, `/admin/ops/articles/${ids[0]}`)
   expect(await response?.text()).not.toContain('DEFERRED_EVIDENCE_SENTINEL')
+  // `onToggle` is attached by React, so a click before hydration opens the
+  // <details> natively and never asks for the evidence (`gotoHydrated` waits).
+  // Only the evidence action's own requests count. The run bar also polls by
+  // POST (a server action) every 15 s, and any POST counted here would make
+  // the test fail whenever a poll lands inside it. That action's arguments
+  // carry the article id; the poll's do not.
+  const evidenceRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && (request.postData() ?? '').includes('"articleId"')) {
+      evidenceRequests.push(request.postData() ?? '')
+    }
+  })
   const entry = page
     .locator('.datum-ops__timeline-item')
     .filter({ hasText: 'generate call completed' })
   await entry.getByText('Evidence', { exact: true }).click()
   await expect(entry.locator('pre')).toContainText('DEFERRED_EVIDENCE_SENTINEL')
-  let requests = 0
-  page.on('request', (request) => {
-    if (request.method() === 'POST') requests++
-  })
+  // The filter above does match the evidence request: without this, a filter
+  // that matched nothing would make the zero below prove nothing.
+  expect(evidenceRequests).toHaveLength(1)
   await entry.getByText('Evidence', { exact: true }).click()
   await entry.getByText('Evidence', { exact: true }).click()
   await expect(entry.locator('pre')).toContainText('Full model response')
-  expect(requests).toBe(0)
+  // Give a re-fetch on re-open time to start before asserting there was none.
+  await page.waitForTimeout(500)
+  expect(evidenceRequests).toHaveLength(1)
 })
 
 test('reports render summaries and switch period', async ({ page }) => {
-  await page.goto('/admin/ops/reports?period=all')
+  await gotoHydrated(page, '/admin/ops/reports?period=all')
   await expect(page.getByRole('heading', { name: 'Reports', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Spend by stage' })).toBeVisible()
   await page.getByRole('button', { name: 'Month', exact: true }).click()
@@ -130,7 +155,7 @@ test('reports render summaries and switch period', async ({ page }) => {
 test('typing survives an older search response and Back cancels pending debounce', async ({
   page,
 }) => {
-  await page.goto(`/admin/ops/content?filter=all&q=${marker}&page=1`)
+  await gotoHydrated(page, `/admin/ops/content?filter=all&q=${marker}&page=1`)
   const search = page.getByRole('searchbox', { name: 'Search content' })
   const firstQuery = `${marker} topic 1`
   const newerQuery = `${marker} topic 12`
@@ -170,7 +195,7 @@ test('typing survives an older search response and Back cancels pending debounce
 })
 
 test('search keeps the requested tab while its response is delayed', async ({ page }) => {
-  await page.goto(`/admin/ops/content?filter=all&q=${marker}&page=1`)
+  await gotoHydrated(page, `/admin/ops/content?filter=all&q=${marker}&page=1`)
   let release: () => void = () => {
     throw new Error('Tab request not intercepted')
   }

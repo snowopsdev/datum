@@ -1,4 +1,5 @@
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
+import { loadSetupChecklistData } from '@/components/ops/setupChecklistData'
 import { loadSourceReviewArticles } from '@/components/ops/sourceReviewData'
 import { randomUUID } from 'node:crypto'
 import {
@@ -103,6 +104,70 @@ describe('admin queries against Postgres', () => {
         slug: 'workspace-profile',
         data: { sitePages: previous.sitePages },
       })
+    }
+  })
+
+  it('counts site pages for the setup hub without loading their text', async () => {
+    const previous = await payload.findGlobal({ slug: 'workspace-profile', depth: 0 })
+    await payload.updateGlobal({
+      slug: 'workspace-profile',
+      overrideAccess: true,
+      data: {
+        sitePages: [
+          { url: 'https://local.test/a', text: 'UNUSED_SITEPAGE_MARKER' },
+          { url: 'https://local.test/b', text: 'UNUSED_SITEPAGE_MARKER' },
+          { url: 'https://local.test/c', text: 'UNUSED_SITEPAGE_MARKER' },
+        ],
+      },
+    })
+    const findGlobal = vi.spyOn(payload, 'findGlobal')
+    try {
+      const data = await loadSetupChecklistData(payload)
+      expect(data.workspace.sitePages).toBe(3)
+      const loaded = await Promise.all(findGlobal.mock.results.map((result) => result.value))
+      expect(JSON.stringify(loaded)).not.toContain('UNUSED_SITEPAGE_MARKER')
+    } finally {
+      findGlobal.mockRestore()
+      await payload.updateGlobal({
+        slug: 'workspace-profile',
+        data: { sitePages: previous.sitePages },
+      })
+    }
+  })
+
+  it('reads only the status of the newest run for the setup data', async () => {
+    const template = await payload.create({
+      collection: 'templates',
+      overrideAccess: true,
+      data: { name: `${prefix} run template` },
+    })
+    const run = await payload.create({
+      collection: 'pipeline-runs',
+      overrideAccess: true,
+      data: {
+        runId: `${prefix}-run`,
+        source: 'cli',
+        status: 'succeeded',
+        mode: 'mock',
+        template: template.id,
+        requestedCount: 1,
+        configFingerprint: 'UNUSED_RUN_MARKER',
+        configSnapshot: { marker: 'UNUSED_RUN_MARKER' },
+        requestedBy: 'perf-test',
+      },
+    })
+    const find = vi.spyOn(payload, 'find')
+    try {
+      const setup = await loadWorkspaceSetup(payload)
+      const index = find.mock.calls.findIndex(([options]) => options.collection === 'pipeline-runs')
+      expect(index).toBeGreaterThanOrEqual(0)
+      const loaded = await find.mock.results[index].value
+      expect(loaded.docs.map((doc: object) => Object.keys(doc).sort())).toEqual([['id', 'status']])
+      expect(setup.latestRun).toEqual({ status: 'succeeded' })
+    } finally {
+      find.mockRestore()
+      await payload.delete({ collection: 'pipeline-runs', id: run.id, overrideAccess: true })
+      await payload.delete({ collection: 'templates', id: template.id, overrideAccess: true })
     }
   })
 

@@ -8,23 +8,25 @@ Thanks for contributing. This guide covers local setup, checks, and how we revie
 2. Follow the [Quick start](README.md#quick-start) in the root README (`cp` env files, `docker compose up -d`, `npm install`, `npm run seed`).
 3. Use `MOCK_MODE=true` unless you intentionally need live Anthropic/Ahrefs calls.
 
-## Shared code graph
+## Local code graph
 
-Datum uses [Graphify's team setup](https://github.com/Graphify-Labs/graphify#team-setup).
+Datum uses [Graphify](https://github.com/Graphify-Labs/graphify) to answer code
+questions from a queryable graph. The graph is built on your machine and is not
+committed: `graphify-out/` is git-ignored, and a missing or dirty graph is normal.
 The Codex skill and query-first instructions are checked into `.codex/` and
-`AGENTS.md`. Install the CLI and Git hooks once per clone from the repo root
-(Python 3.10+ and [uv](https://docs.astral.sh/uv/) are required):
+`AGENTS.md`. Install the CLI once (Python 3.10+ and
+[uv](https://docs.astral.sh/uv/) are required), then build the graph after cloning:
 
 ```bash
 uv tool install graphifyy==0.9.77
-graphify hook install
-graphify hook status
+graphify update .   # local AST pass, no API cost
 ```
 
-The hooks rebuild the code graph in the background after commits and branch
-switches, and register a merge driver for `graph.json`. Re-run `graphify hook
-install` after upgrading or reinstalling the CLI to refresh its interpreter
-path. If `graphify` is not found, run `uv tool update-shell` and open a new terminal.
+If `graphify` is not found, run `uv tool update-shell` and open a new terminal.
+Re-run `graphify update .` after code changes, a `git pull`, or a merge. Do not
+run `graphify hook install` in this repository: it also registers a git merge
+driver and writes a `.gitattributes` line for `graphify-out/graph.json`, which
+only made sense while the graph was tracked.
 
 The checked-in `.codex/skills/graphify/SKILL.md` bootstrap only detects an
 existing installation; it never installs or upgrades packages automatically.
@@ -35,35 +37,19 @@ review the generated diff before committing it. Do not restore `uv tool run
 --from graphifyy`, automatic install/upgrade commands, or
 `--break-system-packages` fallbacks.
 
-Teammates can query the shared graph immediately after cloning:
+Query the graph before searching raw source:
 
 ```bash
 graphify query "articleReviewGate brief approval"
 graphify explain "completeJSONLogged"
-graphify update . # after code changes, git pull, or a merge; local AST only
 ```
 
-The graph covers code relationships without paid API calls. Documentation and
-media need a separate semantic pass through `$graphify --update` in Codex;
-`graphify update .` does not perform that pass. `.graphifyignore` excludes
-vendored plugins, agent state, dependency lockfiles, and generated migration
-JSON snapshots; migration TypeScript remains indexed. The AST parser may omit
-unsupported files or files without symbols, so use source files to verify details.
-Initial validation found no missing or dangling edge endpoints. It flagged three
-self-links: `sameValue` and `upsertDomain` recurse, while the `create` test helper's
-call to `payload.create` was misidentified as recursion. Treat graph edges as
-navigation hints and confirm ambiguous calls in source.
-
-Share only the queryable graph, report, and portable manifest. The rest of
-`graphify-out/` stays ignored, including caches, local HTML, and machine paths:
-
-```bash
-git add -f graphify-out/graph.json graphify-out/GRAPH_REPORT.md graphify-out/manifest.json
-```
-
-The hooks finish asynchronously, so run `graphify update .` before staging these
-files when the latest code changes must be included. A new clone must install
-its own hooks; `.git/hooks/` and the merge-driver Git configuration are local.
+The graph covers code relationships. Documentation and media need a separate
+semantic pass through `$graphify --update` in Codex; `graphify update .` does not
+perform that pass. `.graphifyignore` excludes agent state, dependency lockfiles,
+and generated migration JSON snapshots; migration TypeScript remains indexed.
+The AST parser may omit unsupported files or files without symbols, so treat
+graph edges as navigation hints and confirm ambiguous calls in source.
 
 ## Commands
 
@@ -90,7 +76,19 @@ npm test --workspace pipeline
 npx tsx --test pipeline/test/structuralChecks.test.ts
 ```
 
-Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites. Playwright starts its own dev server on `TEST_PORT` (default 3101), so do not start `npm run dev` in `cms/` first: Next refuses a second dev server in the same directory. To drive a server you already have running, pass its address: `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`.
+The CMS integration suite and the Playwright suite rewrite workspace state (audiences, profile, brand voice, webhook settings) and add rows that are never removed, so they refuse to start unless the `DATABASE_URL` database name contains `test`. Create a separate database for them, migrate it, and export its URL in the shell that runs the tests:
+
+```bash
+createdb -O datum datum_test
+export DATABASE_URL=postgresql://datum:datum@127.0.0.1:5432/datum_test
+npm run payload --workspace cms -- migrate
+```
+
+`cms/.env` is loaded too, so a plain `npm run test:int` otherwise uses your working database and stops with an error. To run against a database whose name has no `test` in it anyway, set `DATUM_TEST_DATABASE_OK=true`; that database will be modified. Playwright applies the same rule, also with `TEST_BASE_URL`: the specs write to `DATABASE_URL` through Payload whichever server they drive.
+
+Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites. Playwright starts its own dev server on `TEST_PORT` (default 3101), so do not start `npm run dev` in `cms/` first: Next refuses a second dev server in the same directory. To drive a server you already have running, pass its address: `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`; start that server with `SITE_URL` set to its own address, `DISABLE_DEV_PUSH=true` and the same `DATABASE_URL` as the tests.
+
+The Playwright suite needs a migrated **and seeded** test database (`DISABLE_DEV_PUSH=true npm run seed --workspace cms` installs the templates, demo workspace and admin user the specs use) and a browser: `npx playwright install chromium` once. CI runs it as the `e2e` job on the same steps.
 
 ## Schema / types
 

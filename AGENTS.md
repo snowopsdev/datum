@@ -44,6 +44,7 @@ npm run jobs:run --workspace cms     # production content worker
 - Next loads `cms/.env`; the pipeline loads `cms/.env` then root `.env`. Shell variables win.
 - Use a per-worktree database for schema work. Decline dev-push prompts that would drop another branch's tables.
 - Integration tests need a migration-built database because Payload dev push is disabled under Vitest.
+- The CMS test suites refuse to start unless the `DATABASE_URL` database name contains `test` (e.g. `datum_test`), or `DATUM_TEST_DATABASE_OK=true` is set. They rewrite workspace state and add append-only rows, and `cms/.env` is loaded by default. Never opt in on a database you care about.
 - Preserve append-only audit and information-gain records and the review gates in `articleReviewGate.ts`.
 - Mock mode is the local default. Do not trigger paid APIs unless the task explicitly requires live mode.
 
@@ -59,13 +60,13 @@ Co-Authored-By: (the agent's name and attribution byline)
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This project can build a local knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships. The graph is not tracked: build it with `graphify update .` after cloning (see `CONTRIBUTING.md`). A missing or dirty graphify-out/ is normal and is never committed.
 
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. If graph.json is missing, run `graphify update .` first. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

@@ -15,5 +15,9 @@ export const Media: CollectionConfig = {
       required: true,
     },
   ],
-  upload: true,
+  upload: {
+    // Media is world-readable and served from the app origin, so accept raster
+    // images only: an SVG or HTML upload would run in that origin.
+    mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
+  },
 }

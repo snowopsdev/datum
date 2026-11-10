@@ -1,14 +1,10 @@
 # Keep the Datum graph focused on maintained project code.
-vendor/
 .codex/
 .agents/
 graphify-out/
 .claude/
 .impeccable/
 .omc/
-
-# One-off audit artefacts (96 screenshots and a capture log).
-docs/audits/
 
 # Dependency lockfiles and generated database snapshots duplicate source data.
 package-lock.json

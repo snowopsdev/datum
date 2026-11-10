@@ -67,10 +67,10 @@ describe('pipeline run launch', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
     const rejection = results.find((result) => result.status === 'rejected')
-    expect(
-      rejection?.status === 'rejected' &&
-        (rejection.reason instanceof ActivePipelineRunError || rejection.reason instanceof Error),
-    ).toBe(true)
+    // The loser must lose to the one-at-a-time rule, not to some other error.
+    expect(rejection?.status === 'rejected' && rejection.reason).toBeInstanceOf(
+      ActivePipelineRunError,
+    )
 
     const active = await payload.find({
       collection: 'pipeline-runs',
@@ -201,6 +201,33 @@ describe('pipeline run launch', () => {
       requestedBy: 'admin@datum.local',
       readiness,
     }
-    await expect(createPipelineRun(payload, user, { ...baseInput, source: 'onboarding' as never })).rejects.toThrow()
+    // Earlier tests leave a run queued, and an `admin` run behind one refuses
+    // with `ActivePipelineRunError` before the source is ever looked at. Close
+    // them out so the only thing that can refuse this call is the source.
+    await payload.update({
+      collection: 'pipeline-runs',
+      where: { status: { in: ['queued', 'running'] } },
+      data: { status: 'succeeded' },
+      overrideAccess: true,
+    })
+    const rejection = await createPipelineRun(payload, user, {
+      ...baseInput,
+      source: 'onboarding' as never,
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(rejection).toBeInstanceOf(Error)
+    expect(rejection).not.toBeInstanceOf(ActivePipelineRunError)
+    expect((rejection as Error).message).toMatch(/source/i)
+
+    // Nothing was created for it.
+    const created = await payload.find({
+      collection: 'pipeline-runs',
+      where: { runId: { equals: runId } },
+      overrideAccess: true,
+      depth: 0,
+    })
+    expect(created.docs).toHaveLength(0)
   })
 })
