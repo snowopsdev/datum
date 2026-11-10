@@ -233,6 +233,31 @@ describe('audiences', () => {
     expect(again.ok).toBe(true)
   })
 
+  // The activation gate refuses an incomplete audience after its content was
+  // written, which moved `updatedAt`; the version handed back keeps the
+  // editor's next save from being refused as stale against its own write.
+  it('a refused activation hands back the version it wrote', async () => {
+    const created = await createIcpAction(complete(`Concurrency gate ${randomUUID().slice(0, 8)}`))
+    if (!created.ok) throw new Error(created.error)
+    createdIcpIds.push(created.id)
+    const refused = await saveAndActivateIcpAction(
+      created.id,
+      { ...created.saved, pains: [] },
+      { makePrimary: false, openedAt: created.updatedAt },
+    )
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.error).not.toBe(STALE)
+    expect(refused.updatedAt).toBeTruthy()
+    expect(refused.updatedAt).not.toBe(created.updatedAt)
+    const next = await saveIcpAction(
+      created.id,
+      { ...created.saved, who: 'Filled in after the refusal.' },
+      refused.updatedAt,
+    )
+    expect(next.ok).toBe(true)
+  })
+
   it('save-and-activate refuses a stale form before it activates anything', async () => {
     const created = await createIcpAction(complete(`Concurrency act ${randomUUID().slice(0, 8)}`))
     if (!created.ok) throw new Error(created.error)

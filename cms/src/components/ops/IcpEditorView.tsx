@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import type { AdminViewServerProps } from 'payload'
 import React from 'react'
 
-import { icpContentOf } from '../../lib/tenant/icp'
+import { icpCompletenessProblems, icpContentOf } from '../../lib/tenant/icp'
 import { formatAuditTimestamp } from './articleStatus'
 import { IcpEditor } from './IcpEditor'
 import { ICP_STEPS, type IcpDTO } from './icpTypes'
@@ -80,7 +80,12 @@ export async function IcpEditorView(props: AdminViewServerProps) {
     Number.isInteger(stepNumber) && stepNumber >= 0 && stepNumber < ICP_STEPS.length
       ? stepNumber
       : 0
-  const initialError = param(searchParams?.activateError)?.slice(0, 500) || null
+  const missing = record && param(searchParams?.activateFailed) === '1'
+    ? icpCompletenessProblems(record)
+    : null
+  const initialError = missing
+    ? `Saved as a draft, but it was not activated.${missing.length > 0 ? ` ${missing.join('; ')}.` : ' Try again.'}`
+    : null
 
   return (
     <DefaultTemplate

@@ -53,23 +53,24 @@ const versionOf = (doc: unknown): string | null =>
 const STALE_MESSAGE = 'Someone else saved this since you opened it. Reload to see their changes.'
 
 /**
- * Whether the stored record moved on after the version a form was opened on.
- * No version on either side means the caller does not know, and then there is
+ * Whether the stored record is no longer the version a form was opened on.
+ * Any difference counts, not only a later one: two saves stamped in the same
+ * millisecond, or by an instance with a slower clock, are still two saves. No
+ * version on either side means the caller does not know, and then there is
  * nothing to compare: the save goes ahead.
  */
 const movedOn = (stored: unknown, opened: string | null | undefined): boolean => {
   const current = versionOf(stored)
   if (!opened || !current) return false
-  const a = Date.parse(current)
-  const b = Date.parse(opened)
-  return Number.isFinite(a) && Number.isFinite(b) && a > b
+  return Date.parse(current) !== Date.parse(opened)
 }
 
 /**
  * Update one `icps` row only if it has not been saved since `opened`.
  *
- * The check is part of the update's `where`, so a save landing between a read
- * and this write cannot be overwritten. A bulk update reports failures in
+ * The check is part of the update's `where`, which narrows the window between
+ * reading the version and writing to the time Payload's bulk update takes
+ * between its own find and write (it does not lock the row). A bulk update reports failures in
  * `errors` rather than throwing; they are thrown here so a caller sees the same
  * rejection (the activation gate's, a validation error) a single update gives.
  */
@@ -90,7 +91,7 @@ async function updateIcpUnlessStale(
     })
   }
   const where: Where = {
-    and: [{ id: { equals: args.id } }, { updatedAt: { less_than_equal: opened } }],
+    and: [{ id: { equals: args.id } }, { updatedAt: { equals: opened } }],
   }
   const result = await payload.update({
     collection: 'icps',
@@ -361,9 +362,17 @@ export async function saveAndActivateIcpAction(
       dropped: number
       updatedAt: string | null
     }
-  | { ok: false; error: string; id?: number }
+  | {
+      ok: false
+      error: string
+      id?: number
+      /** Set when the content write landed before the refusal: the form's new baseline. */
+      saved?: IcpContent
+      updatedAt?: string | null
+    }
 > {
   let savedId: number | undefined
+  let landed: Parameters<typeof icpContentOf>[0] | undefined
   try {
     const { payload, user } = await requireUser('Sign in first.')
     const content = icpContentOf(input)
@@ -396,6 +405,7 @@ export async function saveAndActivateIcpAction(
             options.openedAt,
           )
     savedId = doc.id
+    landed = doc
 
     if (doc.status !== 'active') {
       doc = await payload.update({
@@ -440,6 +450,9 @@ export async function saveAndActivateIcpAction(
       ok: false,
       error: errorMessage(e, 'Could not save and activate the audience.'),
       id: savedId,
+      // The content write moved `updatedAt`; without the new version the
+      // editor's next Save would be refused as stale against its own write.
+      ...(landed ? { saved: icpContentOf(landed), updatedAt: versionOf(landed) } : {}),
     }
   }
 }

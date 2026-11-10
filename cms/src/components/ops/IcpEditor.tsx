@@ -87,7 +87,7 @@ export function IcpEditor({
    * `?step=`.
    */
   initialStep?: number
-  /** An activation error carried across that same move (`?activateError=`). */
+  /** An activation failure carried across that same move (`?activateFailed=1`), as a message. */
   initialError?: string | null
 }) {
   const router = useRouter()
@@ -146,7 +146,7 @@ export function IcpEditor({
   }
 
   /** Create on first save, update afterwards; returns what was stored, or null on failure. */
-  const persist = async () => {
+  const persist = async (version: string | null) => {
     if (id == null) {
       const created = await createIcpAction(content)
       if (!created.ok) {
@@ -157,7 +157,7 @@ export function IcpEditor({
       router.replace(`${LIST_PATH}/${created.id}?step=${step}`)
       return created
     }
-    const saved = await saveIcpAction(id, content, guard.version)
+    const saved = await saveIcpAction(id, content, version)
     if (!saved.ok) {
       setError(saved.error)
       return null
@@ -173,10 +173,10 @@ export function IcpEditor({
     onReset: setContent,
     labels: ICP_FIELD_LABELS,
     onError: setError,
-    save: async () => {
+    save: async (_baseline, version) => {
       setError(null)
       setMessage(null)
-      const result = await persist()
+      const result = await persist(version)
       if (!result) return null
       // What was stored: a row the parser left out is gone from the form too.
       setContent(result.saved)
@@ -209,22 +209,28 @@ export function IcpEditor({
       // landed, and that saved draft must not be orphaned — the next Save has
       // to update it, not create a duplicate.
       const created = id == null && result.id != null
-      if (created) {
-        setId(result.id!)
-        guard.markSaved(content, { key: `icp:${result.id}` })
-      }
+      if (created) setId(result.id!)
       if (!result.ok) {
+        // The content may have been written before activation was refused:
+        // adopt it as the baseline, version included, so the next Save is
+        // not refused as stale against this editor's own write.
+        if (result.id != null && result.saved) {
+          setContent(result.saved)
+          guard.markSaved(result.saved, { version: result.updatedAt, key: `icp:${result.id}` })
+        } else if (created) {
+          guard.markSaved(content, { key: `icp:${result.id}` })
+        }
         if (created) {
           // The move to the new URL remounts the editor, so the error would be
-          // gone with it: it goes along in the URL and is shown on arrival.
-          router.replace(
-            `${LIST_PATH}/${result.id}?step=${step}&activateError=${encodeURIComponent(result.error.slice(0, 500))}`,
-          )
+          // gone with it. Only a flag travels (no free text in the URL); the
+          // page recomputes what is missing on arrival.
+          router.replace(`${LIST_PATH}/${result.id}?step=${step}&activateFailed=1`)
         } else {
           setError(result.error)
         }
         return
       }
+      if (created) guard.markSaved(content, { key: `icp:${result.id}` })
       setContent(result.saved)
       guard.markSaved(result.saved, { version: result.updatedAt, key: `icp:${result.id}` })
       setStatus('active')

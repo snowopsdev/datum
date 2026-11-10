@@ -148,9 +148,8 @@ it('carries an activation error across the first-save remount, then shows it onc
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save and activate' }))
   })
-  expect(mocks.replace).toHaveBeenCalledWith(
-    `${LIST}/9?step=${REVIEW}&activateError=${encodeURIComponent('An active audience needs a pain.')}`,
-  )
+  // Only a flag travels in the URL; the page recomputes the message on arrival.
+  expect(mocks.replace).toHaveBeenCalledWith(`${LIST}/9?step=${REVIEW}&activateFailed=1`)
   expect(mocks.toastSuccess).not.toHaveBeenCalled()
 
   // The page that arrives gets it as a prop, shows it, and takes it out of the URL.
@@ -199,4 +198,41 @@ it('moves focus with the delete confirmation, and back again', async () => {
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep it' }))
   fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete draft' }))
+})
+
+// The content write lands before the activation gate refuses, which moves the
+// record's `updatedAt`. The next Save must be compared against that version,
+// or the editor refuses its own write as "someone else saved this".
+it('adopts the version a refused activation wrote, so the next Save is not stale', async () => {
+  mocks.saveAndActivate.mockResolvedValue({
+    ok: false,
+    id: 3,
+    error: 'Another audience was activated first.',
+    saved: ICP_FIXTURE,
+    updatedAt: '2026-09-03T12:00:00.000Z',
+  })
+  mocks.save.mockResolvedValue({
+    ok: true,
+    saved: ICP_FIXTURE,
+    dropped: 0,
+    problems: [],
+    updatedAt: '2026-09-03T12:05:00.000Z',
+  })
+  editor({ record: draftRecord, initialStep: REVIEW })
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save and activate' }))
+  })
+  expect((await screen.findByRole('alert')).textContent).toContain('activated first')
+  await act(async () => {
+    fireEvent.click(
+      screen.getAllByRole('button').find((b) => b.textContent?.includes(ICP_STEPS[0].title))!,
+    )
+  })
+  await act(async () => {
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'An edited answer' } })
+  })
+  await act(async () => {
+    fireEvent.click(screen.getAllByRole('button', { name: /^Save( \d+ changes?)?$/ })[0])
+  })
+  expect(mocks.save).toHaveBeenCalledWith(3, expect.anything(), '2026-09-03T12:00:00.000Z')
 })
