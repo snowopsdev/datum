@@ -41,12 +41,6 @@ export interface StageContext {
   tenant: TenantContext
   /** Run-scoped provider adapter. Optional for backwards-compatible test contexts. */
   llm?: LlmClient
-  /**
-   * Stop at `brief_review` after research so a person approves the brief
-   * before writing is paid for. Defaults to on; only the onboarding smoke test
-   * turns it off, because nobody is there to approve.
-   */
-  pauseForBrief?: boolean
 }
 
 export interface StageOutcome {

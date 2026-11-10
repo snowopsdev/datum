@@ -60,20 +60,9 @@ it('advances only the article ids assigned to a scoped run', async () => {
       where?: Record<string, unknown>
     }) => {
       if (collection === 'cost-log') {
-        // Two shapes reach this collection: qa's `{ article: { equals } }` and
-        // the informationGain stage's `{ and: [...] }`, which additionally
-        // scopes by run id and stage.
-        const and =
-          (where?.and as Array<Record<string, { equals?: unknown; in?: unknown[] }>>) ?? []
-        const articleId =
-          (where?.article as { equals?: number } | undefined)?.equals ??
-          (and.find((clause) => clause.article)?.article.equals as number | undefined)
-        const stages = and.find((clause) => clause.stage)?.stage.in as string[] | undefined
-        return {
-          docs: costRows.filter(
-            (row) => row.article === articleId && (!stages || stages.includes(row.stage as string)),
-          ),
-        }
+        // Every stage that reads cost rows sums one article's: `{ article: { equals } }`.
+        const articleId = (where?.article as { equals?: number } | undefined)?.equals
+        return { docs: costRows.filter((row) => row.article === articleId) }
       }
       // The research stage looks for a reusable corpus snapshot and for its own
       // published articles; this scoped run has neither, so both come back empty
@@ -148,10 +137,6 @@ it('advances only the article ids assigned to a scoped run', async () => {
     ahrefs,
     runId: 'scope-1',
     mode: 'mock',
-    // This test is about *which* articles a scoped run touches, not the brief
-    // checkpoint, so the stop after research is switched off to let the run
-    // walk all four stages in one pass.
-    pauseForBrief: false,
     styleGuide: loadStyleGuide(),
     models: {
       generate: 'claude-opus-5',
@@ -176,6 +161,15 @@ it('advances only the article ids assigned to a scoped run', async () => {
     tenant: emptyTenantContext(),
   }
 
+  // Research stops at the brief checkpoint; nothing else moves in that run.
+  const researched = await runPipeline(ctx, { articleIds: [1] })
+  assert.equal(researched.failed, 0, 'research should not have failed any article')
+  assert.equal(articles.get(1)?.status, 'brief_review')
+  assert.deepEqual(researched.finalStatuses, { brief_review: 1 })
+
+  // Approving the brief is what moves a piece to `researched`; the next run
+  // writes, checks and scores it.
+  articles.set(1, { ...articles.get(1)!, status: 'researched' })
   const result = await runPipeline(ctx, { articleIds: [1] })
 
   assert.equal(result.failed, 0, 'the scoped run should not have failed any article')
