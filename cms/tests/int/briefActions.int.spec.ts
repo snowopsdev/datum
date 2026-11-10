@@ -59,11 +59,15 @@ vi.mock('@/lib/loadWorkspaceReadiness', () => ({
 const { approveBriefAction, revisitBriefAction, saveBriefAction } =
   await import('@/components/ops/briefActions')
 
+/** The `updatedAt` the editor in these tests opened the brief at. */
+const LOADED = '2026-01-01T10:00:00.000Z'
+
 const atBrief = (over: Record<string, unknown> = {}) =>
   ({
     id: 1,
     status: 'brief_review',
     template: 3,
+    updatedAt: LOADED,
     brief: { angle: 'old', angleOptions: [{angle:'Option', rationale:'Pain', pain:null, gaps:[]}], sections: [{ heading: 'A', source: 'template' }], notes: '' },
     ...over,
   }) as never
@@ -97,7 +101,7 @@ beforeEach(() => {
 describe('saveBriefAction', () => {
   it('trims, drops blank sections, and writes the brief without changing status', async () => {
     findByIDMock.mockResolvedValue(atBrief())
-    const result = await saveBriefAction(1, edits)
+    const result = await saveBriefAction(1, edits, LOADED)
     expect(result.ok).toBe(true)
     const call = updateMock.mock.calls[0]?.[0] as unknown as {
       data: { brief: Record<string, unknown>; status?: string }
@@ -113,20 +117,48 @@ describe('saveBriefAction', () => {
 
   it('refuses once the brief has been approved', async () => {
     findByIDMock.mockResolvedValue(atBrief({ status: 'researched' }))
-    const result = await saveBriefAction(1, edits)
+    const result = await saveBriefAction(1, edits, LOADED)
     expect(result.ok).toBe(false)
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  // The save replaces the whole brief, so a colleague's save (or an accepted
+  // suggestion) after the page loaded would be silently overwritten.
+  describe('when someone else saved since the editor opened', () => {
+    const NEWER = '2026-01-01T10:05:00.000Z'
+
+    it('refuses with a message that says to reload, and writes nothing', async () => {
+      findByIDMock.mockResolvedValue(atBrief({ updatedAt: NEWER }))
+      const result = await saveBriefAction(1, edits, LOADED)
+      expect(result).toEqual({
+        ok: false,
+        error: 'Someone else saved this brief since you opened it. Reload to see their changes.',
+      })
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('saves when the editor holds the stored version, which is how a second save goes through', async () => {
+      findByIDMock.mockResolvedValue(atBrief({ updatedAt: NEWER }))
+      const result = await saveBriefAction(1, edits, NEWER)
+      expect(result.ok).toBe(true)
+      expect(updateMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('has nothing to compare when the editor sent no version', async () => {
+      findByIDMock.mockResolvedValue(atBrief({ updatedAt: NEWER }))
+      expect((await saveBriefAction(1, edits, null)).ok).toBe(true)
+    })
   })
 
   // Switching the audience is the one edit that rewrites another field, so the
   // rule that decides when it may is pinned from both sides.
   it('replaces the audience line when it is still the previous audience’s own', async () => {
     findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
-    const result = await saveBriefAction(1, {
-      ...edits,
-      audience: ICPS[0].audienceLine,
-      icpId: 12,
-    })
+    const result = await saveBriefAction(
+      1,
+      { ...edits, audience: ICPS[0].audienceLine, icpId: 12 },
+      LOADED,
+    )
     expect(result.ok).toBe(true)
     const call = updateMock.mock.calls[0]?.[0] as unknown as {
       data: { icp: number; brief: { audience: string } }
@@ -137,7 +169,7 @@ describe('saveBriefAction', () => {
 
   it('leaves an edited audience line alone when the audience changes', async () => {
     findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
-    await saveBriefAction(1, { ...edits, audience: 'Whoever buys the thing', icpId: 12 })
+    await saveBriefAction(1, { ...edits, audience: 'Whoever buys the thing', icpId: 12 }, LOADED)
     const call = updateMock.mock.calls[0]?.[0] as unknown as {
       data: { icp: number; brief: { audience: string } }
     }
@@ -147,7 +179,7 @@ describe('saveBriefAction', () => {
 
   it('does not touch the relationship when the audience did not change', async () => {
     findByIDMock.mockResolvedValue(atBrief({ icp: 11 }))
-    await saveBriefAction(1, { ...edits, icpId: 11 })
+    await saveBriefAction(1, { ...edits, icpId: 11 }, LOADED)
     const call = updateMock.mock.calls[0]?.[0] as unknown as { data: Record<string, unknown> }
     expect('icp' in call.data).toBe(false)
   })
@@ -261,24 +293,72 @@ describe('approveBriefAction', () => {
 })
 
 describe('revisitBriefAction', () => {
-  it('sends a draft back to its brief and clears the approval', async () => {
-    findByIDMock.mockResolvedValue(
-      atBrief({ status: 'needs_revision', brief: { approvedAt: 'x', approvedBy: 'y' } }),
-    )
-    const result = await revisitBriefAction(1)
-    expect(result.ok).toBe(true)
-    const call = updateMock.mock.calls[0]?.[0] as unknown as {
-      data: { status: string; brief: { approvedAt: null } }
+  const draftOf = (status: string, over: Record<string, unknown> = {}) =>
+    atBrief({ status, brief: { approvedAt: 'x', approvedBy: 'y' }, ...over })
+
+  const written = () =>
+    updateMock.mock.calls[0]?.[0] as unknown as {
+      data: Record<string, unknown> & { brief: { approvedAt: null; approvedBy: null } }
+      overrideAccess: boolean
     }
-    expect(call.data.status).toBe('brief_review')
-    expect(call.data.brief.approvedAt).toBeNull()
+
+  for (const status of ['needs_revision', 'needs_review', 'blocked'] as const) {
+    it(`sends ${status} back to its brief and clears the approval`, async () => {
+      findByIDMock.mockResolvedValue(draftOf(status))
+      const result = await revisitBriefAction(1)
+      expect(result.ok).toBe(true)
+      const call = written()
+      expect(call.data.status).toBe('brief_review')
+      expect(call.data.brief.approvedAt).toBeNull()
+    })
+  }
+
+  // The draft is going to be rewritten, so everything that described it goes
+  // with it: otherwise a stale schedule, regeneration notes, QA verdict or
+  // information-gain decision sits next to a body nobody has written yet.
+  it('clears the schedule, revision notes, every QA group and the information-gain decision', async () => {
+    findByIDMock.mockResolvedValue(draftOf('needs_revision'))
+    await revisitBriefAction(1)
+    const { data, overrideAccess } = written()
+    expect(data.publishAt).toBeNull()
+    expect(data.revisionNotes).toBeNull()
+    const qa = data.qaResults as Record<string, Record<string, unknown>>
+    expect(Object.keys(qa).sort()).toEqual(
+      ['evidenceCheck', 'factCheck', 'qualitativeReview', 'structural'],
+    )
+    for (const group of Object.values(qa)) {
+      expect(Object.values(group).every((value) => value === null)).toBe(true)
+    }
+    const ig = data.informationGain as Record<string, unknown>
+    expect(Object.keys(ig).length).toBeGreaterThan(0)
+    expect(Object.values(ig).every((value) => value === null)).toBe(true)
+    // `informationGain` is access-guarded, so only an unrestricted write can clear it.
+    expect(overrideAccess).toBe(true)
   })
 
-  it('will not reopen a published piece, nor one research has not reached', async () => {
-    findByIDMock.mockResolvedValue(atBrief({ status: 'published' }))
-    expect((await revisitBriefAction(1)).ok).toBe(false)
-    findByIDMock.mockResolvedValue(atBrief({ status: 'topic_selected' }))
-    expect((await revisitBriefAction(1)).ok).toBe(false)
+  it('refuses while an active run lists the article, and writes nothing', async () => {
+    findByIDMock.mockResolvedValue(draftOf('needs_revision'))
+    findMock.mockResolvedValue({ docs: [{ runId: 'run-9' }] } as never)
+    const result = await revisitBriefAction(1)
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('active run'),
+    })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses every status that is not waiting on a reviewer', async () => {
+    for (const status of ['published', 'topic_selected', 'researched', 'drafted', 'qa_passed', 'verified', 'approved']) {
+      updateMock.mockClear()
+      findByIDMock.mockResolvedValue(draftOf(status))
+      expect((await revisitBriefAction(1)).ok, status).toBe(false)
+      expect(updateMock, status).not.toHaveBeenCalled()
+    }
+  })
+
+  it('treats a piece already at its brief as nothing to do', async () => {
+    findByIDMock.mockResolvedValue(draftOf('brief_review'))
+    expect(await revisitBriefAction(1)).toEqual({ ok: true, message: 'Already at the brief.' })
     expect(updateMock).not.toHaveBeenCalled()
   })
 })

@@ -50,6 +50,7 @@ const template: TemplateConfigDTO = {
 it('shows the outline as stored after a save, so trimmed text is not left looking saved', async () => {
   localStorage.clear()
   vi.mocked(saveTemplateConfigAction).mockResolvedValueOnce({
+    ok: true,
     dropped: 0,
     updatedAt: '2030-01-01T00:00:00.000Z',
     template: { ...template, outline: '## Verdict\nPick one.', updatedAt: '2030-01-01T00:00:00.000Z' },
@@ -63,4 +64,37 @@ it('shows the outline as stored after a save, so trimmed text is not left lookin
   })
   expect(outline().value).toBe('## Verdict\nPick one.')
   expect(document.querySelector('.datum-ops__dirty')?.textContent).toBe('')
+})
+
+it('shows the gate’s message when the save is refused, and keeps the edit', async () => {
+  localStorage.clear()
+  vi.mocked(saveTemplateConfigAction).mockResolvedValueOnce({
+    ok: false,
+    error: 'Required sections must be unique.',
+  })
+  render(React.createElement(TemplateConfigEditor, { templates: [template], initialId: 3 }))
+  const outline = () => screen.getByLabelText('Outline') as HTMLTextAreaElement
+  fireEvent.change(outline(), { target: { value: '## Verdict\n\nPick one.' } })
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  })
+  expect(screen.getByText('Required sections must be unique.')).toBeTruthy()
+  expect(outline().value).toBe('## Verdict\n\nPick one.')
+})
+
+it('marks the open template and the open tab for assistive tech, not just by class', () => {
+  localStorage.clear()
+  const other: TemplateConfigDTO = { ...template, id: 4, name: 'How-to' }
+  render(React.createElement(TemplateConfigEditor, { templates: [template, other], initialId: 3 }))
+
+  expect(screen.getByRole('button', { name: /^Comparison/ }).getAttribute('aria-current')).toBe('true')
+  expect(screen.getByRole('button', { name: /^How-to/ }).getAttribute('aria-current')).toBeNull()
+
+  const tab = (name: string) => screen.getByRole('button', { name })
+  expect(tab('Outline').getAttribute('aria-pressed')).toBe('true')
+  expect(tab('Rules').getAttribute('aria-pressed')).toBe('false')
+  fireEvent.click(tab('Rules'))
+  expect(tab('Outline').getAttribute('aria-pressed')).toBe('false')
+  expect(tab('Rules').getAttribute('aria-pressed')).toBe('true')
 })

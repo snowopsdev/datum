@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react'
 
 import { type AnyGuard, LeaveDialog, RestoreNotice, UnsavedBar } from './DirtyGuardUi'
 import { assistAction, type AssistAsset } from './setupActions'
+import { settle } from './settle'
 import { SitePagesHint } from './SitePagesHint'
 import './ops.css'
 
@@ -160,33 +161,35 @@ export function AssetStepper<Id extends string>({
     setAssistError(null)
     setWarnings([])
     setAssistNote(null)
-    startTransition(async () => {
-      const result = await assistAction({
-        asset: stepAssist.asset,
-        section: stepAssist.section,
-        mode,
-        notes: notes[current.id] ?? '',
-        current: mode === 'refine' ? stepAssist.sectionValue(current.id) : null,
-        ...(stepAssist.icpId != null ? { icpId: stepAssist.icpId } : {}),
-      })
-      if (!result.ok) {
-        setAssistError(result.error)
-        return
-      }
-      const value = asRecord(result.value)
-      if (!value) {
-        setAssistError('The assistant returned nothing usable for this step.')
-        return
-      }
-      stepAssist.onAssist(current.id, value)
-      setMock(result.mock)
-      setWarnings(result.warnings)
-      setAssistNote(
-        mode === 'draft'
-          ? 'Drafted into the fields above. Nothing is saved until you press Save.'
-          : 'Revised the fields above. Nothing is saved until you press Save.',
-      )
-    })
+    startTransition(() =>
+      settle(async () => {
+        const result = await assistAction({
+          asset: stepAssist.asset,
+          section: stepAssist.section,
+          mode,
+          notes: notes[current.id] ?? '',
+          current: mode === 'refine' ? stepAssist.sectionValue(current.id) : null,
+          ...(stepAssist.icpId != null ? { icpId: stepAssist.icpId } : {}),
+        })
+        if (!result.ok) {
+          setAssistError(result.error)
+          return
+        }
+        const value = asRecord(result.value)
+        if (!value) {
+          setAssistError('The assistant returned nothing usable for this step.')
+          return
+        }
+        stepAssist.onAssist(current.id, value)
+        setMock(result.mock)
+        setWarnings(result.warnings)
+        setAssistNote(
+          mode === 'draft'
+            ? 'Drafted into the fields above. Nothing is saved until you press Save.'
+            : 'Revised the fields above. Nothing is saved until you press Save.',
+        )
+      }, setAssistError),
+    )
   }
 
   return (
@@ -208,7 +211,13 @@ export function AssetStepper<Id extends string>({
                 i === step ? ' is-current' : ''
               }`}
             >
-              <button type="button" onClick={() => onStep(i)} disabled={busy} title={s.title}>
+              <button
+                aria-current={i === step ? 'step' : undefined}
+                disabled={busy}
+                onClick={() => onStep(i)}
+                title={s.title}
+                type="button"
+              >
                 <span className="datum-ops__progress-num">{i + 1}</span>
                 <span className="datum-ops__progress-label">{s.title}</span>
               </button>
@@ -321,7 +330,7 @@ export function AssetStepper<Id extends string>({
         <UnsavedBar blocked={saveBlocked} guard={guard} onSave={onSave} pending={busy} />
       ) : null}
       {/* A save the editor refuses would only close the dialog without leaving. */}
-      {guard ? <LeaveDialog canSave={!saveBlocked} guard={guard} /> : null}
+      {guard ? <LeaveDialog canSave={!saveBlocked} guard={guard} pending={busy} /> : null}
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 
+import { unwrap } from '../../actionResult'
 import { overrideReviewAction } from '../../actions'
 import { revisitBriefAction } from '../../briefActions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
@@ -18,7 +19,7 @@ import type { PanelProps } from '../types'
  * guaranteed to be refused. The reviewer types a fresh one, every time.
  */
 export function ReviewDecisionPanel({ action, article, editHref, run }: PanelProps) {
-  const { pending, runAction } = action
+  const { arm, armed, disarm, pending, runAction } = action
   const [justification, setJustification] = useState('')
 
   return (
@@ -53,27 +54,56 @@ export function ReviewDecisionPanel({ action, article, editHref, run }: PanelPro
           type="button"
           className="datum-ops__btn datum-ops__btn--primary"
           disabled={pending || justification.trim().length === 0}
-          onClick={() => runAction(() => overrideReviewAction(article.id, justification))}
+          onClick={() =>
+            runAction(async () => {
+              unwrap(await overrideReviewAction(article.id, justification))
+            })
+          }
         >
           Override to verified
         </button>
-        <button
-          className="datum-ops__btn"
-          disabled={pending}
-          onClick={() =>
-            runAction(async () => {
-              const result = await revisitBriefAction(article.id)
-              if (!result.ok) throw new Error(result.error)
-            })
-          }
-          title="Go back to the brief and change the angle or sections before rewriting"
-          type="button"
-        >
-          Revisit brief
-        </button>
+        {armed === 'revisit' ? (
+          <>
+            <button
+              type="button"
+              className="datum-ops__btn datum-ops__btn--danger"
+              data-confirm-go="revisit"
+              disabled={pending}
+              onClick={() => {
+                disarm()
+                runAction(async () => {
+                  const result = await revisitBriefAction(article.id)
+                  if (!result.ok) throw new Error(result.error)
+                })
+              }}
+            >
+              Confirm: revisit brief
+            </button>
+            <button type="button" className="datum-ops__btn" disabled={pending} onClick={disarm}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            className="datum-ops__btn"
+            data-confirm-trigger="revisit"
+            disabled={pending}
+            onClick={() => arm('revisit')}
+            title="Go back to the brief and change the angle or sections before rewriting"
+            type="button"
+          >
+            Revisit brief
+          </button>
+        )}
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      {armed === 'revisit' ? (
+        <p className="datum-ops__warn" style={{ marginTop: 10 }}>
+          This sends the article back to the brief. The current draft, its QA results and its
+          schedule are cleared, and a new draft is written once you approve the brief.
+        </p>
+      ) : null}
       <SendBackAction action={action} articleId={article.id} />
     </div>
   )

@@ -9,6 +9,7 @@ import {
   brandVoiceActivationProblems,
   emptyBrandVoiceContent,
 } from '../../lib/brandVoice'
+import { unwrap } from './actionResult'
 import { AssetStepper } from './AssetStepper'
 import { SaveButton } from './DirtyGuardUi'
 import { AuditTimeline } from './AuditTimeline'
@@ -252,16 +253,48 @@ export function BrandVoiceEditor({
   // safe choice is the one the keyboard lands on.
   const [confirmArchive, setConfirmArchive] = useState(false)
   const cancelArchiveRef = useRef<HTMLButtonElement>(null)
+  const keepDeleteRef = useRef<HTMLButtonElement>(null)
+  const archiveTriggerRef = useRef<HTMLButtonElement>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null)
+  /** Which trigger should get focus back once its confirm has been backed out of. */
+  const refocus = useRef<'archive' | 'delete' | null>(null)
+
+  const cancelArchive = () => {
+    refocus.current = 'archive'
+    setConfirmArchive(false)
+  }
+  const cancelDelete = () => {
+    refocus.current = 'delete'
+    setConfirmDelete(false)
+  }
 
   useEffect(() => {
     if (!confirmArchive) return
     cancelArchiveRef.current?.focus()
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setConfirmArchive(false)
+      if (event.key === 'Escape') {
+        refocus.current = 'archive'
+        setConfirmArchive(false)
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [confirmArchive])
+
+  // Arming swaps the trigger for its confirm buttons, so focus would fall to
+  // <body>: it goes to the safe choice (Cancel / Keep it), and back to the
+  // trigger when the confirm is backed out of.
+  useEffect(() => {
+    if (confirmDelete) keepDeleteRef.current?.focus()
+  }, [confirmDelete])
+
+  useEffect(() => {
+    if (confirmArchive || confirmDelete) return
+    const which = refocus.current
+    refocus.current = null
+    if (which === 'archive') archiveTriggerRef.current?.focus()
+    else if (which === 'delete') deleteTriggerRef.current?.focus()
+  }, [confirmArchive, confirmDelete])
 
   // Reload the working copy when the server picks a different record than the
   // one in hand. Saving a new voice also changes the selection — to the record
@@ -317,18 +350,18 @@ export function BrandVoiceEditor({
   ): Promise<{ id: number; version: string; saved: BrandVoiceContent }> => {
     const onboardingStep = Math.max(record?.onboardingStep ?? 0, answeredThrough)
     if (workingId == null) {
-      const { id, updatedAt, saved } = await createBrandVoiceDraftAction({
-        ...content,
-        onboardingStep,
-      })
+      const { id, updatedAt, saved } = unwrap(
+        await createBrandVoiceDraftAction({
+          ...content,
+          onboardingStep,
+        }),
+      )
       setWorkingId(id)
       router.replace(`${VIEW_PATH}?id=${id}&mode=${modeOf(step)}`)
       return { id, version: updatedAt, saved }
     }
-    const { updatedAt, saved } = await saveBrandVoiceDraftAction(
-      workingId,
-      { ...content, onboardingStep },
-      suggestion?.id,
+    const { updatedAt, saved } = unwrap(
+      await saveBrandVoiceDraftAction(workingId, { ...content, onboardingStep }, suggestion?.id),
     )
     return { id: workingId, version: updatedAt, saved }
   }
@@ -466,14 +499,14 @@ export function BrandVoiceEditor({
     run(async () => {
       if (workingId == null) return
       setConfirmArchive(false)
-      await archiveBrandVoiceAction(workingId)
+      unwrap(await archiveBrandVoiceAction(workingId))
       setMessage('Archived. Runs are blocked until you activate another voice.')
     })
 
   const remove = () =>
     run(async () => {
       if (workingId == null) return
-      await deleteDraftAction(workingId)
+      unwrap(await deleteDraftAction(workingId))
       // Nothing of a deleted draft is worth keeping a copy of.
       guard.markSaved(content)
       setConfirmDelete(false)
@@ -629,7 +662,7 @@ export function BrandVoiceEditor({
                 ref={cancelArchiveRef}
                 type="button"
                 className="datum-ops__btn"
-                onClick={() => setConfirmArchive(false)}
+                onClick={cancelArchive}
                 disabled={pending}
               >
                 Cancel
@@ -640,6 +673,7 @@ export function BrandVoiceEditor({
             </>
           ) : (
             <button
+              ref={archiveTriggerRef}
               type="button"
               className="datum-ops__btn"
               onClick={() => setConfirmArchive(true)}
@@ -660,9 +694,10 @@ export function BrandVoiceEditor({
                   Confirm delete
                 </button>
                 <button
+                  ref={keepDeleteRef}
                   type="button"
                   className="datum-ops__link-btn"
-                  onClick={() => setConfirmDelete(false)}
+                  onClick={cancelDelete}
                   disabled={pending}
                 >
                   Keep it
@@ -670,6 +705,7 @@ export function BrandVoiceEditor({
               </>
             ) : (
               <button
+                ref={deleteTriggerRef}
                 type="button"
                 className="datum-ops__link-btn"
                 onClick={() => setConfirmDelete(true)}

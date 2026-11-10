@@ -10,7 +10,9 @@ interface FakeArticle {
   keyword: string
   status: string
   title?: string
+  archived?: boolean
   informationGain?: { run?: number | null; decision?: string | null } | null
+  qaResults?: Record<string, unknown>
 }
 
 /**
@@ -154,4 +156,102 @@ test('a needs_review article whose decision was cleared is not queued', async ()
     },
   ])
   assert.match(report, /Information gain \(0 article\(s\) scored\)/)
+})
+
+const qa = (overrides: Record<string, unknown> = {}) => ({
+  structural: { passed: true, violations: [] },
+  factCheck: { passed: true, notes: 'ok' },
+  qualitativeReview: { passed: true, notes: 'ok', notTraitViolations: [] },
+  evidenceCheck: { passed: true, notes: 'ok' },
+  ...overrides,
+})
+
+/** The QA pass-rate block, up to the next blank line. */
+function qaRates(report: string): string {
+  const start = report.indexOf('== QA pass rates')
+  assert.notEqual(start, -1, 'report has no QA pass-rate section')
+  const rest = report.slice(start)
+  const end = rest.indexOf('\n\n')
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
+test('QA pass rates count the evidence check beside the other three', async () => {
+  const report = await reportOf([
+    { id: 1, keyword: 'a', status: 'qa_passed', qaResults: qa() },
+    {
+      id: 2,
+      keyword: 'b',
+      status: 'needs_revision',
+      qaResults: qa({ evidenceCheck: { passed: false, notes: 'unbacked claim' } }),
+    },
+    // Predates the evidence check: no verdict, so it is not counted for it.
+    { id: 3, keyword: 'c', status: 'qa_passed', qaResults: qa({ evidenceCheck: undefined }) },
+  ])
+  const rates = qaRates(report)
+  assert.match(rates, /^evidenceCheck: 1\/2 \(50%\)$/m)
+  assert.match(rates, /^factCheck: 3\/3 \(100%\)$/m)
+  assert.match(rates, /evidenceCheck 1\/2 \(50%\)/, 'the per-template line carries it too')
+})
+
+test('the failure digest names an evidence-only failure', async () => {
+  const report = await reportOf([
+    {
+      id: 2,
+      keyword: 'b',
+      title: 'Burr grinders',
+      status: 'needs_revision',
+      qaResults: qa({ evidenceCheck: { passed: false, notes: 'Claim 1 has no backing in the bank.' } }),
+    },
+  ])
+  assert.match(report, /article 2 "Burr grinders"/)
+  assert.match(report, /evidenceCheck \(failed\): Claim 1 has no backing in the bank\./)
+})
+
+test('archived articles stay out of the review queue and the failure digest', async () => {
+  const report = await reportOf(
+    [
+      {
+        id: 3,
+        keyword: 'c',
+        title: 'Kettles',
+        status: 'needs_review',
+        archived: true,
+        informationGain: { run: 13, decision: 'HUMAN_REVIEW' },
+      },
+      {
+        id: 4,
+        keyword: 'd',
+        title: 'Scales',
+        status: 'needs_revision',
+        archived: true,
+        qaResults: qa({ evidenceCheck: { passed: false, notes: 'Archived failure.' } }),
+      },
+    ],
+    [{ id: 13, reasons: [] }],
+  )
+  assert.match(reviewQueue(report), /Review queue \(0 article\(s\)/)
+  assert.match(report, /Failure digest \(0 article\(s\) at needs_revision\)/)
+  assert.doesNotMatch(report, /Kettles/)
+  assert.doesNotMatch(report, /Archived failure\./)
+})
+
+// QA fails a draft on a quoted "what we are NOT" breach even when the model
+// marked the review itself as passed (`decideQualitative`). The report has to
+// apply the same rule or it reports a pass rate QA never gave.
+test('a review marked passed that quoted a not-trait breach counts as failed', async () => {
+  const breach = [{ trait: 'hype', excerpt: 'the best grinder ever', explanation: 'superlative' }]
+  const report = await reportOf([
+    {
+      id: 1,
+      keyword: 'a',
+      title: 'Burr grinders',
+      status: 'needs_revision',
+      qaResults: qa({
+        qualitativeReview: { passed: true, notes: 'Reads well.', notTraitViolations: breach },
+      }),
+    },
+    { id: 2, keyword: 'b', status: 'qa_passed', qaResults: qa() },
+  ])
+  assert.match(qaRates(report), /^qualitativeReview: 1\/2 \(50%\)$/m)
+  assert.match(report, /qualitativeReview \(failed\): Reads well\./)
 })

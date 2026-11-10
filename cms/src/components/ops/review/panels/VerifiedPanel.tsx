@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 
+import { unwrap } from '../../actionResult'
 import { approveArticleAction, publishArticleAction } from '../../actions'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
 import { SendBackAction } from '../SendBackAction'
@@ -16,7 +17,7 @@ import { DECISION_LABEL, type PanelProps } from '../types'
  * write somewhere else, and the notice must not claim otherwise.
  */
 export function VerifiedPanel({ action, article, editHref, run, runIsCurrent }: PanelProps) {
-  const { pending, runAction, setNotice } = action
+  const { arm, armed, disarm, pending, runAction, setNotice } = action
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   // An override moves the piece to `verified` and leaves the decision it
   // overrode on the article, so anything but PASS here means a person, not the
@@ -49,7 +50,7 @@ export function VerifiedPanel({ action, article, editHref, run, runIsCurrent }: 
           disabled={pending}
           onClick={() =>
             runAction(async () => {
-              const { status } = await approveArticleAction(article.id, notes)
+              const { status } = unwrap(await approveArticleAction(article.id, notes))
               setNotice(
                 status === 'approved' ? 'Approved — publish when ready' : `Saved as ${status}.`,
               )
@@ -58,30 +59,54 @@ export function VerifiedPanel({ action, article, editHref, run, runIsCurrent }: 
         >
           Approve
         </button>
-        <button
-          type="button"
-          className="datum-ops__btn"
-          disabled={pending}
-          onClick={() =>
-            runAction(async () => {
-              const { slug, status } = await publishArticleAction(article.id, notes)
-              setNotice(
-                status === 'published'
-                  ? {
-                      text: 'Published ·',
-                      href: `/articles/${slug || article.id}`,
-                      hrefLabel: 'view it',
-                    }
-                  : `Saved as ${status}.`,
-              )
-            })
-          }
-        >
-          Approve &amp; publish
-        </button>
+        {armed === 'publish' ? (
+          <>
+            <button
+              type="button"
+              className="datum-ops__btn datum-ops__btn--danger"
+              data-confirm-go="publish"
+              disabled={pending}
+              onClick={() => {
+                disarm()
+                runAction(async () => {
+                  const { slug, status } = unwrap(await publishArticleAction(article.id, notes))
+                  setNotice(
+                    status === 'published'
+                      ? {
+                          text: 'Published ·',
+                          href: `/articles/${slug || article.id}`,
+                          hrefLabel: 'view it',
+                        }
+                      : `Saved as ${status}.`,
+                  )
+                })
+              }}
+            >
+              Confirm: approve &amp; publish
+            </button>
+            <button type="button" className="datum-ops__btn" disabled={pending} onClick={disarm}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="datum-ops__btn"
+            data-confirm-trigger="publish"
+            disabled={pending}
+            onClick={() => arm('publish')}
+          >
+            Approve &amp; publish
+          </button>
+        )}
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      {armed === 'publish' ? (
+        <p className="datum-ops__warn" style={{ marginTop: 10 }}>
+          This approves the draft and puts it on the public site immediately.
+        </p>
+      ) : null}
       <SendBackAction action={action} articleId={article.id} />
     </div>
   )

@@ -85,10 +85,11 @@ export function PositioningEditor({
       vocabularyAvoid: 'the words to avoid',
       openRulings: 'the open rulings',
     },
-    save: async () => {
+    onError: setError,
+    save: async (_baseline, version) => {
       setError(null)
       setMessage(null)
-      const result = await savePositioningAction(content)
+      const result = await savePositioningAction(content, version)
       if (!result.ok) {
         setError(result.error)
         return null

@@ -33,11 +33,18 @@ const CLOCK_SKEW_MS = 2000
  * A polled run that predates the announced action, so it cannot be the run the
  * operator just asked for. Matching on the id is exact; the creation time is
  * the fallback for call sites whose result does not carry one.
+ *
+ * The bar follows the run that is executing, not the newest one, so a run
+ * queued behind it is announced while an older run is on screen. The
+ * announcement is met as soon as the announced run is among the active ones:
+ * the older run shown is then current, not stale.
  */
 export function isStaleRun(
-  run: { runId: string; createdAtIso: string },
+  run: { runId: string; createdAtIso: string; activeRunIds?: string[] },
   announced: RunQueuedDetail,
 ): boolean {
-  if (announced.runId !== undefined) return run.runId !== announced.runId
+  if (announced.runId !== undefined) {
+    return run.runId !== announced.runId && !(run.activeRunIds ?? []).includes(announced.runId)
+  }
   return new Date(run.createdAtIso).getTime() < announced.queuedAt - CLOCK_SKEW_MS
 }

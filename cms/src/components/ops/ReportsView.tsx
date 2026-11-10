@@ -42,10 +42,12 @@ export async function ReportsView(props: AdminViewServerProps) {
         status: true,
         template: true,
         totalCostUsd: true,
+        archived: true,
         qaResults: {
           structural: { passed: true, violations: true },
           factCheck: { passed: true, notes: true },
-          qualitativeReview: { passed: true, notes: true },
+          qualitativeReview: { passed: true, notes: true, notTraitViolations: true },
+          evidenceCheck: { passed: true, notes: true },
         },
         informationGain: { decision: true },
       },

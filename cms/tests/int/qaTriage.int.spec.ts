@@ -63,7 +63,7 @@ it('leaves checks that did not run out of the failures and the pass rates', () =
   expect(qaFailures(article).map((f) => f.check)).toEqual(['qualitativeReview'])
 
   const summary = summarizeReportArticles([article])
-  expect(summary.failures[0].fails).toEqual(['qualitative'])
+  expect(summary.failures[0].fails).toEqual(['Qualitative review'])
   expect(summary.withQaCount).toBe(0)
   expect(summary.st).toEqual({ t: 0, p: 0 })
   expect(summary.fc).toEqual({ t: 0, p: 0 })

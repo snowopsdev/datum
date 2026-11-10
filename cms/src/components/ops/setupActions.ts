@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { errorMessage } from '../../lib/errorMessage'
 import { governanceAuditContext } from '../../lib/governanceAudit'
 import { requireUser } from '../../lib/requireUser'
 
@@ -60,11 +61,21 @@ const SITE_PAGE_CONCURRENCY = 3
 const REFRESH_BUDGET_MS = 40_000
 
 export type RefreshSitePagesResult =
-  { ok: true; pages: number; warnings: string[] } | { ok: false; error: string }
+  | { ok: true; pages: number; warnings: string[]; domain: string }
+  | { ok: false; error: string }
 
 /** What went wrong with one page, in the operator's words. */
 function pageWarning(url: string, reason: string | null): string {
   return `${url}: ${reason ?? 'could not be read'}`
+}
+
+/** A crawl that throws (a database or network fault) answers instead of rejecting. */
+export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> {
+  try {
+    return await refreshSitePages()
+  } catch (e) {
+    return { ok: false, error: errorMessage(e, 'Could not fetch the site pages.') }
+  }
 }
 
 /**
@@ -82,7 +93,7 @@ function pageWarning(url: string, reason: string | null): string {
  * The crawl reuses `fetchPage`, so the SSRF guard, the redirect handling, the
  * byte ceiling, and the mock mode all come for free.
  */
-export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> {
+async function refreshSitePages(): Promise<RefreshSitePagesResult> {
   const { payload, user } = await requireUser('Sign in to fetch the site pages.')
   const mode = modeFromEnv(process.env)
   const doc = (await payload.findGlobal({
@@ -192,7 +203,7 @@ export async function refreshSitePagesAction(): Promise<RefreshSitePagesResult> 
   })
   revalidatePath(VIEW_PATH)
 
-  return { ok: true, pages: stored.length, warnings }
+  return { ok: true, pages: stored.length, warnings, domain }
 }
 
 // ---------------------------------------------------------------------------

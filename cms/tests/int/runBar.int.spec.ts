@@ -31,6 +31,7 @@ const run = (status: RunStatusDTO['status']): RunStatusDTO => ({
   articleCount: 1,
   articles: [{ id: 1, keyword: 'test article', status: 'drafted' }],
   activity: null,
+  activeRunIds: status === 'queued' || status === 'running' ? ['test-run'] : [],
   finalStatuses: {},
   failures: [],
   errorSummary: null,
@@ -115,6 +116,48 @@ it('refreshes once when a run completed before the first poll', async () => {
   expect(mocks.refresh).toHaveBeenCalledTimes(1)
 })
 
+describe('runs queued behind the one executing', () => {
+  const running = (extra: Partial<RunStatusDTO> = {}): RunStatusDTO => ({
+    ...run('running'),
+    runId: 'run-a',
+    activeRunIds: ['run-a', 'run-b', 'run-c'],
+    ...extra,
+  })
+
+  it('says how many more are queued', async () => {
+    mocks.poll.mockResolvedValue(running())
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).toMatch(
+      /and 2 more queued/,
+    )
+  })
+
+  it('stays silent about the queue when nothing is waiting', async () => {
+    mocks.poll.mockResolvedValue(run('running'))
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).not.toMatch(/more queued/)
+  })
+
+  it('refreshes when a tracked run settles even though the bar moved on to the next one', async () => {
+    mocks.poll
+      .mockResolvedValueOnce(running())
+      .mockResolvedValue(
+        running({ runId: 'run-b', activeRunIds: ['run-b', 'run-c'], createdAtIso: '2026-01-01T00:00:00Z' }),
+      )
+    render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    // run-a settled and run-b took over: the bar still reads "running", but
+    // run-a's articles have moved and the page behind the bar is out of date.
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    await act(() => vi.advanceTimersByTimeAsync(9000))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  })
+})
+
 const failedRun = (): RunStatusDTO => ({
   ...run('failed'),
   failures: [{ articleId: 9, keyword: 'broken piece', stage: 'generate', message: 'boom' }],
@@ -161,6 +204,26 @@ describe('queue announcements', () => {
     expect(screen.getByText('Queued — waiting to start')).toBeTruthy()
     await act(() => vi.advanceTimersByTimeAsync(21000))
     expect(screen.queryByText('Queued — waiting to start')).toBeNull()
+  })
+
+  // The bar follows the executing run. Queuing another behind it must not hide
+  // the one running while the announcement waits for its own run to start.
+  it('keeps showing the running run when the one just queued is behind it', async () => {
+    mocks.poll.mockResolvedValue({ ...run('running'), runId: 'run-a', activeRunIds: ['run-a', 'run-b'] })
+    const { container } = render(React.createElement(GlobalRunBar))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    await act(async () => announceRunQueued({ runId: 'run-b' }))
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.queryByText('Queued — waiting to start')).toBeNull()
+    expect(container.querySelector('.datum-runbar__detail')?.textContent).toMatch(
+      /and 1 more queued/,
+    )
+    expect(
+      isStaleRun(
+        { runId: 'run-a', createdAtIso: '2026-01-01T00:00:00Z', activeRunIds: ['run-a', 'run-b'] },
+        { runId: 'run-b', queuedAt: Date.parse('2026-01-01T00:00:10Z') },
+      ),
+    ).toBe(false)
   })
 
   it('tells runs apart by creation time when the action carried no id', () => {

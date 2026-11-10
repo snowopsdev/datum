@@ -91,6 +91,7 @@ export const Positioning: GlobalConfig = {
     {
       name: 'coreClaims',
       type: 'array',
+      maxRows: 3,
       admin: {
         description:
           'Exactly three claims the position rests on. Three, because a position with a dozen claims has none.',

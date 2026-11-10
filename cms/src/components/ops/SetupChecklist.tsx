@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useState, useTransition } from 'react'
 
+import { settle } from './settle'
 import { activateDefaultTenantAction } from './tenantActions'
 import { SetupSuggestions } from './SetupSuggestions'
 import type { SetupSuggestionDTO } from './suggestionTypes'
@@ -208,14 +209,16 @@ export function SetupChecklist(props: SetupChecklistData) {
 
   const useDemo = () => {
     setError(null)
-    startTransition(async () => {
-      const result = await activateDefaultTenantAction()
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      router.refresh()
-    })
+    startTransition(() =>
+      settle(async () => {
+        const result = await activateDefaultTenantAction()
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        router.refresh()
+      }, setError),
+    )
   }
 
   return (

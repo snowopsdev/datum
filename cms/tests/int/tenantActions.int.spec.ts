@@ -266,7 +266,7 @@ describe('audience lifecycle', () => {
     expect(first.primary).toBe(false)
 
     const archived = await archiveIcpAction(second.id)
-    expect(archived).toEqual({ ok: true })
+    expect(archived).toMatchObject({ ok: true })
     const afterArchive = await payload.findByID({
       collection: 'icps',
       id: second.id,
@@ -769,6 +769,29 @@ describe('saveEvidenceBankAction', () => {
 })
 
 describe('saveTemplateConfigAction', () => {
+  // A thrown server-action error is redacted in a production build, so a write
+  // Payload refuses has to come back as a value the editor can show.
+  it('answers a refused write with { ok: false, error } instead of throwing', async () => {
+    const result = await saveTemplateConfigAction(2_000_000_000, {
+      companyMentions: 'mention',
+      dos: [],
+      donts: [],
+      requiredSections: [],
+      seoSpec: {
+        titleTagMaxLength: 60,
+        metaDescriptionMaxLength: 160,
+        headingStructureRules: '',
+        faqRequired: true,
+        faqMinQuestions: 3,
+        faqMaxQuestions: 6,
+        ogTagsRequired: true,
+      },
+    })
+    // Payload's own refusal (no such template), not a generic fallback.
+    expect(result).toEqual({ ok: false, error: expect.stringMatching(/not found/i) })
+    expect(result.ok === false && result.error.length).toBeGreaterThan(0)
+  })
+
   it('counts the blank lines it left out and returns the stored version', async () => {
     // Its own template: CI's database is not seeded, and a seeded one is not
     // this test's to edit.
@@ -794,6 +817,7 @@ describe('saveTemplateConfigAction', () => {
     }
     try {
       const result = await saveTemplateConfigAction(template.id, input)
+      if (!result.ok) throw new Error(result.error)
       expect(result.dropped).toBe(3)
       expect(result.updatedAt).toEqual(expect.any(String))
       // The template as stored, for the editor to show.

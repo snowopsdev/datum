@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 
+import { unwrap } from '../../actionResult'
 import { publishArticleAction, scheduleArticleAction, unscheduleArticleAction } from '../../actions'
 import { formatAuditTimestamp } from '../../articleStatus'
 import { ArchiveAction, OpenInAdmin } from '../ArchiveAction'
@@ -35,7 +36,7 @@ const isAhead = (iso: string) => new Date(iso).getTime() > Date.now()
 
 /** Signed off and waiting: publish it now, or pick a time. */
 export function ApprovedPanel({ action, article, editHref, scheduleExpired }: PanelProps) {
-  const { pending, runAction, setNotice } = action
+  const { arm, armed, disarm, pending, runAction, setNotice } = action
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
   /**
    * The scheduling input, in UTC. Seeded from whatever is already scheduled so
@@ -72,7 +73,7 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
             disabled={pending}
             onClick={() =>
               runAction(async () => {
-                const { previousPublishAt } = await unscheduleArticleAction(article.id)
+                const { previousPublishAt } = unwrap(await unscheduleArticleAction(article.id))
                 setScheduleAt('')
                 // A time already past is not worth restoring: scheduling it
                 // again is refused. Checked against the clock now and again on
@@ -89,7 +90,7 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
                               'That time has passed — pick a new one to schedule it again.',
                             )
                           }
-                          await scheduleArticleAction(article.id, previousPublishAt)
+                          unwrap(await scheduleArticleAction(article.id, previousPublishAt))
                           // The input was cleared on Unschedule and is seeded
                           // only once, so put the restored time back in it.
                           setScheduleAt(toUtcInputValue(previousPublishAt))
@@ -134,27 +135,46 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
         {scheduleError ? <span className="datum-ops__error">{scheduleError}</span> : null}
       </div>
       <div className="datum-ops__actions">
-        <button
-          type="button"
-          className="datum-ops__btn datum-ops__btn--primary"
-          disabled={pending}
-          onClick={() =>
-            runAction(async () => {
-              const { slug, status } = await publishArticleAction(article.id, notes)
-              setNotice(
-                status === 'published'
-                  ? {
-                      text: 'Published ·',
-                      href: `/articles/${slug || article.id}`,
-                      hrefLabel: 'view it',
-                    }
-                  : `Saved as ${status}.`,
-              )
-            })
-          }
-        >
-          Publish now
-        </button>
+        {armed === 'publish' ? (
+          <>
+            <button
+              type="button"
+              className="datum-ops__btn datum-ops__btn--danger"
+              data-confirm-go="publish"
+              disabled={pending}
+              onClick={() => {
+                disarm()
+                runAction(async () => {
+                  const { slug, status } = unwrap(await publishArticleAction(article.id, notes))
+                  setNotice(
+                    status === 'published'
+                      ? {
+                          text: 'Published ·',
+                          href: `/articles/${slug || article.id}`,
+                          hrefLabel: 'view it',
+                        }
+                      : `Saved as ${status}.`,
+                  )
+                })
+              }}
+            >
+              Confirm: publish now
+            </button>
+            <button type="button" className="datum-ops__btn" disabled={pending} onClick={disarm}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="datum-ops__btn datum-ops__btn--primary"
+            data-confirm-trigger="publish"
+            disabled={pending}
+            onClick={() => arm('publish')}
+          >
+            Publish now
+          </button>
+        )}
         <button
           type="button"
           className="datum-ops__btn"
@@ -171,7 +191,7 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
             }
             setScheduleError(null)
             runAction(async () => {
-              const { publishAt } = await scheduleArticleAction(article.id, at)
+              const { publishAt } = unwrap(await scheduleArticleAction(article.id, at))
               setNotice(`Scheduled for ${formatAuditTimestamp(publishAt)}`)
             })
           }}
@@ -181,6 +201,11 @@ export function ApprovedPanel({ action, article, editHref, scheduleExpired }: Pa
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>
+      {armed === 'publish' ? (
+        <p className="datum-ops__warn" style={{ marginTop: 10 }}>
+          This puts the piece on the public site immediately.
+        </p>
+      ) : null}
       <SendBackAction action={action} articleId={article.id} />
     </div>
   )

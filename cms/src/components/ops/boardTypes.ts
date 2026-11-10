@@ -54,6 +54,9 @@ export const CALL_LABELS: Record<string, string> = {
   evidenceVerification: 'Hunting evidence for new claims',
   evidenceCheck: 'Checking company claims against the evidence bank',
   briefAngle: 'Proposing angles for the brief',
+  brandVoiceExtract: 'Extracting a brand voice from your samples',
+  setupAssist: 'Suggesting workspace setup',
+  topicRelevance: 'Judging whether a topic fits your workspace',
 }
 
 /** `claimExtraction` means different work depending on where the article is. */
@@ -66,6 +69,14 @@ export function callLabel(stage: string, articleStatus: string | null): string {
   return CALL_LABELS[stage] ?? stage
 }
 
+/**
+ * A cost-log stage for a report that adds up a whole workspace: there is no
+ * article status to tell the two `claimExtraction` jobs apart, so it names both.
+ */
+export function costStageLabel(stage: string): string {
+  return stage === 'claimExtraction' ? 'Extracting claims' : callLabel(stage, null)
+}
+
 /** LLM work recorded against a run so far — the "is it stuck?" answer. */
 export type RunActivityDTO = {
   totalCalls: number
@@ -73,6 +84,11 @@ export type RunActivityDTO = {
   byStage: { stage: string; calls: number; costUsd: number }[]
   lastCallStage: string | null
   lastCallAtIso: string | null
+}
+
+/** Runs queued or running besides the one the bar is showing. */
+export function otherActiveRuns(run: Pick<RunStatusDTO, 'runId' | 'activeRunIds'>): number {
+  return run.activeRunIds.filter((id) => id !== run.runId).length
 }
 
 /** Mean completion across a run's articles, 0–1. Settled articles count as done. */
@@ -102,6 +118,12 @@ export type RunStatusDTO = {
   completedAtIso: string | null
   /** Populated while in flight, so the bar can say what the model is doing. */
   activity: RunActivityDTO | null
+  /**
+   * Every queued or running run, oldest first. This run is one of them while it
+   * is active; the rest are waiting behind it, and the bar says so and refreshes
+   * the page when any of them settles.
+   */
+  activeRunIds: string[]
   /** `{ verified: 2, needs_revision: 1 }` — what the run actually achieved. */
   finalStatuses: Record<string, number>
   failures: RunFailureDTO[]

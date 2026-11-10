@@ -138,7 +138,7 @@ describe('refreshSitePagesAction', () => {
     const startedAt = new Date().toISOString()
     const result = await refreshSitePagesAction()
 
-    expect(result).toEqual({ ok: true, pages: 4, warnings: [] })
+    expect(result).toEqual({ ok: true, pages: 4, warnings: [], domain: DOMAIN })
 
     const doc = (await readGlobal()) as WorkspaceProfileDoc
     const pages = doc.sitePages as SitePage[]
@@ -156,6 +156,19 @@ describe('refreshSitePagesAction', () => {
     expect(row?.summary).toBe(`Fetched 4 pages from ${DOMAIN}`)
     expect(row?.actor).toBe('setup@example.com')
     expect((row?.details as { urls: string[] }).urls).toHaveLength(4)
+  })
+
+  it('answers instead of throwing when the caller is signed out or the crawl faults', async () => {
+    authMock.mockResolvedValueOnce({ user: null } as never)
+    expect(await refreshSitePagesAction()).toEqual({
+      ok: false,
+      error: 'Sign in to fetch the site pages.',
+    })
+
+    fetchPageMock.mockImplementation(async () => {
+      throw new Error('socket hang up')
+    })
+    expect(await refreshSitePagesAction()).toEqual({ ok: false, error: 'socket hang up' })
   })
 
   it('caps the stored set at eight pages and each body at the text ceiling', async () => {
@@ -178,7 +191,7 @@ describe('refreshSitePagesAction', () => {
     )
 
     const result = await refreshSitePagesAction()
-    expect(result).toEqual({ ok: true, pages: MAX_SITE_PAGES, warnings: [] })
+    expect(result).toEqual({ ok: true, pages: MAX_SITE_PAGES, warnings: [], domain: DOMAIN })
 
     const pages = ((await readGlobal()) as WorkspaceProfileDoc).sitePages as SitePage[]
     expect(pages).toHaveLength(MAX_SITE_PAGES)

@@ -2,7 +2,7 @@
 
 import { toast } from '@payloadcms/ui'
 import { useRouter } from 'next/navigation'
-import React, { useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 
 import { approveBriefAction, type BriefEdits, saveBriefAction } from './briefActions'
 import { LeaveDialog, RestoreNotice, SaveButton, UnsavedBar } from './DirtyGuardUi'
@@ -72,6 +72,13 @@ export function BriefEditor({
   const [pending, startTransition] = useTransition()
 
   const edits = (): BriefEdits => ({ angle, audience, sections, notes, icpId })
+  /**
+   * The `updatedAt` this form was built from, sent with a save so the server
+   * can refuse to overwrite a colleague's newer save. It follows the page
+   * while nothing here is unsaved, and the save's own answer; a dirty form
+   * keeps the version it was started from even if the page refreshes under it.
+   */
+  const loadedAt = useRef(updatedAt)
 
   // Sections are compared by what they say, not by the list keys the rows
   // render under, so reordering or removing one cannot fool the comparison.
@@ -102,7 +109,7 @@ export function BriefEditor({
     },
     save: async () => {
       setMessage(null)
-      const result = await saveBriefAction(articleId, edits())
+      const result = await saveBriefAction(articleId, edits(), loadedAt.current)
       if (!result.ok) {
         setMessage({ ok: false, text: result.error })
         return null
@@ -116,10 +123,21 @@ export function BriefEditor({
       setNotes(saved.notes)
       setIcpId(saved.icpId)
       toast.success(result.message)
+      if (result.updatedAt) loadedAt.current = result.updatedAt
       router.refresh()
       return { saved, version: result.updatedAt }
     },
   })
+
+  // Only ever forward: right after a save the page still carries the older
+  // version until its refresh lands.
+  useEffect(() => {
+    if (guard.dirty || !updatedAt) return
+    const held = loadedAt.current
+    if (!held || new Date(updatedAt).getTime() > new Date(held).getTime()) {
+      loadedAt.current = updatedAt
+    }
+  }, [guard.dirty, updatedAt])
 
   const angleOptions = initial.angleOptions ?? []
   /** The chosen card holds the single tab stop; a hand-typed angle leaves the first one. */

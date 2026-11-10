@@ -10,6 +10,8 @@ import {
   dismissCandidateAction,
   reopenCandidateAction,
 } from './sourceReviewActions'
+import { settle } from './settle'
+import type { SourceReviewTotals } from './loadSourceReviewQueue'
 import { queueBucket, type CandidateDTO } from './sourceReviewTypes'
 import './ops.css'
 
@@ -73,11 +75,13 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
 
   const run = (action: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
     setError(null)
-    startTransition(async () => {
-      const result = await action()
-      if (result.ok) router.refresh()
-      else setError(result.error)
-    })
+    startTransition(() =>
+      settle(async () => {
+        const result = await action()
+        if (result.ok) router.refresh()
+        else setError(result.error)
+      }, setError),
+    )
   }
 
   const bucket = queueBucket(candidate)
@@ -208,7 +212,14 @@ function CandidateCard({ candidate }: { candidate: CandidateDTO }) {
   )
 }
 
-export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }) {
+export function SourceReviewQueue({
+  candidates,
+  totals,
+}: {
+  candidates: CandidateDTO[]
+  /** Each tab's size in the database, which is more than `candidates` once a tab is capped. */
+  totals?: SourceReviewTotals
+}) {
   const [tab, setTab] = useState<Tab>('review')
 
   const buckets = useMemo(() => {
@@ -218,6 +229,7 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
   }, [candidates])
 
   const shown = buckets[tab]
+  const totalOf = (key: Tab) => Math.max(totals?.[key] ?? 0, buckets[key].length)
 
   return (
     <div id="ops-main" tabIndex={-1} className="datum-ops">
@@ -238,12 +250,13 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
         <div className="datum-ops__switcher">
           {TABS.map((entry) => (
             <button
+              aria-pressed={tab === entry.key}
               className={tab === entry.key ? 'is-active' : undefined}
               key={entry.key}
               onClick={() => setTab(entry.key)}
               type="button"
             >
-              {entry.label} ({buckets[entry.key].length})
+              {entry.label} ({totalOf(entry.key)})
             </button>
           ))}
         </div>
@@ -258,6 +271,13 @@ export function SourceReviewQueue({ candidates }: { candidates: CandidateDTO[] }
         and use Reset to drafted to re-check the same draft, or Send back and then Regenerate to
         rewrite it first.
       </p>
+
+      {shown.length < totalOf(tab) ? (
+        <p className="datum-ops__hint" role="status">
+          Showing {shown.length} of {totalOf(tab)}, most recently seen first.
+          {tab === 'review' ? ' Rate or dismiss some and the next ones appear.' : null}
+        </p>
+      ) : null}
 
       {shown.length === 0 ? (
         <p className="datum-ops__empty" style={{ marginTop: 20 }}>

@@ -10,6 +10,7 @@ import {
   DEFAULT_COMPANY_MENTIONS,
 } from '../../lib/tenant/companyMentions'
 import { LeaveDialog, RestoreNotice, SaveButton, UnsavedBar } from './DirtyGuardUi'
+import { unwrap } from './actionResult'
 import { createTemplateAction, saveTemplateConfigAction } from './templateActions'
 import type { TemplateConfigDTO } from './templateTypes'
 import { useDirtyGuard } from './useDirtyGuard'
@@ -127,17 +128,19 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
       if (!selected) return null
       setError(null)
       try {
-        const result = await saveTemplateConfigAction(selected.id, {
-          // The outline and example go through a lossy plain-to-Lexical
-          // conversion, so they are only sent when they actually changed.
-          ...(form.outline !== baseline.outline ? { outline } : {}),
-          ...(form.example !== baseline.example ? { example } : {}),
-          companyMentions,
-          dos: dos.split('\n'),
-          donts: donts.split('\n'),
-          requiredSections: requiredSections.split('\n'),
-          seoSpec: seo,
-        })
+        const result = unwrap(
+          await saveTemplateConfigAction(selected.id, {
+            // The outline and example go through a lossy plain-to-Lexical
+            // conversion, so they are only sent when they actually changed.
+            ...(form.outline !== baseline.outline ? { outline } : {}),
+            ...(form.example !== baseline.example ? { example } : {}),
+            companyMentions,
+            dos: dos.split('\n'),
+            donts: donts.split('\n'),
+            requiredSections: requiredSections.split('\n'),
+            seoSpec: seo,
+          }),
+        )
         // The textareas show what was stored, through the same mapping the
         // page reads it with: a blank line or padded outline is gone.
         const saved = formOf(result.template)
@@ -281,6 +284,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
               key={t.id}
               type="button"
               className={t.id === selected.id ? 'is-active' : undefined}
+              aria-current={t.id === selected.id ? 'true' : undefined}
               // A save in flight resolves into whichever template is open, so
               // switching mid-save would load one template's result into another.
               disabled={pending}
@@ -327,6 +331,7 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
                 key={id}
                 type="button"
                 className={tab === id ? 'is-active' : undefined}
+                aria-pressed={tab === id}
                 onClick={() => setTab(id)}
               >
                 {label}

@@ -5,6 +5,7 @@ import React from 'react'
 
 import config from '@/payload.config'
 import { formatArticleDate } from '@/lib/articleReader'
+import { PUBLIC } from '@/lib/findPublishedArticle'
 
 export default async function HomePage() {
   const headers = await getHeaders()
@@ -21,7 +22,7 @@ export default async function HomePage() {
         metaDescription: true,
         publishedAt: true,
       },
-      where: { status: { equals: 'published' } },
+      where: PUBLIC,
       limit: 12,
       depth: 0,
       sort: '-publishedAt',

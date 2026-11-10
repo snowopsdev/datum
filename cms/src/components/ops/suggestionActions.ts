@@ -7,6 +7,9 @@ import { decideSuggestion, requireSuggestionAdmin } from '../../lib/setupSuggest
 import { saveBrandVoiceDraftAction } from './brandVoiceActions'
 import { saveEvidenceBankAction } from './tenantActions'
 import type { SuggestionActionResult } from './suggestionTypes'
+const NEVER_SAVED = new Date(0).toISOString()
+const CHANGED_MESSAGE =
+  'Someone else saved this since you opened it. Reload to see their changes, then accept again.'
 const refresh = () => {
   revalidatePath('/admin')
   revalidatePath('/admin/ops/setup')
@@ -53,13 +56,27 @@ export async function acceptSuggestionAction(
       const phrase = typeof p.phrase === 'string' ? p.phrase.trim() : ''
       if (!phrase) throw new Error('The suggestion has no phrase.')
       const banned = assets.voiceContent.bannedWords
-      await saveBrandVoiceDraftAction(assets.voice.id, {
+      // The write below replaces the whole voice from what was read above, so
+      // a voice saved in between would be silently reverted. Read it again as
+      // close to the write as possible and refuse if it moved.
+      const latest = await payload.findByID({
+        collection: 'brand-voices',
+        id: assets.voice.id,
+        select: { updatedAt: true },
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (latest.updatedAt !== assets.voice.updatedAt) return { ok: false, error: CHANGED_MESSAGE }
+      // The save answers a refusal as a value now; without this check the
+      // suggestion would be marked accepted with the word never written.
+      const saved = await saveBrandVoiceDraftAction(assets.voice.id, {
         ...assets.voiceContent,
         onboardingStep: assets.voice.onboardingStep ?? 0,
         bannedWords: banned.some((w) => w.word.toLowerCase() === phrase.toLowerCase())
           ? banned
           : [...banned, { word: phrase, note: 'Removed repeatedly by reviewers' }],
       })
+      if (!saved.ok) return { ok: false, error: saved.error }
     } else if (row.kind === 'unbacked_claim') {
       const claim = typeof p.claim === 'string' ? p.claim.trim() : ''
       if (!claim) throw new Error('The suggestion has no claim.')
@@ -71,40 +88,47 @@ export async function acceptSuggestionAction(
         ...bank.rejectedClaims.map((c) => c.claim),
       ].some((c) => c.toLowerCase() === claim.toLowerCase())
       if (!exists) {
-        const saved = await saveEvidenceBankAction({
-          ...bank,
-          verifiedClaims:
-            options.evidenceAs === 'rejected'
-              ? bank.verifiedClaims
-              : [
-                  ...bank.verifiedClaims,
-                  {
-                    ref: '',
-                    claim,
-                    primarySource: '',
-                    sourceUrl: '',
-                    sourceDate: '',
-                    sampleOrMethod: '',
-                    verificationDepth: 'self_reported',
-                    limits: '',
-                    clearedSurfaces: [],
-                    recheckAt: '',
-                  },
-                ],
-          rejectedClaims:
-            options.evidenceAs === 'rejected'
-              ? [
-                  ...bank.rejectedClaims,
-                  {
-                    ref: '',
-                    claim,
-                    status: 'rejected',
-                    reason: options.reason!.trim(),
-                    replacement: '',
-                  },
-                ]
-              : bank.rejectedClaims,
-        })
+        // Pass the version read above: the save refuses if the bank has moved on.
+        const saved = await saveEvidenceBankAction(
+          {
+            ...bank,
+            verifiedClaims:
+              options.evidenceAs === 'rejected'
+                ? bank.verifiedClaims
+                : [
+                    ...bank.verifiedClaims,
+                    {
+                      ref: '',
+                      claim,
+                      primarySource: '',
+                      sourceUrl: '',
+                      sourceDate: '',
+                      sampleOrMethod: '',
+                      verificationDepth: 'self_reported',
+                      limits: '',
+                      clearedSurfaces: [],
+                      recheckAt: '',
+                    },
+                  ],
+            rejectedClaims:
+              options.evidenceAs === 'rejected'
+                ? [
+                    ...bank.rejectedClaims,
+                    {
+                      ref: '',
+                      claim,
+                      status: 'rejected',
+                      reason: options.reason!.trim(),
+                      replacement: '',
+                    },
+                  ]
+                : bank.rejectedClaims,
+          },
+          undefined,
+          // A bank never saved has no `updatedAt`; the epoch stands for "never
+          // saved" so a first save landing in the window still counts as a change.
+          assets.bankDoc.updatedAt ?? NEVER_SAVED,
+        )
         if (!saved.ok) throw new Error(saved.error)
       }
     } else throw new Error('Unknown suggestion kind.')

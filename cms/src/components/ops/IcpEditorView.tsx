@@ -4,10 +4,14 @@ import { notFound, redirect } from 'next/navigation'
 import type { AdminViewServerProps } from 'payload'
 import React from 'react'
 
-import { icpContentOf } from '../../lib/tenant/icp'
+import { icpCompletenessProblems, icpContentOf } from '../../lib/tenant/icp'
 import { formatAuditTimestamp } from './articleStatus'
 import { IcpEditor } from './IcpEditor'
-import type { IcpDTO } from './icpTypes'
+import { ICP_STEPS, type IcpDTO } from './icpTypes'
+
+function param(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
 
 /**
  * `/admin/ops/setup/audiences/:id`, and `/admin/ops/setup/audiences/new` for
@@ -69,6 +73,20 @@ export async function IcpEditorView(props: AdminViewServerProps) {
       }
     : null
 
+  // The first save of a new audience moves to its own URL, which remounts the
+  // editor; the step and an activation error ride along so neither is lost.
+  const stepNumber = Number(param(searchParams?.step))
+  const initialStep =
+    Number.isInteger(stepNumber) && stepNumber >= 0 && stepNumber < ICP_STEPS.length
+      ? stepNumber
+      : 0
+  const missing = record && param(searchParams?.activateFailed) === '1'
+    ? icpCompletenessProblems(record)
+    : null
+  const initialError = missing
+    ? `Saved as a draft, but it was not activated.${missing.length > 0 ? ` ${missing.join('; ')}.` : ' Try again.'}`
+    : null
+
   return (
     <DefaultTemplate
       i18n={req.i18n}
@@ -87,6 +105,8 @@ export async function IcpEditorView(props: AdminViewServerProps) {
             (profile as { sitePagesFetchedAt?: string | null }).sitePagesFetchedAt ?? null
           }
           hasOtherActiveAudience={otherActive.totalDocs > 0}
+          initialStep={initialStep}
+          initialError={record ? initialError : null}
         />
       </Gutter>
     </DefaultTemplate>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useAuth } from '@payloadcms/ui'
 import React, { useEffect, useState } from 'react'
 
 import { runtimeStatusAction } from './tenantActions'
@@ -27,12 +28,34 @@ export function RuntimeBanner() {
     problems: string[]
   } | null>(null)
 
-  useEffect(() => {
-    const id = setTimeout(() => void runtimeStatusAction().then(setStatus), 0)
-    return () => clearTimeout(id)
-  }, [])
+  // Mounted on every admin route, the login page included, and Payload's login
+  // navigates client-side, so a mount-only check would run before sign-in and
+  // never again. Keyed on the user instead; signed out there is nothing to ask.
+  const { user } = useAuth()
+  const userId = user?.id ?? null
 
-  if (!status || status.mode !== 'live' || status.ready) return null
+  useEffect(() => {
+    if (userId === null) return
+    let current = true
+    const id = setTimeout(
+      () =>
+        void runtimeStatusAction()
+          .then((next) => {
+            if (current) setStatus(next)
+          })
+          .catch(() => {
+            /* Keep the last status; the banner is advisory. */
+          }),
+      0,
+    )
+    return () => {
+      current = false
+      clearTimeout(id)
+    }
+  }, [userId])
+
+  // A status read for a user who has since signed out is not shown.
+  if (userId === null || !status || status.mode !== 'live' || status.ready) return null
   // `missing` holds environment variable names; `problems` holds sentences the
   // evaluator already phrased as instructions. Kept apart by readiness, so
   // neither list has to be reconstructed by subtracting the other.

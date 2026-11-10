@@ -25,18 +25,20 @@ describe('stageKpis', () => {
 })
 
 /**
- * The two in-memory callers reduce cost-log rows with this file's `stageKpis`
- * rather than hand-rolling their own `Map<string, ...>` loop — see the doc
- * comment atop `opsKpis.ts` for why the reports page's SQL aggregate
- * (`reportQueries.ts`) is exempt.
+ * The pipeline CLI report reduces its already-fetched cost-log rows with this
+ * file's `stageKpis` rather than hand-rolling a `Map<string, ...>` loop. The
+ * reports page and the run bar's activity read the SQL aggregate instead (see
+ * the doc comment atop `opsKpis.ts`), and the run bar must not go back to
+ * reducing a capped read in memory.
  */
 describe('one cost aggregation', () => {
-  it('boardActions and the pipeline CLI report use stageKpis', () => {
-    const boardActions = readFileSync('src/components/ops/boardActions.ts', 'utf8')
-    expect(boardActions).toContain('stageKpis(')
-
+  it('the pipeline CLI report uses stageKpis; the run bar uses the SQL aggregate', () => {
     const pipelineReport = readFileSync(path.join('..', 'pipeline', 'src', 'report.ts'), 'utf8')
     expect(pipelineReport).toContain('stageKpis(')
+
+    const boardActions = readFileSync('src/components/ops/boardActions.ts', 'utf8')
+    expect(boardActions).toContain('loadReportCosts(')
+    expect(boardActions).not.toContain('stageKpis(')
   })
 })
 

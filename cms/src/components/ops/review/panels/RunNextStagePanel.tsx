@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 
+import { unwrap } from '../../actionResult'
 import { assignTemplateAction } from '../../actions'
 import { runSelectedArticlesAction } from '../../boardActions'
 import { announceRunQueued } from '../../runQueued'
@@ -94,7 +95,7 @@ export function RunNextStagePanel({
       // Skipped when the piece already has this template: each call is a
       // second write and a `template_assigned` audit row for no change.
       if (status === 'topic_selected' && templateId && Number(templateId) !== article.templateId) {
-        await assignTemplateAction(article.id, Number(templateId))
+        unwrap(await assignTemplateAction(article.id, Number(templateId)))
       }
       const result = await runSelectedArticlesAction({
         articleIds: [article.id],
