@@ -8,9 +8,11 @@ import {
   gateArchivedStatus,
   gateReadOnlyStatus,
   gateReviewOverride,
+  gatePublicationPath,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
 } from '../lib/articleReviewGate'
+import { stampPublication } from '../lib/articlePublication'
 
 /**
  * Shown on every field in `SCORED_CONTENT_FIELDS` that an editor can reach in
@@ -32,18 +34,29 @@ export const Articles: CollectionConfig = {
     // `gateVerifiedStatus` has to see that clearance rather than the PASS it
     // replaced. `gateReadOnlyStatus` sits after it (readOnly statuses never
     // carry a decision, so order is documentation) and before the review gates
-    // it has nothing in common with. The last two are ordered as documentation
-    // only — `gateVerifiedStatus` re-derives the fresh-justification test
-    // rather than trusting the hook before it.
+    // it has nothing in common with. The two after that are ordered as
+    // documentation only — `gateVerifiedStatus` re-derives the
+    // fresh-justification test rather than trusting the hook before it.
+    // `gatePublicationPath` closes the remaining door: a person reaching
+    // `approved` or `published` from a status review never led through.
     beforeChange: [
       gateArchivedStatus,
       invalidateStaleInformationGain,
       gateReadOnlyStatus,
       gateReviewOverride,
       gateVerifiedStatus,
+      gatePublicationPath,
+      stampPublication,
       trackArticleContentUpdate,
     ],
     afterChange: [auditArticleChange, emitArticleStatusEvent],
+  },
+  access: {
+    // Read, create and update keep Payload's default (any signed-in user).
+    // Delete is refused outright: the database already refuses it (see
+    // `archived` below), and without this the admin offered a Delete button
+    // that could only answer with a 500.
+    delete: () => false,
   },
   admin: {
     group: false,
@@ -413,7 +426,10 @@ export const Articles: CollectionConfig = {
         // all pass `overrideAccess: false` — is refused. Without this an editor
         // could hand-set `decision: 'PASS'` and then `status: 'verified'` in
         // two ordinary edits and skip scoring; `gateVerifiedStatus` owns the
-        // other half of that, the status transition itself.
+        // other half of that, the status transition itself. `create` is closed
+        // for the same reason: with no stored document, that gate reads the
+        // decision the request itself supplied.
+        create: () => false,
         update: () => false,
       },
       admin: {

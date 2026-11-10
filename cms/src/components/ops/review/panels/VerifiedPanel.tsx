@@ -18,12 +18,19 @@ import { DECISION_LABEL, type PanelProps } from '../types'
 export function VerifiedPanel({ action, article, editHref, run, runIsCurrent }: PanelProps) {
   const { pending, runAction, setNotice } = action
   const [notes, setNotes] = useState(article.reviewNotes ?? '')
+  // An override moves the piece to `verified` and leaves the decision it
+  // overrode on the article, so anything but PASS here means a person, not the
+  // score, cleared it. Read from the article: the run row may not be current.
+  const decision = article.informationGain?.decision
+  const overridden = decision != null && decision !== 'PASS'
 
   return (
     <div className="datum-ops__block">
       <h3>Approve</h3>
       <p className="datum-ops__sub" style={{ marginBottom: 10 }}>
-        QA and information gain both cleared this draft
+        {overridden
+          ? 'A reviewer overrode the information-gain decision on this draft'
+          : 'QA and information gain both cleared this draft'}
         {run && runIsCurrent ? ` (run #${run.id}, ${DECISION_LABEL[run.decision]})` : ''}.
       </p>
       <div className="datum-ops__field">

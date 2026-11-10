@@ -200,22 +200,34 @@ interface PinnedDispatcher {
   destroy(): Promise<void>
 }
 
+/** `fetch`'s init plus undici's `dispatcher`. */
+type CrawlRequestInit = RequestInit & { dispatcher?: PinnedDispatcher }
+
+/** A dispatcher and the `fetch` that accepts it. */
+export interface CrawlTransport {
+  dispatcher: PinnedDispatcher
+  fetch: (url: string, init: CrawlRequestInit) => Promise<Response>
+}
+
 /**
- * An undici dispatcher that will only ever connect to `addresses`.
+ * An undici dispatcher that resolves names through `lookup` only, with the
+ * `fetch` from the same undici copy.
+ *
+ * The two must come from one package. Node's built-in `fetch` runs on the
+ * undici bundled with that Node release, and it rejects a dispatcher built by
+ * a different major (`UND_ERR_INVALID_ARG`): the installed undici 8 `Agent`
+ * works with the global `fetch` on Node 26 and fails on Node 22 and 24.
  *
  * undici is imported dynamically so the module stays loadable — and the tests
  * stay hermetic — without it: an injected `fetchImpl` never reaches this.
  */
-async function pinnedDispatcher(
-  host: string,
-  addresses: ResolvedAddress[],
-): Promise<PinnedDispatcher> {
-  const { Agent } = await import('undici')
-  return new Agent({ connect: { lookup: pinnedLookup(host, addresses) } })
+export async function crawlTransport(lookup: PinnedLookup): Promise<CrawlTransport> {
+  const undici = await import('undici')
+  return {
+    dispatcher: new undici.Agent({ connect: { lookup } }),
+    fetch: undici.fetch as unknown as CrawlTransport['fetch'],
+  }
 }
-
-/** `fetch`'s init plus undici's `dispatcher`, which Node honours but does not type. */
-type CrawlRequestInit = RequestInit & { dispatcher?: PinnedDispatcher }
 
 /**
  * Readability's article text for `html`, whitespace-normalised and capped.
@@ -349,7 +361,6 @@ export async function fetchPage(
       fetchedAt,
     }) satisfies FetchedPage
 
-  const doFetch = opts.fetchImpl ?? fetch
   const lookupImpl = opts.lookupImpl ?? defaultLookup
   const userAgent = opts.userAgent?.trim() || USER_AGENT
   const controller = new AbortController()
@@ -372,17 +383,19 @@ export async function fetchPage(
       }
 
       // Pin this hop's connection to the addresses just cleared. Only the real
-      // `fetch` gets a dispatcher: an injected `fetchImpl` is a stub with no
+      // fetch gets a dispatcher: an injected `fetchImpl` is a stub with no
       // socket to pin, and giving it one would drag undici into the tests.
       const init: CrawlRequestInit = {
         headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' },
         redirect: 'manual',
         signal: controller.signal,
       }
-      if (!opts.fetchImpl) {
-        const dispatcher = await pinnedDispatcher(guard.host, guard.addresses)
-        dispatchers.push(dispatcher)
-        init.dispatcher = dispatcher
+      let doFetch: CrawlTransport['fetch'] | undefined = opts.fetchImpl
+      if (!doFetch) {
+        const transport = await crawlTransport(pinnedLookup(guard.host, guard.addresses))
+        dispatchers.push(transport.dispatcher)
+        init.dispatcher = transport.dispatcher
+        doFetch = transport.fetch
       }
 
       const response = await doFetch(target, init)

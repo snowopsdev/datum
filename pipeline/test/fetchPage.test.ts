@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { describe, it } from 'node:test'
 
 import {
+  crawlTransport,
   extractReadableText,
   fetchPage,
   FETCH_MAX_BYTES,
@@ -814,5 +817,38 @@ describe('fetchPage onHtml', () => {
 
     assert.equal(result.status, 'ok')
     assert.ok(result.text.includes('The grinder matters more than the machine.'))
+  })
+})
+
+describe('crawlTransport', () => {
+  // Every other live-branch test injects `fetchImpl`, which skips the
+  // dispatcher. This one drives the real pair, so a `fetch` and an `Agent`
+  // from different undici majors fail here and not in a live crawl.
+  it('fetches through its own dispatcher, resolving the name with the given lookup only', async () => {
+    const server = createServer((_req, res) => {
+      res.setHeader('content-type', 'text/html')
+      res.end('<html><body>pinned</body></html>')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as AddressInfo
+    const asked: string[] = []
+    const transport = await crawlTransport((hostname, options, callback) => {
+      asked.push(hostname)
+      if (options?.all) callback(null, [{ address: '127.0.0.1', family: 4 }])
+      else callback(null, '127.0.0.1', 4)
+    })
+    try {
+      // `.invalid` never resolves, so a 200 proves the lookup was the only resolver.
+      const response = await transport.fetch(`http://crawl-transport.invalid:${port}/`, {
+        dispatcher: transport.dispatcher,
+        redirect: 'manual',
+      })
+      assert.equal(response.status, 200)
+      assert.match(await response.text(), /pinned/)
+      assert.deepEqual(asked, ['crawl-transport.invalid'])
+    } finally {
+      await transport.dispatcher.destroy()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })

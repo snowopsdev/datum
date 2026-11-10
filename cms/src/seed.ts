@@ -346,19 +346,39 @@ const upsertEvidenceSources = async (payload: Payload): Promise<void> => {
 
 const upsertAdminUser = async (payload: Payload): Promise<void> => {
   const email = 'admin@datum.local'
-  const password = process.env.SEED_ADMIN_PASSWORD || 'datum-dev-password'
+  // Seeding is also how templates are installed and updated, so it is re-run on
+  // instances that are in use. An existing admin keeps their password unless
+  // SEED_ADMIN_PASSWORD asks for a specific one, and the documented default is
+  // never given to a production instance.
+  const requested = process.env.SEED_ADMIN_PASSWORD || undefined
   const existing = await payload.find({
     collection: 'users',
     where: { email: { equals: email } },
     limit: 1,
   })
   if (existing.docs.length > 0) {
-    await payload.update({ collection: 'users', id: existing.docs[0].id, data: { password } })
-    payload.logger.info(`Updated user ${email}`)
-  } else {
-    await payload.create({ collection: 'users', data: { email, password } })
-    payload.logger.info(`Created user ${email}`)
+    if (!requested) {
+      payload.logger.info(`User ${email} exists; password left unchanged`)
+      return
+    }
+    await payload.update({
+      collection: 'users',
+      id: existing.docs[0].id,
+      data: { password: requested },
+    })
+    payload.logger.info(`Set the password for ${email} from SEED_ADMIN_PASSWORD`)
+    return
   }
+  if (!requested && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      `Set SEED_ADMIN_PASSWORD to create ${email}: the default password is public and is not used in production.`,
+    )
+  }
+  await payload.create({
+    collection: 'users',
+    data: { email, password: requested ?? 'datum-dev-password' },
+  })
+  payload.logger.info(`Created user ${email}`)
 }
 
 /**

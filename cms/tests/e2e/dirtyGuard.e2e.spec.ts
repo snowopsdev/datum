@@ -3,7 +3,6 @@ import { expect, test, type Page } from '@playwright/test'
 import { evidenceBankFixtureDoc } from '../../src/lib/tenant/fixtures'
 import { cleanupOpsUser, opsPayload, opsTestUser, seedOpsUser } from '../helpers/seedContentOps'
 
-const serverURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3101'
 
 /**
  * F5: the unsaved-change guard on the editors that were silently losing edits.
@@ -20,7 +19,7 @@ test.describe('Unsaved-change guard', () => {
   })
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${serverURL}/admin/login`)
+    await page.goto('/admin/login')
     await page.fill('#field-email', opsTestUser.email)
     await page.fill('#field-password', opsTestUser.password)
     await page.click('button[type="submit"]')
@@ -36,7 +35,7 @@ test.describe('Unsaved-change guard', () => {
   const nav = (page: Page) => page.locator('a[href="/admin/ops/content"]').first()
 
   async function openTemplates(page: Page) {
-    await page.goto(`${serverURL}/admin/ops/templates`)
+    await page.goto('/admin/ops/templates')
     await expect(outline(page)).toBeVisible()
     // Hydrated: the Save button is a real button and starts disabled.
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
@@ -107,7 +106,7 @@ test.describe('Unsaved-change guard', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Leave', exact: true }).click()
     await expect(page).toHaveURL(/\/admin\/ops\/content/)
 
-    await page.goto(`${serverURL}/admin/ops/templates`)
+    await page.goto('/admin/ops/templates')
     await expect(page.getByText(/Restored the edit you hadn't saved, from \d+ minutes? ago/)).toBeVisible()
     await expect(outline(page)).toHaveValue(`${before} left behind`)
     await page.getByRole('button', { name: 'Discard' }).first().click()
@@ -127,7 +126,7 @@ test.describe('Unsaved-change guard', () => {
         .click()
       await expect(page).toHaveURL(/\/admin\/ops\/content/)
 
-      await page.goto(`${serverURL}/admin/ops/templates`)
+      await page.goto('/admin/ops/templates')
       await expect(outline(page)).toHaveValue(`${before} saved on the way out`)
       // Saved for real, so there is nothing to restore.
       await expect(page.getByText(/Restored the edit/)).toHaveCount(0)
@@ -189,7 +188,7 @@ test.describe('Unsaved-change guard', () => {
   })
 
   async function evidenceRestore(page: Page) {
-    await page.goto(`${serverURL}/admin/ops/setup/evidence`)
+    await page.goto('/admin/ops/setup/evidence')
     const claim = page.locator('#eb-claims-0-claim')
     await expect(claim).toBeVisible()
     // Hydrated before typing: on a cold dev server, text typed into the
@@ -218,7 +217,7 @@ test.describe('Unsaved-change guard', () => {
   test('workspace: saving with an invalid competitor says what was kept and what was removed', async ({
     page,
   }) => {
-    await page.goto(`${serverURL}/admin/ops/setup/workspace`)
+    await page.goto('/admin/ops/setup/workspace')
     await expect(page.getByRole('heading', { name: 'Workspace', level: 1 })).toBeVisible()
     const original = await page.locator('#ws-companyName').inputValue()
     try {

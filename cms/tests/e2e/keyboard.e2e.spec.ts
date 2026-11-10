@@ -2,7 +2,6 @@ import { test, expect, type Locator } from '@playwright/test'
 
 import { cleanupOpsUser, opsPayload, opsTestUser, seedOpsUser } from '../helpers/seedContentOps'
 
-const serverURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3101'
 
 test.describe('Keyboard access: skip link and focus ring', () => {
   test.beforeAll(async () => {
@@ -14,7 +13,7 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   })
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${serverURL}/admin/login`)
+    await page.goto('/admin/login')
     await page.fill('#field-email', opsTestUser.email)
     await page.fill('#field-password', opsTestUser.password)
     await page.click('button[type="submit"]')
@@ -22,7 +21,7 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   })
 
   test('first Tab lands on "Skip to content", which moves focus to #ops-main', async ({ page }) => {
-    await page.goto(`${serverURL}/admin/ops/content`)
+    await page.goto('/admin/ops/content')
     await expect(page.locator('#ops-main')).toBeVisible()
     // The link mounts after hydration; wait for it before pressing Tab.
     const skip = page.getByRole('link', { name: 'Skip to content' })
@@ -44,14 +43,14 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   })
 
   test('skip link is off screen until focused', async ({ page }) => {
-    await page.goto(`${serverURL}/admin/ops/content`)
+    await page.goto('/admin/ops/content')
     const skip = page.getByRole('link', { name: 'Skip to content' })
     await expect(skip).toBeAttached()
     await expect(skip).not.toBeInViewport()
   })
 
   test('skip link falls back to the template content on non-ops pages', async ({ page }) => {
-    await page.goto(`${serverURL}/admin/collections/templates`)
+    await page.goto('/admin/collections/templates')
     const skip = page.getByRole('link', { name: 'Skip to content' })
     await expect(skip).toBeAttached()
     await page.keyboard.press('Tab')
@@ -66,7 +65,7 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   })
 
   test('a keyboard-focused ops link and button show the focus ring', async ({ page }) => {
-    await page.goto(`${serverURL}/admin/ops/content`)
+    await page.goto('/admin/ops/content')
     await expect(page.locator('#ops-main')).toBeVisible()
     await expectRingOnKeyboardFocus(page.locator('#ops-main a').first())
 
@@ -77,7 +76,7 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   test('a selected template card keeps the focus ring over its selected shadow', async ({
     page,
   }) => {
-    await page.goto(`${serverURL}/admin/ops/new`)
+    await page.goto('/admin/ops/new')
     // With more than one template nothing starts selected; pick the first.
     await page.locator('.datum-new__card[role="radio"]').first().click()
     const selected = page.locator('.datum-new__card.is-selected')
@@ -86,7 +85,7 @@ test.describe('Keyboard access: skip link and focus ring', () => {
   })
 
   test('the webhook secret field, outside any ops view, shows the focus ring', async ({ page }) => {
-    await page.goto(`${serverURL}/admin/globals/webhook-settings`)
+    await page.goto('/admin/globals/webhook-settings')
     const input = page.locator('.datum-secret-field__input')
     await expect(input).toBeVisible()
     await expectRingOnKeyboardFocus(input)

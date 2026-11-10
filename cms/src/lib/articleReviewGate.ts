@@ -141,6 +141,51 @@ export const gateVerifiedStatus: CollectionBeforeChangeHook = ({ data, originalD
 }
 
 /**
+ * The statuses a person may move an article *from* to reach each
+ * publication status.
+ *
+ * `verified` is the one status scoring or a reviewed override produces, so it
+ * is the way in; `approved` and `published` lead to each other. The two review
+ * statuses are listed because `gateReviewOverride` already demands a fresh
+ * justification for a jump straight out of them, and that audited path is kept.
+ */
+export const PUBLICATION_PREDECESSORS = {
+  approved: ['verified', 'published', ...OVERRIDABLE_STATUSES],
+  published: ['verified', 'approved', ...OVERRIDABLE_STATUSES],
+} as const satisfies Partial<Record<ArticleStatus, readonly ArticleStatus[]>>
+
+/**
+ * `approved` and `published` are reachable by a person only from a status that
+ * review leads through.
+ *
+ * The other gates each watch one door: `gateVerifiedStatus` a move *to*
+ * `verified`, `gateReviewOverride` a move *out of* review, `gateReadOnlyStatus`
+ * content edits inside a machine status. None of them judged a move from
+ * `drafted`, `qa_passed`, `needs_revision` or a brand-new document straight to
+ * `approved` or `published`, so an unscored draft could be published in one
+ * edit from the admin, REST or GraphQL, and a stale review page could approve a
+ * draft whose score had just been invalidated.
+ *
+ * Only requests that carry a user are judged. A Local API call without one is
+ * the application's own code (the `publish-due` job, the seed, a migration
+ * script), which is the same line field access draws with `overrideAccess`.
+ */
+export const gatePublicationPath: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
+  if (!req.user) return data
+  const to = data.status as string | undefined
+  if (to !== 'approved' && to !== 'published') return data
+  const from = originalDoc?.status as string | undefined
+  if (from === to) return data
+  if (from && (PUBLICATION_PREDECESSORS[to] as readonly string[]).includes(from)) return data
+  throw new APIError(
+    from
+      ? `An article cannot move from ${from} to ${to}. It has to be verified first, by scoring or a reviewed override.`
+      : `An article cannot be created as ${to}. It has to be verified first, by scoring or a reviewed override.`,
+    400,
+  )
+}
+
+/**
  * Moving a needs_review or blocked article anywhere other than backward — so to
  * qa_passed, verified, approved, or published — requires a *new*
  * reviewJustification, enforced here so REST/admin edits obey it too, not just

@@ -70,8 +70,8 @@ export type StatusMeta = {
   /**
    * The machine owns the article's content while it sits here: a run is about
    * to read or overwrite it, so human edits would be lost or would invalidate
-   * work already paid for. Declarative for now; the enforcing gate lives with
-   * its siblings in `articleReviewGate.ts` once added.
+   * work already paid for. Enforced by `gateReadOnlyStatus` in
+   * `articleReviewGate.ts`.
    */
   readOnly: boolean
   /** Which pipeline stage waits on this status; null when only a person moves it. */

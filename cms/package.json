@@ -1,5 +1,6 @@
 {
   "name": "cms",
+  "private": true,
   "version": "1.0.0",
   "description": "Payload CMS app for Datum \u2014 templates, articles, and admin UI",
   "license": "MIT",
@@ -20,7 +21,9 @@
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
-    "jobs:run": "cross-env NODE_OPTIONS=--no-deprecation payload jobs:run --queue content --limit 1",
+    "jobs:run": "cross-env NODE_OPTIONS=--no-deprecation DISABLE_DEV_PUSH=true payload jobs:run --queue content --limit 1",
+    "jobs:scheduled": "cross-env NODE_OPTIONS=--no-deprecation DISABLE_DEV_PUSH=true payload jobs:run --queue scheduled --handle-schedules --limit 1",
+    "jobs:webhooks": "cross-env NODE_OPTIONS=--no-deprecation DISABLE_DEV_PUSH=true payload jobs:run --queue webhooks",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "seed": "cross-env NODE_OPTIONS=--no-deprecation tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
@@ -48,6 +51,7 @@
     "sharp": "0.35.5"
   },
   "devDependencies": {
+    "@payloadcms/graphql": "3.91.0",
     "@playwright/test": "1.63.0",
     "@testing-library/react": "16.3.3",
     "@types/node": "26.6.4",

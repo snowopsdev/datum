@@ -221,23 +221,3 @@ export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSav
     document.body,
   )
 }
-
-/** Everything the guard puts on the page besides the Save button itself. */
-export function DirtyGuardChrome({
-  guard,
-  pending,
-  onSave,
-  blocked,
-}: {
-  guard: AnyGuard
-  pending: boolean
-  onSave: () => void
-  blocked?: boolean
-}) {
-  return (
-    <>
-      <UnsavedBar blocked={blocked} guard={guard} onSave={onSave} pending={pending} />
-      <LeaveDialog guard={guard} />
-    </>
-  )
-}

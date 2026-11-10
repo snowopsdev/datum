@@ -198,7 +198,9 @@ export function parseBrandVoiceContent(input: unknown): {
   samples = samples.map((sample) => {
     if (sample.text.length <= MAX_SAMPLE_CHARS) return sample
     warnings.push(`Sample "${sample.title || sample.text.slice(0, 20)}…" truncated to ${MAX_SAMPLE_CHARS} characters`)
-    return { ...sample, text: `${sample.text.slice(0, MAX_SAMPLE_CHARS).trimEnd()}…` }
+    // One short of the cap, so the ellipsis lands on it: a sample cut to the cap
+    // plus one is over the cap again, and every later parse re-truncated it.
+    return { ...sample, text: `${sample.text.slice(0, MAX_SAMPLE_CHARS - 1).trimEnd()}…` }
   })
 
   const content: BrandVoiceContent = {

@@ -8,6 +8,7 @@ import {
   TIMESTAMP_HEADER,
   WebhookDeliverTask,
   verifyWebhookSignature,
+  redactDeliveryError,
 } from '@/jobs/webhookDeliver'
 import { resolveWebhookSettings } from '@/lib/webhookSettings'
 import { getPayload, type Payload } from 'payload'
@@ -100,6 +101,32 @@ describe('webhook delivery task', () => {
     await expect(runTask('article.status_changed', { articleId: 3 })).rejects.toThrow(
       /webhook delivery/,
     )
+  })
+})
+
+describe('redactDeliveryError', () => {
+  // The message lands on the job row and in logs; the URL can carry a token.
+  it('removes a scheme-less URL that fetch quotes back verbatim', () => {
+    const url = 'hooks.example.com/x?token=SECRETTOKEN'
+    const out = redactDeliveryError(`Failed to parse URL from ${url}`, url, 'shh')
+    expect(out).toBe('Failed to parse URL from [webhook url]')
+  })
+
+  it('removes the normalised form and a bare query string too', () => {
+    const url = 'https://hooks.example.com?token=SECRETTOKEN'
+    const out = redactDeliveryError(
+      'request to https://hooks.example.com/?token=SECRETTOKEN failed; query ?token=SECRETTOKEN',
+      url,
+      'shh',
+    )
+    expect(out).not.toContain('SECRETTOKEN')
+    expect(out).not.toContain('hooks.example.com')
+  })
+
+  it('removes the secret and caps the length', () => {
+    const out = redactDeliveryError(`bad shh ${'x'.repeat(400)}`, 'https://a.example/h', 'shh')
+    expect(out.startsWith('bad [redacted] ')).toBe(true)
+    expect(out).toHaveLength(300)
   })
 })
 

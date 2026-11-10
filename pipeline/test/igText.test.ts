@@ -32,8 +32,16 @@ describe('keywordTokens', () => {
 
   it('drops stopwords and tokens shorter than three characters', () => {
     assert.ok(STOPWORDS.has('the'))
-    assert.ok(STOPWORDS.has('2026'))
     assert.deepEqual(keywordTokens('the best guide to CRM in 2026'), ['crm'])
+  })
+
+  // Any year, not a hand-kept list: a list that ended at 2026 let "2027" count
+  // as a topic word and pull unrelated articles into the internal corpus.
+  it('drops calendar years, whichever year it is', () => {
+    assert.deepEqual(keywordTokens('best crm 2027'), ['crm'])
+    assert.deepEqual(keywordTokens('running shoes 1999 vs 2031'), ['running', 'shoes'])
+    // Not a year: it stays a token.
+    assert.deepEqual(keywordTokens('route 3000 review'), ['route', '3000', 'review'])
   })
 
   it('returns nothing for text made entirely of stopwords', () => {

@@ -35,8 +35,6 @@ import { droppedRows, type EvidenceSaveCounts, type WorkspaceSaveCounts } from '
 import type { EvidenceBankInput, WorkspaceProfileInput } from './setupTypes'
 
 export type TenantActionResult = { ok: true } | { ok: false; error: string }
-/** A save that succeeded, plus what is still missing from the saved asset. */
-export type SaveResult = { ok: true; problems: string[] } | { ok: false; error: string }
 
 /**
  * A save of an asset the server parses before storing. `saved` is what was

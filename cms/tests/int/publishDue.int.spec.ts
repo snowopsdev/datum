@@ -45,6 +45,9 @@ describe('publish-due task', () => {
     })
     expect(after.status).toBe('published')
     expect(after.publishedAt).toBeTruthy()
+    // The schedule is used up: left behind, it would republish the piece the
+    // moment it was approved a second time.
+    expect(after.publishAt).toBeNull()
 
     const audit = await payload.find({
       collection: 'article-audit',
@@ -92,5 +95,48 @@ describe('publish-due task', () => {
     })
     await runTask()
     expect(await runTask()).not.toContain(due.id)
+  })
+
+  // A publish from the raw document view or the API carries no `publishedAt`.
+  it('stamps publishedAt on any transition into published, and only then', async () => {
+    const article = await makeArticle({ status: 'approved' })
+    const published = await payload.update({
+      collection: 'articles',
+      id: article.id,
+      overrideAccess: true,
+      data: { status: 'published' },
+    })
+    expect(published.publishedAt).toBeTruthy()
+
+    // An ordinary save of a published piece keeps the date it went live.
+    const resaved = await payload.update({
+      collection: 'articles',
+      id: article.id,
+      overrideAccess: true,
+      data: { reviewNotes: 'typo fixed' },
+    })
+    expect(resaved.publishedAt).toBe(published.publishedAt)
+
+    // Unpublished and published again: a new date, and a date the write
+    // supplies itself is kept.
+    const back = { collection: 'articles', id: article.id, overrideAccess: true } as const
+    await payload.update({ ...back, data: { status: 'approved' } })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const republished = await payload.update({ ...back, data: { status: 'published' } })
+    expect(new Date(String(republished.publishedAt)).getTime()).toBeGreaterThan(
+      new Date(String(published.publishedAt)).getTime(),
+    )
+    await payload.update({ ...back, data: { status: 'approved' } })
+    const supplied = await payload.update({
+      ...back,
+      data: { status: 'published', publishedAt: '2030-01-02T03:04:05.000Z' },
+    })
+    expect(supplied.publishedAt).toBe('2030-01-02T03:04:05.000Z')
+    await payload.update({
+      collection: 'articles',
+      id: article.id,
+      overrideAccess: true,
+      data: { archived: true },
+    })
   })
 })

@@ -288,6 +288,8 @@ export function ContentList({ content, latestRun, mode }: Props) {
                 pick a topic, and Datum researches it while you wait.
               </p>
             </>
+          ) : q ? (
+            <p>No pieces match “{q}”.</p>
           ) : filter === 'you' ? (
             <>
               <h2>Nothing needs you right now</h2>

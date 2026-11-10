@@ -110,6 +110,7 @@ export const LlmSettings: GlobalConfig = {
       'Setup assistant',
       SETUP_ASSIST_ENV_VAR,
       'Drafts and refines onboarding steps (audiences, positioning, evidence bank) from your notes and site.',
+      'the brand voice extraction model above',
     ),
   ],
 }

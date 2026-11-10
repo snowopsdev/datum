@@ -348,7 +348,20 @@ export function BrandVoiceEditor({
     initial: contentOf(record),
     version: record?.updatedAt ?? null,
     onReset: setContent,
-    labels: { name: 'the name' },
+    labels: {
+      name: 'the name',
+      essence: 'the essence',
+      coreValues: 'the core values',
+      audience: 'the audience',
+      persona: 'the persona',
+      voiceAdjectives: 'the voice adjectives',
+      voiceInOwnWords: 'the voice in your own words',
+      notTraits: 'what the voice is not',
+      tone: 'the tone',
+      preferredWords: 'the preferred words',
+      bannedWords: 'the banned words',
+      samples: 'the writing samples',
+    },
     save: async () => {
       setError(null)
       setMessage(null)
@@ -371,7 +384,12 @@ export function BrandVoiceEditor({
     const clamped = Math.max(0, Math.min(BRAND_VOICE_STEPS.length - 1, next))
     setStep(clamped)
     if (workingId != null && modeOf(clamped) !== modeOf(step)) {
-      router.replace(`${VIEW_PATH}?id=${workingId}&mode=${modeOf(clamped)}`, { scroll: false })
+      // `suggestionId` rides along: without it the server re-renders with no
+      // suggestion and the save that satisfies it is never recorded as accepted.
+      const suggestionParam = suggestion ? `&suggestionId=${suggestion.id}` : ''
+      router.replace(`${VIEW_PATH}?id=${workingId}&mode=${modeOf(clamped)}${suggestionParam}`, {
+        scroll: false,
+      })
     }
   }
 

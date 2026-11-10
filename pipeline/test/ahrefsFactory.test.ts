@@ -30,9 +30,15 @@ describe('createAhrefsClient', () => {
     assert.equal(createAhrefsClient('live').constructor.name, 'RealAhrefsClient')
   })
 
-  it('live mode without a key degrades to mock', () => {
+  // Not the mock client: its SERP is demo data on real hostnames, and a live
+  // run would crawl them and pay to extract claims from the result.
+  it('live mode without a key refuses every call and names the missing key', async () => {
     config.ahrefsApiKey = undefined
-    assert.equal(createAhrefsClient('live').constructor.name, 'MockAhrefsClient')
+    const client = createAhrefsClient('live')
+    assert.notEqual(client.constructor.name, 'MockAhrefsClient')
+    await assert.rejects(() => client.serpResearch('espresso grinder'), /AHREFS_API_KEY is required/)
+    await assert.rejects(() => client.contentGapKeywords(), /AHREFS_API_KEY is required/)
+    await assert.rejects(() => client.discoverKeywords('espresso'), /AHREFS_API_KEY is required/)
   })
 
   it('works for the workspace it is handed, not the ambient environment', () => {

@@ -6,7 +6,9 @@ services:
       POSTGRES_PASSWORD: datum
       POSTGRES_DB: datum
     ports:
-      - "5432:5432"
+      # Loopback only: every documented DATABASE_URL uses 127.0.0.1, and the
+      # default credentials should not be reachable from the network.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

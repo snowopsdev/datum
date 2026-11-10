@@ -91,8 +91,8 @@ function parseJsonReply(text: string): unknown {
 
 /**
  * One JSON-returning model call, routed by model id: `gpt-*` through OpenAI's
- * Responses API and `claude-*` through Anthropic. An id belonging to neither
- * is refused rather than guessed at.
+ * Responses API and everything else through Anthropic. Only an id containing a
+ * `/` (another provider's namespace) is refused; see `providerForModel`.
  *
  * Deliberately refuses to run in mock mode rather than inventing a reply: the
  * shape of a useful mock is the caller's business (brand-voice extraction

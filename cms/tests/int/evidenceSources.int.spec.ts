@@ -34,13 +34,21 @@ describe('evidence sources collection', () => {
   })
 
   it('is readable and writable only when authenticated', async () => {
-    for (const operation of ['read', 'create', 'update', 'delete'] as const) {
+    for (const operation of ['read', 'create', 'update'] as const) {
       expect(await EvidenceSources.access?.[operation]?.({ req: { user: null } } as never)).toBe(
         false,
       )
       expect(
         await EvidenceSources.access?.[operation]?.({ req: { user: { id: 1 } } } as never),
       ).toBe(true)
+    }
+  })
+
+  // A rule is retired with `active: false`. Deleting one changed scoring with
+  // no audit row and cascaded away the subject of the rule's past audit rows.
+  it('cannot be deleted by anyone', async () => {
+    for (const req of [{ user: null }, { user: { id: 1 } }]) {
+      expect(await EvidenceSources.access?.delete?.({ req } as never)).toBe(false)
     }
   })
 

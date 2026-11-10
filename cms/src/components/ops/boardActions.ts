@@ -1,8 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '../../lib/requireUser'
+import { optionalUser, requireUser } from '../../lib/requireUser'
 
+import { activeRunIdForArticles } from '../../lib/activeRuns'
 import { ActivePipelineRunError } from '../../lib/createPipelineRun'
 import { errorMessage } from '../../lib/errorMessage'
 import { loadWorkspaceSetup } from '../../lib/loadWorkspaceReadiness'
@@ -99,6 +100,21 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
       }
     }
     if (docs.length === 0) return { ok: false, error: 'Those topics no longer exist.' }
+    // Same refusal as `archiveArticleAction`: a topic is in a run from the
+    // moment it is created, and an archived article refuses the status write
+    // research finishes with, so the research would be paid for and discarded.
+    if (
+      await activeRunIdForArticles(
+        payload,
+        user,
+        docs.map((doc) => doc.id),
+      )
+    ) {
+      return {
+        ok: false,
+        error: `${docs.length === 1 ? 'This topic is' : 'One of these topics is'} in an active run. Wait for the run to finish before removing ${docs.length === 1 ? 'it' : 'them'}.`,
+      }
+    }
 
     for (const doc of docs) {
       await payload.update({
@@ -141,7 +157,10 @@ export async function removeTopicsAction(articleIds: number[]): Promise<BoardAct
  */
 export async function latestRunAction(): Promise<RunStatusDTO | null> {
   try {
-    const { payload, user } = await requireUser('Sign in to manage the board.')
+    // The run bar is mounted on every admin route, the login page included,
+    // and polls this. Signed out there is simply no run to show.
+    const { payload, user } = await optionalUser()
+    if (!user) return null
     const { docs } = await payload.find({
       collection: 'pipeline-runs',
       user,

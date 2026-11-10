@@ -1,4 +1,5 @@
-import type { Field, GlobalConfig } from 'payload'
+import type { Field, GlobalConfig, NumberFieldSingleValidation } from 'payload'
+import { number as validateNumber } from 'payload/shared'
 
 import { POLICY_FIELDS, type PolicyFieldDef } from '../lib/informationGain'
 import { auditGlobalChange } from '../lib/governanceAudit'
@@ -28,6 +29,18 @@ export const OUTCOME_COPY: Record<PolicyFieldDef['outcome'], string> = {
   HUMAN_REVIEW: 'flagged for a person to review',
 }
 
+/**
+ * Payload's own number validation (which is what enforces `min`), plus a
+ * whole-number check. A custom `validate` replaces the built-in one, so the
+ * built-in is called explicitly.
+ */
+const wholeNumber =
+  (label: string): NumberFieldSingleValidation =>
+  (value, options) =>
+    value != null && !Number.isInteger(value)
+      ? `${label} must be a whole number.`
+      : validateNumber(value, options)
+
 const policyField = (f: PolicyFieldDef): Field => {
   const label = humaniseKey(f.key)
   const admin = {
@@ -54,6 +67,10 @@ const policyField = (f: PolicyFieldDef): Field => {
     label,
     min: 0,
     ...(f.kind === 'ratio' ? { max: 1 } : {}),
+    // The resolver discards a fractional count and falls through to the env
+    // value or the default, so refuse it here instead of saving a number that
+    // shows in the admin and is then ignored.
+    ...(f.kind === 'count' ? { validate: wholeNumber(label) } : {}),
     admin,
   }
 }

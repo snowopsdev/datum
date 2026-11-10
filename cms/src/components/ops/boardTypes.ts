@@ -52,6 +52,8 @@ export const CALL_LABELS: Record<string, string> = {
   qualitativeReview: 'Reviewing style and brand voice',
   informationGainJudge: 'Judging what is genuinely new',
   evidenceVerification: 'Hunting evidence for new claims',
+  evidenceCheck: 'Checking company claims against the evidence bank',
+  briefAngle: 'Proposing angles for the brief',
 }
 
 /** `claimExtraction` means different work depending on where the article is. */
