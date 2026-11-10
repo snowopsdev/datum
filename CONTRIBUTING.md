@@ -4,7 +4,7 @@ Thanks for contributing. This guide covers local setup, checks, and how we revie
 
 ## Development setup
 
-1. Prerequisites: Node.js 22+, Docker, npm.
+1. Prerequisites: Node.js 22.22.2 or newer, Docker, npm.
 2. Follow the [Quick start](README.md#quick-start) in the root README (`cp` env files, `docker compose up -d`, `npm install`, `npm run seed`).
 3. Use `MOCK_MODE=true` unless you intentionally need live Anthropic/Ahrefs calls.
 
@@ -80,7 +80,7 @@ Workspace-specific:
 ```bash
 # CMS
 npm run test:int --workspace cms
-npm run test:e2e --workspace cms   # prefer starting `npm run dev` first
+npm run test:e2e --workspace cms   # starts its own dev server; see below for an existing one
 npm run generate:types --workspace cms
 
 # Pipeline
@@ -90,7 +90,7 @@ npm test --workspace pipeline
 npx tsx --test pipeline/test/structuralChecks.test.ts
 ```
 
-Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites; Playwright starts an npm dev server unless `TEST_BASE_URL` points to an existing one.
+Use **npm** for scripts and CI. `npm test --workspace cms` runs both CMS suites. Playwright starts its own dev server on `TEST_PORT` (default 3101), so do not start `npm run dev` in `cms/` first: Next refuses a second dev server in the same directory. To drive a server you already have running, pass its address: `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`.
 
 ## Schema / types
 
@@ -104,7 +104,7 @@ Commit the updated `cms/src/payload-types.ts`. Both `cms` and `pipeline` import 
 
 ## Style guide data
 
-Banned phrases live under `## Banned phrases` in [`docs/style-guide.md`](docs/style-guide.md). The pipeline parses that section at runtime for generate prompts and structural QA — keep the heading and bullet format documented in [CLAUDE.md](CLAUDE.md).
+Banned phrases live under `## Banned phrases` in [`docs/style-guide.md`](docs/style-guide.md). The pipeline parses that section at runtime for generate prompts and structural QA — keep that heading and the one-phrase-per-bullet format (see "Key conventions" in [AGENTS.md](AGENTS.md)).
 
 ## Commit messages and PR titles
 
@@ -125,7 +125,7 @@ Keep diffs focused. Do not commit `.env`, secrets, or local media uploads.
 
 ## Architecture notes
 
-See [CLAUDE.md](CLAUDE.md) for pipeline stages, cost logging, and rich-text conversion details.
+See [AGENTS.md](AGENTS.md) for the project map and conventions, the [README](README.md) for the pipeline stages, and [docs/operations.md](docs/operations.md) for queues, modes and cost logging.
 
 ## Code of conduct
 

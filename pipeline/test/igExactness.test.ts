@@ -126,6 +126,22 @@ describe('extractValues — numbers, units, multipliers, ranges', () => {
     assert.deepEqual(shape('ninety percent'), ['percent:90 %'])
   })
 
+  // Word numbers are whole words. Without the boundary, the plural `s` and the
+  // `h` of an ordinal read as the units seconds and hours.
+  it('does not read a word number out of the middle of a word', () => {
+    assert.deepEqual(shape('tens of thousands of visitors'), [])
+    assert.deepEqual(shape('hundreds of cafes use it'), [])
+    assert.deepEqual(shape('ones and zeros'), [])
+    assert.deepEqual(shape('the eighth edition'), [])
+    assert.equal(exactness('Hundreds of cafes use it', ['Many cafes use it']), 1)
+  })
+
+  it('reads a decade as its year, not as seconds', () => {
+    assert.deepEqual(shape('popular in the 1990s'), ['year:1990'])
+    // A real duration keeps its unit.
+    assert.deepEqual(shape('pulled in 30s'), ['number:30 s'])
+  })
+
   it('does not turn prose word numbers into bare values', () => {
     // Bare (unit-less) word numbers are deliberately not extracted: "one of the
     // best ways" is prose, not a measurement, and treating it as the value 1
@@ -277,6 +293,76 @@ describe('compareValues', () => {
     // 2026 as a year is not the number 2026.
     assert.equal(exactness('shipped in 2026', ['2026 rows were affected']), 1)
     assert.equal(exactness('shipped in 2026', ['shipped in 2025']), 0)
+  })
+
+  // `2000` alone is classified as a year and `2,000` as a number. They are the
+  // same figure, and a correctly sourced count must not score 0 on punctuation.
+  it('matches a four-digit count written with and without a comma', () => {
+    assert.equal(exactness('enrolled 2000 participants', ['enrolled 2,000 participants']), 1)
+    assert.equal(exactness('enrolled 2,000 participants', ['enrolled 2000 participants']), 1)
+    assert.equal(exactness('enrolled 2000 participants', ['enrolled 2,001 participants']), 0)
+    // A number with a unit is still not a year.
+    assert.equal(exactness('shipped in 2026', ['took 2026 ms']), 0)
+    // Only the spelling difference counts: a multiplier or a decimal is another figure.
+    assert.equal(exactness('founded in 2000', ['2k users']), 0)
+    assert.equal(exactness('founded in 2000', ['2 thousand users']), 0)
+    assert.equal(exactness('founded in 2000', ['2000.0 users']), 0)
+    // Nor is a decade a count: only a year written as four bare digits matches.
+    assert.equal(exactness('popular in the 2000s', ['2,000 stores']), 0)
+    assert.equal(exactness('popular in the 1990s', ['1,990 cafes']), 0)
+    assert.equal(exactness('popular in the 1990s', ['big in the 1990s']), 1)
+  })
+
+  // A decade is not the single year of the same number either, in either
+  // direction, however the other side is written.
+  it('matches a decade only against a decade', () => {
+    assert.equal(exactness('launched in 2000', ['launched in the 2000s']), 0)
+    assert.equal(exactness('launched in the 2000s', ['launched in 2000']), 0)
+    assert.equal(exactness('popular in the 2000s', ['2000 stores']), 0)
+    assert.equal(exactness('popular in the 1990s', ['1990 cafes']), 0)
+  })
+
+  // Extraction ignores case, so the decade test has to as well: an all-caps
+  // heading is still a decade, and still not the single year.
+  it('recognises a decade whatever its case', () => {
+    assert.deepEqual(shape('THE 1990S'), ['year:1990'])
+    assert.equal(exactness('popular in the 1990s', ['THE 1990S']), 1)
+    assert.equal(exactness('POPULAR IN THE 1990S', ['popular in the 1990s']), 1)
+    assert.equal(exactness('launched in 1990', ['THE 1990S']), 0)
+    assert.equal(exactness('THE 1990S', ['launched in 1990']), 0)
+    assert.equal(exactness('THE 2000S', ['2,000 stores']), 0)
+  })
+
+  // Only the full form is a decade: the short second half keeps reading as seconds.
+  it('reads only a four-digit decade as one', () => {
+    assert.deepEqual(shape('the 1920s-30s'), ['year:1920', 'number:30 s'])
+  })
+
+  // `2020's` is as often a possessive as a decade, so it stays the plain year
+  // it has always been and keeps matching that year.
+  it('leaves a possessive year a year', () => {
+    assert.equal(
+      exactness("During 2020's lockdowns, sales rose 30%", ['In 2020, sales rose 30%']),
+      1,
+    )
+    assert.equal(
+      exactness('In 2020, sales rose 30%', ["During 2020's lockdowns, sales rose 30%"]),
+      1,
+    )
+    assert.equal(exactness("2010's biggest launch", ['the biggest launch of 2010']), 1)
+  })
+
+  // The two costs these rules accept, pinned so a change to either is a decision.
+  it('accepts that a bare year and a plain count of the same value are one figure', () => {
+    assert.equal(exactness('founded in 2000', ['2,000 customers']), 1)
+    assert.equal(exactness('1,990 cafes', ['founded 1990']), 1)
+    // A leading zero is not how a count is written.
+    assert.equal(exactness('founded in 2000', ['02000 participants']), 0)
+  })
+
+  it('accepts that a duration written like a decade reads as one', () => {
+    assert.deepEqual(shape('a timeout of 2000s'), ['year:2000'])
+    assert.equal(exactness('a timeout of 2000s', ['2000 s']), 0)
   })
 
   it('requires units to match when both sides carry one', () => {

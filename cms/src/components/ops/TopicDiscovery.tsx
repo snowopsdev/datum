@@ -388,18 +388,18 @@ export function TopicDiscovery({
           <ol>
             <li>
               <strong>You add topics here.</strong> Everything you tick in one search becomes a
-              single article covering that group, sitting in <em>Topic selected</em> on the board.
-              Nothing has been written or spent yet.
+              single article covering that group, and research on it starts straight away.
             </li>
             <li>
-              <strong>Datum researches it</strong> and writes you a brief. Under Content, tick the
-              topics you want and press Start. Datum researches what already ranks, writes a draft
-              in your brand voice, and checks it. You choose which topics run and when.
+              <strong>Datum researches it</strong> and writes you a brief: the angle, the audience
+              and the sections. Nothing is written until you approve it. Edit the brief, approve
+              it, and Datum writes the draft in your brand voice and checks it.
             </li>
             <li>
-              <strong>Three checks must pass</strong> — structure, facts (verified against live web
-              search), and style. Anything that fails lands in <em>Needs revision</em> with the
-              reason, and you can send it back to be rewritten against that feedback.
+              <strong>Four checks must pass</strong> — structure, facts (verified against live web
+              search), style, and evidence for what the piece says about your company. Anything
+              that fails lands in <em>Needs revision</em> with the reason, and you can send it back
+              to be rewritten against that feedback.
             </li>
             <li>
               <strong>Then it is scored for information gain</strong>: does it say anything the

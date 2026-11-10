@@ -22,7 +22,10 @@ export const EvidenceSources: CollectionConfig = {
     read: ({ req }) => Boolean(req.user),
     create: ({ req }) => Boolean(req.user),
     update: ({ req }) => Boolean(req.user),
-    delete: ({ req }) => Boolean(req.user),
+    // A rule is retired with `active: false`. Deleting one changed scoring with
+    // no audit row, and the cascade on `governance_audit_rels` stripped the
+    // subject from every audit row the rule already had.
+    delete: () => false,
   },
   hooks: {
     beforeValidate: [

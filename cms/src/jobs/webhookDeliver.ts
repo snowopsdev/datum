@@ -42,6 +42,32 @@ export function verifyWebhookSignature(
   return expected.length === received.length && timingSafeEqual(expected, received)
 }
 
+/**
+ * A delivery error with the destination and the secret taken out.
+ *
+ * The message is persisted on the job row. The URL may carry a token in its
+ * query string and `fetch` quotes it back ("Failed to parse URL from ..."), so
+ * the URL is removed as configured, as `URL` normalises it, and as a bare query
+ * string, longest first so a partial match cannot leave the rest behind.
+ */
+export function redactDeliveryError(message: string, url: string, secret: string): string {
+  const forms = new Set([url])
+  try {
+    const parsed = new URL(url)
+    forms.add(parsed.href)
+    if (parsed.search.length > 1) forms.add(parsed.search)
+  } catch {
+    // Unparseable is the case fetch quotes verbatim; the raw string covers it.
+    const query = url.indexOf('?')
+    if (query >= 0 && query < url.length - 1) forms.add(url.slice(query))
+  }
+  let redacted = message
+  for (const form of [...forms].sort((a, b) => b.length - a.length)) {
+    redacted = redacted.replaceAll(form, '[webhook url]')
+  }
+  return redacted.replaceAll(secret, '[redacted]').slice(0, 300)
+}
+
 export const WebhookDeliverTask: TaskConfig<WebhookDeliverTask> = {
   slug: 'webhook-deliver',
   label: 'Webhook delivery',
@@ -84,14 +110,15 @@ export const WebhookDeliverTask: TaskConfig<WebhookDeliverTask> = {
       }
       return { output: { delivered: true, status: response.status } }
     } catch (error) {
-      // Throwing hands the job back to the queue for its remaining retries. The
-      // secret never appears in fetch errors, but the URL can (it may carry a
-      // token in a query string), so the persisted message names the event only.
+      // Throwing hands the job back to the queue for its remaining retries, and
+      // the message is persisted on the job row. The URL may carry a token in
+      // its query string and fetch quotes it back ("Failed to parse URL from
+      // ..."), so it is redacted along with the secret.
       const reason =
         error instanceof Error && error.name === 'AbortError'
           ? `timed out after ${DELIVERY_TIMEOUT_MS}ms`
           : error instanceof Error
-            ? error.message.replaceAll(settings.secret, '[redacted]').slice(0, 300)
+            ? redactDeliveryError(error.message, settings.url, settings.secret)
             : 'delivery failed'
       throw new Error(`webhook delivery for "${input.event}" failed: ${reason}`)
     } finally {

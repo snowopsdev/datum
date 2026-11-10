@@ -5,12 +5,15 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
-    environment: 'jsdom',
+    // Most suites are database or pure-function tests. The component suites
+    // opt into a DOM with a `// @vitest-environment jsdom` first line, so the
+    // other files do not each pay for building one.
+    environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
     include: ['tests/int/**/*.int.spec.ts'],
-    // Database-backed suites share one Postgres schema. Payload pushes that
-    // schema during getPayload(), so running those files concurrently races
-    // duplicate enum and index creation on a fresh database.
+    // Database-backed suites share one migration-built Postgres database (dev
+    // push is off under Vitest, see `payload.config.ts`) and several of them
+    // rewrite the same globals and rows, so the files run one at a time.
     fileParallelism: false,
   },
 })

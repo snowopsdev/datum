@@ -89,6 +89,7 @@ const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
 const {
   approveArticleAction,
   archiveArticleAction,
+  overrideReviewAction,
   publishArticleAction,
   regenerateArticleAction,
   resetToDraftedAction,
@@ -284,6 +285,135 @@ describe('the three send-back-for-rework actions null informationGain identicall
       }),
     )
   })
+})
+
+// A reset or regenerate throws the draft away, so every QA verdict about that
+// draft has to go with it. `evidenceCheck` was the group the constant missed.
+describe('reset and regenerate clear every QA result group', () => {
+  const EXPECTED_QA_GROUPS = ['structural', 'factCheck', 'qualitativeReview', 'evidenceCheck']
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findByIDMock.mockResolvedValue({
+      id: 1,
+      status: 'needs_revision',
+      qaResults: undefined,
+      revisionCount: 0,
+    } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  const writtenQaResults = () =>
+    (updateMock.mock.calls[0]?.[0]?.data as { qaResults: Record<string, Record<string, unknown>> })
+      .qaResults
+
+  for (const [name, run] of [
+    ['resetToDraftedAction', () => resetToDraftedAction(1, 'fixed the intro')],
+    ['regenerateArticleAction', () => regenerateArticleAction(1, 'add a table')],
+  ] as const) {
+    it(`${name} nulls every field of every group`, async () => {
+      await run()
+      const qaResults = writtenQaResults()
+      expect(Object.keys(qaResults).sort()).toEqual([...EXPECTED_QA_GROUPS].sort())
+      for (const group of Object.values(qaResults)) {
+        expect(Object.values(group).every((value) => value === null)).toBe(true)
+      }
+    })
+  }
+})
+
+// Send-back writes its own QA verdict (the reviewer's reason, as a failed
+// qualitative review), but the evidence verdict belongs to the draft being
+// sent back and must not survive it either.
+describe('sendBackAction clears the evidence verdict it does not replace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  it('names all four QA groups and nulls evidenceCheck', async () => {
+    await sendBackAction(1, 'not on brand')
+    const { qaResults } = updateMock.mock.calls[0]?.[0]?.data as {
+      qaResults: Record<string, Record<string, unknown>>
+    }
+    expect(Object.keys(qaResults).sort()).toEqual(
+      ['evidenceCheck', 'factCheck', 'qualitativeReview', 'structural'],
+    )
+    expect(qaResults.evidenceCheck).toEqual({ passed: null, notes: null, claims: null })
+  })
+})
+
+// "Only approval moves an article to researched." Regenerate writes
+// `researched` and reset writes `drafted`; before a brief is approved either
+// one would start the writing without that approval.
+describe('reset and regenerate refuse an article whose brief was never approved', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  for (const status of ['topic_selected', 'brief_review'] as const) {
+    it(`refuses both at ${status} without writing anything`, async () => {
+      findByIDMock.mockResolvedValue({ id: 1, status, revisionCount: 0 } as never)
+      await expect(regenerateArticleAction(1, 'again')).rejects.toThrow(
+        'no approved brief yet, so it cannot be regenerated',
+      )
+      await expect(resetToDraftedAction(1, 'again')).rejects.toThrow(
+        'no approved brief yet, so it cannot be reset',
+      )
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+  }
+
+  // A stale page on a later status still works, and still clears what it should.
+  it('still acts on an article that has a draft', async () => {
+    findByIDMock.mockResolvedValue({ id: 1, status: 'approved', revisionCount: 0 } as never)
+    await regenerateArticleAction(1, 'again')
+    await resetToDraftedAction(1, 'again')
+    expect(updateMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('overrideReviewAction only overrides a decision that is waiting for one', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+    findMock.mockResolvedValue({ docs: [] } as never)
+  })
+
+  for (const status of ['needs_review', 'blocked'] as const) {
+    it(`overrides ${status} and records which decision it overrode`, async () => {
+      findByIDMock.mockResolvedValue({ id: 1, status } as never)
+      await overrideReviewAction(1, 'checked the sources by hand')
+      expect(updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'verified' }),
+          overrideAccess: false,
+          context: expect.objectContaining({
+            articleAudit: expect.objectContaining({
+              event: status === 'blocked' ? 'block_overridden' : 'review_overridden',
+            }),
+          }),
+        }),
+      )
+    })
+  }
+
+  // The gates let these through (they only judge a move out of the two statuses
+  // above), so without the action's own check a stale page wrote a second
+  // "overrode needs_review" audit row for an override that never happened.
+  for (const status of ['verified', 'approved', 'published', 'drafted'] as const) {
+    it(`refuses ${status} without writing anything`, async () => {
+      findByIDMock.mockResolvedValue({ id: 1, status } as never)
+      await expect(overrideReviewAction(1, 'checked the sources by hand')).rejects.toThrow(
+        'Only an article in Needs review or Blocked can be overridden.',
+      )
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+  }
 })
 
 /**

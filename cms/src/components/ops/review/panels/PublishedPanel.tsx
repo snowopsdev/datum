@@ -17,18 +17,15 @@ export function PublishedPanel({ action, article, editHref }: PanelProps) {
           : 'Published; the time it went live was not recorded.'}
       </p>
       <div className="datum-ops__actions">
-        {article.slug ? (
-          <a
-            className="datum-ops__btn datum-ops__btn--primary"
-            href={`/articles/${article.slug}`}
-            rel="noreferrer noopener"
-            target="_blank"
-          >
-            /articles/{article.slug}
-          </a>
-        ) : (
-          <span className="datum-ops__hint">No slug on this piece, so it has no public address.</span>
-        )}
+        {/* A piece with no slug is still served, at its id. */}
+        <a
+          className="datum-ops__btn datum-ops__btn--primary"
+          href={`/articles/${article.slug || article.id}`}
+          rel="noreferrer noopener"
+          target="_blank"
+        >
+          /articles/{article.slug || article.id}
+        </a>
         <ArchiveAction action={action} archived={article.archived} articleId={article.id} />
         <OpenInAdmin editHref={editHref} />
       </div>

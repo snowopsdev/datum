@@ -75,6 +75,13 @@ describe('isBlockedAddress (IPv6)', () => {
     '::ffff:7f00:1',
     '::ffff:c0a8:1',
     '64:ff9b::1',
+    // IPv4 carried inside other IPv6 forms: SIIT, 6to4, Teredo.
+    '::ffff:0:7f00:1',
+    '::ffff:0:169.254.169.254',
+    '2002:7f00:1::',
+    '2002:a9fe:a9fe::1',
+    '2002:c0a8:101::',
+    '2001:0:4136:e378:8000:63bf:3fff:fdd2',
   ]
   for (const ip of blocked) {
     it(`blocks ${ip}`, () => {
@@ -87,6 +94,8 @@ describe('isBlockedAddress (IPv6)', () => {
     '2001:4860::',
     '2606:4700:4700::1111',
     '::ffff:8.8.8.8',
+    '::ffff:0:8.8.8.8',
+    '2002:808:808::1',
     'fbff::1',
     'fec0::1',
     '2a00:1450:4009:81f::200e',

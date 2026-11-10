@@ -179,12 +179,18 @@ export async function collectSetupSuggestions(
         firstSeenAt: dates[0],
       }
       if (existing) {
-        if (existing.count === data.count && existing.lastSeenAt === data.lastSeenAt) continue
+        // `signature` is unique, so a suggestion that went obsolete (its count
+        // dipped under the threshold once) can never be created again: it has
+        // to reopen here or it is gone for good. Only obsolete reopens; a
+        // person's accept or dismiss stands.
+        const reopening = existing.status === 'obsolete'
+        if (!reopening && existing.count === data.count && existing.lastSeenAt === data.lastSeenAt)
+          continue
         await payload.update({
           collection: 'setup-suggestions',
           id: existing.id,
           overrideAccess: true,
-          data,
+          data: reopening ? { ...data, status: 'open' } : data,
         })
         result.updated++
       } else {

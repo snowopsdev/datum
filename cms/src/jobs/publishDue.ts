@@ -13,8 +13,10 @@ type PublishDueTask = {
  * publish.
  *
  * Selection is purely by current state (`approved` + due + not archived), so
- * re-running converges: a crash mid-batch republishes nothing, and an article
- * someone moved off `approved` keeps its `publishAt` as inert intent.
+ * re-running converges: a crash mid-batch republishes nothing. Publishing uses
+ * the schedule up: the collection's `stampPublication` hook clears `publishAt`
+ * on the way into `published`, so a piece that is later approved again does
+ * not go out on the old date.
  *
  * Deliberately not on the `content` queue: `ContentRunTask` holds a
  * concurrency lock for whole pipeline runs, and publish latency must not wait

@@ -3003,7 +3003,7 @@ export interface LlmSetting {
       )
     | null;
   /**
-   * Drafts and refines onboarding steps (audiences, positioning, evidence bank) from your notes and site. Leave blank to use SETUP_ASSIST_MODEL from the environment, or the platform default (Claude Opus 5).
+   * Drafts and refines onboarding steps (audiences, positioning, evidence bank) from your notes and site. Leave blank to use SETUP_ASSIST_MODEL from the environment, or the brand voice extraction model above.
    */
   setupAssistModel?:
     | (

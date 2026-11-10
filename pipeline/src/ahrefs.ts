@@ -364,6 +364,24 @@ class MockAhrefsClient implements AhrefsClient {
   }
 }
 
+/** What a live run gets when `AHREFS_API_KEY` is unset: every call says so. */
+class UnconfiguredAhrefsClient implements AhrefsClient {
+  private refuse(): never {
+    throw new Error(
+      'AHREFS_API_KEY is required for keyword and SERP research in live mode. Set it, or run in mock mode.',
+    )
+  }
+  async contentGapKeywords(): Promise<GapKeyword[]> {
+    return this.refuse()
+  }
+  async serpResearch(): Promise<SerpResearch> {
+    return this.refuse()
+  }
+  async discoverKeywords(): Promise<DiscoveredKeyword[]> {
+    return this.refuse()
+  }
+}
+
 /** The slice of the workspace profile the factory needs; the whole profile satisfies it. */
 export type AhrefsProfile = Pick<ResolvedWorkspaceProfile, 'targetDomain' | 'competitors'>
 
@@ -371,8 +389,11 @@ export type AhrefsProfile = Pick<ResolvedWorkspaceProfile, 'targetDomain' | 'com
  * Run-scoped, like `createLlmClient(mode)`: the caller says which mode this
  * run is in instead of the factory reading the module-global `config.mockMode`,
  * so a queued run's mode comes from its `pipeline-runs` row. A live request
- * without a key still degrades to mock — loudly, because a "live" run silently
- * returning canned SERPs is how bad briefs get researched.
+ * without a key gets a client that refuses every call: the mock SERP is demo
+ * data on real, registrable hostnames, and a live run would crawl those hosts
+ * and pay to extract claims from whatever they serve. Refusing per call, not
+ * here, keeps the stages that never touch Ahrefs (writing, QA, scoring)
+ * running for articles that are already researched.
  *
  * `profile` says which workspace the client works for. Callers that have a
  * `payload` load it from the `workspace-profile` global; omitting it falls back
@@ -381,10 +402,7 @@ export type AhrefsProfile = Pick<ResolvedWorkspaceProfile, 'targetDomain' | 'com
  */
 export function createAhrefsClient(mode: 'mock' | 'live', profile?: AhrefsProfile): AhrefsClient {
   if (mode === 'mock') return new MockAhrefsClient()
-  if (!config.ahrefsApiKey) {
-    console.warn('[ahrefs] live mode requested but AHREFS_API_KEY is unset; using mock data')
-    return new MockAhrefsClient()
-  }
+  if (!config.ahrefsApiKey) return new UnconfiguredAhrefsClient()
   // Only live runs reach here, so there is no mock default to fall back to:
   // an env-only workspace with no TARGET_DOMAIN gets a null domain and
   // `contentGapKeywords` says so rather than researching the wrong site.

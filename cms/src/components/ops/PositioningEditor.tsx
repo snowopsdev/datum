@@ -81,8 +81,8 @@ export function PositioningEditor({
       archetype: 'the archetype',
       essence: 'the essence',
       descriptorLadder: 'the descriptor ladder',
-      vocabularyReachFor: 'the vocabulary',
-      vocabularyAvoid: 'the vocabulary',
+      vocabularyReachFor: 'the words to reach for',
+      vocabularyAvoid: 'the words to avoid',
       openRulings: 'the open rulings',
     },
     save: async () => {

@@ -18,10 +18,11 @@ const eslintConfig = [
   },
   {
     // eslint-plugin-react 7.37 still calls context.getFilename() when
-    // version is "detect"; that method was removed in ESLint 10.
+    // version is "detect"; that method was removed in ESLint 10. Keep this in
+    // step with the `react` version in package.json.
     settings: {
       react: {
-        version: '19.2.8',
+        version: '19.3.0',
       },
     },
   },
@@ -48,7 +49,26 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['.next/', 'src/payload-types.ts', 'src/payload-generated-schema.ts'],
+    // Payload generates every migration with `({ db, payload, req })`, used or
+    // not. Those 46 warnings buried anything real in the lint output. Only the
+    // arguments are exempt: an unused import or local in a migration still warns.
+    files: ['src/migrations/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          vars: 'all',
+          args: 'none',
+          ignoreRestSiblings: false,
+          varsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^(_|ignore)',
+        },
+      ],
+    },
+  },
+  {
+    ignores: ['.next/', 'src/payload-types.ts'],
   },
 ]
 

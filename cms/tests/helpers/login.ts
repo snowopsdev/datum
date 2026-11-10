@@ -4,7 +4,6 @@ import { expect } from '@playwright/test'
 export interface LoginOptions {
   dashboardPath?: '/admin' | '/admin/ops/content'
   page: Page
-  serverURL?: string
   user: {
     email: string
     password: string
@@ -13,20 +12,18 @@ export interface LoginOptions {
 
 /**
  * Logs the user into the admin panel via the login page.
+ *
+ * Paths are relative so Playwright resolves them against the configured
+ * `baseURL`, which is the one place that knows `TEST_BASE_URL` and `TEST_PORT`.
  */
-export async function login({
-  dashboardPath = '/admin',
-  page,
-  serverURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3101',
-  user,
-}: LoginOptions): Promise<void> {
-  await page.goto(`${serverURL}/admin/login`)
+export async function login({ dashboardPath = '/admin', page, user }: LoginOptions): Promise<void> {
+  await page.goto('/admin/login')
 
   await page.fill('#field-email', user.email)
   await page.fill('#field-password', user.password)
   await page.click('button[type="submit"]')
 
-  await page.waitForURL(`${serverURL}${dashboardPath}`)
+  await page.waitForURL(dashboardPath)
 
   const dashboardArtifact = page.locator('span[title="Dashboard"]')
   await expect(dashboardArtifact).toBeVisible()

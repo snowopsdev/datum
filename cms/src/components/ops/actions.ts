@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireUser } from '../../lib/requireUser'
 
 import { activeRunIncludesArticle } from '@/lib/activeRuns'
-import { CLEARED_INFORMATION_GAIN } from '@/lib/articleReviewGate'
+import { CLEARED_INFORMATION_GAIN, OVERRIDABLE_STATUSES } from '@/lib/articleReviewGate'
 import { ActivePipelineRunError } from '@/lib/createPipelineRun'
 import { errorMessage } from '@/lib/errorMessage'
 import { loadWorkspaceSetup } from '@/lib/loadWorkspaceReadiness'
@@ -48,6 +48,9 @@ const NULL_QA_RESULTS = {
     voiceNotes: null,
     notTraitViolations: null,
   },
+  // Without this the evidence verdict of the draft being thrown away stays on
+  // the article, and the review page shows it against text QA has not seen.
+  evidenceCheck: { passed: null, notes: null, claims: null },
 } as const
 
 /**
@@ -66,6 +69,36 @@ const NULL_QA_RESULTS = {
  * was there before.
  */
 const CLEARED_SCHEDULE = { publishAt: null } as const
+
+/**
+ * Statuses where no brief has been approved, so there is no draft to redo.
+ *
+ * Reset writes `drafted` and regenerate writes `researched`. From either of
+ * these statuses (a stale page, a direct call) that would start the writing
+ * without the brief ever being approved, the one transition only approval may
+ * make. Every later status has an approved brief behind it and keeps working.
+ */
+const NO_APPROVED_BRIEF: readonly ArticleStatus[] = ['topic_selected', 'brief_review']
+
+const noApprovedBrief = (verb: string) =>
+  `This article has no approved brief yet, so it cannot be ${verb}. Approve the brief first.`
+
+async function requireApprovedBrief(
+  payload: Awaited<ReturnType<typeof requireUser>>['payload'],
+  user: Awaited<ReturnType<typeof requireUser>>['user'],
+  articleId: number,
+  verb: string,
+): Promise<void> {
+  const { status } = await payload.findByID({
+    collection: 'articles',
+    id: articleId,
+    depth: 0,
+    select: { status: true },
+    overrideAccess: false,
+    user,
+  })
+  if (NO_APPROVED_BRIEF.includes(status)) throw new Error(noApprovedBrief(verb))
+}
 
 function revalidateOps(articleId?: number | string) {
   // No `/admin/ops/articles` list any more — the content board replaced it, so
@@ -226,6 +259,7 @@ export async function resetToDraftedAction(
   options?: ReviewActionOptions,
 ): Promise<QueuedRunResult> {
   const { payload, user } = await requireUser('Unauthorized')
+  await requireApprovedBrief(payload, user, articleId, 'reset')
   const updated = await payload.update({
     collection: 'articles',
     id: articleId,
@@ -473,6 +507,9 @@ export async function sendBackAction(
           voiceNotes: null,
           notTraitViolations: [],
         },
+        // An omitted group is refilled from the stored document, so the old
+        // draft's evidence verdict has to be cleared by name.
+        evidenceCheck: NULL_QA_RESULTS.evidenceCheck,
       },
       informationGain: NULL_INFORMATION_GAIN,
       ...CLEARED_SCHEDULE,
@@ -516,6 +553,13 @@ export async function overrideReviewAction(articleId: number, justification: str
     user,
   })
   const from = article.status
+  // The gates only judge a move out of these two statuses. From anywhere else
+  // (a stale page on an article someone already overrode, say) they let the
+  // write through, and the audit row below would record an override that did
+  // not happen.
+  if (!OVERRIDABLE_STATUSES.includes(from as (typeof OVERRIDABLE_STATUSES)[number])) {
+    throw new Error('Only an article in Needs review or Blocked can be overridden.')
+  }
   const runId = (await currentInformationGainRun(payload, article, user))?.id ?? null
   await payload.update({
     collection: 'articles',
@@ -560,6 +604,7 @@ export async function regenerateArticleAction(
     overrideAccess: false,
     user,
   })
+  if (NO_APPROVED_BRIEF.includes(article.status)) throw new Error(noApprovedBrief('regenerated'))
   const run = await currentInformationGainRun(payload, article, user)
   const revisionNotes = buildRegenerateRevisionNotes(run, article, note)
   const updated = await payload.update({

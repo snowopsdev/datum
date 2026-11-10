@@ -61,17 +61,19 @@ export const STOPWORDS: ReadonlySet<string> = new Set([
   'top',
   'tips',
   'ways',
-  '2024',
-  '2025',
-  '2026',
 ])
 
-/** Lower-cased alphanumeric tokens, stopwords and one/two-letter tokens dropped, deduped. */
+/** A calendar year in a keyword ("best crm 2027") says nothing about the topic. */
+const YEAR_TOKEN = /^(?:19|20)\d{2}$/
+
+/** Lower-cased alphanumeric tokens; stopwords, years and one/two-letter tokens dropped; deduped. */
 export function keywordTokens(s: string): string[] {
   const seen = new Set<string>()
   const tokens: string[] = []
   for (const token of s.toLowerCase().split(/[^a-z0-9]+/)) {
-    if (token.length < 3 || STOPWORDS.has(token) || seen.has(token)) continue
+    if (token.length < 3 || STOPWORDS.has(token) || YEAR_TOKEN.test(token) || seen.has(token)) {
+      continue
+    }
     seen.add(token)
     tokens.push(token)
   }

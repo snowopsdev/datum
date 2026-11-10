@@ -295,7 +295,8 @@ export const positioningFixtureDoc = (): Record<string, unknown> => ({
  * golden prompt test a coin toss.
  *
  * The re-check dates sit in 2027 so the demo bank is usable rather than
- * expired, and one row is deliberately rejected with a replacement, because the
+ * expired (`evidenceBankFixtureDoc` rolls them forward for a workspace created
+ * close to or after them), and one row is deliberately rejected with a replacement, because the
  * "never state these" half is the part an operator has to see working to
  * believe.
  */
@@ -377,18 +378,38 @@ export const EVIDENCE_BANK_FIXTURE: EvidenceBankContent = {
   ],
 }
 
+/** How far ahead a demo claim's re-check date is kept, in days. */
+const DEMO_RECHECK_LEAD_DAYS = 180
+
+/**
+ * A demo claim's re-check date, never closer than `DEMO_RECHECK_LEAD_DAYS`.
+ *
+ * `EVIDENCE_BANK_FIXTURE` carries fixed 2027 dates, which is right for the
+ * prompt tests that pin `asOf` and wrong for a workspace created later: a demo
+ * bank installed after those dates would arrive already expired, with nothing
+ * usable for the writer. The stored copy keeps the fixture's date while it is
+ * comfortably ahead and rolls forward once it is not.
+ */
+function demoRecheckAt(fixtureDate: string, now: Date): string | null {
+  if (!fixtureDate) return null
+  const floor = new Date(now.getTime() + DEMO_RECHECK_LEAD_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10)
+  return fixtureDate > floor ? fixtureDate : floor
+}
+
 /**
  * The evidence-bank fixture as the global stores it, with the counter that
  * makes the pre-assigned refs safe: the next row an operator adds gets `E8`,
  * not a second `E1`.
  */
-export const evidenceBankFixtureDoc = (): Record<string, unknown> => ({
+export const evidenceBankFixtureDoc = (now: Date = new Date()): Record<string, unknown> => ({
   verifiedClaims: EVIDENCE_BANK_FIXTURE.verifiedClaims.map((row) => ({
     ...row,
     clearedSurfaces: [...row.clearedSurfaces],
     // Payload rejects '' for a date column.
     sourceDate: row.sourceDate || null,
-    recheckAt: row.recheckAt || null,
+    recheckAt: demoRecheckAt(row.recheckAt, now),
     verificationDepth: row.verificationDepth || null,
   })),
   facts: EVIDENCE_BANK_FIXTURE.facts.map((row) => ({

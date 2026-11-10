@@ -4,11 +4,13 @@ import type { ArticleAuditContext } from '@/lib/articleAudit'
 import {
   CLEARED_INFORMATION_GAIN,
   gateArchivedStatus,
+  gatePublicationPath,
   gateReviewOverride,
   gateVerifiedStatus,
   invalidateStaleInformationGain,
   OVERRIDABLE_STATUSES,
   PASSING_DECISION,
+  PUBLICATION_PREDECESSORS,
   SCORED_CONTENT_FIELDS,
   UNGATED_OVERRIDE_TARGETS,
 } from '@/lib/articleReviewGate'
@@ -901,6 +903,83 @@ describe('stale information-gain invalidation', () => {
  * gate refuses status and schedule changes while `archived` holds, from every
  * writer at once — the ops actions, the raw doc view and the API.
  */
+describe('approved and published are reachable by a person only through review', () => {
+  const person = { user: { id: 7, email: 'reviewer@example.com' } }
+  const move = (from: string | undefined, to: string, req: unknown = person) =>
+    gatePublicationPath({
+      data: { status: to },
+      originalDoc: from ? { status: from } : undefined,
+      req,
+      context: {},
+    } as never)
+
+  // The statuses the other gates never judged a forward jump out of.
+  const unreviewed = [
+    'topic_selected',
+    'brief_review',
+    'researched',
+    'drafted',
+    'qa_passed',
+    'needs_revision',
+  ]
+
+  for (const to of ['approved', 'published'] as const) {
+    for (const from of unreviewed) {
+      it(`refuses ${from} to ${to}`, () => {
+        expect(() => move(from, to)).toThrow(`cannot move from ${from} to ${to}`)
+      })
+    }
+
+    it(`refuses a create at ${to}`, () => {
+      expect(() => move(undefined, to)).toThrow(`cannot be created as ${to}`)
+    })
+
+    for (const from of PUBLICATION_PREDECESSORS[to]) {
+      it(`allows ${from} to ${to}`, () => {
+        expect(move(from, to)).toEqual({ status: to })
+      })
+    }
+
+    it(`lets a re-save at ${to} through`, () => {
+      expect(move(to, to)).toEqual({ status: to })
+    })
+
+    // The publish-due job, the seed and scripts: the application's own writes.
+    it(`does not judge a write with no user (${to})`, () => {
+      expect(move('drafted', to, { user: null })).toEqual({ status: to })
+      expect(move(undefined, to, {})).toEqual({ status: to })
+    })
+  }
+
+  it('leaves every other target alone', () => {
+    for (const to of ['drafted', 'needs_revision', 'verified', 'qa_passed']) {
+      expect(move('topic_selected', to)).toEqual({ status: to })
+    }
+    expect(
+      gatePublicationPath({
+        data: { title: 'no status in this write' },
+        originalDoc: { status: 'drafted' },
+        req: person,
+        context: {},
+      } as never),
+    ).toEqual({ title: 'no status in this write' })
+  })
+
+  // The review statuses stay on the list because `gateReviewOverride` owns
+  // them: the jump is allowed here and still needs a fresh justification there.
+  it('keeps the justified override path, and only with its justification', () => {
+    expect(move('blocked', 'published')).toEqual({ status: 'published' })
+    expect(() =>
+      gateReviewOverride({
+        data: { status: 'published' },
+        originalDoc: { status: 'blocked' },
+        req: person,
+        context: {},
+      } as never),
+    ).toThrow('reviewJustification')
+  })
+})
+
 describe('archived articles refuse status and schedule changes', () => {
   const hook = (data: Record<string, unknown>, originalDoc: Record<string, unknown>) =>
     gateArchivedStatus({ data, originalDoc, req: { user: null }, context: {} } as never)

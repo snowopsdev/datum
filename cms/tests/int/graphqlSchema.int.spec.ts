@@ -48,4 +48,20 @@ describe('GraphQL application schema', () => {
       })
     }
   })
+
+  // The resolver ignores a fractional count and falls back to env or default,
+  // so the admin must not be able to save one and see it "set".
+  it('refuses a fractional or negative count and accepts a whole one', async () => {
+    const payload = await getPayload({ config: await config })
+    const previous = await payload.findGlobal({ slug: 'information-gain-policy' })
+    const save = (minVerifiedNovelClaims: number | null) =>
+      payload.updateGlobal({ slug: 'information-gain-policy', data: { minVerifiedNovelClaims } })
+    try {
+      await expect(save(1.5)).rejects.toThrow(/Minimum verified novel claims/)
+      await expect(save(-1)).rejects.toThrow(/Minimum verified novel claims/)
+      expect((await save(2)).minVerifiedNovelClaims).toBe(2)
+    } finally {
+      await save(previous.minVerifiedNovelClaims ?? null)
+    }
+  })
 })

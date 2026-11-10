@@ -59,7 +59,7 @@ Delivery settings sit apart from all of that, because no run reads them: **Webho
 
 ## Prerequisites
 
-- Node.js 22+
+- Node.js 22.22.2 or newer (the `engines` floor; older 22.x releases fail dependency checks)
 - npm with workspaces for all scripts and CI.
 - Docker for local Postgres through Docker Compose
 
@@ -87,7 +87,7 @@ npm run dev
 
 ### Seeded local admin
 
-The seed creates this account for local development. Change its password before using Datum in a shared or deployed environment.
+The seed creates this account for local development. Change its password before using Datum in a shared or deployed environment. Re-running the seed (which is also how templates are updated) leaves an existing account's password alone unless `SEED_ADMIN_PASSWORD` is set, and refuses to create the account with the default password when `NODE_ENV=production`.
 
 - Email: `admin@datum.local`
 - Password: value of `SEED_ADMIN_PASSWORD`, or `datum-dev-password` if unset
@@ -111,13 +111,12 @@ Then **New content** (`/admin/ops/new`) shows the same blockers as a notice if a
 Local development runs all three job queues in process: `content` and `webhooks` every two seconds, `scheduled` every ten. Production intentionally disables in-process autorun, so a durable worker or scheduler has to invoke each one:
 
 ```bash
-npm run jobs:run --workspace cms                                              # one content run
-npm run payload --workspace cms -- jobs:run --queue webhooks                  # webhook deliveries
-npm run payload --workspace cms -- jobs:run --queue scheduled \
-  --handle-schedules --limit 1                                                # publishes due articles
+npm run jobs:run --workspace cms          # one content run
+npm run jobs:webhooks --workspace cms     # webhook deliveries
+npm run jobs:scheduled --workspace cms    # due publishes, daily suggestion scan
 ```
 
-Each invocation of the first command processes one queued content run; schedule it repeatedly for continuous processing. Run the other two every minute or faster. [`docs/operations.md`](docs/operations.md) has the cadence, the delivery contract and the fixed limits.
+Each invocation of the first command processes one queued content run; schedule it repeatedly for continuous processing. Run the other two every minute or faster. Use these scripts, not a bare `payload jobs:run`: the Payload CLI does not set `NODE_ENV`, and without `NODE_ENV=production` it runs the development schema push against your database on every invocation. The scripts turn that push off. [`docs/operations.md`](docs/operations.md) has the cadence, the delivery contract and the fixed limits.
 
 For live API calls, set `MOCK_MODE=false` and provide the key for each chosen model's provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). Ahrefs also needs `AHREFS_API_KEY` plus a target domain and competitors, which come from the **Workspace** setup page (`/admin/ops/setup/workspace`); `TARGET_DOMAIN` and `COMPETITOR_DOMAINS` are its fallback. See [`.env.example`](.env.example).
 
@@ -149,13 +148,14 @@ Copy [`.env.example`](.env.example) and [`cms/.env.example`](cms/.env.example) â
 
 ### Test-only variables
 
-Read only by the test suites, never by the running app. Set these in your shell, not in a committed `.env`.
+For running the test suites. Set these in your shell, not in a committed `.env`.
 
 | Variable | Purpose |
 | --- | --- |
-| `DISABLE_DEV_PUSH` | `true` to turn off Payload's dev schema push, which `next dev` otherwise runs on boot. Playwright's `test:e2e` script sets it automatically so its parallel workers don't race each other pushing the same schema; set it yourself in the shell that runs `npm run dev` when you point Playwright at that server via `TEST_BASE_URL` instead. |
+| `DISABLE_DEV_PUSH` | `true` to turn off Payload's dev schema push, which `next dev` otherwise runs on boot. Playwright's `test:e2e` script sets it automatically, because E2E runs on a migration-built database and the processes that boot Payload for seeding must not push over it; set it yourself in the shell that runs `npm run dev` when you point Playwright at that server via `TEST_BASE_URL` instead. |
 | `TEST_BASE_URL` | Base URL Playwright drives instead of starting its own dev server â€” e.g. `http://127.0.0.1:3000` to test against a server you already started with `npm run dev`. Unset, Playwright starts its own on `TEST_PORT`. |
 | `TEST_PORT` | Port for the dev server Playwright starts when `TEST_BASE_URL` is unset (default `3101`). |
+| `DEV_ALLOWED_ORIGINS` (cms/.env only) | Comma-separated extra hosts allowed to load `next dev` resources, for reaching a dev server by a name other than `localhost` or `127.0.0.1` (a LAN or tailnet hostname). Development only. |
 
 ## Root scripts
 

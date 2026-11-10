@@ -78,14 +78,20 @@ probe() { npx --workspace pipeline tsx scripts/ig-e2e-probe.ts "$@"; }
 # ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Guard: mock mode"
 # Paid APIs are the one thing this script must never reach: it makes ~20 LLM
-# calls, and MOCK_MODE=false would bill every one of them. Unset is fine — the
-# pipeline's own default mocks whenever there is no ANTHROPIC_API_KEY.
-MOCK_MODE_VALUE="${MOCK_MODE:-$(sed -n 's/^MOCK_MODE=//p' .env 2>/dev/null | head -1)}"
-if [ "${MOCK_MODE_VALUE:-true}" = "false" ]; then
-  printf '   \033[31mABORT\033[0m MOCK_MODE=false — this walkthrough would call paid APIs.\n'
-  exit 1
-fi
-info "MOCK_MODE=${MOCK_MODE_VALUE:-unset (mocks by default)}"
+# calls, and a live mode would bill every one of them. The pipeline reads
+# MOCK_MODE from the shell first, then cms/.env, then the root .env, and goes
+# live on its own when the variable is unset and a provider key is present, so
+# no env file is trusted here: an explicit request for live mode aborts, and
+# anything else is pinned to mock in the shell, which wins over both files.
+case "$(printf '%s' "${MOCK_MODE:-true}" | tr '[:upper:]' '[:lower:]')" in
+  true|1|yes) ;;
+  *)
+    printf '   \033[31mABORT\033[0m MOCK_MODE=%s — this walkthrough only runs in mock mode.\n' "$MOCK_MODE"
+    exit 1
+    ;;
+esac
+export MOCK_MODE=true
+info "MOCK_MODE=true (pinned for this run)"
 
 # ---------------------------------------------------------------------------
 step=$((step + 1)); log "$step. Seed templates, admin user, and evidence sources"

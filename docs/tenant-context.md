@@ -49,6 +49,10 @@ A content run needs three things, and refuses to start without any of them:
 - a target domain, from the global or the environment
 - at least one active audience
 
+In live mode it needs a fourth: at least one competitor, because the gap
+report research starts from is measured against them. Mock mode runs on demo
+competitors and does not ask.
+
 `evaluateWorkspaceReadiness` owns that rule. `governance.ready` is the answer
 and `governance.problems` is the list of what is missing, in the words an
 operator acts on — every caller interpolates that list rather than writing its
@@ -386,7 +390,9 @@ global moves `configFingerprint`, so it stales a verification run.
 
 ## AI assist
 
-Every setup step has "Draft with AI" and "Refine". Both call one server action,
+The workspace, audience, positioning and evidence-bank steps have "Draft with
+AI" and "Refine"; the brand voice steps do not (a voice is extracted from an
+uploaded guide or written by hand). Both call one server action,
 `assistAction` in `cms/src/components/ops/setupActions.ts`, which drafts or
 revises **one section of one asset** — never a whole record, so the operator can
 read a reply before accepting it.

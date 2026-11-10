@@ -190,12 +190,13 @@ const NUMERIC_AMOUNT = String.raw`(?:${SIGN})?(?:${DIGIT_AMOUNT})(?:${MULTIPLIER
  * token as a measurement. A bare "one of the best ways" is prose, and reading a
  * value out of it would manufacture exactness mismatches from ordinary text.
  */
-const AMOUNT = String.raw`(?:${NUMERIC_AMOUNT}|${WORD_NUMBER_SRC})`
+const AMOUNT = String.raw`(?:${NUMERIC_AMOUNT}|\b(?:${WORD_NUMBER_SRC})\b)`
 
 /**
  * One left-to-right scan; alternatives are tried in order at each position, so
- * this list *is* the precedence: dates, then percent, then currency, then
- * ranges and united numbers, then a bare number (re-classified as a year below).
+ * this list *is* the precedence: dates, then decades, then percent, then
+ * currency, then ranges and united numbers, then a bare number (re-classified as
+ * a year below).
  */
 const VALUE_PATTERN = new RegExp(
   [
@@ -203,6 +204,13 @@ const VALUE_PATTERN = new RegExp(
     String.raw`\b(?<dmyD>\d{1,2})(?:st|nd|rd|th)?\s+(?<dmyM>${MONTH_SRC})\.?,?\s+(?<dmyY>\d{4})\b`,
     String.raw`\b(?<mdyM>${MONTH_SRC})\.?\s+(?<mdyD>\d{1,2})(?:st|nd|rd|th)?(?:,\s*|\s+)(?<mdyY>\d{4})\b`,
     String.raw`\b(?<myM>${MONTH_SRC})\.?,?\s+(?<myY>\d{4})\b`,
+    // `the 1990s`: a decade, which would otherwise read as 1,990 seconds. The
+    // cost is a duration written the same way (`a timeout of 2000s`), which now
+    // reads as a decade too; for 1900 to 2090 the decade is by far the commoner
+    // meaning. The apostrophe form is deliberately left alone: `2020's` is as
+    // often a possessive (`2020's lockdowns`) as a decade, and it stays the
+    // year 2020 it has always read as.
+    String.raw`\b(?<decade>(?:19|20)\d0)s\b`,
     String.raw`(?<pct>${AMOUNT})\s*(?:%|per\s?cent\b)`,
     String.raw`(?<symSign>${SIGN})?(?<symbol>[$€£])\s*(?<symAmount>${AMOUNT})`,
     String.raw`\b(?<codePre>usd|eur|gbp)\s*(?<codePreAmount>${AMOUNT})`,
@@ -261,6 +269,12 @@ function valueFromMatch(match: RegExpExecArray): ExtractedValue | ExtractedValue
   }
   if (g.myY !== undefined) {
     return { kind: 'date', value: yyyymm(Number(g.myY), monthNumber(g.myM)), unit: null, raw }
+  }
+
+  if (g.decade !== undefined) {
+    // `raw` ends in `s`: that is how `sameValue` tells a decade from the single
+    // year of the same number.
+    return { kind: 'year', value: Number(g.decade), unit: null, raw }
   }
 
   if (g.pct !== undefined) {
@@ -361,7 +375,31 @@ export function extractValues(text: string): TextValues {
  * so evidence reading `growth was 10%` cannot support `growth was -10%`.
  */
 function sameValue(a: ExtractedValue, b: ExtractedValue): boolean {
-  if (a.kind !== b.kind) return false
+  // `2000 participants` is classified as a year and `2,000 participants` as a
+  // number; they are the same figure, so the two kinds compare by value. Every
+  // other pair of kinds stays distinct.
+  //
+  // Both sides are held to the one spelling difference this is for: a year
+  // written as four bare digits, and a count written in plain digits with or
+  // without thousands separators. `2k users`, `2 thousand` and `2000 ms` are
+  // not that, and do not match a year. The rule cuts both ways by construction:
+  // `founded in 2000` is also satisfied by `2,000 customers`, because nothing
+  // in the text says which of the two a bare `2000` is.
+  //
+  // A decade (`the 2000s`) is stored as a year as well, and it is neither the
+  // count `2,000` nor the single year `2000`: it only ever matches another
+  // decade.
+  // Case-insensitive, like the pattern that extracts it: `THE 1990S` is a decade.
+  const isDecade = (v: ExtractedValue) => v.kind === 'year' && /s$/i.test(v.raw)
+  if (isDecade(a) !== isDecade(b)) return false
+  const yearOrBareNumber = (v: ExtractedValue) =>
+    (v.kind === 'year' && /^\d{4}$/.test(v.raw)) ||
+    (v.kind === 'number' &&
+      v.unit === null &&
+      /^[1-9]\d{0,2}(?:,\d{3})+$|^[1-9]\d*$/.test(v.raw))
+  const yearAgainstNumber =
+    a.kind !== b.kind && yearOrBareNumber(a) && yearOrBareNumber(b)
+  if (a.kind !== b.kind && !yearAgainstNumber) return false
   if (Math.abs(a.value - b.value) > 1e-9) return false
   if (a.unit !== null && b.unit !== null && a.unit !== b.unit) return false
   return true

@@ -2,7 +2,7 @@
 
 ## Package manager
 
-- Use npm workspaces with Node 22+: `npm install`, `npm run dev`, `npm test`.
+- Use npm workspaces with Node 22.22.2+: `npm install`, `npm run dev`, `npm test`.
 - `npm test --workspace cms` runs CMS integration and E2E tests; use `npm run test:int --workspace cms` for integration only.
 - CMS E2E starts an npm dev server by default. For an existing server, use `TEST_BASE_URL=http://127.0.0.1:3000 npm run test:e2e --workspace cms`.
 

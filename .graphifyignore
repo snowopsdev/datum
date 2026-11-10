@@ -7,6 +7,9 @@ graphify-out/
 .impeccable/
 .omc/
 
+# One-off audit artefacts (96 screenshots and a capture log).
+docs/audits/
+
 # Dependency lockfiles and generated database snapshots duplicate source data.
 package-lock.json
 cms/src/migrations/*.json

@@ -6,7 +6,7 @@
  * `stageKpis` is the reducer every in-memory caller should reach for —
  * `boardActions.ts`'s run-activity panel and the pipeline CLI's `report`
  * command both feed it their (already fetched) cost-log rows rather than
- * hand-rolling the same `Map<string, ...>` loop. `reportQueries.ts:13-40` is
+ * hand-rolling the same `Map<string, ...>` loop. `loadReportCosts` in `reportQueries.ts` is
  * this function's SQL twin: the reports page's cost table is large enough
  * that hydrating every row to reduce it in memory would be wasteful, so that
  * query does the identical group-by-stage aggregation as a single Drizzle

@@ -7,7 +7,7 @@ import {
   type SuggestionCandidate,
   type Occurrence,
 } from './types'
-export { THRESHOLDS } from './types'
+
 const distinct = (rows: Occurrence[]): Occurrence[] => [
   ...new Map(rows.map((r) => [r.articleId, r])).values(),
 ]

@@ -19,7 +19,7 @@ interface CliArgs {
 function usage(): never {
   console.error(
     'Usage: pipeline <fetch|run|report> [--count N] [--template NAME_OR_ID] [--period week|month]\n' +
-      '  fetch --template NAME_OR_ID --count N  create up to N templated topics (default 5)\n' +
+      '  fetch --template NAME_OR_ID --count N  create up to N templated topics (1-5, default 5)\n' +
       '  run                       advance all articles with a template through research -> generate -> qa -> informationGain\n' +
       '  report --period week|month  print pass rates, spend, and failure digest (default week)',
   )
@@ -36,7 +36,8 @@ function parseArgs(argv: string[]): CliArgs {
     const arg = rest[i]
     if (arg === '--count') {
       const value = Number.parseInt(rest[i + 1] ?? '', 10)
-      if (Number.isNaN(value) || value < 1) usage()
+      // `fetchTopics` caps a batch at 5; refuse a larger ask instead of quietly shrinking it.
+      if (Number.isNaN(value) || value < 1 || value > 5) usage()
       count = value
       i += 1
     } else if (arg === '--period') {

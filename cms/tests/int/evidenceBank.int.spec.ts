@@ -292,7 +292,8 @@ describe('evidence bank global', () => {
     const empty = await loadTenantContext(payload, { mode: 'mock', asOf: '2026-09-02' })
     expect(empty.evidenceBank).toBeNull()
 
-    await write(evidenceBankFixtureDoc())
+    // Pinned, so the stored dates are the fixture's own whatever today is.
+    await write(evidenceBankFixtureDoc(new Date('2026-09-02T00:00:00Z')))
     const filled = await loadTenantContext(payload, { mode: 'mock', asOf: '2026-09-02' })
     expect(filled.evidenceBank?.verifiedClaims).toHaveLength(4)
     // And it reaches the writer: the loader and the renderer are only useful
@@ -318,6 +319,26 @@ describe('evidence bank global', () => {
     // The operator's notes are stored but never reach the prompt renderer's
     // input type, so they cannot leak into a draft.
     expect(filled.evidenceBank).not.toHaveProperty('notes')
+  })
+
+  // The fixture's dates are fixed in 2027. A demo bank installed after them
+  // must not arrive already expired.
+  it('keeps the demo bank usable however late it is installed', async () => {
+    await startFresh()
+    const late = new Date('2029-03-01T00:00:00Z')
+    const doc = evidenceBankFixtureDoc(late) as { verifiedClaims: { recheckAt: string | null }[] }
+    expect(doc.verifiedClaims.map((claim) => claim.recheckAt)).toEqual([
+      '2029-08-28',
+      '2029-08-28',
+      '2029-08-28',
+      null,
+    ])
+    await write(doc)
+    const context = await loadTenantContext(payload, { mode: 'mock', asOf: '2029-03-01' })
+    const usable = context.evidenceBank?.verifiedClaims.filter(
+      (claim) => claim.recheckAt !== '' && claim.recheckAt >= '2029-03-01',
+    )
+    expect(usable).toHaveLength(3)
   })
 
   it('is a recommendation in readiness, never a blocker', async () => {

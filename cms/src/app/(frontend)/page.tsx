@@ -5,16 +5,13 @@ import React from 'react'
 
 import config from '@/payload.config'
 import { formatArticleDate } from '@/lib/articleReader'
-import { modeFromEnv } from '@/lib/workspaceReadiness'
-import { resolveWorkspaceProfile, type WorkspaceProfileDoc } from '@/lib/tenant/workspaceProfile'
-import './styles.css'
 
 export default async function HomePage() {
   const headers = await getHeaders()
   const payloadConfig = await config
   const payload = await getPayload({ config: payloadConfig })
 
-  const [{ docs: published }, profileDoc, { user }] = await Promise.all([
+  const [{ docs: published }, profile, { user }] = await Promise.all([
     payload.find({
       collection: 'articles',
       select: {
@@ -32,16 +29,14 @@ export default async function HomePage() {
     }),
     payload.findGlobal({
       slug: 'workspace-profile',
-      select: { sitePages: false },
+      select: { companyName: true },
       depth: 0,
       overrideAccess: true,
     }),
     payload.auth({ headers }),
   ])
 
-  const profile = resolveWorkspaceProfile(profileDoc as WorkspaceProfileDoc, process.env, {
-    mockDefault: modeFromEnv(process.env) === 'mock',
-  })
+  const companyName = profile.companyName?.trim()
 
   return (
     <div className="datum-home">
@@ -54,14 +49,13 @@ export default async function HomePage() {
           </nav>
         ) : null}
       </header>
-      <main className="datum-home__main">
+      {/* The layout already wraps every page in <main>; a second one is invalid. */}
+      <div className="datum-home__main">
         <h1>Published articles</h1>
         {/* No lede without a company name: the fallback repeated the heading
             word for word, which reads as a rendering bug rather than a
             subtitle. An unnamed workspace gets the heading alone. */}
-        {profile.companyName ? (
-          <p className="datum-home__lede">Articles from {profile.companyName}</p>
-        ) : null}
+        {companyName ? <p className="datum-home__lede">Articles from {companyName}</p> : null}
         {published.length === 0 ? (
           <p className="datum-home__empty">No published articles yet.</p>
         ) : (
@@ -86,7 +80,7 @@ export default async function HomePage() {
             })}
           </ul>
         )}
-      </main>
+      </div>
     </div>
   )
 }

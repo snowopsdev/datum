@@ -87,15 +87,7 @@ async function completeJSONAnthropic(
       messages: [{ role: 'user', content: request.user }],
       ...(request.needWebSearch
         ? {
-            // SDK 0.70 types only know web_search_20250305; the API accepts the
-            // newer server-tool version, so cast past the stale union.
-            tools: [
-              {
-                type: 'web_search_20260209',
-                name: 'web_search',
-                max_uses: 5,
-              } as unknown as Anthropic.ToolUnion,
-            ],
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
           }
         : {}),
     })
@@ -257,6 +249,8 @@ export interface CostContext {
   runId: string
   /** Model per stage for this run, from the admin's Models global / env / default. */
   models: Record<LlmStage, string>
+  /** The run's mode. Decides the fallback client when `llm` is not supplied. */
+  mode?: 'mock' | 'live'
   llm?: LlmClient
 }
 
@@ -289,7 +283,8 @@ export async function completeJSONLogged(
   articleId: number,
   request: LlmRequest,
 ): Promise<LlmResult> {
-  const result = await (ctx.llm ?? createLlmClient(config.mockMode ? 'mock' : 'live')).completeJSON(
+  const mode = ctx.mode ?? (config.mockMode ? 'mock' : 'live')
+  const result = await (ctx.llm ?? createLlmClient(mode)).completeJSON(
     stage,
     request,
     ctx.models[stage],

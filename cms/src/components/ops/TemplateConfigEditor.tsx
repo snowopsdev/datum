@@ -281,6 +281,9 @@ export function TemplateConfigEditor({ templates, initialId }: Props) {
               key={t.id}
               type="button"
               className={t.id === selected.id ? 'is-active' : undefined}
+              // A save in flight resolves into whichever template is open, so
+              // switching mid-save would load one template's result into another.
+              disabled={pending}
               onClick={() => {
                 if (t.id !== selected.id) guard.guardLeave(() => loadTemplate(t))
               }}

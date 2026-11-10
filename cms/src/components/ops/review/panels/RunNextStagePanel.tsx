@@ -91,7 +91,9 @@ export function RunNextStagePanel({
   const startRun = (confirmLiveCost: boolean) => {
     disarm()
     runAction(async () => {
-      if (status === 'topic_selected' && templateId) {
+      // Skipped when the piece already has this template: each call is a
+      // second write and a `template_assigned` audit row for no change.
+      if (status === 'topic_selected' && templateId && Number(templateId) !== article.templateId) {
         await assignTemplateAction(article.id, Number(templateId))
       }
       const result = await runSelectedArticlesAction({

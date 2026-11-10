@@ -43,7 +43,12 @@ describe('brand voice content helpers', () => {
     expect(content.tone).toEqual({ formality: 5, warmth: 1, boldness: 3, energy: 3 })
     expect(content.voiceAdjectives.map((a) => a.adjective)).toEqual(['a', 'b', 'c'])
     expect(content.bannedWords.map((w) => w.word)).toEqual(['Synergy', 'hype'])
-    expect(content.samples[0].text.length).toBeLessThanOrEqual(MAX_SAMPLE_CHARS + 1)
+    // Exactly the cap, ellipsis included, so parsing the result again is a no-op.
+    expect(content.samples[0].text).toHaveLength(MAX_SAMPLE_CHARS)
+    expect(content.samples[0].text.endsWith('…')).toBe(true)
+    const again = parseBrandVoiceContent(content)
+    expect(again.content.samples[0].text).toBe(content.samples[0].text)
+    expect(again.warnings.join('\n')).not.toMatch(/truncated/)
     expect(content.audience.languageLevel).toBe('professional')
     expect(warnings.join('\n')).toMatch(/adjectives/)
     expect(warnings.join('\n')).toMatch(/truncated/)

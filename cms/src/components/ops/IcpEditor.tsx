@@ -35,6 +35,7 @@ const ICP_FIELD_LABELS: Record<string, string> = {
   motivation: 'the motivation',
   solution: 'the solution',
   competition: 'the competition',
+  whyUs: 'why us',
   channels: 'the channels',
   churnTriggers: 'the churn triggers',
   notOurUser: 'who it is not',
@@ -247,7 +248,8 @@ export function IcpEditor({
         sitePagesFetchedAt,
       }}
       disabled={pending}
-      problems={current === 'review' ? problems : []}
+      // An active audience blocks Save on every step, so every step has to say why.
+      problems={current === 'review' || status === 'active' ? problems : []}
       problemsTitle={
         status === 'active'
           ? 'Fix before saving — an active audience must stay complete'

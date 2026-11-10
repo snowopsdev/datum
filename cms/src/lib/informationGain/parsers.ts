@@ -373,6 +373,15 @@ export function parseJudgeReply(
   for (const claimId of expectedClaimIds) {
     const record = byId.get(claimId)
     if (record === undefined) throw new Error(`judge reply missing claim ${claimId}`)
+    // Novelty is `1 - duplicateProbability`, so reading a missing or quoted
+    // value as 0 would call the claim maximally novel and send it to the paid
+    // verifier. Refuse the reply instead; the stage retries on the next run.
+    if (
+      typeof record.duplicateProbability !== 'number' ||
+      !Number.isFinite(record.duplicateProbability)
+    ) {
+      throw new Error(`judge reply for claim ${claimId} has no numeric duplicateProbability`)
+    }
     const utility = asRecord(record.utility) ?? {}
     signals.set(claimId, {
       duplicateProbability: asProbability(record.duplicateProbability),

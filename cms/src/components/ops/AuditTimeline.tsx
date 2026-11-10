@@ -20,7 +20,9 @@ export function AuditTimeline({ entries, title, blurb, emptyText }: Props) {
           <h2 id="audit-trail-heading">{title}</h2>
           <p>{blurb}</p>
         </div>
-        <span>{entries.length} events</span>
+        <span>
+          {entries.length} {entries.length === 1 ? 'event' : 'events'}
+        </span>
       </div>
       {entries.length === 0 ? (
         <p className="datum-ops__empty">{emptyText}</p>

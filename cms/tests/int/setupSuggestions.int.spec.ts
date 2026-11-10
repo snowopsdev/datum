@@ -245,6 +245,18 @@ it('an open suggestion whose signal disappears becomes obsolete on the next scan
   })
   await collectSetupSuggestions(payload)
   expect((await find(signature))?.status).toBe('obsolete')
+
+  // And it comes back when the signal does. `signature` is unique, so the
+  // obsolete row is the only row this suggestion can ever have: if a scan does
+  // not reopen it, the suggestion is gone for good.
+  await payload.update({
+    collection: 'articles',
+    id: kept.id,
+    overrideAccess: true,
+    data: { body: plainTextToLexical('Ordinary guidance.') as never },
+  })
+  await collectSetupSuggestions(payload)
+  expect((await find(signature))?.status).toBe('open')
 })
 
 it('a satisfied open suggestion becomes obsolete even with no new history', async () => {

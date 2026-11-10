@@ -113,6 +113,14 @@ export function isBlockedAddress(ip: string): boolean {
     // the 0/8 rule, so the unspecified and loopback addresses need no special case.
     return isBlockedIPv4(asV4)
   }
+  // ::ffff:0:a.b.c.d (SIIT, RFC 2765) and 2002:AABB:CCDD::/48 (6to4) carry an
+  // IPv4 address too: judge the one they route to.
+  const v4Of = (hi: number, lo: number) => [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff]
+  if (v6.slice(0, 4).every((group) => group === 0) && v6[4] === 0xffff && v6[5] === 0) {
+    return isBlockedIPv4(v4Of(v6[6] ?? 0, v6[7] ?? 0))
+  }
+  if (g0 === 0x2002) return isBlockedIPv4(v4Of(g1, v6[2] ?? 0))
+  if (g0 === 0x2001 && g1 === 0) return true // 2001::/32 Teredo tunnels, never a public server
   if ((g0 & 0xfe00) === 0xfc00) return true // fc00::/7 unique-local
   if ((g0 & 0xffc0) === 0xfe80) return true // fe80::/10 link-local
   if ((g0 & 0xff00) === 0xff00) return true // ff00::/8 multicast

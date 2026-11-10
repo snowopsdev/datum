@@ -167,7 +167,7 @@ export function CoreClaimsSection({ content, onChange, disabled }: PositioningSe
       empty={() => ({ claim: '', evidenceRef: '' })}
       addLabel="Add a claim"
       disabled={disabled}
-      max={5}
+      max={3}
       emptyText="No claims yet. Three is the target."
       renderRow={({ row, rowId, patch }) => (
         <>

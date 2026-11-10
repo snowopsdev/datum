@@ -12,6 +12,7 @@ import type { WorkspaceReadiness } from '@/lib/workspaceReadiness'
 // real: `runSelectedArticlesAction` branches on `instanceof`.
 const authMock = vi.fn(async () => ({ user: { id: 7, email: 'reviewer@example.com' } }))
 const findMock = vi.fn(async (_args: { collection?: string }) => ({ docs: [] }) as never)
+const updateMock = vi.fn(async (_args: { id?: number; data?: Record<string, unknown> }) => ({}) as never)
 
 const { createPipelineRunMock, loadWorkspaceSetupMock } = vi.hoisted(() => ({
   createPipelineRunMock: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('payload', async (importOriginal) => {
   const actual = await importOriginal<typeof import('payload')>()
   return {
     ...actual,
-    getPayload: vi.fn(async () => ({ auth: authMock, find: findMock })),
+    getPayload: vi.fn(async () => ({ auth: authMock, find: findMock, update: updateMock })),
   }
 })
 
@@ -54,7 +55,7 @@ const readySetup = (overrides: Record<string, unknown> = {}) =>
   }) as never
 
 const { ActivePipelineRunError } = await import('@/lib/createPipelineRun')
-const { latestRunAction, runSelectedArticlesAction } = await import(
+const { latestRunAction, removeTopicsAction, runSelectedArticlesAction } = await import(
   '@/components/ops/boardActions'
 )
 
@@ -124,10 +125,55 @@ describe('runSelectedArticlesAction', () => {
 })
 
 describe('latestRunAction', () => {
+  // The run bar polls this from every admin route, the login page included.
+  it('answers null for a signed-out caller and reads nothing', async () => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValueOnce({ user: null } as never)
+    expect(await latestRunAction()).toBeNull()
+    expect(findMock).not.toHaveBeenCalled()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+  })
+
   it('says what actually went wrong instead of a fixed sentence', async () => {
     findMock.mockRejectedValueOnce(new Error('connection terminated unexpectedly'))
     await expect(latestRunAction()).rejects.toThrow(
       'Could not load run status: connection terminated unexpectedly',
     )
+  })
+})
+
+describe('removeTopicsAction', () => {
+  const topic = { id: 1, status: 'topic_selected', keyword: 'espresso grinders' }
+
+  /** `articles` returns the topic; `pipeline-runs` returns whatever is active. */
+  const withActiveRuns = (runs: { runId: string }[]) =>
+    findMock.mockImplementation(
+      async (args: { collection?: string }) =>
+        ({ docs: args.collection === 'pipeline-runs' ? runs : [topic] }) as never,
+    )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMock.mockResolvedValue({ user: { id: 7, email: 'reviewer@example.com' } } as never)
+  })
+
+  it('archives a topic no run is carrying', async () => {
+    withActiveRuns([])
+    expect(await removeTopicsAction([1])).toMatchObject({ ok: true })
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, data: { archived: true }, overrideAccess: false }),
+    )
+  })
+
+  // An archived article refuses every status change, so removing a topic while
+  // research is running throws that research away after it has been paid for.
+  // `archiveArticleAction` refuses the same thing on the article page.
+  it('refuses a topic an active run is carrying', async () => {
+    withActiveRuns([{ runId: 'run-9' }])
+    expect(await removeTopicsAction([1])).toEqual({
+      ok: false,
+      error: 'This topic is in an active run. Wait for the run to finish before removing it.',
+    })
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })

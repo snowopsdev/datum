@@ -248,7 +248,8 @@ export async function getOrBuildSnapshot(
   // owner who sees the hit has somewhere to complain to.
   const userAgent = userAgentFor(ctx.tenant.profile.targetDomain)
   const fetched = await mapWithConcurrency(serpPages, CONCURRENCY, (page) =>
-    fetchPage(page.url, { userAgent }),
+    // The run's mode, not the process default: a mock run must never crawl.
+    fetchPage(page.url, { userAgent, mock: ctx.mode === 'mock' }),
   )
   const crawled = serpPages.map((page, index) => ({
     page,

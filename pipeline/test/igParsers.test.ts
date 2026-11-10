@@ -487,6 +487,7 @@ describe('parseJudgeReply', () => {
         claims: [
           {
             claimId: 'c001',
+            duplicateProbability: 0,
             closestBaselineClaimId: 'not-a-known-claim',
             closestInternalClaimId: 42,
             containsNumericOrTemporalClaim: 'true',
@@ -521,7 +522,7 @@ describe('parseJudgeReply', () => {
     assert.throws(
       () =>
         parseJudgeReply(
-          { claims: [{ claimId: 'c001' }] },
+          { claims: [{ claimId: 'c001', duplicateProbability: 0.2 }] },
           ['c001', 'c002'],
           queryIds,
           baselineIds,
@@ -530,12 +531,29 @@ describe('parseJudgeReply', () => {
     )
 
     const signals = parseJudgeReply(
-      { claims: [{ claimId: 'c001' }, { claimId: 'c999' }] },
+      { claims: [{ claimId: 'c001', duplicateProbability: 0.2 }, { claimId: 'c999' }] },
       ['c001'],
       queryIds,
       baselineIds,
     )
     assert.deepEqual([...signals.keys()], ['c001'])
+  })
+
+  // Novelty is 1 - duplicateProbability. Reading a missing or quoted value as 0
+  // would call the claim maximally novel and send it to the paid verifier.
+  it('refuses an entry whose duplicateProbability is missing or not a number', () => {
+    for (const duplicateProbability of [undefined, '0.9', null, Number.NaN]) {
+      assert.throws(
+        () =>
+          parseJudgeReply(
+            { claims: [{ claimId: 'c001', duplicateProbability }] },
+            ['c001'],
+            queryIds,
+            baselineIds,
+          ),
+        { message: 'judge reply for claim c001 has no numeric duplicateProbability' },
+      )
+    }
   })
 })
 

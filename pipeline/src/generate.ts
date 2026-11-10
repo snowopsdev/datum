@@ -37,8 +37,7 @@ function parseGenerated(json: unknown): GeneratedArticle {
   // `ogImage` is asked for but not required: the model has no real image to
   // point at, so the only way it can satisfy a hard requirement is to invent a
   // URL, and a fabricated image link is worse than an absent one. Structural QA
-  // already reports a missing one as OG_TAGS_MISSING, which puts it in front of
-  // a human instead of throwing away a paid generate call.
+  // does not require it either (see `structuralChecks.ts`), so the two agree.
   if (typeof record.ogImage !== 'string') record.ogImage = ''
   if (!Array.isArray(record.faqItems)) throw new Error('generate output missing faqItems array')
   for (const item of record.faqItems as unknown[]) {
