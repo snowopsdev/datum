@@ -778,6 +778,7 @@ function toEvidence(value: unknown): ScorecardEvidence[] {
     qualityScore: num(e.qualityScore),
     qualitySource:
       e.qualitySource === 'evidence-sources' ||
+      e.qualitySource === 'evidence-bank' ||
       e.qualitySource === 'rubric' ||
       e.qualitySource === 'rubric_capped'
         ? e.qualitySource

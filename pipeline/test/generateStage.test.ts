@@ -174,6 +174,34 @@ test('the generate prompt carries the bank the citations are checked against', a
   assert.match(requests.generate.system, /# Workspace/)
 })
 
+// `[F<n>]` and `[R<n>]` read naturally as prose (a keyboard key, a figure), so
+// they are markers only when the bank has that ref; `[E<n>]` always is.
+test('bracketed prose that names no bank entry is left in the text and not cited', async () => {
+  const { ctx } = ctxWith({
+    llm: {
+      async completeJSON() {
+        return {
+          json: {
+            ...JSON.parse(JSON.stringify(GENERATED)),
+            bodyMarkdown: 'Press [F12] to open the developer tools, then cite the catalogue [F5].',
+          },
+          provider: 'mock',
+          model: 'mock-generate',
+          usage: { inputTokens: 0, outputTokens: 0, webSearchRequests: 0 },
+        }
+      },
+    } as unknown as LlmClient,
+  })
+  const outcome = await generateStage.run(article, ctx)
+  const data = outcome.data as Record<string, unknown>
+  const body = lexicalToMarkdown(data.body as RichText)
+  assert.match(body, /Press \[F12\] to open the developer tools/)
+  assert.ok(!body.includes('[F5]'), `a real bank ref survived: ${body}`)
+  const refs = (data.evidenceCitations as { ref: string }[]).map((c) => c.ref)
+  assert.ok(refs.includes('F5'))
+  assert.ok(!refs.includes('F12'))
+})
+
 test('a workspace with no bank records no citations and stores the draft unchanged', async () => {
   const { ctx } = ctxWith({ tenant: emptyTenantContext('2026-09-02') })
   const outcome = await generateStage.run(article, ctx)
