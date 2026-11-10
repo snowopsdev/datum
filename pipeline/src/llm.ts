@@ -286,6 +286,17 @@ async function completeJSONOpenAI(
         billed,
       )
     }
+    // A refusal arrives as a `refusal` part on the message, with no output text.
+    const refusal = response.output
+      .flatMap((item) => (item.type === 'message' ? item.content : []))
+      .find((part) => part.type === 'refusal')
+    if (!finalText && refusal) {
+      throw new LlmReplyError(
+        `[llm:${stage}] the model refused this request: ${refusal.refusal.slice(0, 300)}`,
+        'refusal',
+        billed,
+      )
+    }
     if (!finalText) {
       throw new LlmReplyError(
         `[llm:${stage}] response contained no text (status: ${response.status}, reason: ${response.incomplete_details?.reason ?? 'n/a'})`,

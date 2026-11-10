@@ -145,6 +145,27 @@ describe('OpenAI reply errors carry what was billed', () => {
     assert.deepEqual(error.billed, billed)
   })
 
+  it('names a refusal, which comes as a message part with no output text', async () => {
+    const error = await rejection(
+      call(
+        fakeOpenAI(
+          response({
+            output_text: '',
+            output: [
+              { type: 'web_search_call' },
+              { type: 'message', content: [{ type: 'refusal', refusal: 'I can not help with that.' }] },
+            ],
+          }),
+        ),
+        'gpt-5.6-terra',
+      ),
+    )
+    assert.ok(error instanceof LlmReplyError)
+    assert.equal(error.code, 'refusal')
+    assert.match(error.message, /refused this request: I can not help with that\./)
+    assert.deepEqual(error.billed, billed)
+  })
+
   it('names an empty reply and a non-JSON reply', async () => {
     const empty = await rejection(call(fakeOpenAI(response({ output_text: '' })), 'gpt-5.6-terra'))
     assert.ok(empty instanceof LlmReplyError)
