@@ -59,7 +59,7 @@ describe('readiness reports an unrecognised MOCK_MODE', () => {
   const run = (env: Env) =>
     evaluateRuntimeReadiness({
       env,
-      models: null,
+      models: {},
       profile: resolveWorkspaceProfile(null, env, { mockDefault: modeFromEnv(env) === 'mock' }),
     })
 
@@ -88,7 +88,7 @@ describe('pipeline config at import', () => {
         '-e',
         "import('./src/config.ts').then((m) => console.log('MODE=' + m.config.mockMode))",
       ],
-      { cwd: pipelineDir, env: { PATH: process.env.PATH, ...env }, encoding: 'utf8' },
+      { cwd: pipelineDir, env: { NODE_ENV: 'test', PATH: process.env.PATH, ...env }, encoding: 'utf8' },
     )
     return { status: result.status, out: result.stdout, err: result.stderr }
   }
