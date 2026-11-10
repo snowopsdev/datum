@@ -181,9 +181,8 @@ For running the test suites. Set these in your shell, not in a committed `.env`.
 - [docs/tenant-context.md](docs/tenant-context.md) explains the workspace profile, audiences, positioning and evidence bank, how they gate a run, and how they reach the prompts.
 - [docs/information-gain.md](docs/information-gain.md) explains claim scoring, the corpus, and the source review queue.
 - [docs/operations.md](docs/operations.md) documents the job queues, webhooks, scheduled publishing, caching, and the fixed limits.
-- [docs/open-source-checklist.md](docs/open-source-checklist.md) lists the maintainer steps for making the repository public.
 
-Agent helpers live under `.claude/` and `vendor/claude-plugins/`. Datum runs without them.
+Agent helpers live under `.claude/`. Datum runs without them. The pstack plugin is not vendored; install it per user from [github.com/cursor/plugins](https://github.com/cursor/plugins) if you want it.
 
 ## License
 
