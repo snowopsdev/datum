@@ -134,6 +134,9 @@ test.describe('Admin Panel', () => {
     const toggler = page.locator('.template-default__nav-toggler').first()
     const settle = () => page.waitForTimeout(1000)
 
+    // A click before hydration is lost (the toggler has no handler yet), which
+    // is what made this flaky as the first spec on a cold dev server.
+    await expect(aside).toHaveClass(/nav--nav-hydrated/)
     await expect(aside).toHaveClass(/nav--nav-open/)
     await toggler.click()
     await expect(aside).not.toHaveClass(/nav--nav-open/)
