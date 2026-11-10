@@ -56,8 +56,11 @@ describe('assertTestDatabase', () => {
     ).toThrow()
   })
 
-  it('has nothing to judge without a DATABASE_URL', () => {
-    expect(() => assertTestDatabase({})).not.toThrow()
-    expect(() => assertTestDatabase({ DATABASE_URL: '' })).not.toThrow()
+  // Without one, Payload connects with libpq's defaults (PGDATABASE, or the OS
+  // user's name), which can be a working database.
+  it('refuses a missing DATABASE_URL unless opted in', () => {
+    expect(() => assertTestDatabase({})).toThrow(/DATABASE_URL is not set/)
+    expect(() => assertTestDatabase({ DATABASE_URL: '' })).toThrow(/DATABASE_URL is not set/)
+    expect(() => assertTestDatabase({ [TEST_DATABASE_OPT_IN]: 'true' })).not.toThrow()
   })
 })

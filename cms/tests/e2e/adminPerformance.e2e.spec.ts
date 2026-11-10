@@ -11,6 +11,7 @@ import { opsPayload, retireArticles, seedArticle } from '../helpers/seedContentO
  */
 async function gotoHydrated(page: Page, url: string) {
   const response = await page.goto(url)
+  await expect(page.locator('aside.nav')).toHaveClass(/nav--nav-hydrated/)
   return response
 }
 

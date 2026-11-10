@@ -21,18 +21,17 @@ export function databaseNameFromUrl(connectionString: string): string | null {
 }
 
 /**
- * Throws unless the suite may use `env.DATABASE_URL`. Without a `DATABASE_URL`
- * it passes: the guard judges only a database it can name. (Payload then
- * connects with libpq's defaults, so set `DATABASE_URL` for any database run.)
+ * Throws unless the suite may use `env.DATABASE_URL`. A missing one is refused
+ * too: Payload would then connect with libpq's defaults (`PGDATABASE`, or a
+ * database named after the OS user), which can be a working database.
  */
 export function assertTestDatabase(env: Record<string, string | undefined> = process.env): void {
-  const url = env.DATABASE_URL
-  if (!url) return
   if (env[TEST_DATABASE_OPT_IN] === 'true') return
-  const name = databaseNameFromUrl(url)
+  const url = env.DATABASE_URL
+  const name = url ? databaseNameFromUrl(url) : null
   if (name !== null && name.toLowerCase().includes('test')) return
   throw new Error(
-    `Refusing to run the tests against ${name === null ? 'a database whose name cannot be read from DATABASE_URL' : `the database "${name}"`}. ` +
+    `Refusing to run the tests against ${!url ? 'the default database (DATABASE_URL is not set)' : name === null ? 'a database whose name cannot be read from DATABASE_URL' : `the database "${name}"`}. ` +
       'The suites rewrite workspace state and add rows that are never removed. ' +
       'Either point DATABASE_URL at a database whose name contains "test" (for example datum_test), ' +
       `or set ${TEST_DATABASE_OPT_IN}=true to accept that this database will be modified.`,
