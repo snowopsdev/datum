@@ -161,9 +161,19 @@ const dateOrNull = (value: string | null | undefined): string | null =>
  */
 export async function saveWorkspaceProfileAction(
   input: WorkspaceProfileInput,
+  openedAt?: string | null,
 ): Promise<WorkspaceSaveResult> {
   try {
     const { payload, user } = await requireUser('Sign in first.')
+    if (openedAt) {
+      const stored = await payload.findGlobal({
+        slug: 'workspace-profile',
+        select: { updatedAt: true },
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (movedOn(stored, openedAt)) return { ok: false, error: STALE_MESSAGE }
+    }
     const competitors = input.competitors
       .map((row) => ({ domain: normaliseDomain(row.domain), name: (row.name ?? '').trim() }))
       .filter((row): row is { domain: string; name: string } => row.domain !== null)

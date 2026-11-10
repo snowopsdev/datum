@@ -41,6 +41,7 @@ const {
   saveEvidenceBankAction,
   saveIcpAction,
   savePositioningAction,
+  saveWorkspaceProfileAction,
 } = await import('@/components/ops/tenantActions')
 const { emptyIcpContent, icpContentOf } = await import('@/lib/tenant/icp')
 const { emptyPositioningContent } = await import('@/lib/tenant/positioning')
@@ -119,6 +120,31 @@ describe('positioning', () => {
     expect(second.ok).toBe(true)
     const third = await savePositioningAction({ ...emptyPositioningContent(), category: 'Three' })
     expect(third.ok).toBe(true)
+  })
+})
+
+describe('workspace profile', () => {
+  const profile = (companyName: string) => ({
+    companyName,
+    targetDomain: 'acme.example.com',
+    siteNotes: '',
+    competitors: [],
+  })
+
+  it('refuses a save opened before someone else saved, and keeps their text', async () => {
+    const first = await saveWorkspaceProfileAction(profile('Theirs'))
+    if (!first.ok) throw new Error(first.error)
+    const theirs = await saveWorkspaceProfileAction(profile('Colleague edit'), first.updatedAt)
+    expect(theirs.ok).toBe(true)
+
+    const stale = await saveWorkspaceProfileAction(profile('Stale edit'), before(first.updatedAt!))
+    expect(stale).toEqual({ ok: false, error: STALE })
+    const doc = (await payload.findGlobal({
+      slug: 'workspace-profile',
+      depth: 0,
+      overrideAccess: true,
+    })) as { companyName?: string }
+    expect(doc.companyName).toBe('Colleague edit')
   })
 })
 

@@ -10,6 +10,7 @@ interface FakeArticle {
   keyword: string
   status: string
   title?: string
+  archived?: boolean
   informationGain?: { run?: number | null; decision?: string | null } | null
   qaResults?: Record<string, unknown>
 }
@@ -204,6 +205,34 @@ test('the failure digest names an evidence-only failure', async () => {
   ])
   assert.match(report, /article 2 "Burr grinders"/)
   assert.match(report, /evidenceCheck \(failed\): Claim 1 has no backing in the bank\./)
+})
+
+test('archived articles stay out of the review queue and the failure digest', async () => {
+  const report = await reportOf(
+    [
+      {
+        id: 3,
+        keyword: 'c',
+        title: 'Kettles',
+        status: 'needs_review',
+        archived: true,
+        informationGain: { run: 13, decision: 'HUMAN_REVIEW' },
+      },
+      {
+        id: 4,
+        keyword: 'd',
+        title: 'Scales',
+        status: 'needs_revision',
+        archived: true,
+        qaResults: qa({ evidenceCheck: { passed: false, notes: 'Archived failure.' } }),
+      },
+    ],
+    [{ id: 13, reasons: [] }],
+  )
+  assert.match(reviewQueue(report), /Review queue \(0 article\(s\)/)
+  assert.match(report, /Failure digest \(0 article\(s\) at needs_revision\)/)
+  assert.doesNotMatch(report, /Kettles/)
+  assert.doesNotMatch(report, /Archived failure\./)
 })
 
 // QA fails a draft on a quoted "what we are NOT" breach even when the model

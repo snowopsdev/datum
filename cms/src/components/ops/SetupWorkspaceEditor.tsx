@@ -98,10 +98,10 @@ export function SetupWorkspaceEditor(props: WorkspaceEditorData) {
       competitors: 'the competitors',
     },
     onError: setError,
-    save: async () => {
+    save: async (_baseline, version) => {
       setError(null)
       setMessage(null)
-      const result = await saveWorkspaceProfileAction(form)
+      const result = await saveWorkspaceProfileAction(form, version)
       if (!result.ok) {
         setError(result.error)
         return null

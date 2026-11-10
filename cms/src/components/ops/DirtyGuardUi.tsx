@@ -139,11 +139,20 @@ const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tab
  * Escape is Stay. Without `save` there is no "Save and leave" — a guard that
  * cannot save should not offer it.
  */
-export function LeaveDialog({ guard, canSave = true }: { guard: AnyGuard; canSave?: boolean }) {
+export function LeaveDialog({
+  guard,
+  canSave = true,
+  pending = false,
+}: {
+  guard: AnyGuard
+  canSave?: boolean
+  /** The editor's own write in flight outside the guard (e.g. save-and-activate). */
+  pending?: boolean
+}) {
   const request = guard.leave
   // A save started from the footer or the bar counts too: leaving mid-save would
   // either lose it or submit it twice.
-  const busy = guard.leaveSaving || guard.saving
+  const busy = guard.leaveSaving || guard.saving || pending
   const stayRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 

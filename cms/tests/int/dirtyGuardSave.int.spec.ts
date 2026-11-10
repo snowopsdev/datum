@@ -19,9 +19,11 @@ type Form = { a: string }
 function Harness({
   save,
   onError,
+  pending,
 }: {
   save: (baseline: Form, version: string | null) => Promise<SavedResult<Form> | null>
   onError?: (message: string) => void
+  pending?: boolean
 }) {
   const [value, setValue] = useState<Form>({ a: 'one' })
   const guard = useDirtyGuard<Form>({
@@ -44,7 +46,7 @@ function Harness({
     React.createElement('button', { onClick: () => void guard.submit(), type: 'button' }, 'Save'),
     React.createElement('span', { 'data-testid': 'saving' }, String(guard.saving)),
     React.createElement('a', { href: '/elsewhere' }, 'Elsewhere'),
-    React.createElement(LeaveDialog, { guard }),
+    React.createElement(LeaveDialog, { guard, pending }),
   )
 }
 
@@ -138,4 +140,17 @@ it('hands the save the version the form is based on', async () => {
   })
   // After a save the next one is based on what that save returned.
   expect(save).toHaveBeenLastCalledWith({ a: 'edited' }, 'v2')
+})
+
+it("keeps the leave dialog's buttons off while the editor's own write runs", async () => {
+  const save = vi.fn(async () => ({ saved: { a: 'edited' }, version: 'v2' }))
+  // `pending` is a write the guard does not run itself, such as save-and-activate.
+  render(React.createElement(Harness, { save, pending: true }))
+  edit()
+  fireEvent.click(screen.getByRole('link', { name: 'Elsewhere' }))
+  const dialog = await screen.findByRole('alertdialog')
+  for (const button of dialog.querySelectorAll('button')) {
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  }
+  expect(save).not.toHaveBeenCalled()
 })

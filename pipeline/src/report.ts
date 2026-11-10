@@ -6,7 +6,7 @@ import { decideQualitative, type NotTraitViolation } from './qa/verdicts'
 
 type ReportArticle = Pick<
   Article,
-  'id' | 'keyword' | 'title' | 'status' | 'template' | 'qaResults' | 'informationGain'
+  'id' | 'keyword' | 'title' | 'status' | 'template' | 'qaResults' | 'informationGain' | 'archived'
 >
 
 export type ReportPeriod = 'week' | 'month'
@@ -137,6 +137,7 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
       template: true,
       qaResults: true,
       informationGain: true,
+      archived: true,
     },
     populate: { templates: { name: true } },
     pagination: false,
@@ -316,8 +317,10 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     // would only ever grow. The status is what says whether a human still owes
     // this article a decision; `ReportsPanel.tsx` reads the same queue off
     // status for the same reason.
+    // Archived pieces are set aside: nobody owes them a decision.
     const queue = scored.filter(
       (a) =>
+        a.archived !== true &&
         (a.status === 'needs_review' || a.status === 'blocked') &&
         (a.informationGain?.decision === 'HUMAN_REVIEW' || a.informationGain?.decision === 'BLOCK'),
     )
@@ -360,7 +363,7 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   }
 
   // ---- Failure digest ----
-  const needsRevision = articles.filter((a) => a.status === 'needs_revision')
+  const needsRevision = articles.filter((a) => a.status === 'needs_revision' && a.archived !== true)
   lines.push('')
   lines.push(`== Failure digest (${needsRevision.length} article(s) at needs_revision) ==`)
   const failureCodes = new Map<string, number>()
