@@ -228,6 +228,7 @@ export function buildPrompt(
     `# Output`,
     `Return a JSON object with exactly these keys: title, slug, titleTag, metaDescription, ogTitle, ogDescription, ogImage, faqItems (array of {question, answer}), bodyMarkdown.`,
     `bodyMarkdown uses ## for sections and ### for subsections, never # (the title is the page H1). Respect the SEO spec limits and the outline's section headings.`,
+    'In bodyMarkdown use only this markdown, because it is all the page renders: paragraphs (one per line, blank line between), ## and ### headings, bullet lists (lines starting with "- "), numbered lists ("1. "), quotes ("> "), **bold**, *italic*, `code`, and links as [descriptive anchor](https://example.com) with an http(s) or site-relative / URL. No tables, images, HTML, horizontal rules or nested lists; they would print as raw text.',
     ...(brandVoice ? ['Every field must follow the brand voice, not only bodyMarkdown.'] : []),
     // Only when there is a bank to cite. Asking for refs a workspace has no
     // entries for teaches the model to invent them, and an invented ref is a

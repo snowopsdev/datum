@@ -437,3 +437,13 @@ test('audienceToPrompt adds no scope line when the brand voice describes no read
   assert.match(block, /^# Audience: Café owners \(primary ICP\)\nConfidence tags say/)
   assert.equal(audienceToPrompt(BRAND_VOICE_FIXTURE, null), '')
 })
+
+test('buildPrompt names the markdown subset the page renders', () => {
+  const prompt = buildPrompt(makeArticle(baseResearch), template, null, emptyTenantContext())
+  const output = prompt.slice(prompt.indexOf('# Output'))
+  assert.match(output, /bullet lists/)
+  assert.match(output, /numbered lists/)
+  assert.match(output, /\*\*bold\*\*/)
+  assert.match(output, /\[descriptive anchor\]\(https:\/\/example\.com\)/)
+  assert.match(output, /No tables, images, HTML/)
+})
