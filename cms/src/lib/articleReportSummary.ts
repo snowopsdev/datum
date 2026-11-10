@@ -1,5 +1,10 @@
 import { ARTICLE_STATUSES } from './articleStatusMeta'
-import type { BoardArticle } from '../components/ops/articleStatus'
+import {
+  CHECK_LABEL,
+  qaFailures,
+  type BoardArticle,
+  type QaFailure,
+} from '../components/ops/articleStatus'
 
 export type ReportArticle = Pick<
   BoardArticle,
@@ -11,33 +16,41 @@ export type ReportArticle = Pick<
   | 'totalCostUsd'
   | 'qaResults'
   | 'informationGain'
->
+> & {
+  /** Archived pieces are out of the waiting and queue lists; their spend still counts. */
+  archived?: boolean | null
+}
 
+/** `QaFailure.check` is the QA-result field name; `CHECK_LABEL` is keyed by the rollup's names. */
+const CHECK_OF: Record<QaFailure['check'], keyof typeof CHECK_LABEL> = {
+  structural: 'structural',
+  factCheck: 'factCheck',
+  qualitativeReview: 'qualitative',
+  evidenceCheck: 'evidence',
+}
+const CHECK_ORDER: (keyof typeof CHECK_LABEL)[] = ['structural', 'factCheck', 'qualitative', 'evidence']
+
+/**
+ * Which checks failed, and what each said, in the words the review page uses.
+ *
+ * Failures come from `qaFailures` so a violation reads as its description, not
+ * `HEADING_STRUCTURE`, and the check names come from `CHECK_LABEL`. A check the
+ * model marked failed without writing anything down has no `qaFailures` entry
+ * but is still named, so the card never says "no check named" for a failure.
+ */
 function failureDetails(a: ReportArticle): { fails: string[]; details: string[] } {
-  const fails: string[] = []
-  const details: string[] = []
   const qa = a.qaResults
-  if (qa?.structural?.passed === false) {
-    fails.push('structural')
-    const raw = qa.structural.violations
-    if (Array.isArray(raw)) {
-      for (const v of raw) {
-        if (typeof v === 'string') details.push(v)
-        else if (v && typeof v === 'object' && 'code' in v) {
-          details.push(String((v as { code: unknown }).code))
-        }
-      }
-    }
+  const described = qaFailures(a)
+  const failed = new Set<keyof typeof CHECK_LABEL>()
+  for (const f of described) failed.add(CHECK_OF[f.check])
+  if (qa?.structural?.passed === false) failed.add('structural')
+  if (qa?.factCheck?.passed === false) failed.add('factCheck')
+  if (qa?.qualitativeReview?.passed === false) failed.add('qualitative')
+  if (qa?.evidenceCheck?.passed === false) failed.add('evidence')
+  return {
+    fails: CHECK_ORDER.filter((check) => failed.has(check)).map((check) => CHECK_LABEL[check]),
+    details: described.map((f) => f.what),
   }
-  if (qa?.factCheck?.passed === false) {
-    fails.push('factCheck')
-    if (qa.factCheck.notes) details.push(qa.factCheck.notes)
-  }
-  if (qa?.qualitativeReview?.passed === false) {
-    fails.push('qualitative')
-    if (qa.qualitativeReview.notes) details.push(qa.qualitativeReview.notes)
-  }
-  return { fails, details }
 }
 
 type IgDecision = 'PASS' | 'REVISE' | 'HUMAN_REVIEW' | 'BLOCK'
@@ -78,7 +91,7 @@ export function summarizeReportArticles(articles: ReportArticle[]) {
   for (const a of articles) byStatus[a.status] = (byStatus[a.status] ?? 0) + 1
 
   const withQa = articles.filter((a) => a.qaResults?.structural?.passed != null)
-  const rate = (key: 'structural' | 'factCheck' | 'qualitativeReview') => {
+  const rate = (key: 'structural' | 'factCheck' | 'qualitativeReview' | 'evidenceCheck') => {
     const rows = articles.filter((a) => {
       const block = a.qaResults?.[key]
       return block && typeof block === 'object' && 'passed' in block && block.passed != null
@@ -89,12 +102,16 @@ export function summarizeReportArticles(articles: ReportArticle[]) {
   const st = rate('structural')
   const fc = rate('factCheck')
   const qu = rate('qualitativeReview')
-  const failures = articles.filter((a) => a.status === 'needs_revision')
+  const ev = rate('evidenceCheck')
+  // Archived pieces are set aside: nobody is waiting on them, so they are not
+  // work to do. They stay in every count and sum below.
+  const live = articles.filter((a) => a.archived !== true)
+  const failures = live.filter((a) => a.status === 'needs_revision')
   const ig = informationGainMix(articles)
-  const igReviewQueue = articles.filter(
+  const igReviewQueue = live.filter(
     (a) => a.status === 'needs_review' || a.status === 'blocked',
   )
-  const igAwaitingScore = articles.filter((a) => a.status === 'qa_passed')
+  const igAwaitingScore = live.filter((a) => a.status === 'qa_passed')
   const published = articles.filter((a) => a.status === 'published')
   const publishedSpend = published.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
   const allSpend = articles.reduce((s, a) => s + (a.totalCostUsd ?? 0), 0)
@@ -107,6 +124,7 @@ export function summarizeReportArticles(articles: ReportArticle[]) {
     st,
     fc,
     qu,
+    ev,
     failures: failures.map((a) => ({
       id: a.id,
       title: a.title,

@@ -54,6 +54,9 @@ export const CALL_LABELS: Record<string, string> = {
   evidenceVerification: 'Hunting evidence for new claims',
   evidenceCheck: 'Checking company claims against the evidence bank',
   briefAngle: 'Proposing angles for the brief',
+  brandVoiceExtract: 'Extracting a brand voice from your samples',
+  setupAssist: 'Suggesting workspace setup',
+  topicRelevance: 'Judging whether a topic fits your workspace',
 }
 
 /** `claimExtraction` means different work depending on where the article is. */
@@ -64,6 +67,14 @@ export function callLabel(stage: string, articleStatus: string | null): string {
       : 'Reading the pages that already rank'
   }
   return CALL_LABELS[stage] ?? stage
+}
+
+/**
+ * A cost-log stage for a report that adds up a whole workspace: there is no
+ * article status to tell the two `claimExtraction` jobs apart, so it names both.
+ */
+export function costStageLabel(stage: string): string {
+  return stage === 'claimExtraction' ? 'Extracting claims' : callLabel(stage, null)
 }
 
 /** LLM work recorded against a run so far — the "is it stuck?" answer. */

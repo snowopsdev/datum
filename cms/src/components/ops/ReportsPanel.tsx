@@ -6,20 +6,11 @@ import React, { useState } from 'react'
 
 import type { RunHealth, StageKpiRow } from '../../lib/opsKpis'
 import type { ArticleReportSummary } from '../../lib/articleReportSummary'
-import { PIPELINE_STAGE_LABEL, type PipelineStageName } from '../../lib/articleStatusMeta'
 import { ARTICLE_STATUSES, CHECK_LABEL, STATUS_META } from './articleStatus'
+import { costStageLabel as stageLabel } from './boardTypes'
 import { IG_DECISIONS, IG_DECISION_LABEL } from '../../lib/articleReportSummary'
 import type { CostReport, SpendRow } from '../../lib/reportTypes'
 import './ops.css'
-
-function isPipelineStageName(stage: string): stage is PipelineStageName {
-  return Object.hasOwn(PIPELINE_STAGE_LABEL, stage)
-}
-
-/** The pipeline-stage id a cost-log row carries, said the way a person reads it. */
-function stageLabel(stage: string): string {
-  return isPipelineStageName(stage) ? PIPELINE_STAGE_LABEL[stage] : stage
-}
 
 /** A status id, said the way `STATUS_META` describes it; falls back for anything unrecognised. */
 function statusLabel(status: string): string {
@@ -72,6 +63,7 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
     st,
     fc,
     qu,
+    ev,
     failures,
     ig,
     igReviewQueue,
@@ -360,6 +352,9 @@ export function ReportsPanel({ summary, costs, stages, runs }: Props) {
             </li>
             <li>
               {CHECK_LABEL.qualitative}: {qu.p}/{qu.t}
+            </li>
+            <li>
+              {CHECK_LABEL.evidence}: {ev.p}/{ev.t}
             </li>
           </ul>
         </div>
