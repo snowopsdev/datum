@@ -38,16 +38,15 @@ Claims and clustering results are pooled up to `FACET_CLAIM_CAP` (400) claims pe
 
 ## Gap-fed generation
 
-The research stage discovers what the baseline already covers and leaves open *before* generation, not only after scoring a draft. `gapsBlock` (`pipeline/src/generatePrompt.ts`) turns an article's `research.facets` and `research.gaps` into up to four prompt sections, inserted into `buildPrompt` right before the `# Output` instructions:
+The research stage discovers what the baseline already covers and leaves open *before* generation, not only after scoring a draft. `gapsBlock` (`pipeline/src/generatePrompt.ts`) turns an article's `research.facets` and `research.gaps`, the workspace's evidence bank and any revision notes into up to five prompt sections, inserted into `buildPrompt` right before the `# Output` instructions:
 
 1. **`# Consensus facets (must cover)`** — every facet the baseline agrees on, each annotated either `(required by template)` or `(covered by N baseline sources)` — "sources", not "ranking pages", because `docCount` counts every baseline document, our own published articles included.
 2. **`# Information gaps (opportunities)`** — facets or angles the baseline leaves unanswered, each with the kind of evidence that would settle it.
-3. **`# Evidence rules`** — the `EVIDENCE_RULES` constant, verbatim, whenever either of the above sections is present.
-4. **`# Revision notes (previous attempt)`** — a re-run's `article.revisionNotes`, when present, ending with "Fix these before anything else."
+3. **`# Evidence rules`** — `evidenceRules(companyName, hasBank)` from `cms/src/lib/tenant/evidenceBank.ts`, whenever there are facets or gaps, a company name or target domain, or a usable evidence bank.
+4. **`# Evidence bank`** — the workspace's usable verified claims, facts and "never state these" entries, directly after the rules that point at it (see [tenant-context.md](tenant-context.md)).
+5. **`# Revision notes (previous attempt)`** — a re-run's `article.revisionNotes`, when present, ending with "Fix these before anything else."
 
-The evidence rules exist because "add more unique insights" without a boundary reads as an invitation to fabricate — Datum has no first-party data, so an instruction to be original has to be paired with a rule against synthetic novelty:
-
-> Do not invent unique insights. Add a novel factual claim only when you can name the public source (organisation and document) a fact-checker could find; otherwise state it as an explicitly labelled inference (for example, 'In our reading of the guidance…'). Never present first-party measurements, tests, surveys, or datasets — Datum has none. Prefer covering every consensus facet over adding novelty. Every number, date, and percentage must be one you can attribute.
+The evidence rules exist because "add more unique insights" without a boundary reads as an invitation to fabricate. A novel factual claim needs a public source a fact-checker could find, or must be stated as a labelled inference. First-party facts (anything about the company, its product, customers, results, pricing or measurements) depend on the bank: with one, they may be stated only from its entries, each cited with its ref (`… [E3].`) and within its limits; without one, they may not be stated at all. Those cited claims are what the first-party exemption under [The policy gates](#the-policy-gates) lets through scoring.
 
 An article generated before this feature has no `facets`/`gaps` and so gets none of these sections — generation behaves exactly as it did before corpus snapshots existed. A *new* article can no longer reach generation that way: a build that yields zero claims throws in the research stage, so the article never leaves `topic_selected`.
 
