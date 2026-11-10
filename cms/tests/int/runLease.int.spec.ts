@@ -72,6 +72,8 @@ async function stuckJob(runId: string, updatedAt: string) {
   return job.id
 }
 
+type Executor = { execute: (query: unknown) => Promise<{ rows: Array<Record<string, unknown>> }> }
+
 const readRun = (id: number) =>
   payload.findByID({ collection: 'pipeline-runs', id, depth: 0, overrideAccess: true })
 const readJob = (id: number | string) =>
@@ -176,6 +178,46 @@ describe('recover-stale-runs', () => {
     const failed = await readRun(run.id)
     expect(failed.status).toBe('failed')
     expect(failed.errorSummary).toContain('stopped responding')
+  })
+
+  it('leaves the job alone when its worker claims the queued run while recovery waits', async () => {
+    const run = await createRun({ status: 'queued' })
+    const jobId = await stuckJob(run.runId, ago(RUN_LEASE_TIMEOUT_MS + 60_000))
+
+    // The worker's claim, holding the row lock and not yet committed when
+    // recovery reads the run.
+    const transactionID = await payload.db.beginTransaction()
+    if (transactionID == null) throw new Error('no transaction')
+    const session = (payload.db as unknown as { sessions: Record<string, { db: Executor }> })
+      .sessions[String(transactionID)].db
+    await session.execute(sql`SELECT id FROM pipeline_runs WHERE id = ${run.id} FOR UPDATE`)
+    await session.execute(
+      sql`UPDATE pipeline_runs SET status = 'running', started_at = now(), heartbeat_at = now() WHERE id = ${run.id}`,
+    )
+    const recovery = recoverStaleRuns(payload)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await payload.db.commitTransaction(transactionID)
+    const result = await recovery
+
+    expect(result.recoveredRuns).not.toContain(run.runId)
+    expect(result.failedJobs).not.toContain(jobId)
+    expect((await readRun(run.id)).status).toBe('running')
+    const job = await readJob(jobId)
+    expect(job.processing).toBe(true)
+    expect(job.hasError ?? false).toBe(false)
+
+    await payload.update({
+      collection: 'payload-jobs',
+      id: jobId,
+      data: { processing: false },
+      overrideAccess: true,
+    })
+    await payload.update({
+      collection: 'pipeline-runs',
+      id: run.id,
+      data: { status: 'failed' },
+      overrideAccess: true,
+    })
   })
 
   it('does not touch a job that was only just taken', async () => {

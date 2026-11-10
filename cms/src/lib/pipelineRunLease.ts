@@ -254,9 +254,11 @@ export interface RecoverStaleRunsResult {
  * flag. So a job is released when its run was just recovered, or when the
  * queue has not touched it for `timeoutMs` and its run is not `running` (the
  * worker died after taking the job but before claiming the run; that run is
- * still `queued` and is failed with it). A released job is marked the way
- * Payload marks a job that ran out of retries — `hasError`, not processing —
- * so it is never picked up again.
+ * still `queued` and is failed with it). Either way the decision is made under
+ * the run row lock and the job is released in the same transaction, so a
+ * worker that claims the run first keeps both its run and its job. A released
+ * job is marked the way Payload marks a job that ran out of retries —
+ * `hasError`, not processing — so it is never picked up again.
  */
 export async function recoverStaleRuns(
   payload: Payload,
@@ -265,6 +267,47 @@ export async function recoverStaleRuns(
   const cutoff = new Date(now.getTime() - timeoutMs)
   const cutoffIso = cutoff.toISOString()
   const minutes = Math.round(timeoutMs / 60_000)
+
+  const { docs: jobs } = await payload.find({
+    collection: 'payload-jobs',
+    where: {
+      and: [
+        { taskSlug: { equals: 'content-run' } },
+        { processing: { equals: true } },
+        { completedAt: { exists: false } },
+      ],
+    },
+    select: { input: true, updatedAt: true, totalTried: true },
+    pagination: false,
+    limit: 0,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const jobRunId = (job: (typeof jobs)[number]) => {
+    const runId = (job.input as { runId?: unknown } | null | undefined)?.runId
+    return typeof runId === 'string' ? runId : null
+  }
+
+  const failedJobs: Array<number | string> = []
+  /** Release one job, still only if it is processing; `req` keeps it in the caller's transaction. */
+  const releaseJob = async (job: (typeof jobs)[number], runId: string, req?: PayloadRequest) => {
+    const result = await payload.update({
+      collection: 'payload-jobs',
+      where: { and: [{ id: { equals: job.id } }, { processing: { equals: true } }] },
+      data: {
+        processing: false,
+        hasError: true,
+        totalTried: (job.totalTried ?? 0) + 1,
+        error: {
+          message: `Released by recover-stale-runs: run ${runId} stopped responding.`,
+        },
+      },
+      depth: 0,
+      overrideAccess: true,
+      ...(req ? { req } : {}),
+    })
+    return result.docs.length > 0
+  }
 
   const { docs: candidates } = await payload.find({
     collection: 'pipeline-runs',
@@ -297,9 +340,9 @@ export async function recoverStaleRuns(
 
   const recoveredRuns: string[] = []
   for (const candidate of candidates) {
-    const recovered = await withRunRowLock(payload, candidate.id, async (row, req) => {
+    const released = await withRunRowLock(payload, candidate.id, async (row, req) => {
       const since = leaseSince(row)
-      if (row.status !== 'running' || !since || since >= cutoff) return false
+      if (row.status !== 'running' || !since || since >= cutoff) return null
       await payload.update({
         collection: 'pipeline-runs',
         id: candidate.id,
@@ -315,76 +358,65 @@ export async function recoverStaleRuns(
         overrideAccess: true,
         req,
       })
-      return true
+      const ids: Array<number | string> = []
+      for (const job of jobs) {
+        if (jobRunId(job) === candidate.runId && (await releaseJob(job, candidate.runId, req))) {
+          ids.push(job.id)
+        }
+      }
+      return ids
     })
-    if (recovered) {
+    if (released) {
       recoveredRuns.push(candidate.runId)
+      failedJobs.push(...released)
       payload.logger.warn(`recovered stale pipeline run ${candidate.runId}`)
     }
   }
 
-  const { docs: jobs } = await payload.find({
-    collection: 'payload-jobs',
-    where: {
-      and: [
-        { taskSlug: { equals: 'content-run' } },
-        { processing: { equals: true } },
-        { completedAt: { exists: false } },
-      ],
-    },
-    select: { input: true, updatedAt: true, totalTried: true },
-    pagination: false,
-    limit: 0,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const failedJobs: Array<number | string> = []
   for (const job of jobs) {
-    const runId = (job.input as { runId?: unknown } | null | undefined)?.runId
-    if (typeof runId !== 'string') continue
-    let release = recoveredRuns.includes(runId)
-    if (!release && new Date(job.updatedAt) < cutoff) {
-      const { docs } = await payload.find({
-        collection: 'pipeline-runs',
-        where: { runId: { equals: runId } },
-        select: { status: true },
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      })
-      const run = docs[0]
-      // A `running` run here has a fresh lease (stale ones were failed above),
-      // so its worker is alive and the job is genuinely in progress.
-      if (run?.status === 'running') continue
-      release = true
-      if (run?.status === 'queued') {
-        const failed = await updateRunIfStatus(payload, run.id, 'queued', {
-          status: 'failed',
-          completedAt: now.toISOString(),
-          errorSummary:
-            `The worker took this run's job but stopped responding before starting it; ` +
-            `Datum marked the run failed after ${minutes} minutes. Start a new run to carry on.`,
-        })
-        if (failed) recoveredRuns.push(runId)
-      }
-    }
-    if (!release) continue
-    const result = await payload.update({
-      collection: 'payload-jobs',
-      where: { and: [{ id: { equals: job.id } }, { processing: { equals: true } }] },
-      data: {
-        processing: false,
-        hasError: true,
-        totalTried: (job.totalTried ?? 0) + 1,
-        error: {
-          message: `Released by recover-stale-runs: run ${runId} stopped responding.`,
-        },
-      },
+    const runId = jobRunId(job)
+    if (runId == null || recoveredRuns.includes(runId)) continue
+    if (new Date(job.updatedAt) >= cutoff) continue
+    const { docs } = await payload.find({
+      collection: 'pipeline-runs',
+      where: { runId: { equals: runId } },
+      select: { runId: true },
+      limit: 1,
       depth: 0,
       overrideAccess: true,
     })
-    if (result.docs.length > 0) failedJobs.push(job.id)
+    const run = docs[0]
+    if (!run) {
+      if (await releaseJob(job, runId)) failedJobs.push(job.id)
+      continue
+    }
+    // Decided under the row lock: a worker that claims the run while this
+    // waits leaves it `running`, and then both the run and its job are its.
+    const outcome = await withRunRowLock(payload, run.id, async (row, req) => {
+      // A `running` run here has a fresh lease (stale ones were failed above),
+      // so its worker is alive and the job is genuinely in progress.
+      if (row.status === 'running') return null
+      const failedRun = row.status === 'queued'
+      if (failedRun) {
+        await payload.update({
+          collection: 'pipeline-runs',
+          id: run.id,
+          data: {
+            status: 'failed',
+            completedAt: now.toISOString(),
+            errorSummary:
+              `The worker took this run's job but stopped responding before starting it; ` +
+              `Datum marked the run failed after ${minutes} minutes. Start a new run to carry on.`,
+          },
+          depth: 0,
+          overrideAccess: true,
+          req,
+        })
+      }
+      return { failedRun, released: await releaseJob(job, runId, req) }
+    })
+    if (outcome?.failedRun) recoveredRuns.push(runId)
+    if (outcome?.released) failedJobs.push(job.id)
   }
 
   return { recoveredRuns, failedJobs }
