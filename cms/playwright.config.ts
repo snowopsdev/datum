@@ -6,8 +6,14 @@ import { defineConfig, devices } from '@playwright/test'
  */
 import 'dotenv/config'
 
+import { assertTestDatabase } from './tests/helpers/testDatabaseGuard'
+
 const testPort = process.env.TEST_PORT || '3101'
 const testBaseURL = process.env.TEST_BASE_URL || `http://127.0.0.1:${testPort}`
+
+// Playwright's own server runs the app, and the specs seed and archive rows,
+// against `DATABASE_URL`. With `TEST_BASE_URL` the server is yours to point.
+if (!process.env.TEST_BASE_URL) assertTestDatabase()
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -23,7 +29,7 @@ export default defineConfig({
   // CI so dashboard redirect expectations cannot race another spec.
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: [['list'], ['html', { open: 'never' }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */

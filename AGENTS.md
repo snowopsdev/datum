@@ -44,6 +44,7 @@ npm run jobs:run --workspace cms     # production content worker
 - Next loads `cms/.env`; the pipeline loads `cms/.env` then root `.env`. Shell variables win.
 - Use a per-worktree database for schema work. Decline dev-push prompts that would drop another branch's tables.
 - Integration tests need a migration-built database because Payload dev push is disabled under Vitest.
+- The CMS test suites refuse to start unless the `DATABASE_URL` database name contains `test` (e.g. `datum_test`), or `DATUM_TEST_DATABASE_OK=true` is set. They rewrite workspace state and add append-only rows, and `cms/.env` is loaded by default. Never opt in on a database you care about.
 - Preserve append-only audit and information-gain records and the review gates in `articleReviewGate.ts`.
 - Mock mode is the local default. Do not trigger paid APIs unless the task explicitly requires live mode.
 

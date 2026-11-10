@@ -152,6 +152,7 @@ For running the test suites. Set these in your shell, not in a committed `.env`.
 
 | Variable | Purpose |
 | --- | --- |
+| `DATUM_TEST_DATABASE_OK` | `true` to let the CMS integration suite (and Playwright, when it starts its own server) run against a database whose name does not contain `test`. Without it they refuse to start, because they rewrite workspace state and add rows that are never removed. Prefer a separate database such as `datum_test`; see [CONTRIBUTING.md](CONTRIBUTING.md). |
 | `DISABLE_DEV_PUSH` | `true` to turn off Payload's dev schema push, which `next dev` otherwise runs on boot. Playwright's `test:e2e` script sets it automatically, because E2E runs on a migration-built database and the processes that boot Payload for seeding must not push over it; set it yourself in the shell that runs `npm run dev` when you point Playwright at that server via `TEST_BASE_URL` instead. |
 | `TEST_BASE_URL` | Base URL Playwright drives instead of starting its own dev server — e.g. `http://127.0.0.1:3000` to test against a server you already started with `npm run dev`. Unset, Playwright starts its own on `TEST_PORT`. |
 | `TEST_PORT` | Port for the dev server Playwright starts when `TEST_BASE_URL` is unset (default `3101`). |
