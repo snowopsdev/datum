@@ -72,7 +72,6 @@
   --ops-green: var(--ds-success-text);
   --ops-green-deco: var(--ds-success-deco);
   --ops-sky: var(--ds-info-text);
-  --ops-sky-deco: var(--ds-info-deco);
   --ops-red: var(--ds-danger-text);
   --ops-red-deco: var(--ds-danger-deco);
 
@@ -269,6 +268,8 @@ html[data-theme='dark'] {
   margin: 0;
   color: var(--ops-ink-muted);
   font-size: 14px;
+  flex-basis: 100%;
+  text-align: right;
 }
 
 .datum-ops__run-form {
@@ -330,11 +331,6 @@ html[data-theme='dark'] {
 .datum-ops__primary-action:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.datum-ops__form-message {
-  flex-basis: 100%;
-  text-align: right;
 }
 
 @media (max-width: 760px) {
@@ -904,17 +900,6 @@ html[data-theme='dark'] {
   letter-spacing: -0.02em;
 }
 
-.datum-ops__field input[type='number'],
-.datum-ops__field input[type='text'] {
-  width: 100%;
-  border: 1px solid var(--ops-hairline);
-  border-radius: var(--ops-radius-xs);
-  padding: 6px 8px;
-  background: var(--ops-canvas);
-  color: var(--ops-ink);
-  font: inherit;
-}
-
 .datum-ops__field input[type='checkbox'] {
   margin-right: 6px;
 }
@@ -1481,10 +1466,6 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   max-width: 860px;
 }
 
-.datum-ops__tpl-new {
-  border-top: 1px solid var(--ops-hairline);
-}
-
 .datum-ops__review-footer {
   margin-top: 24px;
   padding-top: 16px;
@@ -2012,7 +1993,7 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 
 /* ── Run status panel ───────────────────────────────────────────────────
    Starting a run used to produce one toast and then silence. This is the
-   board's running commentary: what is happening now, and what a finished
+   running commentary: what is happening now, and what a finished
    run actually achieved — including the articles it could not move. */
 
 .datum-ops__runstatus {
@@ -2047,12 +2028,6 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 
 .datum-ops__runstatus p {
   margin: 0;
-}
-
-.datum-ops__pill--running,
-.datum-ops__pill--queued {
-  background: var(--ops-tint-primary);
-  color: var(--ops-primary-text);
 }
 
 .datum-ops__pill--succeeded {
@@ -2094,6 +2069,7 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 
 .datum-ops__tpl-new {
   padding: 14px 16px;
+  border-top: 1px solid var(--ops-hairline);
   border-bottom: 1px solid var(--ops-hairline);
   background: var(--ops-canvas-soft);
 }
@@ -2118,9 +2094,8 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 }
 
 /* ── Global run bar ─────────────────────────────────────────────────────
-   Mounted from a Payload provider, so it is outside `.datum-ops` and cannot
-   inherit those tokens — every colour here resolves against Payload's own
-   theme variables, with a literal fallback for each. */
+   Mounted from a Payload provider, so it is outside `.datum-ops`. It only uses
+   the colour tokens (`--ops-*`, `--ds-*`), which live on :root. */
 
 .datum-runbar {
   position: fixed;
@@ -3006,9 +2981,7 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   font-size: 14px;
 }
 
-/* ── First run ─────────────────────────────────────────────────────────── */
-
-/* What is still missing before a run, one row per governance problem. */
+/* ── Setup checklist: tag on recommended (non-blocking) rows ──────────── */
 
 .datum-first__optional {
   font-style: normal;
@@ -3019,7 +2992,8 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   margin-right: 8px;
 }
 
-/* ── Runtime banner (outside .datum-ops, so Payload theme tokens) ───────── */
+/* ── Runtime banner (outside .datum-ops; warning colours come from Payload's
+   theme, each with a literal fallback) ────────────────────────────── */
 
 .datum-runtime {
   position: sticky;
@@ -3083,6 +3057,7 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
 .datum-ops__table th {
   font-weight: 600;
   opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* ── Setup hub ─────────────────────────────────────────────────────────── */
@@ -3111,9 +3086,9 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   align-items: start;
   gap: 14px;
   padding: 16px 18px;
-  border: 1px solid var(--ops-hairline, var(--theme-elevation-150));
-  border-radius: var(--ops-radius-lg, 8px);
-  background: var(--ops-canvas, transparent);
+  border: 1px solid var(--ops-hairline);
+  border-radius: var(--ops-radius-lg);
+  background: var(--ops-canvas);
   box-sizing: border-box;
   max-width: 100%;
 }
@@ -3220,10 +3195,6 @@ body:has(.datum-runbar) [data-sonner-toaster][data-y-position='bottom'] {
   align-items: center;
   gap: 4px;
   margin: 0;
-}
-
-.datum-ops__table th {
-  white-space: nowrap;
 }
 
 /* The webhook signing secret: a password input with a deliberate reveal. */
