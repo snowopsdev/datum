@@ -30,6 +30,11 @@ export async function executeContentRun(
   { heartbeatIntervalMs = RUN_HEARTBEAT_INTERVAL_MS }: ExecuteContentRunOptions = {},
 ) {
   let heartbeat: RunHeartbeat | null = null
+  // Whether this handler moved the row to `running`. Before that the row is
+  // still `queued` (or someone else's), and the catch below must settle it as
+  // such: the job has no retries, so a queued row left behind blocks every
+  // later run until someone deletes it.
+  let claimed = false
   // Every write below is fenced on the status the run expects to find, so a
   // run that recovery failed under this worker is never written back over.
   const writeRunning = async (data: Partial<PipelineRun>) => {
@@ -42,7 +47,7 @@ export async function executeContentRun(
     const startedAt = new Date().toISOString()
     // The claim: only a queued row becomes running. A row recovery already
     // failed stays failed, and the job ends without touching it.
-    const claimed = await updateRunIfStatus(payload, run.id, 'queued', {
+    claimed = await updateRunIfStatus(payload, run.id, 'queued', {
       status: 'running',
       startedAt,
       heartbeatAt: startedAt,
@@ -103,12 +108,16 @@ export async function executeContentRun(
     return result
   } catch (error) {
     const errorSummary = safeRunError(error)
-    // Fenced too: a lost lease means the row already says what happened.
+    // Fenced too: a lost lease means the row already says what happened, and
+    // before the claim only a row still `queued` is ours to fail — never a
+    // row another handler is running.
     if (!(error instanceof RunLeaseLostError)) {
-      await updateRunIfStatus(payload, run.id, 'running', {
+      await updateRunIfStatus(payload, run.id, claimed ? 'running' : 'queued', {
         status: 'failed',
         errorSummary,
         completedAt: new Date().toISOString(),
+      }).catch((settleError) => {
+        payload.logger.error(`could not mark run ${run.runId} failed: ${safeRunError(settleError)}`)
       })
     }
     throw new Error(errorSummary)

@@ -73,6 +73,7 @@ async function stuckJob(runId: string, updatedAt: string) {
 }
 
 type Executor = { execute: (query: unknown) => Promise<{ rows: Array<Record<string, unknown>> }> }
+const db = () => (payload.db as unknown as { drizzle: Executor }).drizzle
 
 const readRun = (id: number) =>
   payload.findByID({ collection: 'pipeline-runs', id, depth: 0, overrideAccess: true })
@@ -263,6 +264,52 @@ describe('content-run lease', () => {
     const after = await readRun(run.id)
     expect(after.status).toBe('failed')
     expect(after.errorSummary).toBe('recovered earlier')
+  })
+
+  it('fails its still-queued run when the claim itself errors', async () => {
+    const run = await createRun({ requestedBy: 'lease-test-refuse-claim' })
+    // The claim write fails in the database, the way a dropped connection or
+    // a failed transaction would; the row is left queued.
+    await db().execute(sql`
+      CREATE OR REPLACE FUNCTION lease_test_refuse_claim() RETURNS trigger AS $fn$
+      BEGIN
+        IF NEW.status = 'running' AND NEW.requested_by = 'lease-test-refuse-claim' THEN
+          RAISE EXCEPTION 'claim refused by the test';
+        END IF;
+        RETURN NEW;
+      END
+      $fn$ LANGUAGE plpgsql;
+      CREATE TRIGGER lease_test_refuse_claim BEFORE UPDATE ON pipeline_runs
+        FOR EACH ROW EXECUTE FUNCTION lease_test_refuse_claim();`)
+    try {
+      await expect(executeContentRun(payload, run)).rejects.toThrow()
+    } finally {
+      await db().execute(sql`
+        DROP TRIGGER IF EXISTS lease_test_refuse_claim ON pipeline_runs;
+        DROP FUNCTION IF EXISTS lease_test_refuse_claim();`)
+    }
+    expect(runPipelineMock).not.toHaveBeenCalled()
+    // Payload fails the job for good (no retries), so a queued row left here
+    // would block every later run with nothing to recover it.
+    const after = await readRun(run.id)
+    expect(after.status).toBe('failed')
+    expect(after.errorSummary).toBeTruthy()
+    expect(after.completedAt).toBeTruthy()
+  })
+
+  it('never settles a run another handler is running', async () => {
+    const heartbeatAt = new Date().toISOString()
+    const run = await createRun({ status: 'running', startedAt: heartbeatAt, heartbeatAt })
+    await expect(executeContentRun(payload, run)).rejects.toThrow('no longer running')
+    const after = await readRun(run.id)
+    expect(after.status).toBe('running')
+    expect(after.errorSummary ?? null).toBeNull()
+    await payload.update({
+      collection: 'pipeline-runs',
+      id: run.id,
+      data: { status: 'failed' },
+      overrideAccess: true,
+    })
   })
 
   it('does not write over a run that was recovered while it was working', async () => {
