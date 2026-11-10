@@ -2,6 +2,7 @@ import type { Payload } from 'payload'
 
 import { stageKpis } from '../../cms/src/lib/opsKpis'
 import type { Article, CostLog, InformationGainRun } from '../../cms/src/payload-types'
+import { decideQualitative, type NotTraitViolation } from './qa/verdicts'
 
 type ReportArticle = Pick<
   Article,
@@ -22,6 +23,24 @@ function violationsOf(article: ReportArticle): ViolationLike[] {
     (v): v is ViolationLike =>
       typeof v === 'object' && v !== null && typeof (v as ViolationLike).code === 'string',
   )
+}
+
+/**
+ * Whether the qualitative review passed, by the rule QA applies. A review the
+ * model marked `passed` still fails the draft when it quoted a "what we are NOT"
+ * breach, so the stored `passed` flag alone overstates the pass rate.
+ */
+function qualitativePassed(qa: NonNullable<ReportArticle['qaResults']>['qualitativeReview']): boolean {
+  const review = qa ?? {}
+  return decideQualitative({
+    passed: review.passed === true,
+    notes: review.notes ?? '',
+    voiceScore: review.voiceScore ?? null,
+    voiceNotes: review.voiceNotes ?? null,
+    notTraitViolations: Array.isArray(review.notTraitViolations)
+      ? (review.notTraitViolations as NotTraitViolation[])
+      : [],
+  })
 }
 
 function templateNameOf(article: ReportArticle): string {
@@ -155,6 +174,7 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   const structural = new PassCounter()
   const factCheck = new PassCounter()
   const qualitative = new PassCounter()
+  const evidence = new PassCounter()
   const violationArticleCounts = new Map<string, number>()
   const perTemplate = new Map<
     string,
@@ -162,6 +182,7 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
       structural: PassCounter
       factCheck: PassCounter
       qualitative: PassCounter
+      evidence: PassCounter
     }
   >()
   for (const article of qaArticles) {
@@ -173,6 +194,7 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
         structural: new PassCounter(),
         factCheck: new PassCounter(),
         qualitative: new PassCounter(),
+        evidence: new PassCounter(),
       }
       perTemplate.set(name, tpl)
     }
@@ -183,8 +205,14 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
       tpl.factCheck.add(qa.factCheck.passed)
     }
     if (qa?.qualitativeReview?.passed != null) {
-      qualitative.add(qa.qualitativeReview.passed)
-      tpl.qualitative.add(qa.qualitativeReview.passed)
+      const passed = qualitativePassed(qa.qualitativeReview)
+      qualitative.add(passed)
+      tpl.qualitative.add(passed)
+    }
+    // Older drafts predate the evidence check and carry no verdict for it.
+    if (qa?.evidenceCheck?.passed != null) {
+      evidence.add(qa.evidenceCheck.passed)
+      tpl.evidence.add(qa.evidenceCheck.passed)
     }
     for (const code of new Set(violationsOf(article).map((v) => v.code))) {
       violationArticleCounts.set(code, (violationArticleCounts.get(code) ?? 0) + 1)
@@ -202,11 +230,12 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
   }
   lines.push(`factCheck: ${factCheck}`)
   lines.push(`qualitativeReview: ${qualitative}`)
+  lines.push(`evidenceCheck: ${evidence}`)
   lines.push('by template:')
   if (perTemplate.size === 0) lines.push('  (none)')
   for (const [name, tpl] of perTemplate) {
     lines.push(
-      `  ${name}: structural ${tpl.structural}, factCheck ${tpl.factCheck}, qualitativeReview ${tpl.qualitative}`,
+      `  ${name}: structural ${tpl.structural}, factCheck ${tpl.factCheck}, qualitativeReview ${tpl.qualitative}, evidenceCheck ${tpl.evidence}`,
     )
   }
 
@@ -358,7 +387,12 @@ export async function printReport(payload: Payload, period: ReportPeriod): Promi
     }
     if (qa?.qualitativeReview?.notes) {
       lines.push(
-        `  qualitativeReview (${qa.qualitativeReview.passed ? 'passed' : 'failed'}): ${qa.qualitativeReview.notes}`,
+        `  qualitativeReview (${qualitativePassed(qa.qualitativeReview) ? 'passed' : 'failed'}): ${qa.qualitativeReview.notes}`,
+      )
+    }
+    if (qa?.evidenceCheck?.notes) {
+      lines.push(
+        `  evidenceCheck (${qa.evidenceCheck.passed ? 'passed' : 'failed'}): ${qa.evidenceCheck.notes}`,
       )
     }
   }
