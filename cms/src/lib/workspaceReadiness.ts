@@ -397,3 +397,20 @@ export function evaluateWorkspaceReadiness(input: WorkspaceReadinessInput): Work
     },
   }
 }
+
+/**
+ * Why no pipeline run may start in this workspace, in the words an operator
+ * acts on, or null when one may. The same setup rule every run obeys — brand
+ * voice, workspace (target domain; competitors in live mode) and an active
+ * audience, plus the environment a live run needs. The CMS adds its live-cost
+ * confirmation on top (`gateRunReadiness`); `pipeline run` asks this directly.
+ */
+export function runReadinessRefusal(readiness: WorkspaceReadiness): string | null {
+  if (!readiness.runtime.ready) {
+    return `Configure the required environment variables: ${readiness.runtime.blockers.join(', ')}.`
+  }
+  if (!readiness.governance.ready) {
+    return `Finish setup before running the pipeline: ${readiness.governance.problems.join('; ')}.`
+  }
+  return null
+}
