@@ -46,8 +46,8 @@
     "openai": "^7.53.0",
     "payload": "3.91.0",
     "pdf-parse": "^2.4.5",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "sharp": "0.35.5"
   },
   "devDependencies": {
